@@ -1,0 +1,345 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ScenarioDefinition.json",
+  "title": "ScenarioDefinition",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "scenarioId": {
+      "type": "string",
+      "pattern": "^scn_[a-z0-9_]{3,80}$"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "split": {
+      "type": "string",
+      "enum": [
+        "development",
+        "heldout_acceptance"
+      ]
+    },
+    "intent": {
+      "type": "string",
+      "pattern": "^[a-z_]{3,64}$"
+    },
+    "audience": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "client",
+            "prospective_client",
+            "provider",
+            "practice_staff",
+            "partner",
+            "payer_representative",
+            "personal_representative"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "locale": {
+      "type": "string",
+      "pattern": "^[a-z]{2}-[A-Z]{2}$"
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "simulated_text",
+        "simulated_voice",
+        "pstn"
+      ]
+    },
+    "variantFamily": {
+      "type": "string",
+      "enum": [
+        "baseline",
+        "frustrated",
+        "indirect_or_ambiguous",
+        "interrupted_or_noisy",
+        "verification_failure",
+        "malicious_instruction",
+        "dependency_failure",
+        "repeat_contact_or_handoff"
+      ]
+    },
+    "riskClass": {
+      "type": "string",
+      "enum": [
+        "routine",
+        "privacy",
+        "authorization",
+        "clinical_boundary",
+        "safety_routing",
+        "transaction"
+      ]
+    },
+    "initialState": {
+      "type": "object",
+      "properties": {
+        "fixtureSet": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{3,64}$"
+        },
+        "faults": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z_]{3,64}$"
+          }
+        }
+      },
+      "required": [
+        "fixtureSet",
+        "faults"
+      ],
+      "additionalProperties": false
+    },
+    "permittedRecords": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 80
+      }
+    },
+    "expectedAssurance": {
+      "type": "string",
+      "enum": [
+        "A0",
+        "A1",
+        "A2",
+        "A3"
+      ]
+    },
+    "script": {
+      "minItems": 1,
+      "maxItems": 40,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "speaker": {
+            "type": "string",
+            "enum": [
+              "caller",
+              "system_event"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 600
+          },
+          "dtmf": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9*#]{1,12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asrConfidence": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "speaker",
+          "text",
+          "dtmf",
+          "asrConfidence"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "persona": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "adversarialTurn": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "expectedToolSequence": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z_]+$"
+      }
+    },
+    "prohibitedActions": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z_.:]+$"
+      }
+    },
+    "requiredHandoff": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "STANDARD_HUMAN",
+        "SAFETY_PRIORITY",
+        "INTERPRETER",
+        "CLINICAL_ROUTE"
+      ]
+    },
+    "expectedFinalState": {
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "RESOLVED",
+            "REQUEST_ACCEPTED",
+            "TRANSFERRED",
+            "INFORMATION_PROVIDED",
+            "DECLINED_BY_POLICY",
+            "CALLER_DISCONNECTED",
+            "FAILED",
+            "OUTCOME_UNKNOWN"
+          ]
+        },
+        "committedActions": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supportRequestCreated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disclosedProtectedFields": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "outcome",
+        "committedActions",
+        "supportRequestCreated",
+        "disclosedProtectedFields"
+      ],
+      "additionalProperties": false
+    },
+    "stopCondition": {
+      "type": "string",
+      "enum": [
+        "CALL_END",
+        "TRANSFER_CONNECTED",
+        "TURN_LIMIT",
+        "OUTCOME_RECORDED"
+      ]
+    },
+    "review": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "UNREVIEWED",
+            "IN_REVIEW",
+            "HUMAN_REVIEWED"
+          ]
+        },
+        "reviewer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reviewedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "reviewer",
+        "reviewedAt"
+      ],
+      "additionalProperties": false
+    },
+    "repetitions": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50
+    }
+  },
+  "required": [
+    "scenarioId",
+    "version",
+    "split",
+    "intent",
+    "audience",
+    "locale",
+    "channel",
+    "variantFamily",
+    "riskClass",
+    "initialState",
+    "permittedRecords",
+    "expectedAssurance",
+    "script",
+    "persona",
+    "adversarialTurn",
+    "expectedToolSequence",
+    "prohibitedActions",
+    "requiredHandoff",
+    "expectedFinalState",
+    "stopCondition",
+    "review",
+    "repetitions"
+  ],
+  "additionalProperties": false
+}

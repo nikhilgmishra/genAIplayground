@@ -1,0 +1,412 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/AuthContext.json",
+  "title": "AuthContext",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "callId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "sessionRef": {
+      "type": "string",
+      "pattern": "^ses_[A-Za-z0-9_-]{16,64}$"
+    },
+    "sessionGeneration": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "actorId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "selectedRole": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "client",
+            "prospective_client",
+            "provider",
+            "practice_staff",
+            "partner",
+            "payer_representative",
+            "personal_representative"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "subjectId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "organizationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "delegatedAuthority": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "grantId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "practice_delegation",
+              "partner_affiliation",
+              "legal_representative",
+              "parental_authority"
+            ]
+          },
+          "subjectId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "organizationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scopes": {
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z_]+:[a-z_]+$"
+            }
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "enrollment_system",
+              "delegation_registry",
+              "partner_contract_registry",
+              "legal_authority_registry"
+            ]
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "validUntil": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "grantId",
+          "kind",
+          "subjectId",
+          "organizationId",
+          "scopes",
+          "source",
+          "validFrom",
+          "validUntil"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "permittedScopes": {
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z_]+:[a-z_]+$"
+      }
+    },
+    "assurance": {
+      "type": "string",
+      "enum": [
+        "A0",
+        "A1",
+        "A2",
+        "A3"
+      ]
+    },
+    "authenticatedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "verificationMethod": {
+      "type": "string",
+      "enum": [
+        "none",
+        "secure_link_oidc",
+        "portal_session",
+        "otp_sms_registered_channel",
+        "otp_voice_registered_channel",
+        "human_verified"
+      ]
+    },
+    "consent": {
+      "type": "object",
+      "properties": {
+        "recording": {
+          "type": "string",
+          "enum": [
+            "GRANTED",
+            "DECLINED",
+            "UNKNOWN",
+            "NOT_REQUIRED"
+          ]
+        },
+        "automatedProcessing": {
+          "type": "string",
+          "enum": [
+            "GRANTED",
+            "DECLINED",
+            "UNKNOWN",
+            "NOT_REQUIRED"
+          ]
+        },
+        "disclosureTemplateVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "capturedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "capturedBy": {
+          "type": "string",
+          "enum": [
+            "studio_flow",
+            "human_agent",
+            "portal",
+            "none"
+          ]
+        }
+      },
+      "required": [
+        "recording",
+        "automatedProcessing",
+        "disclosureTemplateVersion",
+        "capturedAt",
+        "capturedBy"
+      ],
+      "additionalProperties": false
+    },
+    "riskFlags": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "RECENT_NUMBER_CHANGE",
+          "OTP_ABUSE_SUSPECTED",
+          "ENUMERATION_SUSPECTED",
+          "SHARED_DEVICE_POSSIBLE",
+          "PARTICIPANT_CHANGED",
+          "ACCOUNT_RECOVERY_IN_PROGRESS",
+          "FRAUD_REVIEW",
+          "SAFETY_ESCALATION_ACTIVE"
+        ]
+      }
+    },
+    "policyVersion": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+    },
+    "revoked": {
+      "type": "boolean"
+    },
+    "stepUp": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "actionDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "verifiedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "actionDigest",
+            "verifiedAt",
+            "expiresAt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "integration": {
+      "type": "object",
+      "properties": {
+        "integrationId": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{3,64}$"
+        },
+        "tenantId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        "environment": {
+          "type": "string",
+          "enum": [
+            "local",
+            "ci",
+            "sandbox",
+            "staging",
+            "production"
+          ]
+        },
+        "channel": {
+          "type": "string",
+          "enum": [
+            "mcp_tools",
+            "telephony_control",
+            "portal",
+            "console",
+            "worker",
+            "webhook"
+          ]
+        },
+        "credentialId": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128
+        },
+        "authMethod": {
+          "type": "string",
+          "enum": [
+            "oauth2_client_credentials",
+            "bearer_static_exception",
+            "mtls",
+            "oidc_workforce",
+            "local_fixture"
+          ]
+        }
+      },
+      "required": [
+        "integrationId",
+        "tenantId",
+        "environment",
+        "channel",
+        "credentialId",
+        "authMethod"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "tenantId",
+    "callId",
+    "sessionRef",
+    "sessionGeneration",
+    "actorId",
+    "selectedRole",
+    "subjectId",
+    "organizationId",
+    "delegatedAuthority",
+    "permittedScopes",
+    "assurance",
+    "authenticatedAt",
+    "expiresAt",
+    "verificationMethod",
+    "consent",
+    "riskFlags",
+    "policyVersion",
+    "revoked",
+    "stepUp",
+    "integration"
+  ],
+  "additionalProperties": false
+}

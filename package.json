@@ -1,0 +1,27 @@
+{
+  "name": "voice-support-platform",
+  "private": true,
+  "description": "Enterprise mental-healthcare administrative voice support control plane (offline vertical slice; see docs/IMPLEMENTATION_STATUS.md)",
+  "license": "MIT",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12 <23"
+  },
+  "scripts": {
+    "tools": "bash scripts/fetch-tools.sh",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "policy:test": "bash scripts/policy.sh test",
+    "policy:build": "bash scripts/policy.sh build",
+    "build": "pnpm -r build",
+    "demo": "pnpm --filter @vsp/platform demo",
+    "start": "pnpm --filter @vsp/platform start:local",
+    "evidence": "pnpm --filter @vsp/platform evidence"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

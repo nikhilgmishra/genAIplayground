@@ -1,0 +1,433 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/EvaluationResult.json",
+  "title": "EvaluationResult",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "runId": {
+      "type": "string",
+      "pattern": "^run_[A-Za-z0-9_-]{8,64}$"
+    },
+    "runAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "local",
+        "ci",
+        "sandbox",
+        "staging",
+        "production"
+      ]
+    },
+    "executionMode": {
+      "type": "string",
+      "enum": [
+        "local_fixture",
+        "vendor_sandbox",
+        "pstn_sandbox",
+        "production_pilot"
+      ]
+    },
+    "scenarioId": {
+      "type": "string"
+    },
+    "scenarioVersion": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "repetition": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "corpusSplit": {
+      "type": "string",
+      "enum": [
+        "development",
+        "heldout_acceptance"
+      ]
+    },
+    "audience": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "client",
+            "prospective_client",
+            "provider",
+            "practice_staff",
+            "partner",
+            "payer_representative",
+            "personal_representative"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "language": {
+      "type": "string"
+    },
+    "channel": {
+      "type": "string"
+    },
+    "variant": {
+      "type": "string",
+      "enum": [
+        "baseline",
+        "frustrated",
+        "indirect_or_ambiguous",
+        "interrupted_or_noisy",
+        "verification_failure",
+        "malicious_instruction",
+        "dependency_failure",
+        "repeat_contact_or_handoff"
+      ]
+    },
+    "expectedPermissions": {
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "versions": {
+      "type": "object",
+      "properties": {
+        "agentConfig": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "voice": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "promptTemplates": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "policyBundle": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "toolCatalog": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "knowledgeSnapshot": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "schema": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        }
+      },
+      "required": [
+        "agentConfig",
+        "model",
+        "voice",
+        "promptTemplates",
+        "policyBundle",
+        "toolCatalog",
+        "knowledgeSnapshot",
+        "schema"
+      ],
+      "additionalProperties": false
+    },
+    "vendorInteractionId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 128
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "vendorSessionId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 128
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "assertions": {
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "assertionId": {
+            "type": "string",
+            "pattern": "^[a-z0-9_.-]{3,80}$"
+          },
+          "hardGate": {
+            "type": "boolean"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL",
+              "INCONCLUSIVE",
+              "NOT_RUN",
+              "BLOCKED"
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 400
+          }
+        },
+        "required": [
+          "assertionId",
+          "hardGate",
+          "verdict",
+          "detail"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "safetyResult": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "INCONCLUSIVE",
+        "NOT_RUN",
+        "BLOCKED"
+      ]
+    },
+    "privacyResult": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "INCONCLUSIVE",
+        "NOT_RUN",
+        "BLOCKED"
+      ]
+    },
+    "authenticationResult": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "INCONCLUSIVE",
+        "NOT_RUN",
+        "BLOCKED"
+      ]
+    },
+    "transactionResult": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "INCONCLUSIVE",
+        "NOT_RUN",
+        "BLOCKED"
+      ]
+    },
+    "auditEvidenceResult": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "INCONCLUSIVE",
+        "NOT_RUN",
+        "BLOCKED"
+      ]
+    },
+    "committedState": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "qualityScores": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 5
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "latencyMs": {
+      "type": "object",
+      "properties": {
+        "p50": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p95": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p99": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "p50",
+        "p95",
+        "p99"
+      ],
+      "additionalProperties": false
+    },
+    "costUsd": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "transferOutcome": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 64
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "finalResolution": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "RESOLVED",
+            "REQUEST_ACCEPTED",
+            "TRANSFERRED",
+            "INFORMATION_PROVIDED",
+            "DECLINED_BY_POLICY",
+            "CALLER_DISCONNECTED",
+            "FAILED",
+            "OUTCOME_UNKNOWN"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "failureCode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 64
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evidenceRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reviewer": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 80
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "INCONCLUSIVE",
+        "NOT_RUN",
+        "BLOCKED"
+      ]
+    }
+  },
+  "required": [
+    "runId",
+    "runAt",
+    "environment",
+    "executionMode",
+    "scenarioId",
+    "scenarioVersion",
+    "repetition",
+    "corpusSplit",
+    "audience",
+    "language",
+    "channel",
+    "variant",
+    "expectedPermissions",
+    "versions",
+    "vendorInteractionId",
+    "vendorSessionId",
+    "assertions",
+    "safetyResult",
+    "privacyResult",
+    "authenticationResult",
+    "transactionResult",
+    "auditEvidenceResult",
+    "committedState",
+    "qualityScores",
+    "latencyMs",
+    "costUsd",
+    "transferOutcome",
+    "finalResolution",
+    "failureCode",
+    "evidenceRef",
+    "reviewer",
+    "verdict"
+  ],
+  "additionalProperties": false
+}

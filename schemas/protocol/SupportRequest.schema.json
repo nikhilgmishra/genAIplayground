@@ -1,0 +1,345 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/SupportRequest.json",
+  "title": "SupportRequest",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "supportRequestId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "referenceNumber": {
+      "type": "string",
+      "pattern": "^SR-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "interactionExternalId": {
+      "type": "string",
+      "pattern": "^int_[A-Za-z0-9_-]{16,64}$"
+    },
+    "issueExternalId": {
+      "type": "string",
+      "pattern": "^iss_[A-Za-z0-9_-]{16,64}$"
+    },
+    "audience": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "client",
+            "prospective_client",
+            "provider",
+            "practice_staff",
+            "partner",
+            "payer_representative",
+            "personal_representative"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "subjectRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "issueCategory": {
+      "type": "string",
+      "enum": [
+        "general_question",
+        "portal_login_help",
+        "appointment",
+        "billing_question",
+        "billing_dispute",
+        "claim_status",
+        "provider_onboarding",
+        "credentialing_documents",
+        "remittance",
+        "partner_intake",
+        "complaint",
+        "case_follow_up",
+        "privacy_concern",
+        "safety_concern",
+        "clinical_question_redirected",
+        "accessibility_request",
+        "language_support",
+        "other"
+      ]
+    },
+    "disposition": {
+      "type": "string",
+      "enum": [
+        "RESOLVED",
+        "REQUEST_ACCEPTED",
+        "TRANSFERRED",
+        "INFORMATION_PROVIDED",
+        "DECLINED_BY_POLICY",
+        "CALLER_DISCONNECTED",
+        "FAILED",
+        "OUTCOME_UNKNOWN"
+      ]
+    },
+    "ownerQueue": {
+      "type": "string",
+      "pattern": "^q_[a-z0-9_]{2,40}$"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "P1_SAFETY",
+        "P2_URGENT",
+        "P3_STANDARD",
+        "P4_LOW"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 600
+    },
+    "summaryProvenance": {
+      "type": "string",
+      "enum": [
+        "template_assembled",
+        "human_reviewed"
+      ]
+    },
+    "attempted": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z_.]{3,64}$"
+      }
+    },
+    "commitReceiptIds": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+      }
+    },
+    "sourceCallIds": {
+      "minItems": 1,
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+      }
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+    },
+    "consent": {
+      "type": "object",
+      "properties": {
+        "recording": {
+          "type": "string",
+          "enum": [
+            "GRANTED",
+            "DECLINED",
+            "UNKNOWN",
+            "NOT_REQUIRED"
+          ]
+        },
+        "automatedProcessing": {
+          "type": "string",
+          "enum": [
+            "GRANTED",
+            "DECLINED",
+            "UNKNOWN",
+            "NOT_REQUIRED"
+          ]
+        },
+        "disclosureTemplateVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "capturedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "capturedBy": {
+          "type": "string",
+          "enum": [
+            "studio_flow",
+            "human_agent",
+            "portal",
+            "none"
+          ]
+        }
+      },
+      "required": [
+        "recording",
+        "automatedProcessing",
+        "disclosureTemplateVersion",
+        "capturedAt",
+        "capturedBy"
+      ],
+      "additionalProperties": false
+    },
+    "nextStep": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 200
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "deadline": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "versions": {
+      "type": "object",
+      "properties": {
+        "agentConfig": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "voice": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "promptTemplates": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "policyBundle": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "toolCatalog": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "knowledgeSnapshot": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "schema": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        }
+      },
+      "required": [
+        "agentConfig",
+        "model",
+        "voice",
+        "promptTemplates",
+        "policyBundle",
+        "toolCatalog",
+        "knowledgeSnapshot",
+        "schema"
+      ],
+      "additionalProperties": false
+    },
+    "restricted": {
+      "type": "boolean"
+    },
+    "syncState": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "SYNCING",
+        "SYNCED",
+        "RETRY_SCHEDULED",
+        "DEAD_LETTER"
+      ]
+    },
+    "salesforceCaseId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]{15,18}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    }
+  },
+  "required": [
+    "supportRequestId",
+    "referenceNumber",
+    "tenantId",
+    "interactionExternalId",
+    "issueExternalId",
+    "audience",
+    "subjectRef",
+    "issueCategory",
+    "disposition",
+    "ownerQueue",
+    "priority",
+    "summary",
+    "summaryProvenance",
+    "attempted",
+    "commitReceiptIds",
+    "sourceCallIds",
+    "language",
+    "consent",
+    "nextStep",
+    "deadline",
+    "versions",
+    "restricted",
+    "syncState",
+    "salesforceCaseId",
+    "createdAt",
+    "updatedAt"
+  ],
+  "additionalProperties": false
+}

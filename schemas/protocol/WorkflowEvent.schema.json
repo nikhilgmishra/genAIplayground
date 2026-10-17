@@ -1,0 +1,152 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/WorkflowEvent.json",
+  "title": "WorkflowEvent",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "workflowId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "workflowType": {
+      "type": "string",
+      "enum": [
+        "billing_dispute_review",
+        "provider_document_review",
+        "claim_investigation",
+        "partner_onboarding",
+        "support_request_sync",
+        "callback_request",
+        "complaint_review"
+      ]
+    },
+    "definitionVersion": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+    },
+    "fromState": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "ACCEPTED",
+            "VALIDATING",
+            "WAITING_FOR_SYSTEM",
+            "WAITING_FOR_HUMAN",
+            "WAITING_FOR_CALLER",
+            "READY_TO_COMMIT",
+            "COMPLETED",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "toState": {
+      "type": "string",
+      "enum": [
+        "ACCEPTED",
+        "VALIDATING",
+        "WAITING_FOR_SYSTEM",
+        "WAITING_FOR_HUMAN",
+        "WAITING_FOR_CALLER",
+        "READY_TO_COMMIT",
+        "COMPLETED",
+        "FAILED",
+        "CANCELLED"
+      ]
+    },
+    "trigger": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "system",
+            "staff",
+            "caller",
+            "external_system"
+          ]
+        },
+        "ref": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "additionalProperties": false
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "deadline": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "correlationId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "sourceRecordRefs": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 160
+      }
+    }
+  },
+  "required": [
+    "eventId",
+    "workflowId",
+    "workflowType",
+    "definitionVersion",
+    "fromState",
+    "toState",
+    "trigger",
+    "actor",
+    "occurredAt",
+    "deadline",
+    "attempt",
+    "correlationId",
+    "sourceRecordRefs"
+  ],
+  "additionalProperties": false
+}

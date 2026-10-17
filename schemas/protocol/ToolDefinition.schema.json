@@ -1,0 +1,161 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ToolDefinition.json",
+  "title": "ToolDefinition",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{2,63}$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 600
+    },
+    "safetyClass": {
+      "type": "string",
+      "enum": [
+        "SAFETY_AND_HUMAN_ROUTE",
+        "PUBLIC_READ",
+        "PROTECTED_READ",
+        "PREPARE_MUTATION",
+        "COMMIT_MUTATION",
+        "INTAKE"
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "outputSchema": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "dataClassification": {
+      "type": "string",
+      "enum": [
+        "PUBLIC",
+        "INTERNAL",
+        "PHI",
+        "PHI_RESTRICTED",
+        "FINANCIAL",
+        "VERIFICATION_SECRET"
+      ]
+    },
+    "minAssurance": {
+      "type": "string",
+      "enum": [
+        "A0",
+        "A1",
+        "A2",
+        "A3"
+      ]
+    },
+    "permissions": {
+      "minItems": 1,
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z_]+:[a-z_]+$"
+      }
+    },
+    "timeoutMs": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 10000
+    },
+    "retryPolicy": {
+      "type": "object",
+      "properties": {
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "backoffMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000
+        },
+        "jitter": {
+          "type": "boolean"
+        },
+        "retryOn": {
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "TIMEOUT_BEFORE_SEND",
+              "CONNECTION_REFUSED",
+              "HTTP_429",
+              "HTTP_503"
+            ]
+          }
+        }
+      },
+      "required": [
+        "maxAttempts",
+        "backoffMs",
+        "jitter",
+        "retryOn"
+      ],
+      "additionalProperties": false
+    },
+    "idempotency": {
+      "type": "string",
+      "enum": [
+        "NATURALLY_IDEMPOTENT",
+        "IDEMPOTENCY_KEY_REQUIRED",
+        "PREPARED_ACTION_DIGEST"
+      ]
+    },
+    "consequential": {
+      "type": "boolean"
+    },
+    "maxInputBytes": {
+      "type": "integer",
+      "minimum": 64,
+      "maximum": 16384
+    },
+    "contracts": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z_]+@\\d+$"
+      }
+    }
+  },
+  "required": [
+    "name",
+    "version",
+    "description",
+    "safetyClass",
+    "inputSchema",
+    "outputSchema",
+    "dataClassification",
+    "minAssurance",
+    "permissions",
+    "timeoutMs",
+    "retryPolicy",
+    "idempotency",
+    "consequential",
+    "maxInputBytes",
+    "contracts"
+  ],
+  "additionalProperties": false
+}

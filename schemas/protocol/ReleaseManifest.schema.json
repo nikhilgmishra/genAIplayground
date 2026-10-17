@@ -1,0 +1,466 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ReleaseManifest.json",
+  "title": "ReleaseManifest",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "manifestVersion": {
+      "type": "string",
+      "const": "release-manifest.v1"
+    },
+    "releaseId": {
+      "type": "string",
+      "pattern": "^rel_[A-Za-z0-9_-]{8,64}$"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "targetEnvironment": {
+      "type": "string",
+      "enum": [
+        "local",
+        "ci",
+        "sandbox",
+        "staging",
+        "production"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "IMPLEMENTED_OFFLINE",
+        "VERIFIED_SANDBOX",
+        "APPROVED_PILOT",
+        "VERIFIED_PRODUCTION",
+        "BLOCKED"
+      ]
+    },
+    "sourceCommit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "build": {
+      "type": "object",
+      "properties": {
+        "buildId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "imageDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 128
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "buildId",
+        "imageDigest"
+      ],
+      "additionalProperties": false
+    },
+    "infrastructurePlanDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+    },
+    "migrationsDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "talkdeskConfigurationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 128
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "versions": {
+      "type": "object",
+      "properties": {
+        "agentConfig": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "voice": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "promptTemplates": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "policyBundle": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "toolCatalog": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "knowledgeSnapshot": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "schema": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        }
+      },
+      "required": [
+        "agentConfig",
+        "model",
+        "voice",
+        "promptTemplates",
+        "policyBundle",
+        "toolCatalog",
+        "knowledgeSnapshot",
+        "schema"
+      ],
+      "additionalProperties": false
+    },
+    "toolSchemaDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "policyBundleDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "knowledgeSnapshotDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evaluationCorpusDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "testEvidence": {
+      "maxItems": 128,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "pattern": "^[a-z_]{3,40}$"
+          },
+          "ref": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "digest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL",
+              "INCONCLUSIVE",
+              "NOT_RUN",
+              "BLOCKED"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "digest",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "quotaAndLoadEvidence": {
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "pattern": "^[a-z_]{3,40}$"
+          },
+          "ref": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "digest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL",
+              "INCONCLUSIVE",
+              "NOT_RUN",
+              "BLOCKED"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "ref",
+          "digest",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "retentionConfigurationDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rollbackTarget": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 128
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "approvals": {
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "approvalId": {
+            "type": "string",
+            "pattern": "^apr_[A-Za-z0-9_-]{8,64}$"
+          },
+          "approver": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 120
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "privacy_counsel",
+                  "security_leadership",
+                  "clinical_safety_lead",
+                  "finance",
+                  "operations",
+                  "executive_sponsor",
+                  "identity_owner",
+                  "salesforce_admin",
+                  "talkdesk_admin",
+                  "sre_lead",
+                  "qa_language_lead"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "role"
+            ],
+            "additionalProperties": false
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "PHI_PROCESSING",
+              "VENDOR_SANDBOX_INTEGRATION",
+              "BILLABLE_TEST_EXECUTION",
+              "PSTN_TEST_CALLS",
+              "PRODUCTION_DEPLOYMENT",
+              "PILOT_EXPOSURE",
+              "MODEL_VOICE_SELECTION",
+              "POLICY_RELEASE",
+              "KNOWLEDGE_RELEASE",
+              "CLINICAL_SCRIPTS",
+              "RETENTION_SCHEDULE",
+              "STATIC_CREDENTIAL_EXCEPTION",
+              "SECURITY_REVIEW"
+            ]
+          },
+          "scopeDetail": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 2000
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "local",
+              "ci",
+              "sandbox",
+              "staging",
+              "production"
+            ]
+          },
+          "grantedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "evidenceRef": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 512
+          },
+          "signature": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 16,
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "approvalId",
+          "approver",
+          "scope",
+          "scopeDetail",
+          "environment",
+          "grantedAt",
+          "expiresAt",
+          "evidenceRef",
+          "signature"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "missingApprovals": {
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "PHI_PROCESSING",
+          "VENDOR_SANDBOX_INTEGRATION",
+          "BILLABLE_TEST_EXECUTION",
+          "PSTN_TEST_CALLS",
+          "PRODUCTION_DEPLOYMENT",
+          "PILOT_EXPOSURE",
+          "MODEL_VOICE_SELECTION",
+          "POLICY_RELEASE",
+          "KNOWLEDGE_RELEASE",
+          "CLINICAL_SCRIPTS",
+          "RETENTION_SCHEDULE",
+          "STATIC_CREDENTIAL_EXCEPTION",
+          "SECURITY_REVIEW"
+        ]
+      }
+    },
+    "signature": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 4096
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "manifestVersion",
+    "releaseId",
+    "createdAt",
+    "targetEnvironment",
+    "status",
+    "sourceCommit",
+    "build",
+    "infrastructurePlanDigest",
+    "schemaVersion",
+    "migrationsDigest",
+    "talkdeskConfigurationId",
+    "versions",
+    "toolSchemaDigest",
+    "policyBundleDigest",
+    "knowledgeSnapshotDigest",
+    "evaluationCorpusDigest",
+    "testEvidence",
+    "quotaAndLoadEvidence",
+    "retentionConfigurationDigest",
+    "rollbackTarget",
+    "approvals",
+    "missingApprovals",
+    "signature"
+  ],
+  "additionalProperties": false
+}

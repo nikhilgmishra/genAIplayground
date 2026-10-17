@@ -1,0 +1,183 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ResolutionContract.json",
+  "title": "ResolutionContract",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "contractId": {
+      "type": "string",
+      "pattern": "^[a-z_]+@\\d+$"
+    },
+    "intent": {
+      "type": "string",
+      "pattern": "^[a-z_]{3,64}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 120
+    },
+    "eligibleAudiences": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "client",
+          "prospective_client",
+          "provider",
+          "practice_staff",
+          "partner",
+          "payer_representative",
+          "personal_representative"
+        ]
+      }
+    },
+    "requiredAssurance": {
+      "type": "string",
+      "enum": [
+        "A0",
+        "A1",
+        "A2",
+        "A3"
+      ]
+    },
+    "permittedFields": {
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z][a-zA-Z0-9_.]{0,80}$"
+      }
+    },
+    "sourceSystem": {
+      "type": "string",
+      "enum": [
+        "scheduling",
+        "billing",
+        "claims",
+        "provider",
+        "support_records",
+        "knowledge",
+        "identity",
+        "internal",
+        "none"
+      ]
+    },
+    "allowedActions": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z_.]+$"
+      }
+    },
+    "successEvidence": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 5,
+        "maxLength": 200
+      }
+    },
+    "resolvedOutcome": {
+      "type": "string",
+      "enum": [
+        "RESOLVED",
+        "REQUEST_ACCEPTED",
+        "TRANSFERRED",
+        "INFORMATION_PROVIDED",
+        "DECLINED_BY_POLICY",
+        "CALLER_DISCONNECTED",
+        "FAILED",
+        "OUTCOME_UNKNOWN"
+      ]
+    },
+    "callerConfirmationRequired": {
+      "type": "boolean"
+    },
+    "escalationOwner": {
+      "type": "string",
+      "pattern": "^q_[a-z0-9_]{2,40}$"
+    },
+    "serviceDeadline": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^P(T?\\d+[HMDW])+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "afterHoursBehavior": {
+      "type": "string",
+      "enum": [
+        "SELF_SERVICE_AVAILABLE",
+        "INTAKE_AND_CALLBACK",
+        "HUMAN_ROUTE_ONLY",
+        "SAFETY_ROUTE_ALWAYS"
+      ]
+    },
+    "prohibitedAssertions": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 5,
+        "maxLength": 200
+      }
+    },
+    "humanBoundary": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 5,
+        "maxLength": 200
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "APPROVED",
+        "RETIRED"
+      ]
+    },
+    "approvedBy": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 120
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "contractId",
+    "intent",
+    "title",
+    "eligibleAudiences",
+    "requiredAssurance",
+    "permittedFields",
+    "sourceSystem",
+    "allowedActions",
+    "successEvidence",
+    "resolvedOutcome",
+    "callerConfirmationRequired",
+    "escalationOwner",
+    "serviceDeadline",
+    "afterHoursBehavior",
+    "prohibitedAssertions",
+    "humanBoundary",
+    "status",
+    "approvedBy"
+  ],
+  "additionalProperties": false
+}

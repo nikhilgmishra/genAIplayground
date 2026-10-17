@@ -1,0 +1,121 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/PrerequisiteRecord.json",
+  "title": "PrerequisiteRecord",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^PRQ-[0-9]{3}$"
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 120
+    },
+    "artifact": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 600
+    },
+    "gate": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 300
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "UNKNOWN",
+        "BLOCKED",
+        "REQUESTED",
+        "IN_PROGRESS",
+        "EVIDENCED",
+        "APPROVED",
+        "EXPIRED",
+        "NOT_APPLICABLE"
+      ]
+    },
+    "evidenceRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 512
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "approvalDate": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "expiryDate": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "environment": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "local",
+            "ci",
+            "sandbox",
+            "staging",
+            "production"
+          ]
+        },
+        {
+          "type": "string",
+          "const": "all"
+        }
+      ]
+    },
+    "nextAction": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 600
+    },
+    "blocks": {
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 80
+      }
+    }
+  },
+  "required": [
+    "id",
+    "owner",
+    "artifact",
+    "gate",
+    "status",
+    "evidenceRef",
+    "approvalDate",
+    "expiryDate",
+    "environment",
+    "nextAction",
+    "blocks"
+  ],
+  "additionalProperties": false
+}
