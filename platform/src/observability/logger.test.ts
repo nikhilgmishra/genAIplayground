@@ -35,6 +35,12 @@ describe("content-free logger (DATA-01, AUTH-06)", () => {
     for (const v of Object.values(f)) expect(v).toBe("[redacted]");
   });
 
+  it("keeps dotted template and rule ids but still redacts PHI-shaped values under those keys", () => {
+    expect(sanitizeValue("templateId", "safety.acknowledgment")).toBe("safety.acknowledgment");
+    expect(sanitizeValue("ruleId", "explicit.self_harm.en")).toBe("explicit.self_harm.en");
+    expect(sanitizeValue("templateId", "call me at 5555550123")).toBe("[redacted]");
+  });
+
   it("rejects digit runs in token-category values", () => {
     expect(sanitizeValue("intent", "callback_5555550123")).toBe("[redacted]");
     expect(sanitizeValue("version", "2026-10-17.1")).toBe("2026-10-17.1");

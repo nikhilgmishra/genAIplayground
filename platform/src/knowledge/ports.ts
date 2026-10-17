@@ -1,4 +1,4 @@
-import type { Role } from "../protocol/index.js";
+import type { Assurance, Role } from "../protocol/index.js";
 
 /** Approved knowledge item metadata (spec section 9). */
 export interface KnowledgeItemInput {
@@ -42,12 +42,19 @@ export interface KnowledgeService {
   search(input: {
     tenantId: string;
     query: string;
+    /** Server-established selected role, or "public" for unverified/public callers. */
     audience: Role | "public";
     intent: string;
     language: string;
     jurisdiction: string;
     now: Date;
     limit: number;
+    /**
+     * Optional server-established assurance tier (added by the knowledge module,
+     * backward compatible). A0 forces the public corpus (PUBLIC sensitivity and
+     * "public" audience) regardless of the claimed audience. Callers should pass it.
+     */
+    assurance?: Assurance;
   }): Promise<KnowledgeHit[]>;
   snapshot(tenantId: string): Promise<{ version: string; digest: string }>;
 }

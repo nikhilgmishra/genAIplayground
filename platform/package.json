@@ -14,7 +14,10 @@
     "start:local": "tsx src/main/local.ts",
     "demo": "tsx src/demo/run-demo.ts",
     "evidence": "tsx src/evaluation/cli.ts",
-    "schemas:gen": "tsx src/protocol/generate-schemas.ts"
+    "schemas:gen": "tsx src/protocol/generate-schemas.ts",
+    "asl:gen": "tsx src/workflows/generate-asl.ts",
+    "asl:check": "tsx src/workflows/generate-asl.ts --check",
+    "schemas:check": "tsx src/protocol/generate-schemas.ts --check"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "3.1152.0",

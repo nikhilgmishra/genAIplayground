@@ -1,0 +1,296 @@
+{
+  "$comment": "PLACEHOLDER sandbox configuration. EXPECTED TO BE REJECTED by the guard today: live adapters have no VENDOR_SANDBOX_INTEGRATION approval and no verified endpoint (OPS-05). PHI is impossible in sandbox: PHI endpoints are disabled and PHI_PROCESSING may not be required. Endpoints are null because no vendor endpoint has been verified for this tenant (never invented); credential, key, database and table references are PLACEHOLDERs; no model or voice is approved; policy and tool-catalogue pins are unset; retention is null until set by counsel; verification values await security approval; destination queue refs are placeholders until Talkdesk exports exist.",
+  "environment": "sandbox",
+  "tenantId": "tnt_PLACEHOLDERsandboxTenant1",
+  "serviceName": "vsp-gateway",
+  "sessionBinding": {
+    "mode": "server_to_server_lookup",
+    "sessionTtlSeconds": 7200,
+    "exceptionApprovalId": null
+  },
+  "adapters": {
+    "identity-directory": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-identity-directory",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "oidc-client-idp": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-oidc-client-idp",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "oidc-provider-idp": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-oidc-provider-idp",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "workforce-sso": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-workforce-sso",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "relationship-directory": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-relationship-directory",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "notifications": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-notifications",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "scheduling": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-scheduling",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "billing": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-billing",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "claims": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-claims",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "provider-system": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-provider-system",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "salesforce": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-salesforce",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "talkdesk-telephony": {
+      "kind": "live",
+      "endpoint": null,
+      "credentialRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-talkdesk-telephony",
+      "authMethod": "oauth2_client_credentials",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    }
+  },
+  "models": {
+    "active": {
+      "model": "UNSELECTED-model",
+      "voice": "UNSELECTED-voice",
+      "agentConfig": "UNSELECTED-agent-config"
+    },
+    "approved": []
+  },
+  "policy": {
+    "bundlePath": "policy",
+    "expectedVersion": null,
+    "expectedDigest": null
+  },
+  "toolCatalog": {
+    "expectedDigest": null
+  },
+  "cors": {
+    "allowedOrigins": []
+  },
+  "audit": {
+    "enabled": true,
+    "sink": "s3_object_lock",
+    "maxBacklog": 10000,
+    "maxBacklogAgeSeconds": 300
+  },
+  "destinations": [
+    {
+      "destinationId": "dst_safety_priority",
+      "purpose": "SAFETY_PRIORITY",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_SAFETY",
+      "fallbackDestinationIds": [
+        "dst_safety_backup"
+      ],
+      "languages": [
+        "en",
+        "es"
+      ]
+    },
+    {
+      "destinationId": "dst_safety_backup",
+      "purpose": "SAFETY_PRIORITY",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_SAFETY_BACKUP",
+      "fallbackDestinationIds": [],
+      "languages": [
+        "en",
+        "es"
+      ]
+    },
+    {
+      "destinationId": "dst_support_general",
+      "purpose": "STANDARD_SUPPORT",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_GENERAL",
+      "fallbackDestinationIds": [
+        "dst_outage_continuity"
+      ],
+      "languages": [
+        "en",
+        "es"
+      ]
+    },
+    {
+      "destinationId": "dst_billing_specialist",
+      "purpose": "BILLING_SPECIALIST",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_BILLING",
+      "fallbackDestinationIds": [
+        "dst_support_general"
+      ],
+      "languages": [
+        "en"
+      ]
+    },
+    {
+      "destinationId": "dst_provider_support",
+      "purpose": "PROVIDER_SUPPORT",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_PROVIDER",
+      "fallbackDestinationIds": [
+        "dst_support_general"
+      ],
+      "languages": [
+        "en"
+      ]
+    },
+    {
+      "destinationId": "dst_partner_support",
+      "purpose": "PARTNER_SUPPORT",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_PARTNER",
+      "fallbackDestinationIds": [
+        "dst_support_general"
+      ],
+      "languages": [
+        "en"
+      ]
+    },
+    {
+      "destinationId": "dst_interpreter",
+      "purpose": "INTERPRETER",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_INTERPRETER",
+      "fallbackDestinationIds": [
+        "dst_support_general"
+      ],
+      "languages": [
+        "*"
+      ]
+    },
+    {
+      "destinationId": "dst_clinical_route",
+      "purpose": "CLINICAL_ROUTE",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_CLINICAL",
+      "fallbackDestinationIds": [
+        "dst_support_general"
+      ],
+      "languages": [
+        "en"
+      ]
+    },
+    {
+      "destinationId": "dst_outage_continuity",
+      "purpose": "OUTAGE_CONTINUITY",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_CONTINUITY",
+      "fallbackDestinationIds": [],
+      "languages": [
+        "en",
+        "es"
+      ]
+    }
+  ],
+  "verification": {
+    "otpExpirySeconds": 300,
+    "otpMaxAttemptsPerChallenge": 3,
+    "otpMaxPerAccountPerHour": 5,
+    "secureLinkExpirySeconds": 300,
+    "maxAuthAgeSeconds": 900,
+    "approvedBySecurity": null
+  },
+  "retention": {
+    "TRANSIENT_CONVERSATION": null,
+    "BUSINESS_RECORD": null,
+    "RESTRICTED_QA_MEDIA": null,
+    "SECURITY_AUDIT": null
+  },
+  "approvals": {
+    "directory": "approvals",
+    "required": [
+      "VENDOR_SANDBOX_INTEGRATION"
+    ],
+    "trustedSigningKeyRef": null
+  },
+  "signing": {
+    "assertionKeyRef": "arn:aws:kms:REGION:ACCOUNT:key/PLACEHOLDER-vsp-sandbox-assertions",
+    "localDevKey": false
+  },
+  "database": {
+    "engine": "pg",
+    "connectionRef": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:PLACEHOLDER-vsp-sandbox-aurora-runtime"
+  },
+  "sessionStore": {
+    "kind": "dynamodb",
+    "tableName": "PLACEHOLDER-vsp-sandbox-sessions"
+  },
+  "phi": {
+    "endpointsEnabled": false
+  },
+  "ops": {
+    "admission": {
+      "maxConcurrentAiSessions": 2000,
+      "safetyReserveSessions": 100
+    },
+    "killSwitches": {
+      "cacheTtlMs": 0
+    },
+    "budgets": {
+      "burnRateWindowMinutes": 15,
+      "requireBudget": true
+    }
+  }
+}

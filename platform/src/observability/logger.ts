@@ -19,12 +19,15 @@ const FOUR_DIGITS = /\d{4,}/;
 
 type Category = "id" | "code" | "token" | "time" | "digest";
 
+/** Keys whose values are code-defined lower-case tokens (dotted template/rule ids), checked before the id category. */
+const TOKEN_KEYS = /^(tool|integration|component|action|method|version|environment|engine|channel|role|assurance|scope|topic|consumer|stream|kind|intent|queue|destinationId|purpose|template|templateId|detectorId|ruleId|contractId|locale|language)$/;
+
 function categoryFor(key: string): Category | null {
+  if (TOKEN_KEYS.test(key)) return "token";
   if (/(Id|Ref|^id|^ref)$/.test(key)) return "id";
   if (/(Code|Codes|reason|status|state|outcome|event|severity|route|level)$/i.test(key)) return "code";
   if (/(At|Time|Since|Until)$/.test(key)) return "time";
   if (/(Digest|Hash)$/.test(key)) return "digest";
-  if (/^(tool|integration|component|action|method|version|environment|engine|channel|role|assurance|scope|topic|consumer|stream|kind|intent|queue|destinationId|purpose|template|templateId|locale|language)$/.test(key)) return "token";
   return null;
 }
 

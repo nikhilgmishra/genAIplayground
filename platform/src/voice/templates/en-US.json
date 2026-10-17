@@ -1,0 +1,849 @@
+{
+  "catalogId": "vsp.voice.templates",
+  "catalogVersion": "2026-10-17.draft.1",
+  "locale": "en-US",
+  "label": "LOCAL DRAFT TEMPLATE CATALOG - NO TEMPLATE IS APPROVED. Safety and clinical-boundary text are neutral placeholders pending the clinical safety lead; recording, consent and disclosure text are placeholders pending privacy counsel; Spanish text is pending native-speaker review. SYNTHETIC / LOCAL USE ONLY.",
+  "templates": [
+    {
+      "templateId": "opening.disclosure",
+      "version": "0.1.0-draft",
+      "responseClass": "RECORDING_DISCLOSURE",
+      "text": "You have reached {companyName}. I'm an automated support assistant. I can help with scheduling, billing, and account questions. You can ask for a person at any time.",
+      "slots": {
+        "companyName": {
+          "type": "enum",
+          "enumValues": [
+            "Synthetic Support Co"
+          ]
+        }
+      },
+      "approval": {
+        "status": "PENDING_LEGAL_APPROVAL",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "privacy_counsel",
+        "reviewMarker": "[PENDING LEGAL APPROVAL]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Opening: identifies the company and the automated support role and offers a human (spec section 11 template).",
+        "notes": "Text is the spec section 11 template. It must be followed by the approved consent flow (recording.consent_question); it is not a substitute for it. Company name is a SYNTHETIC placeholder value.",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "recording.consent_question",
+      "version": "0.1.0-draft",
+      "responseClass": "RECORDING_DISCLOSURE",
+      "text": "This call may be recorded, and it is processed by automated systems to help with your request. Do you agree to continue? Please say yes or no.",
+      "slots": {},
+      "approval": {
+        "status": "PENDING_LEGAL_APPROVAL",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "privacy_counsel",
+        "reviewMarker": "[PENDING LEGAL APPROVAL]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Recording and processing consent question, asked before recording where required.",
+        "notes": "Placeholder wording. Counsel must confirm accuracy per jurisdiction (what records, what processes, retention).",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "recording.decline_alternative",
+      "version": "0.1.0-draft",
+      "responseClass": "RECORDING_DISCLOSURE",
+      "text": "Understood. I won't continue with the automated assistant. I'm connecting you with a person.",
+      "slots": {},
+      "approval": {
+        "status": "PENDING_LEGAL_APPROVAL",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "privacy_counsel",
+        "reviewMarker": "[PENDING LEGAL APPROVAL]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Approved alternative when the caller declines recording or automated processing.",
+        "notes": "Must never claim the call is unrecorded unless counsel confirms every recorder, transcription and model process stops.",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "disclosure.automated_processing",
+      "version": "0.1.0-draft",
+      "responseClass": "RECORDING_DISCLOSURE",
+      "text": "I'm an automated assistant, and this conversation is processed by automated systems.",
+      "slots": {},
+      "approval": {
+        "status": "PENDING_LEGAL_APPROVAL",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "privacy_counsel",
+        "reviewMarker": "[PENDING LEGAL APPROVAL]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Automated-processing disclosure.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "intake.role_selection",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "Are you calling as a client, a provider, or a partner?",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Role selection (one question at a time; a multi-role user selects one role).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "verification.secure_link_sent",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. Please open it to continue.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Secure link verification prompt. Generic: identical for zero, one or many matches (no account-existence disclosure).",
+        "notes": "GENERIC_STATUS on purpose: spoken at A0 before any account is located and reveals nothing.",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "verification.otp_sent",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "If the details match an account, a one-time code has been sent to the phone number already on file. Please don't say the code out loud. Enter it only when the secure prompt asks for it.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "One-time code prompt (only if policy permits OTP fallback). Generic; tells the caller not to speak the code (AUTH-06).",
+        "notes": "OTP fallback stays disabled until isolated DTMF capture is proven (TB-03).",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "verification.failed_generic",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I wasn't able to complete verification. I can connect you with a person who can help.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Verification failed. Generic: no account-existence disclosure.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "identity.verified_confirmation",
+      "version": "0.1.0-draft",
+      "responseClass": "IDENTITY",
+      "text": "Thank you, {displayName}. You're verified for this call.",
+      "slots": {
+        "displayName": {
+          "type": "person_display_name"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Confirms verification for this call using the verified display name.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "identity.name_spelling_confirmation",
+      "version": "0.1.0-draft",
+      "responseClass": "IDENTITY",
+      "text": "I have the name {name}. Is that right?",
+      "slots": {
+        "name": {
+          "type": "person_display_name",
+          "spell": true
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Confirms a name by spelling it.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "status.checking",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "Let me check that.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Safe acknowledgment while a tool runs. Never counts as resolution or as resolution latency.",
+        "notes": "",
+        "acknowledgmentOnly": true
+      }
+    },
+    {
+      "templateId": "human.offer",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "Would you like me to connect you with a person?",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Offers a human.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "transfer.in_progress",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I'm connecting you with a person now. Please stay on the line.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Transfer in progress.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "transfer.failed_next_route",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "That connection didn't go through. I'm trying the next available person now. Please stay on the line.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Transfer attempt failed; the next staffed route is being tried. The call is never ended.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "transfer.safety_update",
+      "version": "0.1.0-draft",
+      "responseClass": "SAFETY",
+      "text": "I'm still connecting you with a person. Please stay on the line.",
+      "slots": {},
+      "approval": {
+        "status": "PENDING_CLINICAL_APPROVAL",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "clinical_safety_lead",
+        "reviewMarker": "[PENDING CLINICAL SAFETY LEAD APPROVAL]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Update while a safety-priority connection is still being established or retried.",
+        "notes": "Neutral procedural placeholder, not clinical guidance. The clinical safety lead owns the approved script.",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "safety.acknowledgment",
+      "version": "0.1.0-draft",
+      "responseClass": "SAFETY",
+      "text": "I'm connecting you with a person right now. Please stay on the line.",
+      "slots": {},
+      "approval": {
+        "status": "PENDING_CLINICAL_APPROVAL",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "clinical_safety_lead",
+        "reviewMarker": "[PENDING CLINICAL SAFETY LEAD APPROVAL]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Fixed acknowledgment on a credible or unresolved safety concern before priority human connection.",
+        "notes": "Neutral procedural placeholder, not clinical guidance. The clinical safety lead owns the approved script. Renders at A0 without authorization (SAFE-02).",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "clinical.boundary",
+      "version": "0.1.0-draft",
+      "responseClass": "CLINICAL_BOUNDARY",
+      "text": "I can't answer health or treatment questions. I can connect you with someone who can help with that.",
+      "slots": {},
+      "approval": {
+        "status": "PENDING_CLINICAL_APPROVAL",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "clinical_safety_lead",
+        "reviewMarker": "[PENDING CLINICAL SAFETY LEAD APPROVAL]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Concise boundary statement for diagnosis, medication, therapy or screening questions, followed by the clinician/human route.",
+        "notes": "Neutral placeholder; gives no diagnostic, therapeutic or medication content (SAFE-01).",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "language.interpreter_route",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "One moment. I'm connecting you with an interpreter.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Routing to the staffed interpreter path.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "language.unsupported",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I can't help in that language. I'm connecting you with an interpreter now.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Unsupported language; routes to the interpreter path.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "outage.continuity",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "Some automated services are unavailable right now. I'm connecting you with our support team.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Outage / budget-exhaustion continuity message before the approved continuity route. Makes no wait-time promise.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "appointment.facts",
+      "version": "0.1.0-draft",
+      "responseClass": "PROTECTED_FACT",
+      "text": "Your appointment with {providerName} is on {date} at {time}, {timeZone}.",
+      "slots": {
+        "providerName": {
+          "type": "person_display_name"
+        },
+        "date": {
+          "type": "date"
+        },
+        "time": {
+          "type": "time"
+        },
+        "timeZone": {
+          "type": "time_zone"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Own appointment facts from the authoritative scheduling source.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "appointment.change_confirmation",
+      "version": "0.1.0-draft",
+      "responseClass": "COMMITMENT",
+      "text": "To confirm, I'll move your appointment from {fromDate} at {fromTime}, {fromTimeZone}, to {toDate} at {toTime}, {toTimeZone}. Say yes to confirm, or no to keep it.",
+      "slots": {
+        "fromDate": {
+          "type": "date"
+        },
+        "fromTime": {
+          "type": "time"
+        },
+        "fromTimeZone": {
+          "type": "time_zone"
+        },
+        "toDate": {
+          "type": "date"
+        },
+        "toTime": {
+          "type": "time"
+        },
+        "toTimeZone": {
+          "type": "time_zone"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Confirmation question bound to a prepared appointment change (dates, times and time zones read back before commit).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "commitment.request_accepted",
+      "version": "0.1.0-draft",
+      "responseClass": "COMMITMENT",
+      "text": "I've submitted your request. It isn't complete yet, and our team will follow up. Your support reference is {supportReference}.",
+      "slots": {
+        "supportReference": {
+          "type": "support_reference"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Request accepted and pending work. Never says resolved or done (ACT-04).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "commitment.confirmation_code",
+      "version": "0.1.0-draft",
+      "responseClass": "COMMITMENT",
+      "text": "Your confirmation code is {confirmationCode}.",
+      "slots": {
+        "confirmationCode": {
+          "type": "spelled_code"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Reads back a committed change's confirmation code by spelling it.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "support_reference.pending_sync",
+      "version": "0.1.0-draft",
+      "responseClass": "COMMITMENT",
+      "text": "Your support reference is {supportReference}. This is a support reference that is still being synchronized. It is not a case number.",
+      "slots": {
+        "supportReference": {
+          "type": "support_reference"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Internal support reference while the CRM record is pending synchronization; not an invented case number.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "invoice.balance",
+      "version": "0.1.0-draft",
+      "responseClass": "FINANCIAL_FACT",
+      "text": "Your current balance is {amount}, due on {dueDate}.",
+      "slots": {
+        "amount": {
+          "type": "money_minor_usd"
+        },
+        "dueDate": {
+          "type": "date"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Invoice balance from authoritative billing fields (integer minor units).",
+        "notes": "Explanation only: no coverage decision, fee waiver or refund promise.",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "invoice.line_explanation",
+      "version": "0.1.0-draft",
+      "responseClass": "FINANCIAL_FACT",
+      "text": "The charge for {serviceDate} is {amount}, for {lineType}.",
+      "slots": {
+        "serviceDate": {
+          "type": "date"
+        },
+        "amount": {
+          "type": "money_minor_usd"
+        },
+        "lineType": {
+          "type": "enum",
+          "enumValues": [
+            "SESSION_FEE",
+            "LATE_CANCELLATION",
+            "ADMINISTRATIVE_FEE"
+          ],
+          "labels": {
+            "SESSION_FEE": "a session fee",
+            "LATE_CANCELLATION": "a late cancellation fee",
+            "ADMINISTRATIVE_FEE": "an administrative fee"
+          }
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "One invoice line from authoritative fields.",
+        "notes": "Explanation only: no coverage decision, fee waiver or refund promise.",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "claim.status",
+      "version": "0.1.0-draft",
+      "responseClass": "FINANCIAL_FACT",
+      "text": "Your claim for the service on {serviceDate} shows an insurer status of {insurerStatus}, as of {asOfDate}. This is the insurer's status. It is not a guarantee of payment.",
+      "slots": {
+        "serviceDate": {
+          "type": "date"
+        },
+        "insurerStatus": {
+          "type": "enum",
+          "enumValues": [
+            "RECEIVED",
+            "IN_PROCESS",
+            "PENDING_INFORMATION",
+            "ADJUDICATED",
+            "DENIED"
+          ],
+          "labels": {
+            "RECEIVED": "received",
+            "IN_PROCESS": "in process",
+            "PENDING_INFORMATION": "waiting for more information",
+            "ADJUDICATED": "processed",
+            "DENIED": "denied"
+          }
+        },
+        "asOfDate": {
+          "type": "date"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Insurer claim status; explicitly not an eligibility or payment guarantee.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "remittance.status",
+      "version": "0.1.0-draft",
+      "responseClass": "FINANCIAL_FACT",
+      "text": "The remittance for {periodStart} through {periodEnd} has a status of {remittanceStatus}, with a total of {amount}.",
+      "slots": {
+        "periodStart": {
+          "type": "date"
+        },
+        "periodEnd": {
+          "type": "date"
+        },
+        "remittanceStatus": {
+          "type": "enum",
+          "enumValues": [
+            "SENT",
+            "SCHEDULED",
+            "ON_HOLD"
+          ],
+          "labels": {
+            "SENT": "sent",
+            "SCHEDULED": "scheduled",
+            "ON_HOLD": "on hold"
+          }
+        },
+        "amount": {
+          "type": "money_minor_usd"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Remittance status for an authorized practice.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "onboarding.status",
+      "version": "0.1.0-draft",
+      "responseClass": "PROTECTED_FACT",
+      "text": "Your onboarding stage is {stage}. Documents still needed: {missingCount}.",
+      "slots": {
+        "stage": {
+          "type": "enum",
+          "enumValues": [
+            "DOCUMENTS_PENDING",
+            "IN_REVIEW",
+            "ACTIVE",
+            "ON_HOLD"
+          ],
+          "labels": {
+            "DOCUMENTS_PENDING": "documents pending",
+            "IN_REVIEW": "in review",
+            "ACTIVE": "active",
+            "ON_HOLD": "on hold"
+          }
+        },
+        "missingCount": {
+          "type": "count"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Provider onboarding status.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "portal.navigation",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "In the portal, go to {portalPath}.",
+      "slots": {
+        "portalPath": {
+          "type": "portal_path"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Public portal navigation guidance (no credential reset, no password requests).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "policy.denied_generic",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I can't help with that on this call. I can connect you with a person.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Generic policy denial; reveals nothing about records or accounts.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "repeat.on_request",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "Sure. I'll repeat that.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Repeat on request (access rules unchanged).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "speech.slower",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "Of course. I'll speak more slowly.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Slower speech on request (access rules unchanged).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "silence.check_in",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I'm still here. Take your time. You can also ask for a person.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Silence check-in; never a hang-up.",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "fallback.safe_explanation",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I can't complete that right now. I'll connect you with a person who can help.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Gate fallback: safe explanation plus human route when proof is missing (fail closed).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    }
+  ]
+}

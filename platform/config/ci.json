@@ -1,0 +1,300 @@
+{
+  "$comment": "LOCAL FIXTURE configuration (ci): SYNTHETIC data only, every adapter is a labelled local fixture, PGlite database, in-memory session store and a LOCAL DEVELOPMENT signing key. Verification values are the spec's proposed initial values pending security approval; retention is null until set by counsel. The guard rejects this file for sandbox, staging and production (OPS-04).",
+  "environment": "ci",
+  "tenantId": "tnt_synthTenantPrimary01",
+  "serviceName": "vsp-gateway",
+  "sessionBinding": {
+    "mode": "trusted_header",
+    "sessionTtlSeconds": 7200,
+    "exceptionApprovalId": null
+  },
+  "adapters": {
+    "identity-directory": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "oidc-client-idp": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "oidc-provider-idp": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "workforce-sso": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "relationship-directory": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "notifications": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "scheduling": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "billing": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "claims": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "provider-system": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "salesforce": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    },
+    "talkdesk-telephony": {
+      "kind": "local_fixture",
+      "endpoint": null,
+      "credentialRef": null,
+      "authMethod": "none",
+      "exceptionApprovalId": null,
+      "timeoutMs": 2500,
+      "integrationApprovalId": null
+    }
+  },
+  "models": {
+    "active": {
+      "model": "local-fixture-model",
+      "voice": "local-fixture-voice",
+      "agentConfig": "local-fixture-agent"
+    },
+    "approved": [
+      {
+        "model": "local-fixture-model",
+        "voice": "local-fixture-voice",
+        "approvalId": null
+      }
+    ]
+  },
+  "policy": {
+    "bundlePath": "policy",
+    "expectedVersion": null,
+    "expectedDigest": null
+  },
+  "toolCatalog": {
+    "expectedDigest": null
+  },
+  "cors": {
+    "allowedOrigins": []
+  },
+  "audit": {
+    "enabled": true,
+    "sink": "local_fixture",
+    "maxBacklog": 10000,
+    "maxBacklogAgeSeconds": 300
+  },
+  "destinations": [
+    {
+      "destinationId": "dst_safety_priority",
+      "purpose": "SAFETY_PRIORITY",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_SAFETY",
+      "fallbackDestinationIds": [
+        "dst_safety_backup"
+      ],
+      "languages": [
+        "en",
+        "es"
+      ]
+    },
+    {
+      "destinationId": "dst_safety_backup",
+      "purpose": "SAFETY_PRIORITY",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_SAFETY_BACKUP",
+      "fallbackDestinationIds": [],
+      "languages": [
+        "en",
+        "es"
+      ]
+    },
+    {
+      "destinationId": "dst_support_general",
+      "purpose": "STANDARD_SUPPORT",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_GENERAL",
+      "fallbackDestinationIds": [
+        "dst_outage_continuity"
+      ],
+      "languages": [
+        "en",
+        "es"
+      ]
+    },
+    {
+      "destinationId": "dst_billing_specialist",
+      "purpose": "BILLING_SPECIALIST",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_BILLING",
+      "fallbackDestinationIds": [
+        "dst_support_general"
+      ],
+      "languages": [
+        "en"
+      ]
+    },
+    {
+      "destinationId": "dst_provider_support",
+      "purpose": "PROVIDER_SUPPORT",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_PROVIDER",
+      "fallbackDestinationIds": [
+        "dst_support_general"
+      ],
+      "languages": [
+        "en"
+      ]
+    },
+    {
+      "destinationId": "dst_partner_support",
+      "purpose": "PARTNER_SUPPORT",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_PARTNER",
+      "fallbackDestinationIds": [
+        "dst_support_general"
+      ],
+      "languages": [
+        "en"
+      ]
+    },
+    {
+      "destinationId": "dst_interpreter",
+      "purpose": "INTERPRETER",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_INTERPRETER",
+      "fallbackDestinationIds": [
+        "dst_support_general"
+      ],
+      "languages": [
+        "*"
+      ]
+    },
+    {
+      "destinationId": "dst_clinical_route",
+      "purpose": "CLINICAL_ROUTE",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_CLINICAL",
+      "fallbackDestinationIds": [
+        "dst_support_general"
+      ],
+      "languages": [
+        "en"
+      ]
+    },
+    {
+      "destinationId": "dst_outage_continuity",
+      "purpose": "OUTAGE_CONTINUITY",
+      "vendorQueueRef": "TALKDESK_QUEUE_PLACEHOLDER_CONTINUITY",
+      "fallbackDestinationIds": [],
+      "languages": [
+        "en",
+        "es"
+      ]
+    }
+  ],
+  "verification": {
+    "otpExpirySeconds": 300,
+    "otpMaxAttemptsPerChallenge": 3,
+    "otpMaxPerAccountPerHour": 5,
+    "secureLinkExpirySeconds": 300,
+    "maxAuthAgeSeconds": 900,
+    "approvedBySecurity": null
+  },
+  "retention": {
+    "TRANSIENT_CONVERSATION": null,
+    "BUSINESS_RECORD": null,
+    "RESTRICTED_QA_MEDIA": null,
+    "SECURITY_AUDIT": null
+  },
+  "approvals": {
+    "directory": "approvals",
+    "required": [],
+    "trustedSigningKeyRef": null
+  },
+  "signing": {
+    "assertionKeyRef": "local-fixture:assertion-dev-key",
+    "localDevKey": true
+  },
+  "database": {
+    "engine": "pglite",
+    "connectionRef": null
+  },
+  "sessionStore": {
+    "kind": "memory",
+    "tableName": null
+  },
+  "phi": {
+    "endpointsEnabled": false
+  },
+  "ops": {
+    "admission": {
+      "maxConcurrentAiSessions": 2000,
+      "safetyReserveSessions": 100
+    },
+    "killSwitches": {
+      "cacheTtlMs": 0
+    },
+    "budgets": {
+      "burnRateWindowMinutes": 15,
+      "requireBudget": true
+    }
+  }
+}

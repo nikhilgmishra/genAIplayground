@@ -15,6 +15,11 @@ export interface AdapterConfig {
   /** Approval id when authMethod is a static-token exception. */
   exceptionApprovalId: string | null;
   timeoutMs: number;
+  /**
+   * Added by the config module: approval id (VENDOR_SANDBOX_INTEGRATION in sandbox)
+   * that authorizes this specific live integration. Optional for backwards compatibility.
+   */
+  integrationApprovalId?: string | null;
 }
 
 export interface DestinationConfig {
@@ -61,4 +66,38 @@ export interface PlatformConfig {
   signing: { assertionKeyRef: string | null; localDevKey: boolean };
   database: { engine: "pglite" | "pg"; connectionRef: string | null };
   sessionStore: { kind: "memory" | "dynamodb"; tableName: string | null };
+  /**
+   * Added by the config module. PHI-bearing endpoints stay disabled until the
+   * prerequisites are evidenced (spec section 16); the guard rejects `true`
+   * without a valid PHI_PROCESSING approval and always rejects it outside
+   * staging/production. Absent = disabled.
+   */
+  phi?: { endpointsEnabled: boolean };
+  /** Added by the config module: capacity, admission and kill-switch settings (platform/src/ops). */
+  ops?: OpsConfig;
+}
+
+export interface OpsConfig {
+  admission: {
+    /** Concurrent AI session limit with controlled admission (spec section 12 planning figure: 2000). */
+    maxConcurrentAiSessions: number;
+    /**
+     * Safety reserve of session slots. Safety and human-route sessions are always
+     * admitted; exceeding the reserve raises an alert to the escalation owner, never a block.
+     */
+    safetyReserveSessions: number;
+  };
+  killSwitches: {
+    /**
+     * Snapshot cache TTL. 0 (default) reads current state on every check. A positive
+     * TTL lets an engaged switch take up to TTL to reach every instance.
+     */
+    cacheTtlMs: number;
+  };
+  budgets: {
+    /** Window used to compute the recent burn rate for metering-delay projection. */
+    burnRateWindowMinutes: number;
+    /** Fail closed when no budget covers a nonessential admission. */
+    requireBudget: boolean;
+  };
 }

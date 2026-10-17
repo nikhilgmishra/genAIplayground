@@ -20,7 +20,13 @@ export interface MemoryEntry {
 
 export interface SupportMemory {
   record(entry: Omit<MemoryEntry, "memoryId" | "createdAt">): Promise<MemoryEntry>;
-  /** Requires an A2+ context for the same subject; returns only unexpired entries. */
-  recapFor(input: { tenantId: string; subjectId: string; assurance: string; authorizedSubjectId: string | null; now: Date }): Promise<MemoryEntry[]>;
+  /**
+   * Requires an A2+ context for the same subject; returns only unexpired entries.
+   * `riskFlags` (optional, added by the memory module, backward compatible):
+   * server-established session risk flags; PARTICIPANT_CHANGED,
+   * ACCOUNT_RECOVERY_IN_PROGRESS, FRAUD_REVIEW and SAFETY_ESCALATION_ACTIVE
+   * suppress the recap.
+   */
+  recapFor(input: { tenantId: string; subjectId: string; assurance: string; authorizedSubjectId: string | null; now: Date; riskFlags?: string[] }): Promise<MemoryEntry[]>;
   expire(now: Date): Promise<number>;
 }
