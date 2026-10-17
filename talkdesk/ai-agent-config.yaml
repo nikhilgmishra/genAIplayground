@@ -1,0 +1,196 @@
+# Talkdesk AI Agent Platform configuration specification (operator-applied).
+#
+# STATUS: UNVERIFIED against any tenant. This file is a repository specification that a
+# Talkdesk administrator applies in an APPROVED sandbox (docs/release/approval-requests.md
+# AR-01, AR-06, AR-13). No public automation API for this configuration was established
+# ([S1], [S4], [S6]); exact UI paths and field names are "UI path to be confirmed from
+# tenant documentation". Nothing here claims HIPAA compliance or production readiness.
+#
+# SECURITY BOUNDARY NOTICE: prompts, agent instructions and guardrails are NOT the
+# security boundary. Authorization, identity, consent, assurance, field minimisation and
+# transaction safety are enforced by the gateway (platform/src/gateway) and OPA policy on
+# every tool call, regardless of what the model says or requests (AUTH-02, AUTH-03).
+# The guardrail field is a 300-character UX/behaviour hint ([S5]); it cannot contain the
+# security specification and is never relied on to block a disclosure or an action.
+
+schemaVersion: vsp.talkdesk.ai-agent-config.v1
+status: UNVERIFIED_AGAINST_TENANT
+environment: sandbox
+syntheticDataOnly: true
+applyMethod: OPERATOR_UI          # change only if Talkdesk documents a supported import/API (record it in drift-check.md)
+sources: [S1, S2, S3, S5]
+
+# OPS-06: every caller-facing behaviour must be pinned and reviewable. The platform does not
+# yet provide evidence of how these are identified (TB-08, capability gate CG-07).
+versionIdentity:
+  agentConfigVersion: UNKNOWN
+  coordinatorAgentVersion: UNKNOWN
+  model: UNKNOWN
+  voice: UNKNOWN
+  promptTemplates: UNKNOWN
+  publishedOrDraft: UNKNOWN
+  howObtained: UNKNOWN            # vendor-questions.md VQ-TD-12, VQ-TD-35
+  consequenceIfUnknown: "ReleaseManifest cannot bind vendor configuration; release BLOCKED; evaluation runs are INCONCLUSIVE for version-bound gates"
+
+toolCatalog:
+  # External tool definitions are not versioned inside the platform ([S3]); the gateway
+  # pins and hashes the catalogue and rejects unknown name/version pairs.
+  pinnedDigest: TO_BE_PINNED_FROM_RELEASE_MANIFEST     # ReleaseManifest.toolSchemaDigest (sha256)
+  digestSource: "ReleaseManifest.toolSchemaDigest / ToolCatalogManifest.digest (platform/src/protocol/tools.ts)"
+  mcpConnection: talkdesk/mcp-connection.md
+  dynamicToolRegistration: false
+  versionNote: "Versions below are the expected initial catalogue entries; the pinned ToolCatalogManifest is authoritative and drift-check fails on any difference."
+
+# Custom guardrail ([S5]): documented limit 300 characters; trigger limit can CLOSE a
+# conversation. Character count computed with python3 len() over the exact string and
+# re-verified by talkdesk/tools/validate-package.mjs.
+guardrail:
+  customText: "Administrative support only. Do not diagnose, counsel, screen or advise on medication. Never say identity is verified or a change is done unless a tool result says so. For any safety concern, clinical question or request for a person, call request_safety_route or request_human_transfer."
+  characterCount: 287
+  limit: 300
+  sha256: e8df17c3aef1bd2e6817c86e6eabee0601cb03a8da2a91918f2f9fd1c617a354
+  countMethod: "python3: len(text) and len(text.encode('utf-8')) both 287; sha256 over UTF-8 bytes, no trailing newline"
+  onTrigger:
+    requiredBehaviour: EXIT_TO_STUDIO          # Studio exit reason GUARDRAIL_EXIT (studio-flow-spec.md section 5)
+    closeConversationAllowed: false
+    configurableInTenant: UNKNOWN              # VQ-TD-30
+    ifOnlyCloseIsAvailable: "Capability gate CG-06 fails; the autonomous flow does not launch (spec section 2)."
+  approval:
+    status: DRAFT
+    requiredApprovers: [clinical_safety_lead, security_leadership]
+
+# Refusal counters, silence limits and maximum turns must never silently terminate a
+# safety or accessibility interaction (SAFE-03). Values are not invented here.
+conversationLimits:
+  refusalCountLimit: UNKNOWN
+  silenceTimeout: UNKNOWN
+  maxTurns: UNKNOWN
+  onAnyLimit:
+    requiredBehaviour: EXIT_TO_STUDIO          # exit reason LIMIT_REACHED; Studio routes to SF-S if a safety signal is active, else SF-13 human
+    closeConversationAllowed: false
+  evidenceRequired: "SF-T-19 and SF-T-22 PASS in vendor sandbox with version identity captured"
+
+# Exits are the only way the AI agent leaves the conversation (studio-flow-spec.md section 5).
+studioExits:
+  - HUMAN_REQUESTED
+  - SAFETY_ROUTE
+  - CLINICAL_ROUTE
+  - VERIFICATION_REQUIRED
+  - CONFIRMATION_REQUIRED
+  - INTERPRETER_REQUIRED
+  - GUARDRAIL_EXIT
+  - LIMIT_REACHED
+  - AI_ERROR
+  - CALL_COMPLETE
+
+# Tools the gateway must always serve, even when AI admission, budgets, intents or writes
+# are switched off (ToolSafetyClass SAFETY_AND_HUMAN_ROUTE). Every agent receives them.
+alwaysAvailableTools:
+  - { name: request_safety_route, version: "1.0.0" }
+  - { name: request_human_transfer, version: "1.0.0" }
+
+coordinator:
+  id: vsp_coordinator
+  kind: llm_agent
+  purpose: "Single caller-facing coordinator. Greets after the Studio disclosure, asks one question at a time, identifies the administrative intent and hands off to one bounded domain agent or a Studio exit."
+  instructionsSummary:
+    - "Administrative support only; clinical questions get the approved boundary template and CLINICAL_ROUTE exit."
+    - "Never ask for passwords, card numbers, security codes or one-time codes by voice."
+    - "Never state that a caller is verified; verification happens in the deterministic verification Skill."
+    - "Caller-facing protected facts come only from gateway SpeechDirective templates (ACT-05)."
+    - "On 'agent', 'person', '0' or any request for a human: request_human_transfer, then HUMAN_REQUESTED exit."
+    - "On any possible safety concern: request_safety_route, then SAFETY_ROUTE exit; no authentication."
+  allowedTools:
+    - { name: search_approved_runbook, version: "1.0.0" }
+    - { name: get_authorized_case_status, version: "1.0.0" }
+  handoffTo: [vsp_scheduling, vsp_billing_claims, vsp_provider_partner, vsp_intake]
+  deterministicSkills: [vsp_verification_skill, vsp_confirmation_skill]
+
+agents:
+  - id: vsp_scheduling
+    kind: llm_agent
+    audiences: [client, personal_representative, provider, practice_staff]
+    purpose: "Appointment lookup and approved create/reschedule. No clinical suitability matching."
+    allowedTools:
+      - { name: get_appointment_options, version: "1.0.0" }
+      - { name: prepare_appointment_change, version: "1.0.0" }
+      - name: commit_appointment_change
+        version: "1.0.0"
+        consequential: true
+        requiresDeterministicConfirmation: true      # SF-12; ActionConfirmation captured by telephony_control (TB-02)
+        enabledInAutonomousFlow: false               # until capability gate CG-03 (TB-02) is evidenced; human agent confirms meanwhile
+    exitsUsed: [CONFIRMATION_REQUIRED, VERIFICATION_REQUIRED, HUMAN_REQUESTED, SAFETY_ROUTE, CLINICAL_ROUTE]
+
+  - id: vsp_billing_claims
+    kind: llm_agent
+    audiences: [client, personal_representative]
+    purpose: "Invoice explanation from authoritative fields, billing review intake, insurer-reported claim status. Never decides coverage, waives fees or promises refunds; claim status is not an eligibility or payment guarantee."
+    allowedTools:
+      - { name: get_invoice_status, version: "1.0.0" }
+      - name: submit_billing_review
+        version: "1.0.0"
+        consequential: true
+        requiresDeterministicConfirmation: true
+        enabledInAutonomousFlow: false               # until CG-03 evidenced
+      - { name: get_claim_status, version: "1.0.0" }
+    paymentNote: "Payments only via the approved hosted payment page or isolated PCI flow; never card data in speech."
+    exitsUsed: [CONFIRMATION_REQUIRED, VERIFICATION_REQUIRED, HUMAN_REQUESTED, SAFETY_ROUTE]
+
+  - id: vsp_provider_partner
+    kind: llm_agent
+    audiences: [provider, practice_staff, partner, payer_representative]
+    purpose: "Provider onboarding status, delegated-practice remittance status and organisation-scoped partner intake. No patient search; no employer access to treatment status."
+    allowedTools:
+      - { name: get_provider_onboarding_status, version: "1.0.0" }
+      - { name: get_remittance_status, version: "1.0.0" }
+      - { name: submit_partner_intake, version: "1.0.0" }
+    exitsUsed: [VERIFICATION_REQUIRED, HUMAN_REQUESTED, SAFETY_ROUTE]
+
+  - id: vsp_intake
+    kind: llm_agent
+    audiences: [client, prospective_client, provider, practice_staff, partner, payer_representative, personal_representative]
+    purpose: "Honest intake for unsupported or human-owned work, complaints and Case follow-up. A request accepted is not an issue resolved (ACT-04)."
+    allowedTools:
+      - { name: create_support_request, version: "1.0.0" }
+      - { name: submit_complaint, version: "1.0.0" }
+      - { name: get_authorized_case_status, version: "1.0.0" }
+    exitsUsed: [VERIFICATION_REQUIRED, HUMAN_REQUESTED, SAFETY_ROUTE]
+
+deterministicSkills:
+  - id: vsp_verification_skill
+    kind: deterministic_skill          # [S2] recommends setting the auth variable inside a deterministic Skill
+    llmGeneratedSpeech: false
+    allowedTools:
+      - { name: begin_verification, version: "1.0.0" }
+    gatewayOperations: [telephony.authGate, telephony.submitOtp]   # only if the Skill can use the telephony_control identity (VQ-TD-27); else Studio sub-flow
+    setsVariable: vsp_auth_gate
+    mappingSpec: talkdesk/auth-gate.md
+    otpViaIsolatedDtmf: DISABLED_UNTIL_TB03_PROVEN
+    spec: "studio-flow-spec.md SF-11"
+
+  - id: vsp_confirmation_skill
+    kind: deterministic_skill
+    llmGeneratedSpeech: false
+    allowedTools: []
+    gatewayOperations: [telephony.pendingConfirmation, telephony.confirmAction]
+    spec: "studio-flow-spec.md SF-12"
+    status: DISABLED_UNTIL_TB02_PROVEN
+
+# Tool names come from spec section 8 plus the bounded workflow catalogue (section 4).
+# Anything not listed here is not exposed. Explicitly prohibited (spec section 8):
+prohibitedToolKinds:
+  - raw_sql
+  - arbitrary_salesforce_query
+  - arbitrary_http_fetch
+  - unrestricted_file_export
+  - shell_execution
+  - broad_crm_search
+  - generic_update_record
+
+voice:
+  selection: UNKNOWN                 # licensed stock voice via blinded telephone-quality listening tests (spec section 11)
+  cloning: PROHIBITED
+  approvalScope: MODEL_VOICE_SELECTION
+languages:
+  aiEligible: [en]                   # Phase 2 default; more only with language-lead approval (VQ-TD-38)
+  unsupported: "Studio routes to dst_interpreter"
