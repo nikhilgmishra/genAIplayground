@@ -1,0 +1,8 @@
+# Copy to backend.hcl (gitignored values are not secrets, but are account-specific).
+# UNKNOWN until the platform owner creates the state bucket for this account.
+bucket       = "UNKNOWN-terraform-state-bucket"
+key          = "envs/production-dr/terraform.tfstate"
+region       = "us-west-2"
+kms_key_id   = "UNKNOWN-state-kms-key-arn"
+use_lockfile = true
+encrypt      = true

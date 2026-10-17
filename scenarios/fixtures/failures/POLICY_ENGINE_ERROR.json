@@ -1,0 +1,57 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "POLICY_ENGINE_ERROR",
+  "version": 1,
+  "title": "Policy evaluation errors",
+  "description": "The OPA evaluation throws or returns an undefined decision.",
+  "category": "policy",
+  "target": {
+    "components": [
+      "platform/src/policy",
+      "platform/src/gateway"
+    ],
+    "dependency": "policy_engine"
+  },
+  "trigger": {
+    "kind": "AT_CALL_START",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "POLICY_ENGINE_ERROR",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_protected_success_with_invalid_session",
+      "gate": "authentication"
+    },
+    {
+      "check": "no_commit",
+      "gate": "authentication"
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "Protected requests are declined with a human route; safety and human routes stay available.",
+  "backendEvidence": [
+    "Deny by default on policy error",
+    "Audit event with policy-error reason code"
+  ],
+  "requirementIds": [
+    "AUTH-02",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "appointment_lookup",
+    "invoice_explanation"
+  ],
+  "notes": null
+}

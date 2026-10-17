@@ -1,0 +1,57 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "SCHEDULING_TIMEOUT_AFTER_COMMIT",
+  "version": 1,
+  "title": "Scheduling commit times out after it was applied",
+  "description": "The scheduling API applies the change but the response times out, so the gateway sees an ambiguous outcome.",
+  "category": "dependency",
+  "target": {
+    "components": [
+      "platform/src/actions",
+      "platform/src/adapters/local"
+    ],
+    "dependency": "scheduling"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": "commit_appointment_change",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "DEPENDENCY_TIMEOUT",
+    "afterExternalCommit": true,
+    "count": null,
+    "durationMs": 10000
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    },
+    {
+      "check": "reconciliation_recorded",
+      "gate": "transaction"
+    }
+  ],
+  "callerVisible": "Caller hears an honest status (being confirmed) and either a reconciled confirmation or a callback/human route; never an unverified success.",
+  "backendEvidence": [
+    "Tool result UNKNOWN_OUTCOME with reconciliation reference",
+    "Reconciliation by idempotency key before any retry",
+    "Exactly one effect"
+  ],
+  "requirementIds": [
+    "ACT-03",
+    "ACT-02",
+    "SPEC-8.timeout-states",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "appointment_reschedule",
+    "appointment_create",
+    "appointment_cancel"
+  ],
+  "notes": null
+}

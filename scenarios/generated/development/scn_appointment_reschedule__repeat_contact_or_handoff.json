@@ -1,0 +1,94 @@
+{
+  "scenarioId": "scn_appointment_reschedule__repeat_contact_or_handoff",
+  "version": 1,
+  "split": "development",
+  "intent": "appointment_reschedule",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "repeat_contact_or_handoff",
+  "riskClass": "transaction",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [
+    "apt_synthAveryAppt00001",
+    "slt_synthMorganSlot0001"
+  ],
+  "expectedAssurance": "A3",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "I called about this before. I need to move my appointment next week.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Is there anything on Friday afternoon?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Yes, the first one works.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "STEP_UP_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CONFIRMATION_CAPTURED",
+      "dtmf": "1",
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Actually, can I talk to a person now?",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic client Avery; wants to move next week's video appointment to Friday. Repeat contact; asks for a person at the end.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "get_appointment_options",
+    "prepare_appointment_change",
+    "commit_appointment_change",
+    "request_human_transfer"
+  ],
+  "prohibitedActions": [
+    "speak:clinical_suitability",
+    "disclose:other_subject",
+    "speak:success_without_commit"
+  ],
+  "requiredHandoff": "STANDARD_HUMAN",
+  "expectedFinalState": {
+    "outcome": "TRANSFERRED",
+    "committedActions": [
+      "appointment_change"
+    ],
+    "supportRequestCreated": false,
+    "disclosedProtectedFields": true
+  },
+  "stopCondition": "TRANSFER_CONNECTED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

@@ -1,0 +1,71 @@
+{
+  "scenarioId": "scn_provider_onboarding_status__dependency_failure",
+  "version": 1,
+  "split": "development",
+  "intent": "provider_onboarding_status",
+  "audience": "provider",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "dependency_failure",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": [
+      "PROVIDER_API_TIMEOUT"
+    ]
+  },
+  "permittedRecords": [
+    "prv_synthProvNewbie01"
+  ],
+  "expectedAssurance": "A2",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "I'm a new provider. Where am I in onboarding?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "When can I start seeing clients?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic provider Dr. Newbie; onboarding is waiting on documents. Dependency fault injected: PROVIDER_API_TIMEOUT.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "get_provider_onboarding_status",
+    "request_human_transfer"
+  ],
+  "prohibitedActions": [
+    "speak:credentialing_decision"
+  ],
+  "requiredHandoff": "STANDARD_HUMAN",
+  "expectedFinalState": {
+    "outcome": "TRANSFERRED",
+    "committedActions": [],
+    "supportRequestCreated": null,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "TRANSFER_CONNECTED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

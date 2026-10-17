@@ -1,0 +1,50 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "REGIONAL_FAILOVER",
+  "version": 1,
+  "title": "Primary region fails during a call",
+  "description": "Writes are fenced during regional uncertainty.",
+  "category": "infrastructure",
+  "target": {
+    "components": [
+      "infra/terraform",
+      "platform/src/actions"
+    ],
+    "dependency": "database"
+  },
+  "trigger": {
+    "kind": "AT_TURN",
+    "tool": null,
+    "turnIndex": 2,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "REGION_FAILOVER",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "Mutations pause; the caller is routed to a person or callback; safe telephone routing continues.",
+  "backendEvidence": [
+    "Writes fenced",
+    "External side effects reconciled before mutations reopen"
+  ],
+  "requirementIds": [
+    "SPEC-12.recovery",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [],
+  "notes": "Only a local simulation; a real regional drill is BLOCKED (PRQ-039)."
+}

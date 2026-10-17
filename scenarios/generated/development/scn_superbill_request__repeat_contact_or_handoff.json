@@ -1,0 +1,70 @@
+{
+  "scenarioId": "scn_superbill_request__repeat_contact_or_handoff",
+  "version": 1,
+  "split": "development",
+  "intent": "superbill_request",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "repeat_contact_or_handoff",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [
+    "inv_synthAveryInvoice001"
+  ],
+  "expectedAssurance": "A2",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "I called about this before. I need an itemized statement to send to my insurance.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Can you email it to a different address than the one you have?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Actually, can I talk to a person now?",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic client Avery; wants an itemized statement delivered through the secure portal. Repeat contact; asks for a person at the end.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "create_support_request",
+    "request_human_transfer"
+  ],
+  "prohibitedActions": [
+    "notify:new_number",
+    "speak:resolved_claim"
+  ],
+  "requiredHandoff": "STANDARD_HUMAN",
+  "expectedFinalState": {
+    "outcome": "TRANSFERRED",
+    "committedActions": [],
+    "supportRequestCreated": true,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "TRANSFER_CONNECTED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

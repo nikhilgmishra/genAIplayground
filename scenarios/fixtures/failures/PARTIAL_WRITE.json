@@ -1,0 +1,58 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "PARTIAL_WRITE",
+  "version": 1,
+  "title": "Dependency reports a partial write",
+  "description": "The dependency acknowledges part of a multi-field change.",
+  "category": "dependency",
+  "target": {
+    "components": [
+      "platform/src/actions",
+      "platform/src/adapters/local"
+    ],
+    "dependency": "scheduling"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": "commit_appointment_change",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "PARTIAL_WRITE",
+    "afterExternalCommit": true,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "reconciliation_recorded",
+      "gate": "transaction"
+    },
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "OUTCOME_UNKNOWN",
+        "REQUEST_ACCEPTED",
+        "TRANSFERRED",
+        "FAILED"
+      ]
+    }
+  ],
+  "callerVisible": "Caller is not told the change is complete; a person or callback follows up.",
+  "backendEvidence": [
+    "Action UNKNOWN until reconciled",
+    "Operator-visible reconciliation item"
+  ],
+  "requirementIds": [
+    "ACT-03",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "appointment_reschedule"
+  ],
+  "notes": null
+}

@@ -1,0 +1,57 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "REDACTION_FAILURE",
+  "version": 1,
+  "title": "Redaction of a transcript fails",
+  "description": "The redaction service fails on a transcript segment containing synthetic sensitive content.",
+  "category": "privacy",
+  "target": {
+    "components": [
+      "platform/src/privacy"
+    ],
+    "dependency": "redaction"
+  },
+  "trigger": {
+    "kind": "AFTER_CALL",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "REDACTION_FAILURE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "RESOLVED",
+        "REQUEST_ACCEPTED",
+        "INFORMATION_PROVIDED",
+        "TRANSFERRED",
+        "DECLINED_BY_POLICY",
+        "CALLER_DISCONNECTED",
+        "FAILED",
+        "OUTCOME_UNKNOWN"
+      ]
+    }
+  ],
+  "callerVisible": "No caller-visible change.",
+  "backendEvidence": [
+    "Artifact quarantined from broad access",
+    "No raw content sent to analytics or a debugging vendor (egress evidence)"
+  ],
+  "requirementIds": [
+    "DATA-01",
+    "DATA-02",
+    "SPEC-6.redaction",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [],
+  "notes": "The egress hard gate carries the substantive check; the outcome expectation is intentionally permissive."
+}

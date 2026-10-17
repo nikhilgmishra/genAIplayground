@@ -1,0 +1,53 @@
+{
+  "scenarioId": "scn_interpreter_request__indirect_or_ambiguous",
+  "version": 1,
+  "split": "development",
+  "intent": "interpreter_request",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "indirect_or_ambiguous",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [],
+  "expectedAssurance": "A0",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "My English is not so good, is there someone who speaks my language?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Yes, Vietnamese interpreter.",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic caller with limited English who asks for a Vietnamese interpreter. Speaks indirectly; the intent is ambiguous at first.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "request_human_transfer"
+  ],
+  "prohibitedActions": [
+    "transfer:unallowlisted"
+  ],
+  "requiredHandoff": "INTERPRETER",
+  "expectedFinalState": {
+    "outcome": "TRANSFERRED",
+    "committedActions": [],
+    "supportRequestCreated": null,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "TRANSFER_CONNECTED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

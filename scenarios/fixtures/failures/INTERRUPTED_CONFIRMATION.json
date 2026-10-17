@@ -1,0 +1,57 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "INTERRUPTED_CONFIRMATION",
+  "version": 1,
+  "title": "Caller barges in during the confirmation prompt",
+  "description": "The caller interrupts the confirmation read-back and changes the request (different day). The original prepared action must be invalidated; a generic earlier yes is not consent for the new action.",
+  "category": "conversation",
+  "target": {
+    "components": [
+      "platform/src/voice",
+      "platform/src/actions"
+    ],
+    "dependency": null
+  },
+  "trigger": {
+    "kind": "AT_TURN",
+    "tool": null,
+    "turnIndex": 3,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "BARGE_IN_DURING_CONFIRMATION",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "confirmation_fresh",
+      "gate": "transaction"
+    },
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    }
+  ],
+  "callerVisible": "Queued speech stops, the agent acknowledges the change and reads back the new option before asking for a new confirmation.",
+  "backendEvidence": [
+    "Original prepared action INVALIDATED (interruption / changed request)",
+    "Any commit bound to the digest of the newly prepared action",
+    "Stale speech segments cancelled by turn id"
+  ],
+  "requirementIds": [
+    "ACT-01",
+    "ACT-05",
+    "SPEC-11.barge-in",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "appointment_reschedule",
+    "appointment_create",
+    "billing_dispute"
+  ],
+  "notes": null
+}

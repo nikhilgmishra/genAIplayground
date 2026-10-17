@@ -27,7 +27,7 @@ import { iso } from "../shared/clock.js";
 import { PlatformError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
 import { batchDigestOf, buildManifest, toNdjson, verifyChain } from "./chain.js";
-import { toSafeInt } from "./internal.js";
+import { guardStorage, toSafeInt } from "./internal.js";
 import type { AuditSink } from "./ports.js";
 import { STREAM_NAME_RE } from "./schema.js";
 
@@ -142,13 +142,14 @@ export class AuditShipper {
 
       try {
         await this.markShipped(batch.manifest);
-        await this.recordSinkOutcome(null);
       } catch (err) {
         // The object is in the sink; the PLANNED record makes the next run re-put (no-op) and mark.
         result.reasonCode = err instanceof PlatformError ? err.reasonCode : "AUDIT_SHIP_MARK_FAILED";
         this.logger.warn("audit.ship.mark_failed", { reasonCode: result.reasonCode, stream: sourceStream });
         return result;
       }
+      // Sink health bookkeeping must not turn a completed ship into a reported failure.
+      await this.recordSinkOutcome(null).catch(() => undefined);
       result.batchesShipped += 1;
       result.eventsShipped += batch.manifest.eventCount;
       this.logger.info("audit.ship.batch_shipped", {
@@ -161,7 +162,7 @@ export class AuditShipper {
   }
 
   private tx<T>(fn: (tx: Queryable) => Promise<T>): Promise<T> {
-    return this.opts.db.tx(fn, { role: this.role });
+    return guardStorage("AUDIT_STORE_UNAVAILABLE", () => this.opts.db.tx(fn, { role: this.role }));
   }
 
   /** Returns the PLANNED batch to (re)ship, or plans the next one, or null when nothing is pending. */
@@ -174,7 +175,9 @@ export class AuditShipper {
       );
       const plannedRow = planned.rows[0];
       if (plannedRow) {
-        const manifest = AuditManifest.parse(plannedRow.manifest);
+        const parsedManifest = AuditManifest.safeParse(plannedRow.manifest);
+        if (!parsedManifest.success) throw new AuditShipBlockedError("AUDIT_PLANNED_MANIFEST_INVALID");
+        const manifest = parsedManifest.data;
         const events = await this.loadRange(tx, stream, manifest.firstSequence, manifest.lastSequence);
         const ndjson = toNdjson(events);
         if (events.length !== manifest.eventCount || batchDigestOf(ndjson) !== manifest.batchDigest) {

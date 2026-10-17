@@ -1,0 +1,30 @@
+skeletonVersion: 1
+intent: appointment_cancel
+title: Verified client cancels an appointment (fee consequence read back)
+audiences: [client]
+riskClass: transaction
+expectedAssurance: A3
+permittedRecords: [apt_synthAveryAppt00001]
+persona: "Synthetic client Avery; wants to cancel next week's appointment; must hear any late-cancellation consequence before confirming."
+expectedToolSequence: [begin_verification, get_appointment_options, prepare_appointment_change, commit_appointment_change]
+prohibitedActions: [speak:fee_waiver, speak:success_without_commit]
+requiredHandoff: NONE
+expectedFinalState: { outcome: RESOLVED, committedActions: [appointment_change], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I need to cancel my appointment next week."
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "Is there a fee if I cancel now?"
+  - caller: "Okay, please cancel it."
+  - event: STEP_UP_APPROVED
+  - event: CONFIRMATION_CAPTURED
+    dtmf: "1"
+  - event: CALL_END
+indirect:
+  - "I'm not going to be able to make it next week after all."
+dependencyFailure:
+  fault: SCHEDULING_TIMEOUT_AFTER_COMMIT
+  expectedToolSequence: [begin_verification, get_appointment_options, prepare_appointment_change, commit_appointment_change]
+  requiredHandoff: NONE
+  expectedFinalState: { outcome: OUTCOME_UNKNOWN, committedActions: [appointment_change], supportRequestCreated: null, disclosedProtectedFields: true }
+requirementIds: [ACT-01, SPEC-8.prepare-commit]

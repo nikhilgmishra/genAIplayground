@@ -39,3 +39,16 @@ export function toAuditUnavailable(err: unknown): AuditUnavailableError {
   if (state === "40001" || state === "40P01" || state === "55P03") return new AuditUnavailableError("AUDIT_CHAIN_CONTENTION");
   return new AuditUnavailableError("AUDIT_STORE_UNWRITABLE");
 }
+
+/**
+ * Runs a storage operation and replaces any non-platform error with a reason-code
+ * PlatformError, so driver messages (SQL text, bound parameters) never propagate.
+ */
+export async function guardStorage<T>(reasonCode: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof PlatformError) throw err;
+    throw new PlatformError(reasonCode, reasonCode, true);
+  }
+}

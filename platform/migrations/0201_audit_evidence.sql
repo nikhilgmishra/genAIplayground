@@ -154,18 +154,18 @@ begin
   if not pg_has_role(current_user, 'app_worker', 'USAGE') then
     raise exception 'AUDIT_APPEND_ONLY' using errcode = '42501';
   end if;
-  if old.shipped_at is not null or old.manifest_id is not null then
-    raise exception 'AUDIT_ALREADY_SHIPPED' using errcode = '42501';
-  end if;
-  if new.shipped_at is null or new.manifest_id is null then
-    raise exception 'AUDIT_SHIP_MARK_INCOMPLETE' using errcode = '42501';
-  end if;
   if (new.event_id, new.tenant_id, new.source_stream, new.sequence, new.prev_hash, new.hash, new.event,
       new.occurred_at, new.recorded_at, new.correlation_id, new.call_id, new.action, new.outcome, new.data_class)
      is distinct from
      (old.event_id, old.tenant_id, old.source_stream, old.sequence, old.prev_hash, old.hash, old.event,
       old.occurred_at, old.recorded_at, old.correlation_id, old.call_id, old.action, old.outcome, old.data_class) then
     raise exception 'AUDIT_APPEND_ONLY' using errcode = '42501';
+  end if;
+  if old.shipped_at is not null or old.manifest_id is not null then
+    raise exception 'AUDIT_ALREADY_SHIPPED' using errcode = '42501';
+  end if;
+  if new.shipped_at is null or new.manifest_id is null then
+    raise exception 'AUDIT_SHIP_MARK_INCOMPLETE' using errcode = '42501';
   end if;
   return new;
 end

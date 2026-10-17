@@ -99,11 +99,15 @@ and are listed as interface change requests in the delivery report.
 
 ```
 node talkdesk/tools/validate-package.mjs     # YAML parse, guardrail length/hash, destination + tool consistency
-node --test talkdesk/tools/                  # tagged node:test suite
-node talkdesk/tools/drift-check.mjs talkdesk/observed-config.template.yaml   # example drift run (expected: every field UNOBSERVED)
+node --test talkdesk/tools/package.test.mjs   # tagged node:test suite
+node talkdesk/tools/drift-check.mjs talkdesk/observed-config.template.yaml   # example run: verdict INCOMPLETE, exit code 2 (nothing observed yet)
 ```
 
-These run without network access and without any Talkdesk credential.
+These run without network access and without any Talkdesk credential. Passing them
+proves the package is internally consistent (guardrail ≤ 300 characters with the recorded
+count and hash, destinations equal to `DESTINATIONS`, tool sets equal to the spec list,
+cross-references resolve, no real numbers, secrets or compliance claims). It proves
+nothing about any tenant.
 
 ## Source register used (reference, not proof of tenant capability)
 

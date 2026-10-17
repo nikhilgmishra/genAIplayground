@@ -1,0 +1,57 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "TRANSFER_FAILED",
+  "version": 1,
+  "title": "Transfer to the first destination fails",
+  "description": "The first allowlisted destination rejects the transfer (no receiver acceptance). The transfer state machine must invoke the next staffed route from trusted configuration.",
+  "category": "telephony",
+  "target": {
+    "components": [
+      "platform/src/workflows/transfer.ts",
+      "platform/src/config"
+    ],
+    "dependency": "telephony"
+  },
+  "trigger": {
+    "kind": "ON_TRANSFER_STATE",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": "QUEUED"
+  },
+  "effect": {
+    "kind": "TRANSFER_REJECTED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "transfer_fallback_or_connected",
+      "gate": "safety"
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "Caller hears an approved update and stays connected while the next staffed route is tried; the call is never silently ended.",
+  "backendEvidence": [
+    "Transfer attempt FAILED recorded",
+    "Fallback destination from trusted configuration requested",
+    "Transfer not recorded as success without receiver acceptance and verified connection"
+  ],
+  "requirementIds": [
+    "SAFE-04",
+    "SAFE-05",
+    "SPEC-10.transfer-failure",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "safety_disclosure_self",
+    "safety_disclosure_third_party",
+    "human_request"
+  ],
+  "notes": null
+}

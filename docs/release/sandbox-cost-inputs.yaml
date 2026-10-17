@@ -1,0 +1,218 @@
+# Phase 2 sandbox cost estimate INPUTS (method only).
+#
+# NO PRICES ARE GIVEN. Every rate is RATE_CARD_REQUIRED: finance fills it from the current
+# rate card / agreement for the chosen region and vendor (vendor-questions VQ-AWS-05,
+# VQ-FIN-01). Every numeric quantity below is a planning assumption labelled
+# `assumption: true` and `requiresFinanceValidation: true`; sizing owners (infra/SRE,
+# QA, Talkdesk admin) may replace them. These are not vendor quotes.
+#
+# Formula (docs/release/sandbox-plan.md section 9):
+#   total = (sum(aws.components[*].monthly) * months)
+#         + talkdesk + salesforce + identity + internalLabour
+#   estimate = total * (1 + contingency)
+# The call-test spend is additionally capped by callTestBudgetCeilingUsd, which only finance sets.
+
+schemaVersion: vsp.release.sandbox-cost-inputs.v1
+status: METHOD_ONLY_NO_PRICES
+currency: USD
+region: UNKNOWN                      # VQ-AWS-06
+pricingSources:
+  aws: "Current AWS public pricing for the chosen region or the enterprise agreement (finance)"
+  talkdesk: "Talkdesk contract / rate card for the sandbox tenant (finance + Talkdesk admin)"
+  salesforce: "Salesforce contract for sandbox and integration user licences (finance + Salesforce admin)"
+  identity: "IdP contracts for test tenants/clients (identity owner)"
+months: { value: 1, assumption: true, requiresFinanceValidation: true }
+hoursPerMonth: 730                   # arithmetic convention (24 * 365 / 12), not a price
+contingency: FINANCE_TO_SET
+
+aws:
+  components:
+    - id: fargate_gateway
+      terraformModule: ecs_service
+      formula: "tasks * hours * (vcpuPerTask * rateVcpuHour + memoryGbPerTask * rateMemoryGbHour)"
+      tasks: { value: 2, assumption: true, requiresFinanceValidation: true, note: "minimum for AZ redundancy; sizing owner SRE" }
+      vcpuPerTask: SIZING_REQUIRED
+      memoryGbPerTask: SIZING_REQUIRED
+      hours: 730
+      rateVcpuHour: RATE_CARD_REQUIRED
+      rateMemoryGbHour: RATE_CARD_REQUIRED
+    - id: fargate_worker
+      terraformModule: ecs_service
+      formula: "tasks * hours * (vcpuPerTask * rateVcpuHour + memoryGbPerTask * rateMemoryGbHour)"
+      tasks: { value: 1, assumption: true, requiresFinanceValidation: true }
+      vcpuPerTask: SIZING_REQUIRED
+      memoryGbPerTask: SIZING_REQUIRED
+      hours: 730
+      rateVcpuHour: RATE_CARD_REQUIRED
+      rateMemoryGbHour: RATE_CARD_REQUIRED
+    - id: ecr
+      terraformModule: ecs_service
+      formula: "storedGb * rateStorageGbMonth"
+      storedGb: SIZING_REQUIRED
+      rateStorageGbMonth: RATE_CARD_REQUIRED
+    - id: alb
+      terraformModule: ingress
+      formula: "hours * rateAlbHour + lcuHours * rateLcuHour"
+      hours: 730
+      lcuHours: SIZING_REQUIRED
+      rateAlbHour: RATE_CARD_REQUIRED
+      rateLcuHour: RATE_CARD_REQUIRED
+    - id: waf
+      terraformModule: ingress
+      formula: "webAcls * rateWebAclMonth + rules * rateRuleMonth + requestsMillions * rateRequestsPerMillion"
+      webAcls: 1
+      rules: SIZING_REQUIRED          # count from the ingress module's rule set
+      requestsMillions: SIZING_REQUIRED
+      rateWebAclMonth: RATE_CARD_REQUIRED
+      rateRuleMonth: RATE_CARD_REQUIRED
+      rateRequestsPerMillion: RATE_CARD_REQUIRED
+    - id: aurora_postgresql
+      terraformModule: aurora
+      formula: "instances * hours * rateInstanceHour + storageGbMonth * rateStorageGbMonth + ioMillions * rateIoPerMillion + backupGbMonth * rateBackupGbMonth"
+      instances: SIZING_REQUIRED      # aurora module instance_count / instance_class
+      hours: 730
+      storageGbMonth: SIZING_REQUIRED
+      ioMillions: SIZING_REQUIRED
+      backupGbMonth: SIZING_REQUIRED
+      rateInstanceHour: RATE_CARD_REQUIRED
+      rateStorageGbMonth: RATE_CARD_REQUIRED
+      rateIoPerMillion: RATE_CARD_REQUIRED
+      rateBackupGbMonth: RATE_CARD_REQUIRED
+    - id: dynamodb_sessions
+      terraformModule: dynamodb_sessions
+      formula: "writeRequestMillions * rateWritePerMillion + readRequestMillions * rateReadPerMillion + storageGbMonth * rateStorageGbMonth"
+      writeRequestMillions: SIZING_REQUIRED
+      readRequestMillions: SIZING_REQUIRED
+      storageGbMonth: SIZING_REQUIRED
+      rateWritePerMillion: RATE_CARD_REQUIRED
+      rateReadPerMillion: RATE_CARD_REQUIRED
+      rateStorageGbMonth: RATE_CARD_REQUIRED
+    - id: sqs
+      terraformModule: sqs
+      formula: "requestMillions * rateRequestsPerMillion"
+      requestMillions: SIZING_REQUIRED
+      rateRequestsPerMillion: RATE_CARD_REQUIRED
+    - id: step_functions_standard
+      terraformModule: step_functions
+      formula: "stateTransitionsThousands * rateTransitionsPerThousand"
+      stateTransitionsThousands: SIZING_REQUIRED
+      rateTransitionsPerThousand: RATE_CARD_REQUIRED
+    - id: s3_audit_and_logs
+      terraformModule: audit, ingress
+      formula: "storedGbMonth * rateStorageGbMonth + requestThousands * rateRequestsPerThousand"
+      storedGbMonth: SIZING_REQUIRED
+      requestThousands: SIZING_REQUIRED
+      rateStorageGbMonth: RATE_CARD_REQUIRED
+      rateRequestsPerThousand: RATE_CARD_REQUIRED
+    - id: kms
+      terraformModule: kms
+      formula: "keys * rateKeyMonth + requestTenThousands * rateRequestsPerTenThousand"
+      keys: SIZING_REQUIRED           # kms module `keys` map
+      requestTenThousands: SIZING_REQUIRED
+      rateKeyMonth: RATE_CARD_REQUIRED
+      rateRequestsPerTenThousand: RATE_CARD_REQUIRED
+    - id: secrets_manager
+      terraformModule: secrets
+      formula: "secrets * rateSecretMonth + apiCallTenThousands * rateApiCallsPerTenThousand"
+      secrets: SIZING_REQUIRED        # count from sandbox-plan section 6
+      apiCallTenThousands: SIZING_REQUIRED
+      rateSecretMonth: RATE_CARD_REQUIRED
+      rateApiCallsPerTenThousand: RATE_CARD_REQUIRED
+    - id: cloudwatch
+      terraformModule: observability, network (flow logs)
+      formula: "logIngestGb * rateLogIngestGb + logStoredGbMonth * rateLogStorageGbMonth + customMetrics * rateMetricMonth + alarms * rateAlarmMonth"
+      logIngestGb: SIZING_REQUIRED
+      logStoredGbMonth: SIZING_REQUIRED
+      customMetrics: SIZING_REQUIRED
+      alarms: SIZING_REQUIRED
+      rateLogIngestGb: RATE_CARD_REQUIRED
+      rateLogStorageGbMonth: RATE_CARD_REQUIRED
+      rateMetricMonth: RATE_CARD_REQUIRED
+      rateAlarmMonth: RATE_CARD_REQUIRED
+    - id: nat_gateway
+      terraformModule: network
+      formula: "natGateways * hours * rateNatHour + processedGb * rateNatProcessedGb"
+      natGateways: SIZING_REQUIRED    # one per AZ in the network module
+      hours: 730
+      processedGb: SIZING_REQUIRED
+      rateNatHour: RATE_CARD_REQUIRED
+      rateNatProcessedGb: RATE_CARD_REQUIRED
+    - id: vpc_interface_endpoints
+      terraformModule: network
+      formula: "endpoints * azs * hours * rateEndpointHour + processedGb * rateEndpointProcessedGb"
+      endpoints: SIZING_REQUIRED
+      azs: SIZING_REQUIRED
+      hours: 730
+      processedGb: SIZING_REQUIRED
+      rateEndpointHour: RATE_CARD_REQUIRED
+      rateEndpointProcessedGb: RATE_CARD_REQUIRED
+    - id: public_ipv4
+      terraformModule: network, ingress
+      formula: "addresses * hours * rateIpv4Hour"
+      addresses: SIZING_REQUIRED      # NAT EIPs + ALB nodes
+      hours: 730
+      rateIpv4Hour: RATE_CARD_REQUIRED
+    - id: data_transfer_out
+      terraformModule: all
+      formula: "egressGb * rateEgressGb"
+      egressGb: SIZING_REQUIRED
+      rateEgressGb: RATE_CARD_REQUIRED
+
+talkdesk:
+  formula: "tenantMonths * rateSandboxTenantMonth + testNumbers * months * rateNumberMonth + callerLegMinutes * rateInboundMinute + humanLegMinutes * rateHumanLegMinute + aiUsageUnits * rateAiUsageUnit + simulatorRuns * rateSimulatorRun"
+  tenantMonths: { value: 1, assumption: true, requiresFinanceValidation: true }
+  testNumbers: { value: 2, assumption: true, requiresFinanceValidation: true, note: "one entry number + one spare; AR-07" }
+  aiUsageUnit: UNKNOWN                # per minute, per session or other — VQ-FIN-01
+  aiUsageUnits: DERIVED_FROM_CALL_TEST_PLAN
+  simulatorRuns: SIZING_REQUIRED      # Simulator billing behaviour UNKNOWN (VQ-TD-31)
+  rateSandboxTenantMonth: RATE_CARD_REQUIRED
+  rateNumberMonth: RATE_CARD_REQUIRED
+  rateInboundMinute: RATE_CARD_REQUIRED
+  rateHumanLegMinute: RATE_CARD_REQUIRED
+  rateAiUsageUnit: RATE_CARD_REQUIRED
+  rateSimulatorRun: RATE_CARD_REQUIRED
+
+salesforce:
+  formula: "sandboxLicence + integrationUserLicences * months * rateIntegrationUserMonth"
+  sandboxLicence: RATE_CARD_REQUIRED
+  integrationUserLicences: 1
+  rateIntegrationUserMonth: RATE_CARD_REQUIRED
+
+identity:
+  formula: "testTenants * rateTestTenantMonth * months"
+  testTenants: SIZING_REQUIRED
+  rateTestTenantMonth: RATE_CARD_REQUIRED
+
+internalLabour:
+  formula: "personaCallerHours * rateInternalHour + receivingAgentHours * rateInternalHour + reviewerHours * rateInternalHour"
+  personaCallerHours: DERIVED_FROM_CALL_TEST_PLAN
+  receivingAgentHours: DERIVED_FROM_CALL_TEST_PLAN
+  reviewerHours: SIZING_REQUIRED
+  rateInternalHour: RATE_CARD_REQUIRED
+
+# PSTN call-test plan quantities (sandbox-plan.md section 8). Counts are planning assumptions.
+callTestPlan:
+  averageCallerLegMinutes: { value: 8, assumption: true, requiresFinanceValidation: true, note: "spec section 12 ILLUSTRATIVE average; test calls are not measured traffic" }
+  suites:
+    - id: demonstration_journeys
+      calls: { value: 45, assumption: true, requiresFinanceValidation: true, note: "9 required journeys x 5 repetitions" }
+    - id: failure_injections
+      calls: { value: 24, assumption: true, requiresFinanceValidation: true, note: "8 injected faults x 3 repetitions" }
+    - id: studio_flow_tests
+      calls: { value: 41, assumption: true, requiresFinanceValidation: true, note: "SF-T-01..SF-T-41, one call each" }
+    - id: auth_gate_live
+      calls: { value: 8, assumption: true, requiresFinanceValidation: true, note: "AG-12..AG-19" }
+    - id: dtmf_isolation
+      calls: { value: 6, assumption: true, requiresFinanceValidation: true, note: "DT-01..DT-06; only if CG-02 is pursued" }
+    - id: transfer_and_safety_drills
+      calls: { value: 10, assumption: true, requiresFinanceValidation: true, note: "SF-T-18..SF-T-22 repeated plus receiver-unavailable drills" }
+  rerunContingencyFraction: FINANCE_TO_SET
+  humanLegShareOfCalls: SIZING_REQUIRED
+  averageHumanLegMinutes: SIZING_REQUIRED
+  formulas:
+    plannedCalls: "sum(suites[*].calls) * (1 + rerunContingencyFraction)"
+    callerLegMinutes: "plannedCalls * averageCallerLegMinutes"
+    humanLegMinutes: "plannedCalls * humanLegShareOfCalls * averageHumanLegMinutes"
+
+callTestBudgetCeilingUsd: TO_BE_APPROVED_BY_FINANCE
+safetyReservePolicy: "An active safety handoff is never disconnected to enforce the ceiling (SAFE-03); finance approves a bounded safety reserve and escalation owner."

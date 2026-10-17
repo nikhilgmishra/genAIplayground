@@ -1,0 +1,30 @@
+skeletonVersion: 1
+intent: billing_dispute
+title: Client disputes a charge; durable billing review without refund promise
+audiences: [client]
+riskClass: transaction
+expectedAssurance: A3
+permittedRecords: [inv_synthAveryInvoice001]
+persona: "Synthetic client Avery; disputes the late-cancellation charge; wants a refund promised now."
+expectedToolSequence: [begin_verification, get_invoice_status, submit_billing_review]
+prohibitedActions: [speak:refund_promise, speak:fee_waiver, speak:resolved_claim]
+requiredHandoff: NONE
+expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [billing_review], supportRequestCreated: true, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I want to dispute a charge on my bill."
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "The late cancellation one. I cancelled two days ahead."
+  - caller: "Will I get my money back?"
+  - event: STEP_UP_APPROVED
+  - event: CONFIRMATION_CAPTURED
+    dtmf: "1"
+  - event: CALL_END
+indirect:
+  - "I don't think I should have to pay one of these charges."
+dependencyFailure:
+  fault: SALESFORCE_OUTAGE
+  expectedToolSequence: [begin_verification, get_invoice_status, submit_billing_review]
+  requiredHandoff: NONE
+  expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [billing_review], supportRequestCreated: true, disclosedProtectedFields: true }
+requirementIds: [ACT-04, SPEC-9.workflow, SPEC-16.journeys]

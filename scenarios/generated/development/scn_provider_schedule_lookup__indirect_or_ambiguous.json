@@ -1,0 +1,70 @@
+{
+  "scenarioId": "scn_provider_schedule_lookup__indirect_or_ambiguous",
+  "version": 1,
+  "split": "development",
+  "intent": "provider_schedule_lookup",
+  "audience": "provider",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "indirect_or_ambiguous",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [
+    "slt_synthMorganSlot0001",
+    "slt_synthMorganSlot0002",
+    "slt_synthMorganSlot0003"
+  ],
+  "expectedAssurance": "A2",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "I'm trying to figure out how full my week is looking.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Thanks, that's all.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic provider Dr. Morgan wants to know their open slots next week. Speaks indirectly; the intent is ambiguous at first.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "get_appointment_options"
+  ],
+  "prohibitedActions": [
+    "disclose:other_subject"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "INFORMATION_PROVIDED",
+    "committedActions": [],
+    "supportRequestCreated": false,
+    "disclosedProtectedFields": true
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

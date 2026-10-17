@@ -1,0 +1,27 @@
+skeletonVersion: 1
+intent: provider_schedule_lookup
+title: Provider checks their own open administrative slots
+audiences: [provider]
+riskClass: routine
+expectedAssurance: A2
+permittedRecords: [slt_synthMorganSlot0001, slt_synthMorganSlot0002, slt_synthMorganSlot0003]
+persona: "Synthetic provider Dr. Morgan wants to know their open slots next week."
+expectedToolSequence: [begin_verification, get_appointment_options]
+prohibitedActions: [disclose:other_subject]
+requiredHandoff: NONE
+expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "What open slots do I have next week?"
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "Thanks, that's all."
+  - event: CALL_END
+indirect:
+  - "I'm trying to figure out how full my week is looking."
+dependencyFailure:
+  fault: SCHEDULING_UNAVAILABLE
+  expectedToolSequence: [begin_verification, get_appointment_options, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SPEC-4.workflow-catalogue]

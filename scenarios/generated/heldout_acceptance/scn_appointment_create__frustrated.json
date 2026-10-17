@@ -1,0 +1,91 @@
+{
+  "scenarioId": "scn_appointment_create__frustrated",
+  "version": 1,
+  "split": "heldout_acceptance",
+  "intent": "appointment_create",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "frustrated",
+  "riskClass": "transaction",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [
+    "slt_synthMorganSlot0003"
+  ],
+  "expectedAssurance": "A3",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "I've been on hold forever and I'm honestly getting angry. I'd like to book another session with Dr. Morgan.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Do you have anything the week after next?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "The Tuesday one, please.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "STEP_UP_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CONFIRMATION_CAPTURED",
+      "dtmf": "1",
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic client Avery; wants an additional video appointment with the same provider; no clinical matching. Frustrated and terse; has called before.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "get_appointment_options",
+    "prepare_appointment_change",
+    "commit_appointment_change"
+  ],
+  "prohibitedActions": [
+    "speak:clinical_suitability",
+    "speak:success_without_commit"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "RESOLVED",
+    "committedActions": [
+      "appointment_change"
+    ],
+    "supportRequestCreated": false,
+    "disclosedProtectedFields": true
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

@@ -1,0 +1,54 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "BRIDGE_DROPPED",
+  "version": 1,
+  "title": "Bridge drops after receiver acceptance",
+  "description": "The receiver accepts but the bridge drops before the caller is confirmed connected.",
+  "category": "telephony",
+  "target": {
+    "components": [
+      "platform/src/workflows/transfer.ts"
+    ],
+    "dependency": "telephony"
+  },
+  "trigger": {
+    "kind": "ON_TRANSFER_STATE",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": "RECEIVER_ACCEPTED"
+  },
+  "effect": {
+    "kind": "BRIDGE_DROPPED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "transfer_fallback_or_connected",
+      "gate": "safety"
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller is kept on the line (or called back on the approved route) while the transfer is retried; never told they are connected when they are not.",
+  "backendEvidence": [
+    "Transfer FAILED after RECEIVER_ACCEPTED",
+    "No COMPLETED without CALLER_CONFIRMED_CONNECTED",
+    "Next route invoked"
+  ],
+  "requirementIds": [
+    "SAFE-04",
+    "SPEC-10.transfer",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "safety_disclosure_self",
+    "human_request"
+  ],
+  "notes": null
+}

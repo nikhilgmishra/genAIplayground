@@ -21,15 +21,22 @@ import type { AuditEventInput as AuditEventInputType } from "../protocol/index.j
 import { sha256Hex } from "../shared/canonical.js";
 import { ValidationError } from "../shared/errors.js";
 
-/** Evidence pointer grammar: a known internal scheme plus a bounded opaque path. */
+/** Evidence pointer grammar: a known internal scheme plus a bounded opaque path (preferred form). */
 export const EVIDENCE_POINTER_RE = /^(s3|db|sf|ledger|wf|kv):\/\/[A-Za-z0-9/_.:@-]{3,190}$/;
+
+/**
+ * Typed opaque reference `<kind>:<opaque id>`, e.g. "action:act_..." or "workflow:wf_...".
+ * The value must be an opaque identifier (prefix + 16..64 random chars) and nothing else,
+ * so it cannot carry names, codes or other content.
+ */
+export const TYPED_OPAQUE_REF_RE = /^[a-z][a-z0-9_]{1,31}:[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$/;
 
 /** Stream names are per writer instance ("<component>.<instanceId>") to avoid one global hot row. */
 export const STREAM_NAME_RE = /^[a-z0-9_.-]{3,64}$/;
 
 const ACTION_RE = /^[a-z][a-z0-9_]{0,31}(\.[a-z][a-z0-9_]{0,31}){1,5}$/;
 const TURN_ID_RE = /^turn_[A-Za-z0-9_-]{4,64}$/;
-const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9_.:@/-]{7,127}$/;
+const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,127}$/;
 const FOUR_DIGIT_RUN = /\d{4,}/;
 
 /** Structured-identifier shapes that must never appear inside tokens (heuristic, not exhaustive). */
@@ -50,9 +57,10 @@ const CodeNoDigitRuns = ReasonCode.refine((v) => !FOUR_DIGIT_RUN.test(v), { mess
 
 export const EvidencePointer = z
   .string()
-  .regex(EVIDENCE_POINTER_RE)
+  .max(200)
+  .refine((v) => EVIDENCE_POINTER_RE.test(v) || TYPED_OPAQUE_REF_RE.test(v), { message: "pointer grammar" })
   .refine((v) => !looksPhiShaped(v), { message: "pointer must not carry PHI-shaped values" })
-  .refine((v) => !v.includes("..") && !v.includes("//", v.indexOf("://") + 3), { message: "pointer path must be normalized" });
+  .refine((v) => !v.includes("..") && (!v.includes("://") || !v.includes("//", v.indexOf("://") + 3)), { message: "pointer path must be normalized" });
 
 export const AuditAction = z
   .string()
@@ -134,9 +142,14 @@ export function pseudonymousSessionRef(sessionRef: string): string {
   return `${SESSION_PSEUDONYM_PREFIX}_${digest}`;
 }
 
-/** Normalization applied after validation and before hashing. */
+/**
+ * Normalization applied after validation and before hashing. Raw session handles
+ * ("ses_...") are replaced by their pseudonym. Binding references that are already
+ * one-way derivations of the session hash ("ses_bnd_...", actions module) are kept.
+ */
 export function normalizeAuditInput(input: AuditEventInputType): AuditEventInputType {
-  const sessionRef = input.sessionRef && input.sessionRef.startsWith("ses_") ? pseudonymousSessionRef(input.sessionRef) : input.sessionRef;
+  const ref = input.sessionRef;
+  const sessionRef = ref && ref.startsWith("ses_") && !ref.startsWith("ses_bnd_") ? pseudonymousSessionRef(ref) : ref;
   return { ...input, sessionRef };
 }
 

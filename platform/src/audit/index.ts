@@ -9,6 +9,7 @@ export {
   AuditWriterInput,
   AuditEventInvalidError,
   EVIDENCE_POINTER_RE,
+  TYPED_OPAQUE_REF_RE,
   STREAM_NAME_RE,
   EvidencePointer,
   AuditAction,

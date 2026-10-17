@@ -44,6 +44,12 @@ export interface PgAuditHealthOptions {
   /** Optional RLS tenant context for the probe transaction (the probe stores no tenant data). */
   tenantId?: string;
   logger?: Logger;
+  /**
+   * Optional reuse of a HEALTHY result for this many ms (default 0 = evaluate every call).
+   * Unhealthy results are never cached, and PgAuditWriter still fails closed on every
+   * append, so caching only trades probe load against detection latency.
+   */
+  cacheTtlMs?: number;
 }
 
 interface StatsRow {
@@ -69,9 +75,13 @@ export function validateBufferPolicy(policy: AuditBufferPolicy): AuditBufferPoli
 export class PgAuditHealth implements AuditHealth {
   private readonly logger: Logger;
   private readonly role: Exclude<DbRole, "owner" | "app_auditor">;
+  private readonly cacheTtlMs: number;
+  private cached: { at: number; status: AuditHealthStatus } | null = null;
 
   constructor(private readonly opts: PgAuditHealthOptions) {
     validateBufferPolicy(opts.policy);
+    this.cacheTtlMs = opts.cacheTtlMs ?? 0;
+    if (!Number.isSafeInteger(this.cacheTtlMs) || this.cacheTtlMs < 0 || this.cacheTtlMs > 10_000) throw new ValidationError("AUDIT_POLICY_INVALID");
     if (!STREAM_NAME_RE.test(opts.probeId)) throw new ValidationError("AUDIT_PROBE_ID_INVALID");
     this.role = opts.role ?? "app_runtime";
     this.logger = (opts.logger ?? silentLogger).child({ component: "audit_health" });
@@ -79,6 +89,14 @@ export class PgAuditHealth implements AuditHealth {
 
   async status(): Promise<AuditHealthStatus> {
     const now = this.opts.clock.now();
+    if (this.cached && now.getTime() - this.cached.at < this.cacheTtlMs) return { ...this.cached.status };
+    this.cached = null;
+    const s = await this.evaluate(now);
+    if (s.canAcceptConsequential && this.cacheTtlMs > 0) this.cached = { at: now.getTime(), status: s };
+    return { ...s };
+  }
+
+  private async evaluate(now: Date): Promise<AuditHealthStatus> {
     let stats: StatsRow | undefined;
     let probe: ProbeRow | undefined;
     try {

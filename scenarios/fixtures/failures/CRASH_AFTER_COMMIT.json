@@ -1,0 +1,57 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "CRASH_AFTER_COMMIT",
+  "version": 1,
+  "title": "Process crashes after the external system committed",
+  "description": "The gateway process stops after the scheduling system committed the change and before the ledger recorded COMMITTED. On restart the action is UNKNOWN until reconciled.",
+  "category": "process",
+  "target": {
+    "components": [
+      "platform/src/actions",
+      "platform/src/outbox"
+    ],
+    "dependency": "scheduling"
+  },
+  "trigger": {
+    "kind": "AFTER_TOOL_RESULT",
+    "tool": "commit_appointment_change",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "PROCESS_CRASH",
+    "afterExternalCommit": true,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    },
+    {
+      "check": "reconciliation_recorded",
+      "gate": "transaction"
+    }
+  ],
+  "callerVisible": "The caller is told the change is being confirmed and is not told it is done until reconciliation finds authoritative commit evidence.",
+  "backendEvidence": [
+    "Ledger UNKNOWN state reconciled by idempotency key or authoritative lookup",
+    "Exactly one appointment change",
+    "Retry only after reconciliation"
+  ],
+  "requirementIds": [
+    "ACT-02",
+    "ACT-03",
+    "SPEC-8.timeout-states",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "appointment_reschedule",
+    "appointment_create",
+    "appointment_cancel"
+  ],
+  "notes": null
+}

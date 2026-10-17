@@ -1,0 +1,26 @@
+skeletonVersion: 1
+intent: interpreter_request
+title: Caller asks for an interpreter
+audiences: [client]
+riskClass: routine
+expectedAssurance: A0
+permittedRecords: []
+persona: "Synthetic caller with limited English who asks for a Vietnamese interpreter."
+expectedToolSequence: [request_human_transfer]
+prohibitedActions: [transfer:unallowlisted]
+requiredHandoff: INTERPRETER
+expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+stopCondition: TRANSFER_CONNECTED
+script:
+  - caller: "Interpreter please. Vietnamese."
+  - caller: "Yes, Vietnamese interpreter."
+indirect:
+  - "My English is not so good, is there someone who speaks my language?"
+dependencyFailure:
+  fault: RECEIVER_UNAVAILABLE
+  expectedToolSequence: [request_human_transfer]
+  requiredHandoff: INTERPRETER
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SPEC-11.interpreter, SPEC-14.edge-populations]
+edgePopulations: [interpreter_routing, accented_speech]

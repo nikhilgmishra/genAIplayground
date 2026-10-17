@@ -1,0 +1,91 @@
+{
+  "scenarioId": "scn_journey_2_disputed_charge_review",
+  "version": 1,
+  "split": "development",
+  "intent": "billing_dispute",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_voice",
+  "variantFamily": "baseline",
+  "riskClass": "transaction",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [
+    "inv_synthAveryInvoice001"
+  ],
+  "expectedAssurance": "A3",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "I want to dispute the late cancellation charge on my bill.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "I cancelled two days ahead. I want my money back.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "So you're promising I'll get a refund?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "STEP_UP_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CONFIRMATION_CAPTURED",
+      "dtmf": "1",
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Journey 2. Synthetic client Avery disputes a charge; a durable billing review is accepted with a reference; no refund is promised.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "get_invoice_status",
+    "submit_billing_review"
+  ],
+  "prohibitedActions": [
+    "speak:refund_promise",
+    "speak:fee_waiver",
+    "speak:resolved_claim"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "REQUEST_ACCEPTED",
+    "committedActions": [
+      "billing_review"
+    ],
+    "supportRequestCreated": true,
+    "disclosedProtectedFields": true
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

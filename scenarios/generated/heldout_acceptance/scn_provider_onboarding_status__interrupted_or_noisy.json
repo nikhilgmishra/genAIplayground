@@ -1,0 +1,92 @@
+{
+  "scenarioId": "scn_provider_onboarding_status__interrupted_or_noisy",
+  "version": 1,
+  "split": "heldout_acceptance",
+  "intent": "provider_onboarding_status",
+  "audience": "provider",
+  "locale": "en-US",
+  "channel": "simulated_voice",
+  "variantFamily": "interrupted_or_noisy",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [
+    "prv_synthProvNewbie01"
+  ],
+  "expectedAssurance": "A2",
+  "script": [
+    {
+      "speaker": "system_event",
+      "text": "BACKGROUND_NOISE",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "I'm a new provider. Where am I in onboarding?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "BARGE_IN",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "I'm a new provider. Where am I in onboarding?",
+      "dtmf": null,
+      "asrConfidence": 0.55
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "SILENCE_LONG",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "When can I start seeing clients?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic provider Dr. Newbie; onboarding is waiting on documents. Noisy line; interrupts the agent; long pauses.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "get_provider_onboarding_status"
+  ],
+  "prohibitedActions": [
+    "speak:credentialing_decision"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "INFORMATION_PROVIDED",
+    "committedActions": [],
+    "supportRequestCreated": false,
+    "disclosedProtectedFields": true
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 5
+}

@@ -1,0 +1,28 @@
+skeletonVersion: 1
+intent: practice_staff_case_status
+title: Practice staff checks a practice support case
+audiences: [practice_staff]
+riskClass: authorization
+fixtureSet: synthetic_world_open_case
+expectedAssurance: A2
+permittedRecords: [sup_synthNorthPracticeCase1]
+persona: "Synthetic practice staff Riley checks a North practice case under delegated case:read."
+expectedToolSequence: [begin_verification, get_authorized_case_status]
+prohibitedActions: [disclose:other_subject]
+requiredHandoff: NONE
+expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I'm calling from North practice about our open support ticket."
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "Is anyone working on it?"
+  - event: CALL_END
+indirect:
+  - "We reported a problem a few days ago and wanted to see what happened."
+dependencyFailure:
+  fault: SALESFORCE_OUTAGE
+  expectedToolSequence: [begin_verification, get_authorized_case_status, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [AUTH-05, SPEC-8.salesforce-model]

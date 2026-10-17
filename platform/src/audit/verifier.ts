@@ -14,16 +14,16 @@
  */
 import { z } from "zod";
 import type { Db, DbRole, Queryable } from "../db/types.js";
-import { AuditEvent, IsoDateTime } from "../protocol/index.js";
+import { AuditEvent, IsoDateTime, OpaqueId } from "../protocol/index.js";
 import type { AuditEvent as AuditEventType, AuditManifest } from "../protocol/index.js";
 import type { Clock } from "../shared/clock.js";
 import { iso } from "../shared/clock.js";
 import { ValidationError } from "../shared/errors.js";
 import { batchDigestOf, objectKeyFor, parseNdjson, verifyChain } from "./chain.js";
 import type { ChainFindingCode } from "./chain.js";
-import { toDateOrNull, toSafeInt } from "./internal.js";
+import { guardStorage, toDateOrNull, toSafeInt } from "./internal.js";
 import type { AuditSink } from "./ports.js";
-import { STREAM_NAME_RE } from "./schema.js";
+import { AuditAction, STREAM_NAME_RE } from "./schema.js";
 
 export type IntegrityFindingCode =
   | ChainFindingCode
@@ -244,7 +244,7 @@ export class IntegrityVerifier {
   }
 
   private tx<T>(fn: (tx: Queryable) => Promise<T>): Promise<T> {
-    return this.opts.db.tx(fn, { role: this.role });
+    return guardStorage("AUDIT_STORE_UNAVAILABLE", () => this.opts.db.tx(fn, { role: this.role }));
   }
 
   async listStreams(): Promise<string[]> {
@@ -513,7 +513,7 @@ export class IntegrityVerifier {
    */
   async observedActionKeys(input: { tenantId: string; actions: readonly string[]; from: string; to: string }): Promise<Record<string, string[]>> {
     const parsed = z
-      .strictObject({ tenantId: z.string().min(3).max(80), actions: z.array(z.string().regex(/^[a-z][a-z0-9_.]{2,80}$/)).min(1).max(32), from: IsoDateTime, to: IsoDateTime })
+      .strictObject({ tenantId: OpaqueId, actions: z.array(AuditAction).min(1).max(32), from: IsoDateTime, to: IsoDateTime })
       .safeParse(input);
     if (!parsed.success) throw new ValidationError("AUDIT_RECONCILE_INPUT_INVALID");
     const out: Record<string, string[]> = Object.fromEntries(parsed.data.actions.map((a) => [a, [] as string[]]));

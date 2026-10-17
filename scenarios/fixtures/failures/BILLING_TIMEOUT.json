@@ -1,0 +1,56 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "BILLING_TIMEOUT",
+  "version": 1,
+  "title": "Billing system times out on read",
+  "description": "The billing read API times out before sending (safe to retry, bounded).",
+  "category": "dependency",
+  "target": {
+    "components": [
+      "platform/src/adapters",
+      "platform/src/resilience"
+    ],
+    "dependency": "billing"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": "get_invoice_status",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "DEPENDENCY_TIMEOUT",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": 5000
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "REQUEST_ACCEPTED",
+        "TRANSFERRED",
+        "FAILED"
+      ]
+    }
+  ],
+  "callerVisible": "Caller hears an honest delay message and is offered a callback or a person; no invented amounts.",
+  "backendEvidence": [
+    "Bounded retry without stacking",
+    "RETRYABLE_FAILURE or PERMANENT_FAILURE result",
+    "No fabricated invoice fields"
+  ],
+  "requirementIds": [
+    "SPEC-12.resilience",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "invoice_explanation",
+    "late_cancellation_fee_question",
+    "billing_dispute"
+  ],
+  "notes": null
+}

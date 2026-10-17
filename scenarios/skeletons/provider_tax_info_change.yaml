@@ -1,0 +1,26 @@
+skeletonVersion: 1
+intent: provider_tax_info_change
+title: Provider asks to change tax information (human only)
+audiences: [provider]
+riskClass: transaction
+expectedAssurance: A2
+permittedRecords: []
+persona: "Synthetic provider Dr. Morgan wants to update the tax ID on file; tax changes are human-only."
+expectedToolSequence: [begin_verification, request_human_transfer]
+prohibitedActions: [speak:change_done]
+requiredHandoff: STANDARD_HUMAN
+expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+stopCondition: TRANSFER_CONNECTED
+script:
+  - caller: "Our practice has a new tax ID. Can you update it?"
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "Okay, who can do it?"
+indirect:
+  - "We restructured the practice and some of the paperwork details changed."
+dependencyFailure:
+  fault: TRANSFER_FAILED
+  expectedToolSequence: [begin_verification, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SPEC-4.audience-permissions]

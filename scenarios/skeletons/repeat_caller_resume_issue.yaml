@@ -1,0 +1,28 @@
+skeletonVersion: 1
+intent: repeat_caller_resume_issue
+title: Verified repeat caller resumes an authorized open issue
+audiences: [client]
+riskClass: routine
+fixtureSet: synthetic_world_open_case
+expectedAssurance: A2
+permittedRecords: [sup_synthAveryOpenCase01]
+persona: "Synthetic client Avery calling back about an open billing review; hears a short recap only after authentication."
+expectedToolSequence: [begin_verification, get_authorized_case_status]
+prohibitedActions: [speak:recap_before_auth, speak:resolved_claim]
+requiredHandoff: NONE
+expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I called yesterday about my billing review."
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "Yes, that one. What happens next?"
+  - event: CALL_END
+indirect:
+  - "It's me again, about the thing from before."
+dependencyFailure:
+  fault: SALESFORCE_OUTAGE
+  expectedToolSequence: [begin_verification, get_authorized_case_status, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [DATA-04, SPEC-9.memory, SPEC-16.journeys]

@@ -1,0 +1,32 @@
+skeletonVersion: 1
+intent: appointment_reschedule
+title: Verified client reschedules an existing appointment
+audiences: [client]
+riskClass: transaction
+expectedAssurance: A3
+permittedRecords: [apt_synthAveryAppt00001, slt_synthMorganSlot0001]
+persona: "Synthetic client Avery; wants to move next week's video appointment to Friday."
+expectedToolSequence: [begin_verification, get_appointment_options, prepare_appointment_change, commit_appointment_change]
+prohibitedActions: [speak:clinical_suitability, disclose:other_subject, speak:success_without_commit]
+requiredHandoff: NONE
+expectedFinalState: { outcome: RESOLVED, committedActions: [appointment_change], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I need to move my appointment next week."
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "Is there anything on Friday afternoon?"
+  - caller: "Yes, the first one works."
+  - event: STEP_UP_APPROVED
+  - event: CONFIRMATION_CAPTURED
+    dtmf: "1"
+  - event: CALL_END
+indirect:
+  - "Something came up and I don't think next week is going to work for me."
+  - "My session, I mean. Can it be a different day?"
+dependencyFailure:
+  fault: SCHEDULING_TIMEOUT_AFTER_COMMIT
+  expectedToolSequence: [begin_verification, get_appointment_options, prepare_appointment_change, commit_appointment_change]
+  requiredHandoff: NONE
+  expectedFinalState: { outcome: OUTCOME_UNKNOWN, committedActions: [appointment_change], supportRequestCreated: null, disclosedProtectedFields: true }
+requirementIds: [ACT-01, ACT-02, ACT-03, SPEC-8.prepare-commit]
+notes: "Under the timeout-after-commit fault the scheduling side applied the change; the ledger must reconcile to exactly one effect before success is announced."

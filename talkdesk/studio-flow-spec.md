@@ -53,10 +53,10 @@ context; "model-writable" must be **No** for every row and is tested (AG-12).
 |---|---|---|---|---|---|
 | `vsp_auth_gate` | boolean | `false` (Studio constant; see `auth-gate.md` §2 for the "defined-condition" stop rule) | SF-08 init; SF-11 refresh mapping only | No (preferred) | **No** |
 | `vsp_session_ref` | string (opaque `ses_*`) | unset → set from TC-01 response | SF-06 | Only if TB-01 option A requires it; never as a tool argument | **No** |
-| `vsp_session_generation` | integer | unset → from TC-01 | SF-06, SF-11, SF-14 | No | **No** |
+| `vsp_session_generation` | integer | unset → from TC-01 | SF-06, SF-11, SF-13 (TC-10) | No | **No** |
 | `vsp_language` | enum `en`,`es`,`other` | unset | SF-02 | Yes | **No** |
-| `vsp_consent_recording` | enum `GRANTED`,`DECLINED`,`UNKNOWN` | `UNKNOWN` | SF-04 | No | **No** |
-| `vsp_consent_processing` | enum `GRANTED`,`DECLINED`,`UNKNOWN` | `UNKNOWN` | SF-04 | No | **No** |
+| `vsp_consent_recording` | enum `GRANTED`,`DECLINED`,`NOT_CAPTURED` (sent to the gateway as `ConsentValue` `UNKNOWN`) | `NOT_CAPTURED` | SF-04 | No | **No** |
+| `vsp_consent_processing` | enum `GRANTED`,`DECLINED`,`NOT_CAPTURED` (sent as `UNKNOWN`) | `NOT_CAPTURED` | SF-04 | No | **No** |
 | `vsp_role` | enum mirroring protocol `Role` or `unselected` | `unselected` | SF-05 | Yes | **No** |
 | `vsp_mode` | enum `NORMAL`,`CONTINUITY` | `NORMAL` | SF-06, SF-07, SF-C | No | **No** |
 | `vsp_ai_admitted` | boolean | `false` | SF-07 | No | **No** |
@@ -116,7 +116,7 @@ caller, a tool result or a retrieved document (SAFE-05).
 | destinationId | Purpose | Talkdesk queue ref (placeholder until reviewed export) | Fallback chain | Languages |
 |---|---|---|---|---|
 | `dst_safety_priority` | SAFETY_PRIORITY | `TALKDESK_QUEUE_PLACEHOLDER_SAFETY` | `dst_safety_backup` | en, es |
-| `dst_safety_backup` | SAFETY_PRIORITY | `TALKDESK_QUEUE_PLACEHOLDER_SAFETY_BACKUP` | none defined — terminal procedure owned by clinical safety lead (BLOCKED, PRQ in `vendor-questions.md` VQ-OPS-02) | en, es |
+| `dst_safety_backup` | SAFETY_PRIORITY | `TALKDESK_QUEUE_PLACEHOLDER_SAFETY_BACKUP` | none defined — terminal procedure owned by the clinical safety lead (BLOCKED; `vendor-questions.md` VQ-OPS-02) | en, es |
 | `dst_support_general` | STANDARD_SUPPORT | `TALKDESK_QUEUE_PLACEHOLDER_GENERAL` | `dst_outage_continuity` | en, es |
 | `dst_billing_specialist` | BILLING_SPECIALIST | `TALKDESK_QUEUE_PLACEHOLDER_BILLING` | `dst_support_general` | en |
 | `dst_provider_support` | PROVIDER_SUPPORT | `TALKDESK_QUEUE_PLACEHOLDER_PROVIDER` | `dst_support_general` | en |
@@ -153,8 +153,8 @@ can carry a reason value is **UNKNOWN** (VQ-TD-28); the required behaviour is:
 | `VERIFICATION_REQUIRED` | protected intent at A0 | SF-11 verification Skill |
 | `CONFIRMATION_REQUIRED` | after `prepare_*` / `submit_billing_review` preparation | SF-12 deterministic confirmation |
 | `INTERPRETER_REQUIRED` | unsupported language detected | SF-13 with `dst_interpreter` |
-| `GUARDRAIL_EXIT` | guardrail trigger limit | SF-13 (human), or SF-S if any safety signal present in the session (gateway `riskFlags` contains `SAFETY_ESCALATION_ACTIVE`) |
-| `LIMIT_REACHED` | refusal count, silence limit, maximum turns | SF-13 (human); SF-S if a safety signal is present |
+| `GUARDRAIL_EXIT` | guardrail trigger limit | SF-S when TC-12 reports `priority: SAFETY` (server-side safety escalation active for the session); SF-13 (human) when it reports `STANDARD`; if TC-12 is unavailable, SF-S — repository default is to fail toward the safety route, to be confirmed by the clinical safety lead (VQ-OPS-02) |
+| `LIMIT_REACHED` | refusal count, silence limit, maximum turns | same rule as `GUARDRAIL_EXIT` |
 | `AI_ERROR` | agent/model error, MCP failure | SF-C continuity |
 | `CALL_COMPLETE` | caller finished | SF-E call end |
 | anything unrecognised | — | SF-13 (human) |
@@ -171,7 +171,7 @@ confirmed from tenant documentation**), branches and tenant tests (section 8).
 * Trigger: inbound call on a sandbox test number routed to `vsp_main_inbound`.
   Number provisioning requires AR-07 (billable).
 * Actions: assign initial variable values from section 2 by Studio constants. Recording:
-  **not started**. Verify that no tenant-level "record all calls" setting starts recording
+  **not started**. Verify that no tenant-level setting that records every call automatically starts recording
   before SF-04 (VQ-TD-07). If it cannot be prevented, SF-04's consent-before-recording
   requirement is unmet: stop and report BLOCKED to privacy counsel.
 * Global handlers installed for the whole flow (where Studio supports them — UNKNOWN,
@@ -215,7 +215,7 @@ processor before the disclosure (DATA-02). Revisit only with counsel approval.
 | Accepts recording and automated processing | `GRANTED` | `GRANTED` | start recording (component TBC; verify it starts **now**, not retroactively) → SF-05 |
 | Declines recording, accepts automated processing | `DECLINED` | `GRANTED` | Phase 2 default: approved alternative (below). AI-without-recording only if VQ-TD-07 proves the tenant can run the AI agent with recording off **and** counsel approves the disclosure. |
 | Declines automated processing | per answer | `DECLINED` | approved alternative (below); AI is never invoked |
-| No input / unclear after one repeat | `UNKNOWN` | `UNKNOWN` | approved alternative (below); never disconnect |
+| No input / unclear after one repeat | `NOT_CAPTURED` | `NOT_CAPTURED` | approved alternative (below); never disconnect |
 | `0` at any time | unchanged | unchanged | SF-H |
 
 * Approved alternative: play `consent.declined_alternative` (counsel-approved; may offer a
@@ -276,7 +276,7 @@ processor before the disclosure (DATA-02). Revisit only with counsel approval.
 ### SF-09 Hand-off to the AI agent (coordinator)
 * Component: Studio step that starts the AI Agent Platform conversation (UI path to be
   confirmed). Pass: `vsp_language`, `vsp_role`. Pass `vsp_session_ref` only as required
-  by the TB-01 option chosen in `mcp-connection.md` §4 — never as a model-filled tool
+  by the TB-01 option chosen in `mcp-connection.md` §5 — never as a model-filled tool
   argument unless approval AR-09 exists.
 * The independent human route (SF-H) must remain reachable during the AI conversation:
   DTMF `0` and "agent". Whether a Studio-level DTMF interrupt works while the AI agent
@@ -296,8 +296,8 @@ processor before the disclosure (DATA-02). Revisit only with counsel approval.
 * Tests: SF-T-15, SF-T-16, SF-T-17.
 
 ### SF-S Early safety branch (priority, no authentication)
-* Reachable from: AI exit `SAFETY_ROUTE`; `GUARDRAIL_EXIT`/`LIMIT_REACHED` while a safety
-  signal is active; a human agent; and an optional menu option only if the clinical
+* Reachable from: AI exit `SAFETY_ROUTE`; `GUARDRAIL_EXIT`/`LIMIT_REACHED` under the
+  section 5 rule (safety escalation active, or TC-12 unavailable); a human agent; and an optional menu option only if the clinical
   safety lead approves one (template `safety.menu_option`, `PENDING_CLINICAL_APPROVAL`).
 * Actions, in order, with no verification, Auth Gate, payment or account checks
   (SAFE-02):
@@ -366,8 +366,9 @@ CG-03 (TB-02) is evidenced; until then a human agent confirms.
 5. `1` → TC-08 with `ActionConfirmation{actionId, digest, sessionRef, sessionGeneration,
    turnId, method: dtmf_keypress, capturedBy: talkdesk-studio, capturedAt}`. A generic
    "yes" from an earlier turn is never consent for another action.
-6. Return to the AI agent, which calls `commit_appointment_change` with `actionId` and
-   `digest`. The gateway re-checks authorization, freshness, state and the confirmation.
+6. Return to the AI agent, which calls the commit tool (`commit_appointment_change`, or
+   `submit_billing_review` for a prepared billing review — argument contract owned by the
+   gateway module) with `actionId` and `digest`. The gateway re-checks authorization, freshness, state and the confirmation.
    Success is announced only from the commit receipt (ACT-03, ACT-04).
 * Tests: SF-T-28..SF-T-31.
 
@@ -405,7 +406,8 @@ by the agent; gateway kill switch or budget exhaustion surfaced by TC-05.
 | `continuity = OUTAGE_MESSAGE_THEN_HUMAN` | `continuity.outage_message` | `dst_outage_continuity` |
 | AI down mid-call (`AI_ERROR`) | `continuity.outage_message` | `dst_support_general` |
 
-* Safety branch SF-S stays reachable in continuity mode. Sensitive actions are closed
+* Safety branch SF-S stays reachable in continuity mode through a human agent or the
+  optional approved menu option (no AI detection runs in this mode). Sensitive actions are closed
   (no AI, no tools); safe routing continues (SPEC-3.tool-outage).
 * A whole-Talkdesk outage is outside this flow: it requires a separately contracted
   carrier/continuity arrangement (VQ-OPS-01, BLOCKED). AWS failover cannot solve it.
@@ -431,24 +433,24 @@ flowchart TD
   SF04 -- "declined / unknown" --> ALT[Approved alternative template] --> XFER
   SF05{SF-05 Role menu} --> SF06[SF-06 TC-01 startCall]
   SF06 -- "fail / timeout" --> SFC
-  SF06 -- ok --> SF07{SF-07 TC-05 admission + consent + language}
+  SF06 -- "ok" --> SF07{SF-07 TC-05 admission + consent + language}
   SF07 -- "not admitted" --> SFC
-  SF07 -- admitted --> SF08[SF-08 vsp_auth_gate = false]
+  SF07 -- "admitted" --> SF08[SF-08 vsp_auth_gate = false]
   SF08 --> SF09[[SF-09 AI coordinator]]
-  SF09 -- HUMAN_REQUESTED / CLINICAL_ROUTE / LIMIT_REACHED / GUARDRAIL_EXIT --> XFER
-  SF09 -- SAFETY_ROUTE --> SFS
-  SF09 -- VERIFICATION_REQUIRED --> SF11
-  SF09 -- CONFIRMATION_REQUIRED --> SF12
-  SF09 -- AI_ERROR --> SFC
-  SF09 -- CALL_COMPLETE --> SFE
+  SF09 -- "HUMAN_REQUESTED / CLINICAL_ROUTE / LIMIT_REACHED / GUARDRAIL_EXIT" --> XFER
+  SF09 -- "SAFETY_ROUTE (or limit/guardrail exit with safety signal)" --> SFS
+  SF09 -- "VERIFICATION_REQUIRED" --> SF11
+  SF09 -- "CONFIRMATION_REQUIRED" --> SF12
+  SF09 -- "AI_ERROR" --> SFC
+  SF09 -- "CALL_COMPLETE" --> SFE
   SF11[SF-11 Verification Skill: secure link / isolated DTMF only if TB-03 / human] -- "TC-04 strict true" --> SF09
   SF11 -- "fail / timeout" --> XFER
-  SF12[SF-12 TC-07 pending action, DTMF 1/2/0, TC-08 confirm] -- confirmed --> SF09
+  SF12[SF-12 TC-07 pending action, DTMF 1/2/0, TC-08 confirm] -- "confirmed" --> SF09
   SF12 -- "not confirmed" --> XFER
   SFS[SF-S Safety: fixed acknowledgment, priority queue, NO authentication] --> SQ1[dst_safety_priority]
   SQ1 -- "no acceptance" --> SQ2[dst_safety_backup] -- "no acceptance" --> SQ3[Safety-lead procedure: stay queued, supervisor alert, never disconnect]
   XFER[SF-13 Transfer: allowlisted dst only, caller stays connected] --> ACC{Receiver accepted?}
-  ACC -- yes --> BR[BRIDGED, caller confirmed connected] --> SFE
+  ACC -- "yes" --> BR[BRIDGED, caller confirmed connected] --> SFE
   ACC -- "no / timeout" --> FB[Approved update, next fallback destination] --> ACC
   SFC[SF-C Continuity: outage message] --> XFER
   ZERO([DTMF 0 / 'agent' at any step]) -.-> SFH[SF-H Independent human route: Studio queue only, no gateway/model/policy]
@@ -510,8 +512,8 @@ Run in the approved sandbox only (AR-01, AR-05). Each run produces an `Evaluatio
 
 1. Exact Studio component names and UI paths for: prompt playback, DTMF menu, variable
    assignment, HTTP request, AI agent hand-off, queue assignment, recording start/stop,
-   global DTMF interrupt, hang-up handler. Record each with the tenant documentation
-   reference in `observed-config.template.yaml`.
+   global DTMF interrupt, hang-up handler. Record each, with its tenant documentation
+   reference, in the evidence kept with the observation copy (`drift-check.md` §2 and §5).
 2. Variable types (boolean support), variable scope (per interaction), and whether the AI
    agent can read or write Studio variables.
 3. HTTP step capabilities: OAuth2 client credentials, header injection, timeout range,

@@ -17,6 +17,7 @@ import type { Clock } from "../shared/clock.js";
 import { iso } from "../shared/clock.js";
 import { buildAuditInput } from "./build-input.js";
 import type { AuditQuery, AuditWriter } from "./ports.js";
+import { guardStorage } from "./internal.js";
 import { AuditAction } from "./schema.js";
 
 export const MAX_AUDIT_QUERY_LIMIT = 200;
@@ -44,7 +45,7 @@ export class PgAuditQuery implements AuditQuery {
     const parsed = AuditSearchFilter.safeParse(filter);
     if (!parsed.success) throw new ValidationError("AUDIT_QUERY_INVALID");
     const f = parsed.data;
-    const rows = await this.db.tx(
+    const rows = await guardStorage("AUDIT_QUERY_UNAVAILABLE", () => this.db.tx(
       async (tx) =>
         (
           await tx.query<{ event: unknown }>(
@@ -61,7 +62,7 @@ export class PgAuditQuery implements AuditQuery {
           )
         ).rows,
       { role: this.role, rls: { tenantId: f.tenantId } },
-    );
+    ));
     return rows.map((r) => {
       const ev = AuditEvent.safeParse(r.event);
       // A stored event that no longer parses is an integrity problem; surface it rather than hide evidence.

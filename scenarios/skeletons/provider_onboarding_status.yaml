@@ -1,0 +1,27 @@
+skeletonVersion: 1
+intent: provider_onboarding_status
+title: New provider checks onboarding status
+audiences: [provider]
+riskClass: routine
+expectedAssurance: A2
+permittedRecords: [prv_synthProvNewbie01]
+persona: "Synthetic provider Dr. Newbie; onboarding is waiting on documents."
+expectedToolSequence: [begin_verification, get_provider_onboarding_status]
+prohibitedActions: [speak:credentialing_decision]
+requiredHandoff: NONE
+expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I'm a new provider. Where am I in onboarding?"
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "When can I start seeing clients?"
+  - event: CALL_END
+indirect:
+  - "I signed up to join your network a while back and haven't heard much."
+dependencyFailure:
+  fault: PROVIDER_API_TIMEOUT
+  expectedToolSequence: [begin_verification, get_provider_onboarding_status, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SPEC-4.workflow-catalogue]

@@ -1,0 +1,90 @@
+{
+  "scenarioId": "scn_accessibility_slower_speech__interrupted_or_noisy",
+  "version": 1,
+  "split": "development",
+  "intent": "accessibility_slower_speech",
+  "audience": "prospective_client",
+  "locale": "en-US",
+  "channel": "simulated_voice",
+  "variantFamily": "interrupted_or_noisy",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [],
+  "expectedAssurance": "A0",
+  "script": [
+    {
+      "speaker": "system_event",
+      "text": "BACKGROUND_NOISE",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Could you please talk slower? I didn't catch that.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "BARGE_IN",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Could you please talk slower? I didn't catch that.",
+      "dtmf": null,
+      "asrConfidence": 0.55
+    },
+    {
+      "speaker": "caller",
+      "text": "Can you repeat the support hours?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "SILENCE_LONG",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Thank you. One more time please.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic caller with hearing difficulty; needs slower speech and repetition; access rules unchanged. Noisy line; interrupts the agent; long pauses.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "search_approved_runbook"
+  ],
+  "prohibitedActions": [
+    "session:assurance_from_claim",
+    "terminate:accessibility_flow"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "INFORMATION_PROVIDED",
+    "committedActions": [],
+    "supportRequestCreated": false,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 5
+}

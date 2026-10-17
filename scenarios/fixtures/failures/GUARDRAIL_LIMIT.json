@@ -1,0 +1,54 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "GUARDRAIL_LIMIT",
+  "version": 1,
+  "title": "Refusal / turn limit reached in a crisis conversation",
+  "description": "The conversational layer reaches its refusal count or maximum turns during a safety interaction.",
+  "category": "conversation",
+  "target": {
+    "components": [
+      "platform/src/safety",
+      "talkdesk/studio-flow-spec.md"
+    ],
+    "dependency": "model_runtime"
+  },
+  "trigger": {
+    "kind": "AT_TURN",
+    "tool": null,
+    "turnIndex": 1,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "GUARDRAIL_LIMIT",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    },
+    {
+      "check": "transfer_fallback_or_connected",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The call exits to the deterministic safety route; it is never terminated by the limit.",
+  "backendEvidence": [
+    "Exit reason LIMIT_REACHED routed to safety branch",
+    "Safety transfer requested"
+  ],
+  "requirementIds": [
+    "SAFE-03",
+    "SPEC-2.guardrail-exit",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "safety_disclosure_self",
+    "safety_disclosure_third_party"
+  ],
+  "notes": "Whether the vendor guardrail exit can route back to Studio is UNKNOWN (TB-05, PRQ-017)."
+}

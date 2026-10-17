@@ -47,7 +47,12 @@ export class LocalFsAuditSinkFixture implements AuditSink {
     }
     const manifests: AuditManifestType[] = [];
     for (const name of names.filter((n) => n.endsWith(MANIFEST_SUFFIX)).sort()) {
-      const raw = await readFile(join(dir, name), "utf8");
+      let raw: string;
+      try {
+        raw = await readFile(join(dir, name), "utf8");
+      } catch {
+        throw new AuditSinkError("AUDIT_SINK_UNAVAILABLE", true);
+      }
       let json: unknown;
       try {
         json = JSON.parse(raw);
@@ -102,7 +107,12 @@ export class LocalFsAuditSinkFixture implements AuditSink {
     }
     await unlink(tmp).catch(() => undefined);
     if (!exists) return;
-    const existing = await readFile(path, "utf8");
+    let existing: string;
+    try {
+      existing = await readFile(path, "utf8");
+    } catch {
+      throw new AuditSinkError("AUDIT_SINK_UNAVAILABLE", true);
+    }
     if (existing !== body) throw new AuditSinkError("AUDIT_SINK_OBJECT_EXISTS");
   }
 }

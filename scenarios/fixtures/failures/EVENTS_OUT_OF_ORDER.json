@@ -1,0 +1,53 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "EVENTS_OUT_OF_ORDER",
+  "version": 1,
+  "title": "Transfer events arrive out of order",
+  "description": "BRIDGED arrives before RECEIVER_ACCEPTED for the same transfer.",
+  "category": "delivery",
+  "target": {
+    "components": [
+      "platform/src/workflows/transfer.ts"
+    ],
+    "dependency": "telephony"
+  },
+  "trigger": {
+    "kind": "ON_TRANSFER_STATE",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": "BRIDGED"
+  },
+  "effect": {
+    "kind": "OUT_OF_ORDER_DELIVERY",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "transfer_fallback_or_connected",
+      "gate": "safety"
+    },
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    }
+  ],
+  "callerVisible": "No caller-visible change.",
+  "backendEvidence": [
+    "Out-of-order event handled by the state machine without skipping receiver acceptance",
+    "Transfer completion requires verified connection"
+  ],
+  "requirementIds": [
+    "SAFE-04",
+    "SPEC-10.transfer",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "human_request",
+    "safety_disclosure_self"
+  ],
+  "notes": "Real event export format is UNKNOWN (TB-07)."
+}

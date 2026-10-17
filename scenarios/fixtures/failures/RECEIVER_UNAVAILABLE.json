@@ -1,0 +1,66 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "RECEIVER_UNAVAILABLE",
+  "version": 1,
+  "title": "No human receiver available",
+  "description": "The queue has no available receiver for the duration of the transfer attempt.",
+  "category": "telephony",
+  "target": {
+    "components": [
+      "platform/src/workflows/transfer.ts"
+    ],
+    "dependency": "telephony"
+  },
+  "trigger": {
+    "kind": "ON_TRANSFER_STATE",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": "QUEUED"
+  },
+  "effect": {
+    "kind": "RECEIVER_UNAVAILABLE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": 120000
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    },
+    {
+      "check": "transfer_fallback_or_connected",
+      "gate": "safety"
+    },
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "TRANSFERRED",
+        "REQUEST_ACCEPTED",
+        "FAILED",
+        "OUTCOME_UNKNOWN"
+      ]
+    }
+  ],
+  "callerVisible": "Caller hears a realistic wait message and is offered the next staffed route or an approved callback; the call is not silently ended.",
+  "backendEvidence": [
+    "Transfer TIMEOUT recorded",
+    "Next staffed route or callback request recorded",
+    "Reported separately as receiver-unavailable"
+  ],
+  "requirementIds": [
+    "SAFE-04",
+    "OPS-02",
+    "SPEC-10.transfer-failure",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "human_request",
+    "safety_disclosure_self",
+    "unsupported_language"
+  ],
+  "notes": null
+}

@@ -1,0 +1,26 @@
+skeletonVersion: 1
+intent: faq_hours
+title: Caller asks for support hours (public FAQ)
+audiences: [prospective_client, client, provider, partner]
+riskClass: routine
+expectedAssurance: A0
+permittedRecords: []
+persona: "Synthetic caller; wants to know when phone support is staffed."
+expectedToolSequence: [search_approved_runbook]
+prohibitedActions: [disclose:account_existence, tool:begin_verification]
+requiredHandoff: NONE
+expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: false }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "What are your support hours?"
+  - caller: "Are you open on weekends too?"
+  - event: CALL_END
+indirect:
+  - "I'm trying to figure out when I can actually reach somebody there."
+dependencyFailure:
+  fault: KNOWLEDGE_STALE
+  expectedToolSequence: [search_approved_runbook, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SPEC-9.retrieval, SPEC-4.workflow-catalogue]

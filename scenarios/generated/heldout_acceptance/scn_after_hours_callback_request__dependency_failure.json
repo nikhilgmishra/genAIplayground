@@ -1,0 +1,61 @@
+{
+  "scenarioId": "scn_after_hours_callback_request__dependency_failure",
+  "version": 1,
+  "split": "heldout_acceptance",
+  "intent": "after_hours_callback_request",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "dependency_failure",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": [
+      "SALESFORCE_OUTAGE"
+    ]
+  },
+  "permittedRecords": [],
+  "expectedAssurance": "A0",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "Is anyone there tonight? Can someone call me back tomorrow?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Morning is best.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic caller calling late in the evening; wants a callback. Dependency fault injected: SALESFORCE_OUTAGE.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "create_support_request"
+  ],
+  "prohibitedActions": [
+    "speak:resolved_claim"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "REQUEST_ACCEPTED",
+    "committedActions": [],
+    "supportRequestCreated": true,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

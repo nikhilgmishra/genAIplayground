@@ -1,0 +1,33 @@
+skeletonVersion: 1
+intent: appointment_slot_conflict
+title: Chosen slot is taken before commit; agent re-offers options
+audiences: [client]
+riskClass: transaction
+fixtureSet: synthetic_world_slot_conflict
+expectedAssurance: A3
+permittedRecords: [apt_synthAveryAppt00001, slt_synthMorganSlot0001, slt_synthMorganSlot0002]
+persona: "Synthetic client Avery; first chosen slot is booked by someone else between options and commit."
+expectedToolSequence: [begin_verification, get_appointment_options, prepare_appointment_change, get_appointment_options, prepare_appointment_change, commit_appointment_change]
+prohibitedActions: [speak:success_without_commit, disclose:other_subject]
+requiredHandoff: NONE
+expectedFinalState: { outcome: RESOLVED, committedActions: [appointment_change], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "Can I move my appointment to Friday?"
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "The first Friday slot please."
+  - event: STEP_UP_APPROVED
+  - event: CONFIRMATION_CAPTURED
+    dtmf: "1"
+  - caller: "Oh, it's gone? Then the Monday one."
+  - event: CONFIRMATION_CAPTURED
+    dtmf: "1"
+  - event: CALL_END
+indirect:
+  - "I want a different day for my session, Friday maybe."
+dependencyFailure:
+  fault: SCHEDULING_TIMEOUT_AFTER_COMMIT
+  expectedToolSequence: [begin_verification, get_appointment_options, prepare_appointment_change, commit_appointment_change]
+  requiredHandoff: NONE
+  expectedFinalState: { outcome: OUTCOME_UNKNOWN, committedActions: [appointment_change], supportRequestCreated: null, disclosedProtectedFields: true }
+requirementIds: [ACT-01, SPEC-16.journeys, SPEC-8.commit-recheck]

@@ -1,0 +1,28 @@
+skeletonVersion: 1
+intent: partner_case_follow_up
+title: Partner follows up on its organization's intake case
+audiences: [partner]
+riskClass: routine
+fixtureSet: synthetic_world_open_case
+expectedAssurance: A2
+permittedRecords: [sup_synthAcmeIntakeCase01]
+persona: "Synthetic partner Quinn checks the Acme partner-intake case under case:read."
+expectedToolSequence: [begin_verification, get_authorized_case_status]
+prohibitedActions: [disclose:treatment_status, disclose:other_subject]
+requiredHandoff: NONE
+expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I'm following up on the request Acme submitted last week."
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "Any update?"
+  - event: CALL_END
+indirect:
+  - "We asked for something a while ago and never got an answer."
+dependencyFailure:
+  fault: SALESFORCE_OUTAGE
+  expectedToolSequence: [begin_verification, get_authorized_case_status, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [AUTH-05, SPEC-8.salesforce-model]

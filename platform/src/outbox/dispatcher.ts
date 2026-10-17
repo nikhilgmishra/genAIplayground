@@ -144,18 +144,14 @@ export class PgOutboxDispatcher implements OutboxDispatcher {
         attempts: r.attempts,
         createdAt: toIso(r.created_at),
       }));
-      let published = new Set<string>();
-      let failed = new Set<string>();
-      let errorCode = "PUBLISH_FAILED";
-      try {
-        const result = await this.opts.publisher.publish(messages);
-        published = new Set(result.published);
-        failed = new Set(result.failed);
-      } catch {
-        errorCode = "PUBLISH_EXCEPTION";
-        failed = new Set(messages.map((m) => m.messageId));
-        published = new Set();
-      }
+      // A publisher exception fails the whole claimed batch (it is retried with backoff).
+      const result = await Promise.resolve()
+        .then(() => this.opts.publisher.publish(messages))
+        .then(
+          (r) => ({ published: new Set(r.published), failed: new Set(r.failed), errorCode: "PUBLISH_FAILED" }),
+          () => ({ published: new Set<string>(), failed: new Set(messages.map((m) => m.messageId)), errorCode: "PUBLISH_EXCEPTION" }),
+        );
+      const { published, failed, errorCode } = result;
       const outcome = await this.settle(tenantId, token, rows, published, failed, errorCode);
       totals.dispatched += outcome.dispatched;
       totals.failed += outcome.failed;

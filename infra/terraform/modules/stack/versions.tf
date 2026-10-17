@@ -1,0 +1,12 @@
+terraform {
+  required_version = ">= 1.16.4, < 2.0.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 6.67.0, < 7.0.0"
+      # aws.audit = the separate audit account (see modules/audit).
+      configuration_aliases = [aws.audit]
+    }
+  }
+}

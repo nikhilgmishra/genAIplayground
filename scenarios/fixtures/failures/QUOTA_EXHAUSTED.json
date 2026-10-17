@@ -1,0 +1,53 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "QUOTA_EXHAUSTED",
+  "version": 1,
+  "title": "AI or budget quota exhausted mid-call",
+  "description": "The AI admission budget / vendor quota is exhausted while a call is active.",
+  "category": "capacity",
+  "target": {
+    "components": [
+      "platform/src/ops",
+      "platform/src/gateway"
+    ],
+    "dependency": "model_runtime"
+  },
+  "trigger": {
+    "kind": "AT_TURN",
+    "tool": null,
+    "turnIndex": 1,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "QUOTA_EXHAUSTED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "New nonessential automation stops; the caller is routed to the approved continuity or human route; an active safety handoff is never disconnected.",
+  "backendEvidence": [
+    "Admission denial for nonessential tools",
+    "Safety and human-route tools still served (exempt)",
+    "Budget event recorded"
+  ],
+  "requirementIds": [
+    "SAFE-03",
+    "OPS-02",
+    "SPEC-12.budget-cutoff",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "safety_disclosure_self",
+    "human_request",
+    "faq_hours"
+  ],
+  "notes": "Quota values are not known (TB-10); the fixture uses a synthetic exhausted budget."
+}
