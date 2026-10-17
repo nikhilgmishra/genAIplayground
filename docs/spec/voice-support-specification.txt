@@ -1,0 +1,620 @@
+MASTER IMPLEMENTATION PROMPT
+Enterprise mental healthcare voice support platform
+Prepared October 17 2026
+
+You are the principal implementation engineer in the repository supplied by the user.
+Build the enterprise platform specified below. Complete authorized engineering work,
+including code, tests, infrastructure plans, configuration, operational tooling and
+evidence. Do not substitute a prototype, presentation, or generic scaffold for it.
+
+Read the entire specification before writing code. Treat MUST, REQUIRED, NEVER,
+and the hard gates as acceptance criteria. The public-source review does not establish
+that any company account is configured or authorized. Do not claim HIPAA compliance
+or production readiness from code completion alone.
+
+EXECUTION ORDER
+1. Inspect repository instructions, existing architecture, dependencies and tests.
+   Do not print secrets. Produce a concise inventory and prerequisite register.
+2. Write an architecture decision record and a requirement-to-test matrix. Use the
+   default architecture in the specification unless actual repository constraints
+   justify a documented alternative. Flag unresolved trust-boundary capabilities.
+3. Implement the offline vertical slice with synthetic records, then all unblocked
+   policy, identity, workflow, audit, integration-contract and console work.
+4. Run meaningful local tests and fix failures. Label mocks and fixtures explicitly.
+5. Prepare the exact sandbox configuration and infrastructure plan. Obtain approval
+   only for missing external access, PHI handling, billable execution or deployment.
+   Provide the concrete scope, cost estimate and rollback before asking.
+6. Integrate approved services through verified public or account-specific APIs.
+   Prove critical behavior over actual telephone calls within the approved budget.
+7. Complete the release evidence pack and required operational drills. Human
+   approvals authorize pilot or production exposure; the coding agent cannot sign
+   for privacy counsel, security, clinical leadership, finance or operations.
+
+NONNEGOTIABLE ACCEPTANCE INVARIANTS
+AUTH-01  Caller ID, DOB, NPI and spoken claims never authenticate a session alone.
+AUTH-02  Every protected read and mutation is authorized in trusted backend code.
+AUTH-03  Actor, subject, organization, assurance and consent are server-established.
+AUTH-04  Expired or revoked sessions fail closed even if TTL cleanup has not run.
+AUTH-05  A provider or partner cannot access an unrelated person's records.
+AUTH-06  Verification secrets never reach a model, transcript or ordinary logs.
+AUTH-07  Talkdesk Auth Gate false, null, undefined and reused-session cases are tested.
+DATA-01  No PHI goes to an unapproved endpoint, developer tool or analytics sink.
+DATA-02  Raw audio remains sensitive even when a later transcript is redacted.
+DATA-03  Recording and processing follow approved consent and retention controls.
+DATA-04  A summary or memory cannot establish identity, consent or medical fact.
+ACT-01   Every consequential action has fresh, transaction-bound confirmation.
+ACT-02   Retry, redelivery and crash-after-commit tests create no duplicate effect.
+ACT-03   An ambiguous timeout is reconciled before retry or success is announced.
+ACT-04   Case creation and workflow acceptance do not count as issue resolution.
+ACT-05   Protected utterances cannot be spoken before authorization and validation.
+SAFE-01  No diagnosis, therapy, clinical screening or medication recommendation.
+SAFE-02  Safety routing and human requests do not require account authentication.
+SAFE-03  Refusal counts, silence and cost limits never silently terminate safety flow.
+SAFE-04  Transfer succeeds only with receiver acceptance and verified connection.
+SAFE-05  A caller, model or retrieved document cannot choose an arbitrary dial target.
+OPS-01   Every accepted consequential action has durable independent audit evidence.
+OPS-02   AI failure preserves a usable telephony route with documented capacity.
+OPS-03   Unknown capabilities, missing evidence and unrun tests are not PASS.
+OPS-04   Production refuses fixture adapters and missing mandatory approvals.
+OPS-05   No paid tests, PHI access or production changes without scoped authorization.
+OPS-06   Model, voice, knowledge, tools and policy versions are pinned and reviewable.
+
+PROGRESS AND HANDOFF
+Maintain IMPLEMENTATION_STATUS, PREREQUISITES, DECISIONS, REQUIREMENTS_TRACEABILITY,
+TEST_EVIDENCE and RUNBOOKS in repository-appropriate formats. Record completed and
+blocked work, reproducible commands, evidence locations, current versions and next
+steps. Continue useful independent work when an external prerequisite is unavailable.
+Do not repeatedly ask for already granted approval. Do not manufacture evidence.
+
+The following is the complete specification. The report's source register is
+reference material, not proof of current tenant capability. Revalidate anything
+that can change before enabling it in a real environment.
+
+======================================================================
+
+# Enterprise Voice Support Platform
+
+Production specification and coding agent instructions
+
+Prepared for Nikhil Mishra on October 17 2026
+
+## 1 Decision and operating boundary
+
+Keep Talkdesk for telephone numbers, inbound routing, queues, agent workspaces, and human transfers. Use Talkdesk Autopilot Agentic with AI Agent Platform as the preferred conversational layer, conditional on written contractual coverage and proof of the controls below. Put identity, authorization, business actions, durable follow-up, and independently retained audit evidence in an AWS control plane. Keep Salesforce Service Cloud as the support system of record. This division lets the company change a voice model without rewriting access policy or billing workflows.
+
+The objective is reliable resolution of administrative requests from clients, providers, and partners at more than 25,000 calls per day. Intake and Case creation are only part of that objective. A Case opened is not a problem resolved. Start with bounded workflows, prove each one, and progressively automate more of the workload. Retain staffed support, clinical escalation, accessibility, fraud, and exception paths. Do not promise that every human role can be eliminated.
+
+This specification defines engineering requirements and release evidence; it does not certify the company or a deployment as HIPAA compliant. Public product documentation does not establish this tenant's contracts, settings, entitlements, or capacity. Privacy counsel, security leadership, clinical safety leadership, and operations must approve the applicable controls. No production accounts or systems were inspected for this review.
+
+Three days can produce a synthetic-data integration slice. It cannot establish enterprise readiness at this volume. Use the milestone gates in Section 15, with evidence rather than a calendar date deciding promotion.
+
+### How to use the deliverables
+
+Give the companion coding-agent prompt to the implementation agent in the actual repository. It includes the complete specification, working rules, prerequisite gates, and required evidence. Begin with discovery and offline implementation. Provisioning, paid calls, production data access, and live traffic require the specific approvals described here. Do not paste real transcripts, credentials, or patient records into an unapproved coding-agent environment.
+
+## 2 Corrections to the supplied plan
+
+### Verified platform capabilities with important limits
+
+Talkdesk documents AI Agent Platform GA, MCP availability, and the October 14 Authentication Gate release. Auth Gate is a component access gate tied to an authentication variable, not an identity provider or a complete authorization system. Its documentation describes the condition as being defined, and recommends setting it inside a deterministic Skill. Explicitly test missing, null, false, string values, expiry, and session reuse. Never initialize an unauthenticated session with a value that accidentally opens the gate. [S1, S2]
+
+The Simulator supports chat and voice configuration, but the July release notes limit LLM-driven scenario generation to chat. The Simulator article describes testing before publishing; do not rely on the supplied claim that it always runs the last published version. Prove which version each test exercises. Batch Agent Evaluation is documented as Preview for selected customers. No public Simulator automation API was established in this review. OpenCode must use a documented API or prepare supported imports and an operator runbook; it must not invent endpoints. [S1, S4, S6]
+
+Talkdesk's custom guardrail field is documented as only 300 characters, and its trigger limit can close a conversation. That field cannot contain this security specification. Verify how guardrail exits route back into Studio, and prove that crisis or accessibility interactions reach an appropriate human without being terminated by refusal counters, silence limits, or maximum turns. If that cannot be demonstrated, that autonomous flow does not launch. [S5]
+
+MCP is an integration protocol, not a security guarantee. Talkdesk documents Streamable HTTP with bearer-token or OAuth2 authentication and says external tool definitions are not versioned within the platform. Pin tool schemas and enforce authorization in the service that actually reads or changes data. Service authentication does not authenticate the caller. [S3]
+
+### Claims to remove or qualify
+
+Do not treat date of birth plus another discoverable identifier as strong authentication. Caller ID, NPI, ZIP code, invoice details, and a familiar voice are identifiers or risk signals. Prefer account-bound authentication and possession verification; apply stronger step-up for consequential changes. NIST withdraws knowledge-based questions as authenticators and treats PSTN out-of-band verification as restricted. These are security design references, not a claim that every HIPAA call must meet a specific NIST assurance level. [S7, S8]
+
+An AWS BAA does not make Talkdesk, Salesforce, an external voice vendor, or an observability service covered. VPC routing, IAM permissions, encryption, retention, and service configuration do not inherit automatically into a compliant application. Redacting a transcript after recognition does not mean the speech processor never received PHI. Provider zero retention and the company's own restricted operational records are different controls. [S9, S10]
+
+Salesforce's restrictions on Agentforce Contact Center are real, but they do not establish the scope of a Talkdesk contract or prohibit ordinary authorized administrative use of Service Cloud. The proposed stack does not require Agentforce. Microsoft's standard BAA framework likewise does not prove coverage for every MAI endpoint, preview feature, or deployment mode. Confirm exact service and contract scope. [S11, S12]
+
+ElevenLabs is an optional future voice-quality candidate, not an additional default platform. Its current documentation requires BAA coverage and zero retention for eligible PHI handling, and states that MCP is unavailable for users requiring HIPAA compliance or Zero Retention Mode. Voice-cloning workflows are not zero-retention eligible. Do not port a Talkdesk MCP design into ElevenLabs assuming feature parity. [S13, S14]
+
+The claim that Nova 2 Sonic is the current model is already stale: AWS announced Nova 2.5 Sonic on October 5. AWS's announcement and model overview disagree about its context limit, reporting 256K and up to 1M respectively. Require exact model, region, quota, and endpoint evidence before selection. A large context window is not an authorization system or a good reason to send whole patient histories. [S15, S16]
+
+Do not adopt the quoted vendor latency ranges, word-error rates, voice rankings, language comparisons, or model retirement dates as requirements without matched, dated evidence. Measure the selected configuration over the actual telephone path, including interruption handling and noisy audio. A generic voice-quality leaderboard does not predict accurate names, benefit explanations, privacy behavior, or warmth under frustration.
+
+The voiceprint litigation is not a Microsoft-only story. The plaintiffs' law firm announced actions against nine companies, including Microsoft, Amazon, and ElevenLabs. These are allegations, not findings. Remove the damages arithmetic and procedural-status claims unless counsel verifies current dockets and applicable law. Procurement should address voice licensing, training provenance, indemnity, and biometric features for every supplier. [S17]
+
+DistressBench is a useful supplementary, clinician-authored text evaluation, not a certificate for a telephone support system. Its published scope is English, assumes US crisis resources, and its license is evaluation-only. Its criteria include clinical-support behavior that this administrative agent must not imitate. Use it to identify routing risks, subject to license review, alongside an internally approved handoff suite. [S18]
+
+The ONC MedStar project is documented as a research award. It is not a current compliance requirement or a production dependency; the asserted 2029 readiness date was not established here. Do not use unverified panel anecdotes, executive quotations, or blanket crisis-network claims as legal requirements. Use approved company policy and written operational agreements. [S19]
+
+## 3 Architecture and technology choices
+
+### Preferred stack
+
+| Responsibility | Selected technology | Boundary |
+|---|---|---|
+| Telephony and contact center | Existing Talkdesk tenant and Studio | Own numbers, queues, consent routing, human call legs and overflow |
+| Conversation | Talkdesk Autopilot Agentic and AI Agent Platform | One caller-facing coordinator with a few bounded domain agents |
+| Trusted tool service | TypeScript on a supported Node LTS with Fastify on ECS Fargate | Narrow HTTP operations and a thin MCP adapter; no general-purpose agent shell |
+| Policy enforcement | OPA policy bundles evaluated locally beside the tool service | Deny by default; role, relationship, scope, action, assurance and purpose checks |
+| Identity | Existing client and provider IdPs via OIDC plus workforce SSO | Reuse enrollment and recovery processes; do not create a second identity database |
+| Durable business workflows | AWS Step Functions Standard | Persist callbacks, approvals, deadlines and reconciliation outside live conversation |
+| Business ledger and knowledge | Aurora PostgreSQL with pgvector where justified | Transactional actions, outbox, approved runbooks and permission-filtered retrieval |
+| Call session state | DynamoDB with conditional writes | Trusted session binding, authentication state, expiry and revocation |
+| Event delivery | SQS with dead-letter queues | Idempotent asynchronous delivery and replay; EventBridge only for justified fan-out |
+| Evidence and retained media | S3 with KMS and separate audit account | Restricted PHI objects; Object Lock for approved audit retention classes |
+| Observability | OpenTelemetry into CloudWatch and approved Datadog configuration | Content-free metrics by default; PHI-aware access and export policy |
+| Support records | Salesforce Service Cloud | Cases, ownership, dispositions, human tasks and restricted summaries |
+| Operations console | React and TypeScript behind workforce SSO | Calls, workflows, policy versions, incidents, approval queues and audit search |
+| Infrastructure and delivery | Terraform and existing CI with OIDC federation | Reviewable plans, separate accounts, signed artifacts and reversible releases |
+
+These are design choices, not claims that every product is already purchased or enabled. The AWS component list must be reconciled against the current eligible-service list and the signed BAA before PHI use. [S10]
+
+Keep synchronous reads and short, policy-approved actions out of Step Functions when they can complete safely within the voice budget. Use Standard workflows for work that must survive hang-up, outages, approvals, or days of waiting. Its durable execution does not eliminate external API duplicates caused by retries or ambiguous timeouts; the business ledger must do that. Do not add LangGraph, a second workflow engine, Kafka, a separate vector database, or a custom speech layer by default. [S20]
+
+If the repository already has an approved production workflow engine, inspect it before proposing replacement. A deliberate architecture decision may retain it; never run two workflow engines for the same case without a concrete reason and ownership boundary.
+
+### Trust boundaries and deployment
+
+The caller and everything the caller says are untrusted. Retrieved articles, tool-returned free text, transcripts, and uploaded files are also untrusted inputs to model instructions. Talkdesk supplies a trusted service identity and an independently established call binding; it does not get unrestricted credentials to business systems. The gateway reconstructs the caller's permissions from server-side state on every action.
+
+Deploy the AWS application across at least three availability zones where available, with a tested secondary US region for recovery. Start with one write region to simplify consistency. Keep stateful services private. Expose only the ingress needed by Talkdesk, protected by TLS, WAF, narrow authentication, and supported network controls. Verify Streamable HTTP compatibility, timeouts, and buffering through the chosen load balancer. IP allowlists are supplemental, not authentication.
+
+There must be an independent Talkdesk Studio route to human support that does not require a successful model response, gateway request, or policy-service decision. A tool-service outage closes access to sensitive actions while preserving safe telephone routing. An entire Talkdesk outage requires a separately contracted carrier or continuity arrangement; AWS failover alone cannot solve it.
+
+### Vendor capability gate
+
+Before selecting native Talkdesk AI for PHI-bearing production calls, demonstrate: trusted call-context binding; secure verification entry; protected tool access; before-speech controls for sensitive responses; an early safety signal and deterministic handoff route; safe guardrail exits; auditable version identity; usable event exports; supported transfer behavior; and contracted concurrency. Public docs establish only some of these capabilities.
+
+Where strict output control is required, use deterministic Skills and approved response templates outside unrestricted model generation. If native AI cannot prevent a protected response from being spoken before authorization and validation, do not claim that a prompt fixes the gap. Keep Talkdesk telephony and propose a separately approved speech runtime over a supported SIP or media interface. The fallback design is a self-hosted LiveKit media layer on AWS with separately controllable ASR, text generation, output approval, and TTS. It is a new engineering and vendor review, not a silent substitution or a three-day detour.
+
+## 4 Functional scope and resolution contracts
+
+### Audience permissions
+
+| Caller | Automatically eligible work after required checks | Human or specialist boundary |
+|---|---|---|
+| Client or prospective client | General service questions; portal navigation; own appointment facts; approved scheduling; bill or claim status; administrative intake | Treatment questions, medication advice, safety concerns, disputed liability, identity recovery, exceptional refunds |
+| Provider or authorized practice staff | Own or delegated practice cases; onboarding status; credentialing document status; authorized scheduling and remittance status | Credentialing decisions, clinical records, payout destination changes, tax changes, ambiguous delegation |
+| Partner or payer representative | Organization-scoped administrative requests with verified affiliation, contract and purpose | No blanket patient search; no employer access to an individual's treatment status; ambiguous rights or benefit decisions |
+| Parent or other representative | Only records covered by verified legal authority and applicable consent rules | Minor confidentiality conflicts, custody disputes, expired authorization and unsupported proxy access |
+
+A provider identifier, partner email domain, or caller's statement of relationship does not establish access. Staff permissions must come from authoritative enrollment and delegation records. A multi-role user selects a role; privileges are never combined silently.
+
+### Initial workflow catalogue
+
+Implement public FAQs, login guidance without credential reset, appointment lookup, approved appointment create or reschedule, invoice explanation from authoritative fields, claim status, provider onboarding status, remittance lookup, partner intake, complaint intake, and Case follow-up. Payments use an approved hosted payment page or isolated PCI flow. Do not collect card numbers or security codes into speech transcripts or models.
+
+Each workflow requires a versioned resolution contract: eligible audience, intent, required assurance, permitted fields, source system, allowed actions, exact success evidence, caller confirmation, escalation owner, service deadline, after-hours behavior, and prohibited assertions. Unsupported workflows result in honest intake or handoff, not invented procedures.
+
+Read-only invoice explanations do not decide insurance coverage, waive fees, or promise a refund. Scheduling does not perform clinical suitability matching. Claim-status retrieval must distinguish insurer status from an eligibility or payment guarantee. Login help must never ask for passwords or bypass the identity provider's recovery process.
+
+Use distinct outcomes: RESOLVED with evidence; REQUEST_ACCEPTED pending work; TRANSFERRED with acceptance; INFORMATION_PROVIDED; DECLINED_BY_POLICY; CALLER_DISCONNECTED; FAILED; and OUTCOME_UNKNOWN. A caller hanging up, a tool returning HTTP 200, or a Case being created cannot alone set RESOLVED.
+
+## 5 Prerequisites and ownership
+
+### Required before live integrations or PHI
+
+| Owner | Required artifact or access | Gate |
+|---|---|---|
+| Executive sponsor and support owner | Funded scope, workflow priorities, success measures and named incident authority | Before committing to production timeline |
+| Privacy counsel and procurement | Executed BAAs and service-specific coverage for Talkdesk AI, speech, models, Salesforce, AWS and every PHI processor | Before any PHI leaves synthetic environments |
+| Security and privacy | Data-flow inventory, risk analysis, threat model, retention matrix and approved coding/evaluation environments | Before real records or recordings are used |
+| Talkdesk administrator and vendor | Sandbox, licenses, routing exports, documented APIs, transfer controls, quota commitments and escalation support | Before vendor integration tests |
+| Identity owner | OIDC test clients, account linking, registered-channel verification, recovery and proxy authority policies | Before protected workflows |
+| Salesforce administrator | Sandbox, integration identity, Case schema, sharing model, encrypted fields, external IDs, API allocation and automation inventory | Before Case writes |
+| Business-system owners | Scheduling, billing, claims and provider APIs with synthetic fixtures and commit semantics | Before enabling those intents |
+| Clinical safety lead | Approved escalation scripts, staffed response plan, external transfer agreements and after-hours protocol | Before patient-facing voice |
+| Support operations | Queue skills, schedules, accessibility and interpreter paths, overflow capacity and outage exercises | Before any traffic migration |
+| Finance and platform owner | Vendor rate cards, approved test ceiling, production budget, reserve and cutoff behavior | Before any billable execution |
+| SRE and security operations | On-call roster, dashboards, paging, access reviews, incident response and recovery drill evidence | Before production promotion |
+| QA and language leads | Reviewed test corpus, consented voice fixtures, scoring rules and native-speaker reviewers | Before accepting a language or cohort |
+
+For each prerequisite store owner, status, evidence reference, approval date, expiry date, environment, and next action. UNKNOWN and BLOCKED are valid states; they are never equivalent to approved. Evidence must identify the exact tenant, SKU, region, feature and model where relevant. Missing secrets should block integration execution, not prevent useful offline coding.
+
+### Vendor questions that require written answers
+
+Ask Talkdesk to confirm the complete PHI path and subprocessors; model and voice identifiers; storage and training terms; residency and cross-border routing; retention and deletion; access to raw audio and transcripts; recording-consent controls; secure DTMF or portal verification; export formats; per-tenant quotas; throttling and queue behavior; version pinning; rollback; emergency routing; and support response commitments.
+
+Ask specifically whether authentication variables can be cleared on expiry, whether the model can mutate any trusted session field, whether every protected utterance can be validated before audio emission, and whether crisis input is available before refusal or termination. Obtain documented answers for the actual plan, not a demo tenant. A preview feature is not a mandatory production dependency unless its risk and support terms are explicitly accepted.
+
+## 6 Data protection and compliance controls
+
+Map every PHI processor, storage location, support-access path, backup, telemetry sink, and deletion path. Execute risk analysis for the implemented system, not only vendors. HIPAA eligibility and a BAA are necessary building blocks, not the whole compliance program. [S9]
+
+Counsel must determine applicability of 42 CFR Part 2, psychotherapy-note protections, state mental-health confidentiality rules, minors and personal representatives, call-recording laws, biometric laws, accessibility, outbound-call rules, and PCI obligations. Part 2 compliance changes were required by February 16, 2026. Applicability is record- and program-specific; do not label every mental-health record as Part 2 or treat every record as ordinary CRM data. [S21, S22]
+
+Default the agent away from psychotherapy notes, therapy-session transcripts, medication histories, diagnoses, and clinical scoring. A client may volunteer clinical details; that still makes the ingress and its processors sensitive. Do not use the company's therapy corpus for support fine-tuning, retrieval, testing, or personalization without a separate approved purpose and legal review.
+
+Separate four data classes: transient conversational data; business records required for support; restricted QA media; and security/audit evidence. Set retention by class and legal purpose. HIPAA's documentation requirements do not mean every recording must be kept for six years. Do not invent a universal retention duration. Use enforceable lifecycle policies, legal-hold exceptions, vendor deletion requests, and deletion verification for derived copies, indexes, caches and backups.
+
+Treat original audio and pre-redaction transcripts as PHI wherever received. Redact or tokenize before general logs, analytics, model context when feasible, and downstream sharing. Redaction is probabilistic and does not establish formal de-identification. A redaction failure quarantines the artifact from broad access; it does not justify sending raw content to a debugging vendor. Preserve required authorized business facts separately from redacted analytics.
+
+Do not enable all-provider zero retention as an empty slogan. Verify it per feature and endpoint where available, including exceptions. The organization may keep minimized, access-controlled records necessary for operations and audit. Copying every full transcript into a Salesforce Case multiplies exposure; store a concise approved summary and a permission-checked evidence reference instead. Never use public or long-lived recording links.
+
+Recording and automated-agent disclosures must be accurate and jurisdiction-approved. Configure consent before recording begins where required, and offer the approved alternative when a caller declines. Do not say a call is unrecorded if transcription, model processing, or another recorder continues. Avoid PHI in URLs, metric labels, alert text, resource names, trace baggage, error messages and support tickets.
+
+## 7 Identity authentication and authorization
+
+### Assurance tiers
+
+| Tier | Establishment | Permitted scope |
+|---|---|---|
+| A0 unverified | No account proof | Public information, minimal unverified intake, human request and safety routing; no account-existence disclosure |
+| A1 verified possession | Approved challenge to a pre-registered channel with abuse controls | Only the low-risk account operations approved by the identity risk assessment |
+| A2 account authenticated | Existing portal session with MFA or passkey, securely bound to this call | Authorized PHI reads and ordinary approved account workflows |
+| A3 recent step-up | Fresh transaction-bound account verification plus explicit confirmation | Only approved consequential actions; high-risk changes still require a human |
+
+These labels are application policy tiers, not declarations of NIST AAL certification. Authentication proves an actor; authorization separately determines that actor's rights to a particular subject, organization, record and action.
+
+### Preferred verification journey
+
+Start with minimal public intake and ask whether the caller is a client, provider or partner. Explain that verification protects their information. Offer a short-lived secure link or in-portal approval that requires existing account authentication. Bind it with a nonce and explicit transaction matching to the current trusted call session. Prevent approval of an unrelated call or session-swapping by an attacker.
+
+If policy permits SMS or voice OTP as a fallback, send only to the existing verified channel. Use a neutral message, one-time challenge, five-minute expiry, throttling, attempt limits, account and destination abuse detection, and risk signals for recent number changes. A proposed initial limit is three incorrect attempts per challenge and five per account per hour, with monitoring for denial-of-service abuse and a safe human recovery route. Security must approve final values. Do not call single-factor SMS strong MFA. [S8]
+
+Enter verification secrets in an approved secure portal or genuinely isolated DTMF flow. They must not reach the model, recordings, transcript, application logs, or agents who do not need them. Pausing a recorder alone is insufficient if ASR still receives the digits. If secure capture cannot be proven, use the portal or human process. Never deliver a challenge to a new number supplied during the same call and treat it as account proof.
+
+Name and date of birth can locate a candidate record inside a restricted verification service, but cannot authenticate it. Use generic responses for zero, one or multiple matches to prevent account enumeration. Match ambiguity goes to a trusted human recovery process. Do not confirm that an individual receives mental-health services before authorization.
+
+### Trusted session and permission model
+
+The server records tenant, call ID, session generation, actor ID, selected role, subject ID, organization ID, delegated authority, permitted scopes, assurance tier, authentication time, expiry, verification method, consent state, risk flags, policy version and revocation state. The model must not set these fields. Bind the opaque session reference to the authenticated Talkdesk integration and current call; possession of an interaction ID alone is not authority.
+
+A signed short-lived assertion is minted and validated only by trusted components, with issuer, audience, expiry, nonce and key rotation. If a vendor cannot pass protected context outside model-controlled arguments, the gateway must obtain it through a verified server-to-server lookup or block the protected tool. Never trust caller-role or subject-ID fields proposed by the model.
+
+Before every read, retrieval, write, export, notification and handoff, check actor-to-subject relationship, role, purpose, record classification, consent or other lawful authority, assurance, freshness and action limits. Apply field-level minimization and organization isolation at the data layer. Deny access to unrelated clients even when an authenticated provider knows their identifiers. An employer partner does not gain access to treatment status by sponsoring a benefit.
+
+Expire privileges at call end, participant changes, account switching, recovery, revocation, or risk escalation. A transfer may preserve a signed verification result for the same call and authorized receiver; reconnection requires a new session and appropriate reauthentication. DynamoDB TTL deletion is not immediate, so all readers must enforce expiry in application logic. Asynchronous workflows use a narrowly authorized durable action grant; they do not reuse an expired call token as unlimited authority.
+
+Staff use workforce SSO, MFA, least privilege and audited elevated access. Separate support agent, supervisor, safety responder, auditor, knowledge editor, policy approver, deployment operator and security administrator. Emergency access is time-bound, justified and reviewed; the model cannot request or grant itself break-glass access.
+
+## 8 Tools and transaction safety
+
+### Tool interface
+
+Expose narrowly scoped operations such as search_approved_runbook, get_authorized_case_status, get_appointment_options, prepare_appointment_change, commit_appointment_change, get_invoice_status, submit_billing_review, create_support_request and request_human_transfer. Do not expose raw SQL, arbitrary Salesforce queries, arbitrary HTTP fetch, unrestricted file export, shell execution, broad CRM search, or a generic update_record operation.
+
+Each tool has a versioned JSON Schema with additionalProperties false, bounded input size, allowed enum values, data classification, minimum assurance, permission requirements, timeout, retry policy, idempotency semantics and response schema. The gateway injects trusted identity and call context after validating the transport. Reject unknown tool versions and unexpected response fields. Pin and hash the MCP tool catalogue; tools cannot be added dynamically in production by the model.
+
+Use separate service identities and permissions per environment and integration. Prefer short-lived OAuth2 access where supported; rotate credentials in Secrets Manager. If a static token is necessary, make its scope narrow and record the exception. Validate inbound webhook authentication using the vendor's documented mechanism, timestamp or nonce when supported, and replay protection. Never invent a signature protocol and assume the sender implements it.
+
+### Preparing and committing changes
+
+For a mutation, first prepare a structured action containing authoritative target, before-state version, exact change, impact, fees if applicable, policy decision, expiration, and confirmation phrase. Present a concise description to the caller. Bind affirmative confirmation to the digest of that prepared action; a generic yes from an earlier turn is not consent for another action.
+
+Commit rechecks authorization, action freshness, current state and confirmation. Use optimistic concurrency, unique action IDs, and an idempotency record. An interruption, changed request, ambiguous confirmation, identity change or expired preparation invalidates the pending action. Do not prefetch mutations. Do not claim success until authoritative commit evidence exists.
+
+Persist an action ledger and transactional outbox before initiating durable delivery. Events are at least once; consumers deduplicate. On timeout, distinguish NOT_STARTED, COMMITTED, FAILED and UNKNOWN. Reconcile UNKNOWN by the provider's idempotency key or authoritative state before any retry. Do not treat a timeout as proof that nothing happened. Compensation is domain-approved; reversing a payment or appointment is not automatically safe.
+
+### Salesforce behavior
+
+Use a dedicated integration identity with restricted objects and fields, and enforce business authorization in the gateway as well as Salesforce sharing. The schema must separate one interaction from one issue: a call can address multiple cases, and repeat calls can refer to one existing case. Use unique external IDs for interaction and action records and documented upsert support to prevent duplicates. Do not disable organizational duplicate rules broadly. [S23]
+
+Store audience, authenticated subject reference, issue category, disposition, owner queue, priority, minimized summary, what was attempted, commit receipts, source call IDs, language, consent status, next step, deadline and policy/configuration versions. Evidence links require permission checks. A privacy or safety event may require a restricted record rather than a broadly visible Case.
+
+If Salesforce is unavailable, persist an encrypted internal support request and reference number, then reconcile asynchronously. Tell the caller it is a support reference pending synchronization, not an invented Salesforce Case number. Maintain an independent creation/reconciliation dashboard, dead-letter queue and operator repair flow. Preserve customer intent when callbacks fail or vendors redeliver webhooks.
+
+## 9 Durable follow-up knowledge and memory
+
+### Work that continues after the call
+
+Represent follow-up as versioned state machines with states such as ACCEPTED, VALIDATING, WAITING_FOR_SYSTEM, WAITING_FOR_HUMAN, WAITING_FOR_CALLER, READY_TO_COMMIT, COMPLETED, FAILED and CANCELLED. Every nonterminal state has an owner, deadline, retry budget and escalation route. Persist a minimal workflow ID, scoped action authorization and source-record references; keep PHI and task tokens out of workflow names and general execution logs.
+
+Examples include billing disputes, provider document review, claim investigation and partner onboarding. Human approvals arrive through authenticated, authorized endpoints. Never expose a Step Functions task token in a client URL or let the model complete a task by inventing approval. Scope callback tokens to one task, expire them, and validate current authority.
+
+Before later disclosure or a material change, recheck consent, representation, account state and relevant policy. Snapshot policies for reproducibility but apply revocations and updated legal constraints immediately. Record when new policy changes a pending action. Notifications follow registered preferences, quiet hours and applicable consent; send neutral messages directing the user to a secure channel. Outbound calling is a separately enabled feature with recipient verification and consent.
+
+### Approved knowledge and limited memory
+
+Ingest Salesforce Knowledge and approved runbooks through a controlled pipeline, not a blind paste of operational documents. Each item carries owner, audience, permitted intent, jurisdiction, language, effective date, expiry, sensitivity, approval and version. Sanitize embedded instructions, links, attachments and executable content. Use approved source precedence; conflicting or expired instructions require human review.
+
+Retrieve by authorization and policy filters before semantic search, and filter results again before return. For public FAQs keep a reviewed public corpus. For sensitive facts use structured source-of-truth tools. Search may use PostgreSQL full text plus pgvector over the approved knowledge corpus; never build a shared embedding index of all customer transcripts. Citation IDs and exact article versions accompany every policy-derived response.
+
+Persist only useful support memory: verified preferences, active issues, completed actions, promises, deadlines and reviewed summaries. Label each field as verified, caller-reported or machine-inferred, with provenance and expiry. Machine summaries never grant authorization or become medical facts. A returning verified caller can hear a short recap of an open issue instead of repeating the whole story; a caller on a shared phone must not receive that recap before authentication.
+
+Do not implement unrestricted nightly dreaming, self-editing policies, cross-customer memory, online reinforcement learning, or automatic retraining from production calls. Improvement produces a proposed change, reviewed evidence and a new evaluated release.
+
+## 10 Safety escalation and human handoff
+
+### Administrative support with a safety escape route
+
+The agent does not diagnose, provide therapy, screen clinical severity, recommend medications, infer mental state from voice, or run a Columbia-style clinical assessment. The supplied screening proposal expands the service beyond administrative support and requires a separately governed clinical program. Clinical questions trigger a concise boundary statement and an appropriate human or clinician route.
+
+Detect possible safety concerns using multiple signals: explicit phrases, contextual semantic detection, uncertain ASR, caller requests, and human intervention. Include indirect language, negation, historical references, third-party concerns, non-English speech and ambiguous idioms in tests. Deterministic policy selects the response and route after a signal; keyword detection itself is not complete or infallible. Do not infer that every expression of frustration is a clinical emergency.
+
+On a credible or unresolved safety concern, stop ordinary administrative troubleshooting, revoke pending nonessential mutations, switch to a short clinician-approved fixed acknowledgment and begin priority human connection. Do not require authentication, account ownership, or payment before access to this route. Keep disclosures minimal. Any emergency disclosure follows approved law and policy rather than a broad model override.
+
+The safety lead owns immediate-danger, ambiguous-concern, third-party, refusal, disconnect, after-hours and unavailable-responder procedures. Do not automatically conference external crisis or emergency services merely because a keyword fired. Verify country and routing, operational agreement, consent or emergency basis, what data can be shared, and what happens if the other party refuses or cannot answer. Do not run synthetic tests against public crisis lines.
+
+### Transfer contract
+
+Implement transfer as REQUESTED, QUEUED, RECEIVER_ACCEPTED, BRIDGED, CALLER_CONFIRMED_CONNECTED, and COMPLETED, with timeout, failure and disconnect events. The caller is not considered transferred when a dialing command succeeds. Use an allowlisted queue or destination ID from trusted configuration; never dial an arbitrary number supplied by a tool result, caller prompt, or model.
+
+Send the authorized receiver a concise context package: stated issue, identity assurance and limits, authorized subject, consent, actions and receipts, unresolved tasks, Case or support reference, language/accommodation, and safety-routing reason. Share clinical statements only when necessary and permitted. Confirm receipt and receiver acceptance. The receiving human should not ask the caller to repeat routine details already delivered.
+
+The telephony layer keeps the caller connected while the human joins and confirms the bridge. If the transfer fails, play an approved update and invoke the next staffed route. Do not silently end the call or leave the model improvising crisis counseling. An appropriate human must own external emergency coordination, except for narrowly approved deterministic procedures.
+
+Set an engineering target of initiating the priority route within two seconds of a validated safety event. The time from a caller's utterance to detection must be measured separately. A staffed connection target such as 30 seconds is an operational commitment that requires capacity and drills, not a model guarantee. A numeric deadline must never cause the system to abandon a vulnerable caller.
+
+## 11 Voice experience and response controls
+
+Choose a licensed stock voice through blinded, telephone-quality listening tests with clients, providers, language reviewers and support staff. Prefer calm, clear, warm speech with restrained expressiveness. No cloning of therapists or staff, no impersonation, no invented feelings or therapeutic bond. Keep a consistent voice across routine intents. Permit slower speech and repeat-on-request without changing access rules.
+
+Opening language should identify the company and automated support role, offer a human, and give the accurate recording/processing disclosure approved for the jurisdiction. A template is: "You have reached [company]. I'm an automated support assistant. I can help with scheduling, billing, and account questions. You can ask for a person at any time." Append the approved consent flow; do not use this text as a substitute for it.
+
+Ask one question at a time. Use short sentences, concrete next steps and common words. Acknowledge inconvenience once, then act. Avoid repeated apologies, forced cheerfulness, unsolicited clinical reassurance, and implying human experience. Confirm names by spelling when needed and amounts, dates, time zones and consequences before committing changes. Read only the minimum sensitive information needed.
+
+Separate safe acknowledgment from substantive resolution. A brief "Let me check that" may play while a tool runs, but it must not hide a stall or count as successful resolution latency. After a genuine delay explain the status honestly and offer an approved callback or human route. Do not promise a task is done because a workflow was merely accepted.
+
+Barge-in must stop queued speech and cancel or invalidate stale response segments. Tag audio segments, tool results and approvals with a turn ID and session generation so late results cannot speak into a different state. Avoid clipping callers who pause, stutter, speak slowly or use assistive communication. Use acoustic tuning and tested endpointing per supported language. Unsupported languages go to a staffed interpreter path.
+
+Validate protected responses before their first audible segment. Use approved templates for identity, financial facts, commitments, clinical boundaries, recording and safety responses. Permit bounded model paraphrase only for low-risk, grounded explanation with output checks. A retrospective transcript scan cannot retract audio already spoken. If streaming validation cannot prove the guarantee for a class of response, hold the utterance until approved or use a deterministic rendering path.
+
+The response record must reference current authorization, accepted sources, action receipts and applicable policy. Fail closed on missing proof; play a safe explanation and route to a human. Do not claim that output filtering proves the absence of all possible harmful statements. Combine narrow capabilities, minimization, tests, monitoring and incident response.
+
+## 12 Capacity resilience and cost
+
+### Illustrative capacity model
+
+The following figures are planning assumptions, not measured company traffic or a vendor promise. Obtain at least 30 days of half-hour arrivals, handle-time distributions, language mix, queue mix, transfer rates, abandonment and seasonality before procurement.
+
+| Assumption or calculation | Planning result |
+|---|---|
+| Calls each day | 25,000 minimum design baseline |
+| Average telephone duration | 8 minutes assumed |
+| Daily telephone minutes | 200,000 |
+| Average simultaneous calls across 24 hours | About 139 |
+| Average if arrivals concentrate in 12 hours | About 278 |
+| Busiest hour holds 15 percent of daily calls | 3,750 arrivals per hour |
+| Concurrent calls at that busy hour and 8 minute duration | About 500 |
+| Threefold stress over busy-hour concurrency | 1,500 |
+| Contracted initial capacity target including headroom | 2,000 concurrent calls |
+| Separately tested surge target | 3,000 concurrent calls with controlled admission |
+| Monthly minutes at 30 days | About 6 million |
+
+Concurrency equals arrival rate times mean service time for a stable workload. Use distributions, long calls, warm-transfer legs, retries, reconnects and outage behavior in load tests. At 2,000 active sessions and one tool request every 15 seconds, the gateway sees about 133 tool requests per second on average; test at least 400 sustained and larger bounded bursts. One call every 8 minutes per slot implies about 4.17 starts per second at 2,000 occupied slots, but real bursts and call setup constraints need independent tests.
+
+Contract and test quotas separately for trunks, call starts, media legs, AI sessions, ASR/TTS, model token throughput, tools, exports, Salesforce APIs, notifications and workflow execution. Reserved backend compute cannot compensate for a vendor concurrency cap. Avoid pulling Salesforce on every speech turn; use bounded authorized caching, source timestamps and real-time commit checks.
+
+### Human capacity and graceful degradation
+
+At the illustrative busy-hour arrival rate, a 20 percent handoff rate yields 750 human arrivals per hour. At 12 minutes of human handling including wrap-up, that is 150 continuously busy agents. At 80 percent occupancy and 30 percent shrinkage, roughly 268 scheduled agents are implied before more detailed queueing analysis. At 10 percent handoff, the same arithmetic is about 134. Validate with workforce modeling; a small residual queue cannot absorb a sudden 100 percent AI outage.
+
+Maintain a documented outage service mode with prioritized safety and urgent access queues, limited administrative intake, consented callback, realistic wait messages and vendor overflow arrangements. Do not claim seamless human fallback unless staffed capacity exists. Preserve an independent safe route even when cost or model circuit breakers open.
+
+Use readiness checks, minimum warm capacity, per-dependency bulkheads, timeouts, bounded retries with jitter, circuit breakers, backpressure and admission control. Load shed noncritical analytics and model work first. Avoid retries on top of retries. A database outage must block protected reads and writes, while the telephone route remains usable.
+
+### Recovery objectives
+
+Propose application recovery within 15 minutes after a regional incident and a cross-region data-loss objective no worse than five minutes, subject to measured replication and contracts. Within the primary region, acknowledged actions must survive an availability-zone failure. Across regions, fence writes during uncertainty and reconcile external side effects before reopening mutations; do not imply asynchronous replication gives zero data loss. Keep safe telephone routing independent of application recovery. Run restoration and failover drills before broad release.
+
+### Cost controls
+
+Model total cost as telephone minutes and overlapping transfer legs plus AI voice charges, model usage where separately billed, human staffing, platform licenses, storage, logs, workflows, network, security and support. Avoid double-counting bundled components. At 6 million minutes per month, each extra $0.01 per minute is approximately $60,000 per month; each extra $0.05 is $300,000. These are sensitivity calculations, not vendor quotes.
+
+No coding agent may enable billing, buy numbers, run billable voice simulations, start large historical exports, increase quotas with cost commitments, or deploy chargeable capacity without a specific estimate and approval. Start with synthetic local fixtures. Track budgets by environment, cohort, workflow and vendor, and measure cost per verified resolution, not just per minute.
+
+Alerts and prepaid balances are not guaranteed hard caps. Use application admission limits and contract controls, and acknowledge vendor metering delay or fixed charges. Budget exhaustion stops new nonessential automation and routes callers to approved continuity service. Do not abruptly disconnect an active safety handoff to enforce a financial limit; approve a bounded safety reserve and escalation owner before launch.
+
+## 13 Monitoring auditing and operational controls
+
+### Service objectives
+
+These are proposed acceptance targets to validate with operations and vendors; they are not measured capabilities or statutory thresholds. Define the measurement point, denominator, exclusions and window in code.
+
+| Measure | Proposed target |
+|---|---|
+| Routing to a usable support path | At least 99.95 percent monthly, measured end to end |
+| Warm simple-turn latency | End of caller speech to first meaningful audio at handset P50 at most 800 ms and P95 at most 1.5 s |
+| Tool-backed substantive response | P95 at most 3 s when dependencies are healthy; separately count acknowledgment latency |
+| Barge-in stop | P95 at most 250 ms from detected interruption to last bot audio at handset |
+| Critical action authorization | 100 percent of protected actions require valid server-side policy decision |
+| Audited accepted actions | 100 percent durably recorded before acknowledgment |
+| CRM synchronization | 99.9 percent within 60 seconds after accepted finalization under normal dependencies |
+| Duplicate consequential actions | Zero in required failure and retry tests |
+| Handoff completion | At least 99.5 percent of accepted transfer attempts connect when a receiver is available; report all failed and unavailable attempts separately |
+| Privacy or clinical-boundary violations | Zero tolerated critical violations; any confirmed event blocks affected automation |
+
+Publish P50, P95 and P99 by language, intent, region, customer type, model, voice, authentication path and load band. Measure ASR endpointing, reasoning, tool wait, policy validation, synthesis and network contributions separately. Averages must not hide high-percentile failures or poor performance for a minority language.
+
+### Operational dashboards
+
+Provide dashboards for call arrivals, live sessions, queue age, abandonment, human demand, transfers and disconnects; identity success, challenge abuse and denials; tool latency, dependency health, unknown commits and backlog; safety signals, time to routing and completed handoffs; unsupported clinical requests; CRM reconciliation; knowledge freshness; ASR corrections and interruptions; cost and quotas; and audit-export completeness.
+
+Measure verified resolution, 24-hour and 7-day repeat contact, reopened cases, unresolved promises, correct disposition, human effort, CSAT response rate and complaints. Keep containment separate from resolution and disaggregate by eligible intent. Never reward the model for suppressing transfers or closing cases early. Compare pilot cohorts with comparable human-handled cohorts, accounting for routing mix.
+
+### Audit event model
+
+Every meaningful event includes event ID, schema version, UTC timestamp, correlation and parent IDs, tenant, opaque actor/subject references, role, source component, call/session/turn, configuration versions, action, policy decision and reason code, assurance tier, relevant evidence pointers, before/after hashes where appropriate, idempotency key, outcome, and data class. Do not log raw secrets or free-form model reasoning. Use structured decision evidence and actual tool receipts rather than claiming hidden chain-of-thought is an audit trail.
+
+Store audit events append-only in an independently administered account with restricted deletion, tamper-evident manifests, integrity checks, monitored ingestion gaps and approved retention. Signing or hashing alone does not establish completeness; reconcile source event counts and critical actions. Separate sensitive content from security metadata and audit access to both. Audit-view users cannot also rewrite the underlying evidence.
+
+If the centralized sink fails, a local durable outbox may buffer within a bounded policy. If durable evidence cannot be written at all, block consequential actions and degrade to safe routing. Do not acknowledge a mutation and hope to log it later. Retain proof of access reviews, secret rotations, policy approvals, vendor changes, deletion, restore drills and incident decisions.
+
+### Incident and control console
+
+The console must allow authorized staff to inspect an active support journey, join or transfer a call through supported Talkdesk controls, review a pending action, cancel uncommitted work, retry a reconciled operation, inspect a source policy, and trace a Case end to end. It must expose safe, tested actions rather than arbitrary console access.
+
+Provide separate kill switches for new AI admissions, an intent, an integration, writes, a model/voice version and outbound notifications. A kill switch preserves approved safety and human routes. Publish an escalation roster and playbooks for PHI exposure, unsafe output, failed safety transfer, authentication bypass, dependency outage, unexpected spending, duplicate commit and vendor behavior changes. Privacy counsel determines reporting obligations and deadlines; software should preserve evidence and support the process.
+
+## 14 Security and evaluation requirements
+
+### Security verification
+
+Threat-model caller spoofing, SIM swap, account enumeration, session fixation, replay, cross-tenant access, confused-deputy tools, prompt injection through speech and documents, data exfiltration, malicious URLs, SSRF, forged webhooks, unauthorized callbacks, approval replay, insider access, secret leakage, supply-chain changes and denial of service. Require least-privilege IAM, workload identity, TLS, KMS controls, dependency pinning, SBOM, signature verification, image and dependency scanning, secrets scanning and infrastructure policy checks.
+
+Do not rely on a model to decide whether a request is authorized. Test the gateway directly with hostile tool calls even if the conversational prompt would never generate them. Run independent security review and penetration testing for both the backend and the telephone journey before broad launch. No unresolved critical security finding may enter production.
+
+### Test layers and minimum corpus
+
+Build deterministic unit and property tests for permissions, session expiry, action confirmation, state transitions and retry logic; contract tests for vendors; synthetic multi-turn dialogues; and real PSTN audio tests. Include browser audio only as a convenience layer. The telephone test path must exercise actual codecs, interruptions, transfers, consent behavior and noisy audio.
+
+Initial release coverage should include at least 50 reviewed support intents across all three audiences and eight variant families: baseline, frustrated, indirect or ambiguous, interrupted/noisy, verification failure, malicious instruction, dependency failure and repeat-contact or handoff. Expand across approved languages and permission classes using risk-based coverage rather than a full combinatorial explosion. Twenty intents times four variants can bootstrap the suite but is not the launch suite.
+
+Maintain at least 500 human-reviewed privacy, authorization, clinical-boundary and safety-routing scenarios, separate from routine quality tests. Repeat selected nondeterministic cases at least five times per release. Include negative and borderline safety examples, long pauses, speech impairment, accented speech, hearing/relay use, interpreter routing, third-party callers, minors, expired proxies, role switching, cross-account requests and shared devices. Do not infer protected characteristics from live audio for analytics.
+
+Test vendor and business failures: all timeouts, stale knowledge, exhausted quotas, out-of-order events, duplicate callbacks, partial writes, process crash after external commit, regional failover, human receiver unavailable, dropped bridge, consent refusal, audit outage and redaction failure. Include maximum-turn guardrails and model refusal behavior in the crisis route. Verify that a policy update cannot silently expand access.
+
+Use production-derived scenarios only after approved access, minimization and review. Prefer synthetic or consented voices. No production PHI in ordinary developer laptops, consumer chats, CI logs or unapproved test judges. LLM judges can assess tone or groundedness only in approved environments and must be calibrated against human labels; they cannot establish whether an external action actually committed.
+
+### Pass and fail criteria
+
+Make safety, authorization, consent, transaction correctness, allowed data egress and required audit evidence hard gates. Any critical failure fails the scenario and blocks the affected release. Keep the original six-dimension zero-to-two rubric for human comparison if useful, but add task completion, authentication correctness, knowledge grounding, accessibility and latency as separately measured fields. A high average cannot offset a missed safety handoff or an unauthorized disclosure.
+
+Propose at least 95 percent validated goal completion for each launch-eligible routine intent under its supported conditions, with no critical failures. Set the human-reviewed warmth and clarity threshold before listening tests, such as at least 4 of 5 with no unacceptable subgroup result. Measure inter-rater agreement and investigate disagreements. Review all detected critical events and all safety transfers during the pilot, plus a stratified sample of routine calls; five calls per batch is insufficient at this scale.
+
+Zero failures in a finite test set does not establish zero population risk. For example, zero failures in 3,000 approximately independent opportunities gives a rough 95 percent upper bound near 0.1 percent, not proof of perfection. Report sample size, repetition, dependence, uncertainty and slice coverage. Dedicated safety review remains necessary.
+
+### Scorecard and release evidence
+
+One append-only result record per run must include run ID/time, scenario ID/version, corpus split, audience, language, channel, variant, expected permissions, agent/config/model/voice/policy/tool/knowledge versions, vendor interaction and session IDs, deterministic assertions, safety/privacy/authentication results, actual committed state, quality scores, latency percentiles where appropriate, cost, transfer outcome, final resolution, failure code, evidence reference and reviewer. Missing evidence is INCONCLUSIVE, never PASS.
+
+Aggregate by intent, language, audience, failure severity, version and regression. Retain both production-frequency weights and deliberately oversampled risk tests; do not hide rare critical failures inside weighted averages. Persist the error reason and remediation owner. Every requirement must map to enforcement location, test IDs, evidence and release status.
+
+## 15 Delivery and promotion plan
+
+### Phase 0 discovery and evidence
+
+Inspect the repository, architecture, data paths and existing integrations. Inventory vendor capabilities and contracts without changing production settings. Obtain traffic statistics and de-identified intent summaries through approved, rate-limited exports. Talkdesk Explore provides historical report exports, but reports and transcript availability must be verified individually; do not assume one API supplies raw audio, CSAT and all intents. Use documented pagination, retry behavior and report limits. [S24]
+
+Deliver architecture decisions, data-flow and threat models, permission matrix, prerequisite register, traffic and cost models, integration inventory and capability blockers. Continue with synthetic fixtures for unavailable systems. Do not invent credentials or infer authorization from a public BAA webpage.
+
+### Phase 1 complete offline slice
+
+Build one representative journey from unverified caller through secure mock authentication, authorized lookup, prepared and confirmed action, durable case persistence, failed-dependency recovery, warm-transfer state machine and audit trace. Implement actual policy and business logic against explicitly labeled local adapters. A front-end demo or a mock returning success is not completion.
+
+### Phase 2 sandbox integration
+
+After approvals, replace adapters with documented Talkdesk, Salesforce, IdP and business APIs. Demonstrate both success and failure paths with synthetic records. Produce reviewed Talkdesk configuration exports or precise UI setup instructions where an API is unavailable. Pin versions and show a successful telephone journey. Reconcile actual configuration against repository definitions to detect drift.
+
+### Phase 3 hardening and operational readiness
+
+Complete all eligible intents, direct gateway attack tests, clinical-safety review, language validation, transfer drills, independent security assessment, quota tests, sustained load, cost measurement, backup restore and regional recovery. Prove the AI-off route under realistic staffing assumptions. Measure the actual vendor latency and capacity; do not substitute a mocked load test for the whole path.
+
+### Phase 4 restricted pilot
+
+Use internal and consented callers first, then a narrowly approved production cohort. Route only eligible intents and supported languages. Start at a small percentage such as 1 percent, then 5, 10, 25 and 50 percent as evidence warrants. Keep safety, accessibility, fraud and human-request exits available at every stage. Exposure can be limited by calls per day as well as percentage.
+
+Promotion requires reviewed evidence across peak periods, sufficient sample size for each cohort, no unresolved critical failures, stable cost, healthy human capacity and named approvals. A critical privacy breach, unauthorized mutation, unsafe clinical response or failed safety handoff triggers immediate containment of the affected automation and investigation. Do not wait for a monthly average.
+
+### Phase 5 scale and continuous operation
+
+Only expand toward the full eligible workload after endurance tests and real pilot evidence support it. Maintain rehearsed rollback to a known-good orchestration, tool catalogue, policy and compatible schema. In-flight workflows retain version compatibility. Model, voice, prompt, knowledge, schema, vendor and policy changes each trigger the appropriate regression suite. No autonomous self-promotion or unreviewed production learning.
+
+An illustrative staffing assumption for planning is a product/support lead, a technical lead, several backend/integration engineers, SRE, QA automation, security/identity support, a Talkdesk specialist, a Salesforce specialist and clinical/privacy reviewers. A 10-to-16-week staged program may be plausible with APIs and procurement ready; it is an estimate, not a commitment. Contract gaps, identity remediation and vendor limitations can dominate the schedule.
+
+## 16 Instructions for the coding agent
+
+Act as a principal engineer delivering this platform with security, reliability and clinical-safety constraints. Implement and verify code in the actual repository; do not stop at a diagram, scaffold or reassuring statement. Read repository instructions first. Preserve existing working systems and user changes. Resolve routine implementation details yourself and record material decisions. Never silently weaken a control to make a test pass.
+
+### Working mode and boundaries
+
+Begin offline with synthetic data and network mocks. Do not spend money, place calls, send real notifications, obtain new credentials, access PHI, modify live routing, change billing, delete resources or deploy production without the corresponding approved scope. Do not request secrets in chat or print them. Use existing approved secret-management mechanisms. Separate authorization to write code from authorization to execute paid integrations.
+
+Before installing libraries or selecting SDK versions, inspect the repository and current official documentation. Pin supported versions and record licenses. Use public documentation as evidence of a possible capability, and tenant tests as evidence of actual availability. For every integration record method, endpoint, version, auth mechanism, schema, rate limit, retention, data class and source. Unsupported capabilities must be BLOCKED, not simulated as production success.
+
+Implement all useful unblocked work before asking for missing inputs. Ask only questions that change architecture, access policy, contracts, money or external effects. For blockers, report the exact missing artifact, owner, impact and smallest next action, while continuing independent work. Create a checkpoint so another session can continue without guessing.
+
+### Repository deliverables
+
+Organize clear modules for the tool gateway and MCP adapter, identity binding, policy evaluation, business services, vendor adapters, workflow definitions, audit ingestion, knowledge ingestion, operations console, test harness and infrastructure. Prefer a modular service with clear interfaces over dozens of microservices. Separate media handling, synchronous tools and asynchronous work by responsibility, not by fashionable framework.
+
+Produce OpenAPI and JSON Schemas; versioned OPA policy; database migrations and row/field authorization; idempotency and outbox implementations; documented workflow state machines; signed configuration manifests; Terraform plans; CI quality gates; synthetic fixtures; unit, contract, adversarial, workflow, audio and load tests; operational dashboards; alert rules; incident and recovery runbooks; retention/deletion jobs; and a traceability matrix.
+
+Provide a local start command, test commands, synthetic credentials only, and a complete documented end-to-end demo with an explicit local-adapter badge. Production configuration must reject fixture adapters, missing credentials, unapproved models, unknown policy versions, permissive CORS, disabled audit and missing approvals. Production PHI endpoints remain disabled until prerequisites are evidenced.
+
+The operations console must be functional, access-controlled and accessible: active calls and queue health; investigation of a call/Case/workflow; approval and reconciliation queues; supported takeover actions; safety events; policy/knowledge release review; budgets; and kill switches. Audit administrative actions. Do not expose raw database queries, shared secrets or unrestricted transcript downloads.
+
+### Minimum protocol artifacts
+
+Define AuthContext, ToolRequest, ToolResult, PreparedAction, CommitReceipt, SupportRequest, HandoffPackage, WorkflowEvent, AuditEvent, ScenarioDefinition, EvaluationResult and ReleaseManifest. Use opaque identifiers and strict schemas. ToolResult must distinguish success, retryable failure, permanent failure, policy denial, pending and unknown outcome. Caller-facing text must derive from trusted typed fields or approved templates, not opaque strings from a dependency.
+
+ScenarioDefinition includes scenario version, audience, locale, initial state, permitted records, deterministic script or persona, adversarial turn, expected tool sequence, prohibited actions, required handoff, final state and stop condition. Generate matching persona variants from one skeleton, but keep deterministic failure fixtures independent of LLM generation. Separate development scenarios from held-out acceptance scenarios.
+
+ReleaseManifest binds source commit, build and image digest, infrastructure plan, schema version, Talkdesk configuration identifier, model/voice configuration, tool-schema digest, policy bundle, knowledge snapshot, evaluation corpus, test evidence, quota and load evidence, retention configuration, rollback target and approvals. An approval record identifies approver, role, scope, time, expiry and evidence; the coding agent cannot fabricate it.
+
+### Required demonstration journeys
+
+Demonstrate a verified client rescheduling an appointment with conflict handling; a disputed charge routed into a durable review without promising a refund; a provider checking a delegated practice's remittance; a partner denied access to an unrelated client; an unverified caller requesting a human; a clinician-approved safety handoff without authentication; a caller declining recording; an unavailable language routed to an interpreter; and a repeat caller resuming an authorized open issue.
+
+For each, show both caller-visible behavior and backend evidence. Inject authentication expiry, two concurrent calls for the same account, an interrupted confirmation, duplicate webhooks, crash after commit, Salesforce outage, failed transfer and audit outage. Verify the final system state, not just the conversation text.
+
+### Completion reporting
+
+At every phase return implemented behavior, changed files, commands executed, test results with evidence paths, known failures, remaining blockers, spend incurred if approved, and next actions. Distinguish IMPLEMENTED_OFFLINE, VERIFIED_SANDBOX, APPROVED_PILOT and VERIFIED_PRODUCTION. Do not call mocked integrations production-ready. Do not claim legal compliance, perfect safety, zero risk, guaranteed cost caps or zero data loss without the required evidence and scope.
+
+Finish the currently authorized scope, produce a concrete reviewable release package, and only then request the external approvals needed for the next stage. A coding agent supplies engineering execution; accountable humans retain policy, contract, clinical, budget and production-release authority.
+
+## 17 Source register
+
+Public sources checked October 17 2026. Product details are time-sensitive. The implemented system must capture fresh tenant-specific evidence at release. References support factual corrections and product capabilities; numerical SLOs, architecture choices, staffing calculations and release gates are recommendations in this specification.
+
+[S1] Talkdesk AI Agent Platform release notes. GA, Authentication Gate, Simulator limits and preview features.
+https://support.talkdesk.com/hc/en-us/articles/38486820601243-Release-Notes-I-Talkdesk-AI-Agent-Platform
+
+[S2] Talkdesk Authentication Gate. Variable-based access and deterministic verification responsibilities.
+https://support.talkdesk.com/hc/en-us/articles/57167003494811-AI-Agent-Platform-Authentication-Gate
+
+[S3] Talkdesk Build Skill MCP. Transport, service authentication and external tool versioning.
+https://support.talkdesk.com/hc/en-us/articles/46063702440475-AI-Agent-Platform-Build-Skill-MCP
+
+[S4] Talkdesk Simulator. Chat, voice settings, application input and scripts.
+https://support.talkdesk.com/hc/en-us/articles/52487140094875-AI-Agent-Platform-Simulator
+
+[S5] Talkdesk Guardrail Customization. Prompt limit and conversation-closing behavior.
+https://support.talkdesk.com/hc/en-us/articles/49500566907291-AI-Agent-Platform-Settings-Guardrail-Customization
+
+[S6] Talkdesk Agent Evaluation overview. Preview status and dataset behavior.
+https://support.talkdesk.com/hc/en-us/articles/50071730170779--Preview-Agent-Evaluation-Overview
+
+[S7] NIST authenticator implementation guidance. Knowledge-based questions are not acceptable authenticators.
+https://pages.nist.gov/800-63-3-Implementation-Resources/63B/Authenticators/
+
+[S8] NIST SP 800 63B 4 authenticators. Out-of-band verification, PSTN restrictions and replay resistance.
+https://pages.nist.gov/800-63-4/sp800-63b/authenticators/
+
+[S9] HHS guidance on HIPAA and cloud computing. BAAs and customer risk-management responsibilities.
+https://www.hhs.gov/hipaa/for-professionals/special-topics/health-information-technology/cloud-computing/index.html
+
+[S10] AWS HIPAA eligible services reference. Shared responsibility and service-specific eligibility.
+https://aws.amazon.com/compliance/hipaa-eligible-services-reference/
+
+[S11] Salesforce Business Associate Addendum Restrictions. Exact service coverage and AI use restrictions.
+https://www.salesforce.com/company/legal/business-associate-addendum/
+
+[S12] Microsoft Azure HIPAA offering. Contractual framework and customer compliance responsibility.
+https://learn.microsoft.com/en-us/azure/compliance/offerings/offering-hipaa-us
+
+[S13] ElevenLabs HIPAA documentation. BAA and Zero Retention Mode conditions.
+https://elevenlabs.io/docs/eleven-agents/legal/hipaa
+
+[S14] ElevenLabs Zero Retention Mode. Eligible endpoints, UI exclusions, cloning and MCP limitations.
+https://elevenlabs.io/docs/eleven-api/resources/zero-retention-mode
+
+[S15] AWS Nova 2.5 Sonic announcement dated October 5 2026. Model release and stated context limit.
+https://aws.amazon.com/about-aws/whats-new/2026/10/amazon-nova-2.5-Sonic/
+
+[S16] AWS Nova model overview. Current speech model and differing context-window statement.
+https://aws.amazon.com/nova/models/
+
+[S17] Loevy and Loevy announcement dated May 14 2026. Plaintiffs' allegations across multiple voice vendors; not a judicial finding.
+https://www.loevy.com/illinois-vocal-artists-sue-big-tech-companies-over-voice-ai/
+
+[S18] Scale Labs DistressBench. Published scope, limitations and evaluation-only licensing.
+https://labs.scale.com/leaderboard/distressbench
+
+[S19] ONC 2026 LEAP projects. MedStar research award description.
+https://healthit.gov/interoperability/investments/leap/2026-leap-in-health-it-projects
+
+[S20] AWS Step Functions workflow types. Standard workflow lifetime, history and retry semantics.
+https://docs.aws.amazon.com/step-functions/latest/dg/choosing-workflow-type.html
+
+[S21] HHS Part 2 final rule fact sheet. Applicability and compliance timeline.
+https://www.hhs.gov/hipaa/for-professionals/regulatory-initiatives/fact-sheet-42-cfr-part-2-final-rule/index.html
+
+[S22] HHS mental-health information guidance. Special protections for psychotherapy notes.
+https://www.hhs.gov/hipaa/for-professionals/faq/does-hipaa-provide-extra-protections-mental-health-information-compared-other-health.html
+
+[S23] Salesforce REST upsert by external ID. Integration identity and deduplication primitive.
+https://developer.salesforce.com/docs/platform/api-rest/guide/dome-upsert.html
+
+[S24] Talkdesk Explore API. Historical report generation; inspect each report's own fields and restrictions.
+https://docs.talkdesk.com/docs/explore-api
