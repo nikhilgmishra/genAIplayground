@@ -29,16 +29,17 @@ paths = ['''(^|/)docs/.*\.md$''']
 regexTarget = "secret"
 regexes = ['''^[a-z]+([/-][a-z]+)*$''']
 
-# SYNTHETIC idempotency-key fixtures in gateway pipeline tests
-# (platform/src/gateway/pipeline.test.ts). They are request-deduplication keys for
-# local test calls, not credentials; the generic rule fires only because the
-# variable is named "key". Exact shape only: fixed prefix plus six digits.
+# SYNTHETIC idempotency keys in test files only (*.test.ts under platform/src or
+# platform/test). They are request-deduplication keys for local test calls, not
+# credentials; the generic rule fires because the variable or field is named "key".
+# Shapes: "idem_" + 8..40 alphanumerics, or an RFC 4122 UUID. Paths are anchored to
+# test files so the same shapes elsewhere are still scanned.
 [[allowlists]]
-description = "SYNTHETIC idempotency-key fixtures in gateway tests"
+description = "SYNTHETIC idempotency-key fixtures in platform tests"
 condition = "AND"
-paths = ['''(^|/)platform/src/gateway/pipeline\.test\.ts$''']
+paths = ['''(^|/)platform/(src|test)/.+\.test\.ts$''']
 regexTarget = "secret"
-regexes = ['''^idem_fixtureKey_[0-9]{6}$''']
+regexes = ['''^idem_[A-Za-z0-9_]{8,40}$''', '''^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$''']
 
 # Platform opaque identifiers that carry no authority (audit event, action, receipt,
 # policy decision, correlation, call, transfer, workflow, run and similar ids, created
