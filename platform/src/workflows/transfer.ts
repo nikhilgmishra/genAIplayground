@@ -30,9 +30,22 @@
  * active STANDARD journey of the call (status SUPERSEDED: no further timeouts,
  * failovers, update prompts or dials; later vendor events on it are recorded and
  * rejected), and a STANDARD request while a SAFETY journey of the call is ROUTING
- * or CONNECTED dials nothing and returns that SAFETY journey. The TelephonyControl
- * port has no cancel operation, so a STANDARD dial already in flight at the vendor
- * is not withdrawn there (TB-07); it is only never retried or failed over.
+ * or CONNECTED dials nothing and returns that SAFETY journey. The invariant holds
+ * under concurrent writes (round 2 of the finding):
+ *  - the supersede write is conditional; a version conflict (the STANDARD journey
+ *    was written between the read and the write, e.g. its vendor dial returned) is
+ *    retried on a fresh read, bounded (MAX_SUPERSEDE_WRITES);
+ *  - every STANDARD routing step (sweep, vendor event, failover, retry, update
+ *    prompt, dial) first checks the call for an active SAFETY journey and supersedes
+ *    the STANDARD journey instead of prompting or dialling. Each side writes its own
+ *    journey before it reads the other (a new STANDARD journey is created before its
+ *    first dial check; a SAFETY journey is created before its supersede read), so at
+ *    least one of two concurrent requests sees the other;
+ *  - the sweep re-supersedes for every routing SAFETY journey, so a supersede that
+ *    failed (store unavailable, retries exhausted) is retried, never dropped.
+ * The TelephonyControl port has no cancel operation, so a STANDARD dial already in
+ * flight at the vendor when the safety route starts is not withdrawn there (TB-07);
+ * it is recorded on the superseded journey and never retried or failed over.
  */
 import { z } from "zod";
 import type { TelephonyControl } from "../adapters/ports.js";
@@ -352,6 +365,14 @@ export interface ApplyTransferEventResult {
 
 const MAX_ATTEMPTS_KEPT = 32;
 const MAX_EVENT_IDS_KEPT = 256;
+/**
+ * Conditional SUPERSEDED writes per supersede (each conflict re-reads first). A STANDARD journey makes
+ * at most a few writes per routing step and every step yields to an active SAFETY journey, so contention
+ * ends quickly; if it is ever exhausted the sweep supersedes it later (never dialled meanwhile).
+ */
+const MAX_SUPERSEDE_WRITES = 8;
+
+type AttemptResult = "STARTED" | "FAILED" | "SUPERSEDED";
 
 export class TransferCoordinator {
   private readonly store: TransferStore;
@@ -429,8 +450,12 @@ export class TransferCoordinator {
     const existing = await this.store.get(handoff.handoffId);
     if (existing) {
       if (existing.tenantId !== handoff.tenantId || existing.callId !== handoff.callId) throw new AccessDeniedError("HANDOFF_ID_CONFLICT");
-      if (existing.priority === "SAFETY" && isActiveJourney(existing)) await this.supersedeStandardJourneys(existing);
-      return existing;
+      if (existing.priority === "SAFETY") {
+        if (isActiveJourney(existing)) await this.supersedeStandardJourneys(existing);
+        return existing;
+      }
+      // A repeated STANDARD request: the call's SAFETY journey wins (SAFE-03).
+      return (await this.supersedingSafety(existing)) ?? existing;
     }
 
     if (!isSafety) {
@@ -484,10 +509,17 @@ export class TransferCoordinator {
     }
     await this.persist(journey, true);
     await this.auditJourney(journey, "transfer.requested", "PENDING", null);
+    // A new STANDARD journey re-checks for an active SAFETY journey right before its first dial
+    // (startAttempt): it is already written, so a SAFETY journey created after the check above is seen.
     await this.routeFrom(journey, 0, false);
-    // The priority route is initiated first; only then are competing STANDARD journeys stopped.
-    if (isSafety) await this.supersedeStandardJourneys(journey);
-    return journey;
+    if (isSafety) {
+      // The priority route is initiated first; only then are competing STANDARD journeys stopped.
+      await this.supersedeStandardJourneys(journey);
+      return journey;
+    }
+    // Write-then-read: a SAFETY journey that started while this one was being written supersedes it,
+    // and the caller stays on that safety route (the human request is answered with it).
+    return (await this.supersedingSafety(journey)) ?? journey;
   }
 
   /** Every journey of one call (any status), oldest first. */
@@ -503,30 +535,114 @@ export class TransferCoordinator {
 
   /**
    * Stops every active STANDARD journey of the safety journey's call (status SUPERSEDED, audited).
-   * Never throws: a failure is logged and the next safety request or sweep tries again; the
-   * safety route itself is never affected.
+   * Never throws and never affects the safety route: a version conflict is retried on a fresh read
+   * (supersedeJourney); any other failure is logged and the sweep tries again (it re-supersedes for
+   * every routing SAFETY journey, and every STANDARD routing step yields to an active SAFETY journey).
    */
   private async supersedeStandardJourneys(safety: TransferJourney): Promise<number> {
-    let superseded = 0;
+    let all: TransferJourney[];
     try {
-      for (const j of await this.store.listForCall(safety.tenantId, safety.callId)) {
-        if (j.priority !== "STANDARD" || !isActiveJourney(j)) continue;
-        j.status = "SUPERSEDED";
-        j.awaitingRetry = false;
-        try {
-          await this.persist(j);
-        } catch (err) {
-          this.logger.error("transfer.supersede_failed", { handoffId: j.handoffId, reasonCode: err instanceof ConflictError || err instanceof DependencyError ? err.reasonCode : "TRANSFER_SUPERSEDE_FAILED" });
-          continue;
-        }
-        superseded++;
-        await this.auditJourney(j, "transfer.superseded", "INVALIDATED", "SUPERSEDED_BY_SAFETY_ROUTE");
-        this.logger.warn("transfer.superseded_by_safety", { handoffId: j.handoffId, reasonCode: "SUPERSEDED_BY_SAFETY_ROUTE" });
-      }
+      all = await this.store.listForCall(safety.tenantId, safety.callId);
     } catch {
       this.logger.error("transfer.supersede_failed", { handoffId: safety.handoffId, reasonCode: "TRANSFER_STORE_UNAVAILABLE" });
+      return 0;
+    }
+    let superseded = 0;
+    for (const j of all) {
+      if (j.priority !== "STANDARD" || !isActiveJourney(j)) continue;
+      if ((await this.supersedeJourney(j)) === "SUPERSEDED") superseded++;
     }
     return superseded;
+  }
+
+  /**
+   * Marks one STANDARD journey SUPERSEDED with a conditional write (audited). A version conflict means
+   * the journey was written between the read and this write (its vendor dial returned, a vendor event
+   * or a sweep step landed): the journey is re-read and the write retried, at most MAX_SUPERSEDE_WRITES
+   * times. A journey that is no longer active needs nothing. On success `target` holds the stored state.
+   * Never throws.
+   */
+  private async supersedeJourney(target: TransferJourney): Promise<"SUPERSEDED" | "NOT_ACTIVE" | "FAILED"> {
+    let cur: TransferJourney | null = target;
+    for (let write = 0; write < MAX_SUPERSEDE_WRITES; write++) {
+      if (cur === null || cur.priority !== "STANDARD" || !isActiveJourney(cur)) {
+        if (cur !== null && cur !== target) Object.assign(target, cur);
+        return "NOT_ACTIVE";
+      }
+      const next: TransferJourney = { ...cur, status: "SUPERSEDED", awaitingRetry: false };
+      try {
+        await this.persist(next);
+      } catch (err) {
+        if (err instanceof ConflictError) {
+          try {
+            cur = await this.store.get(target.handoffId);
+          } catch {
+            this.logger.error("transfer.supersede_failed", { handoffId: target.handoffId, reasonCode: "TRANSFER_STORE_UNAVAILABLE" });
+            return "FAILED";
+          }
+          continue;
+        }
+        this.logger.error("transfer.supersede_failed", { handoffId: target.handoffId, reasonCode: err instanceof DependencyError ? err.reasonCode : "TRANSFER_SUPERSEDE_FAILED" });
+        return "FAILED";
+      }
+      Object.assign(target, next);
+      await this.auditJourney(target, "transfer.superseded", "INVALIDATED", "SUPERSEDED_BY_SAFETY_ROUTE");
+      this.logger.warn("transfer.superseded_by_safety", { handoffId: target.handoffId, reasonCode: "SUPERSEDED_BY_SAFETY_ROUTE" });
+      return "SUPERSEDED";
+    }
+    this.logger.error("transfer.supersede_failed", { handoffId: target.handoffId, reasonCode: "TRANSFER_SUPERSEDE_RETRIES_EXHAUSTED" });
+    return "FAILED";
+  }
+
+  /**
+   * SAFE-03: every STANDARD routing step (sweep, vendor event, failover, retry, update prompt, dial)
+   * calls this first. With an active SAFETY journey on the call the STANDARD journey is superseded and
+   * the step must not proceed (true) — also when the supersede write failed: nothing is prompted or
+   * dialled and the sweep retries the supersede. A failed lookup throws (a STANDARD journey fails closed
+   * on store errors; the independent Studio route remains).
+   */
+  private async yieldsToSafety(j: TransferJourney): Promise<boolean> {
+    if (j.priority !== "STANDARD") return false;
+    if (j.status === "SUPERSEDED") return true;
+    if (!isActiveJourney(j)) return false;
+    let safety: TransferJourney | null;
+    try {
+      safety = await this.activeSafetyJourney(j.tenantId, j.callId);
+    } catch {
+      throw new DependencyError("TRANSFER_STORE_UNAVAILABLE", "UNKNOWN");
+    }
+    if (!safety) return false;
+    await this.supersedeJourney(j);
+    return true;
+  }
+
+  /**
+   * For a STANDARD journey: the call's SAFETY journey the caller is on instead — the active one (this
+   * journey is superseded first), or the one that already superseded it — else null. Never throws.
+   */
+  private async supersedingSafety(j: TransferJourney): Promise<TransferJourney | null> {
+    try {
+      const safety = (await this.store.listForCall(j.tenantId, j.callId)).filter((x) => x.priority === "SAFETY");
+      const active = safety.filter((x) => x.status === "ROUTING" || x.status === "CONNECTED").at(-1);
+      if (active) {
+        // A failed supersede write is retried by the sweep; nothing STANDARD is dialled meanwhile.
+        if (isActiveJourney(j)) await this.supersedeJourney(j);
+        this.logger.warn("transfer.standard_request_superseded", { handoffId: active.handoffId, reasonCode: "SAFETY_JOURNEY_ACTIVE" });
+        return active;
+      }
+      return j.status === "SUPERSEDED" ? (safety.at(-1) ?? null) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** A STANDARD step that lost a write race re-reads: true (and `j` takes the stored state) when a safety route superseded it. */
+  private async adoptIfSuperseded(j: TransferJourney): Promise<boolean> {
+    if (j.priority !== "STANDARD") return false;
+    const stored = await this.store.get(j.handoffId).catch(() => null);
+    if (stored?.status !== "SUPERSEDED") return false;
+    Object.assign(j, stored);
+    return true;
   }
 
   /** Applies a telephony event (idempotent on duplicates, rejects invalid/out-of-order events without corrupting state). */
@@ -545,6 +661,9 @@ export class TransferCoordinator {
     // A STANDARD journey superseded by the call's safety route never resumes (no status change,
     // no failover, no dial); its late vendor events are recorded for operations only.
     if (journey.status === "SUPERSEDED") return this.reject(journey, input.event, "TRANSFER_JOURNEY_SUPERSEDED");
+    // SAFE-03: a STANDARD journey of a call whose SAFETY journey is active is superseded, never advanced
+    // or failed over (covers a supersede that lost a write race or could not be written).
+    if (await this.yieldsToSafety(journey)) return this.reject(journey, input.event, "TRANSFER_JOURNEY_SUPERSEDED");
     if (attempt.transferId !== journey.currentTransferId) {
       // The caller leaving is call-level and applies to the active attempt; anything else on a
       // superseded attempt is stale (recorded for operations, never applied).
@@ -634,6 +753,11 @@ export class TransferCoordinator {
     let applied = 0;
     for (const j of await this.store.listActive()) {
       try {
+        // SAFE-03: a STANDARD journey of a call with an active SAFETY journey is superseded here, never
+        // timed out, prompted or re-dialled; a routing SAFETY journey re-supersedes any STANDARD journey
+        // of its call that an earlier supersede could not write.
+        if (await this.yieldsToSafety(j)) continue;
+        if (j.priority === "SAFETY") await this.supersedeStandardJourneys(j);
         if (j.awaitingRetry) {
           await this.routeFrom(j, j.routeIndex + 1, true);
           applied++;
@@ -692,14 +816,31 @@ export class TransferCoordinator {
   }
 
   private async failover(j: TransferJourney, cause: TransferState): Promise<void> {
+    if (await this.yieldsToSafety(j)) return; // SAFE-03: no update prompt, no next route
     await this.playUpdate(j);
     await this.auditJourney(j, "transfer.fallback", "PENDING", stateReason(cause));
     await this.routeFrom(j, j.routeIndex + 1, false);
   }
 
-  /** Tries routes starting at `from`, at most one full pass per call (no tight loops when telephony is down). */
+  /**
+   * Tries routes starting at `from` (see tryRoutes). A STANDARD step whose write lost the race against
+   * the call's safety route (version conflict, journey now SUPERSEDED) stops there instead of failing.
+   */
   private async routeFrom(j: TransferJourney, from: number, isRetry: boolean): Promise<void> {
-    if (isRetry) await this.playUpdate(j);
+    try {
+      await this.tryRoutes(j, from, isRetry);
+    } catch (err) {
+      if (err instanceof ConflictError && (await this.adoptIfSuperseded(j))) return;
+      throw err;
+    }
+  }
+
+  /** Tries routes starting at `from`, at most one full pass per call (no tight loops when telephony is down). */
+  private async tryRoutes(j: TransferJourney, from: number, isRetry: boolean): Promise<void> {
+    if (isRetry) {
+      if (await this.yieldsToSafety(j)) return;
+      await this.playUpdate(j);
+    }
     let candidate = from;
     for (let tries = 0; tries < j.routePlan.length; tries++) {
       const idx = this.nextRouteIndex(j, candidate);
@@ -712,10 +853,12 @@ export class TransferCoordinator {
         this.logger.error("transfer.holding_for_operations", { handoffId: j.handoffId, reasonCode: "STAFFED_ROUTES_EXHAUSTED" });
         return;
       }
-      const ok = await this.startAttempt(j, idx);
-      if (ok) return;
+      if ((await this.startAttempt(j, idx)) !== "FAILED") return;
       candidate = idx + 1;
-      if (tries < j.routePlan.length - 1) await this.playUpdate(j);
+      if (tries < j.routePlan.length - 1) {
+        if (await this.yieldsToSafety(j)) return;
+        await this.playUpdate(j);
+      }
     }
     j.awaitingRetry = true;
     await this.persist(j);
