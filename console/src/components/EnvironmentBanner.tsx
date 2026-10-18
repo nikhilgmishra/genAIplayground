@@ -23,7 +23,6 @@ export function EnvironmentBanner({ environment, localFixture }: { environment: 
             LOCAL FIXTURE — SYNTHETIC DATA
           </span>
         ) : null}
-        <span className="env-status">Status: IMPLEMENTED_OFFLINE scope; not verified against vendors or production.</span>
       </p>
     </div>
   );

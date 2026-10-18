@@ -3,7 +3,7 @@
  * focus moved inside on open, Tab / Shift+Tab trapped, Escape closes, focus
  * returned to the opener on close, background made inert while open.
  */
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { createPortal } from "react-dom";
 
@@ -29,19 +29,18 @@ export function Dialog({ open, title, description, onClose, children, initialFoc
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const hostRef = useRef<HTMLDivElement | null>(null);
+  const [host] = useState<HTMLDivElement>(() => {
+    const el = document.createElement("div");
+    el.setAttribute("data-dialog-host", "");
+    return el;
+  });
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  if (open && hostRef.current === null && typeof document !== "undefined") {
-    hostRef.current = document.createElement("div");
-    hostRef.current.setAttribute("data-dialog-host", "");
-  }
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
-    const host = hostRef.current;
-    if (!host) return;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.appendChild(host);
 
@@ -65,9 +64,9 @@ export function Dialog({ open, title, description, onClose, children, initialFoc
       if (opener && opener.isConnected) opener.focus();
     };
     // Focus management runs once per open; initialFocusRef is read at open time.
-  }, [open]);
+  }, [open, host]);
 
-  if (!open || !hostRef.current) return null;
+  if (!open) return null;
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
@@ -120,6 +119,6 @@ export function Dialog({ open, title, description, onClose, children, initialFoc
         {children}
       </div>
     </div>,
-    hostRef.current,
+    host,
   );
 }

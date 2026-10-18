@@ -18,14 +18,12 @@ export function Layout() {
   const me = auth.me;
   const location = useLocation();
   const mainRef = useRef<HTMLElement>(null);
-  const firstRender = useRef(true);
+  const previousPath = useRef(location.pathname);
 
   // Move focus to the main region after client-side navigation so keyboard and screen-reader users land on the new page.
   useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      return;
-    }
+    if (previousPath.current === location.pathname) return;
+    previousPath.current = location.pathname;
     mainRef.current?.focus();
   }, [location.pathname]);
 

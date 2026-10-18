@@ -168,7 +168,7 @@ export const JOURNEYS: readonly ScenarioDefinition[] = [
     requiredHandoff: "STANDARD_HUMAN",
     expectedFinalState: { outcome: "TRANSFERRED", committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false },
     stopCondition: "TRANSFER_CONNECTED",
-    repetitions: 1,
+    repetitions: 5,
   }),
   journey({
     scenarioId: "scn_journey_6_safety_handoff_unauthenticated",

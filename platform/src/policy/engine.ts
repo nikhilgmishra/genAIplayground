@@ -298,6 +298,14 @@ export class OpaWasmPolicyEngine implements PolicyEngine {
     return new OpaWasmPolicyEngine({ policyVersion: VersionLabel.parse(parts.policyVersion), bundleDigest: parts.bundleDigest, catalogue, evaluator: parts.evaluator }, opts);
   }
 
+  /** Same loaded bundle and evaluator with different observability or clock (e.g. a child logger per request scope). */
+  withOptions(opts: EngineOptions): OpaWasmPolicyEngine {
+    return new OpaWasmPolicyEngine(
+      { policyVersion: this.policyVersion, bundleDigest: this.bundleDigest, catalogue: this.catalogue, evaluator: this.evaluator },
+      { clock: opts.clock ?? this.clock, logger: opts.logger ?? this.logger, metrics: opts.metrics ?? this.metrics },
+    );
+  }
+
   describe(): EngineDescription {
     return {
       kind: this.kind,
@@ -341,7 +349,8 @@ export class OpaWasmPolicyEngine implements PolicyEngine {
         fieldMask: raw.data.allow ? [...raw.data.fieldMask].sort() : [],
         obligations: [...new Set(raw.data.obligations)].sort(),
         policyVersion: this.policyVersion,
-        evaluatedAt: this.nowIso(),
+        // A broken clock throws here and fails closed in the catch below.
+        evaluatedAt: this.clock.now().toISOString(),
       });
       this.record(decision, action, input.tool?.consequential ?? false);
       return decision;
@@ -376,7 +385,7 @@ export class OpaWasmPolicyEngine implements PolicyEngine {
         reasonCodes: boundReasons(raw.data.reasonCodes),
         obligations: [...new Set([...raw.data.obligations, "AUDIT_ADMIN_ACTION" as const])].sort(),
         policyVersion: this.policyVersion,
-        evaluatedAt: this.nowIso(),
+        evaluatedAt: this.clock.now().toISOString(),
       });
       this.logger.debug("policy.console.decision", { action: safeAction(action), allow: decision.allow, reasonCode: decision.reasonCodes[0] ?? null, decisionId: decision.decisionId });
       return decision;

@@ -31,9 +31,25 @@ export type ToolOutcome<O> =
   | { status: "POLICY_DENIED"; reasonCode: string }
   | { status: "UNKNOWN_OUTCOME"; reasonCode: string; reconciliationRef: string };
 
+/**
+ * Field-mask application contract. Policy field masks (policy/vsp/data.json
+ * `fieldMask`) are paths relative to each protected RECORD, e.g. "startsAt" or
+ * "lines.amountMinor" (arrays are traversed element-wise). The pipeline keeps
+ * only masked paths inside `data[collectionKey]` (array elements or a single
+ * object; `collectionKey: null` means `data` itself is the record) and keeps
+ * only the declared non-protected `envelopeKeys` at the top level of `data`.
+ * Everything else is stripped before the result leaves the gateway.
+ */
+export interface MaskTarget {
+  collectionKey: string | null;
+  envelopeKeys: string[];
+}
+
 export interface ToolModule<I = unknown, O = unknown> {
   /** Static catalogue entry minus JSON Schemas, which are derived from `input`/`output`. */
   definition: Omit<ToolDefinition, "inputSchema" | "outputSchema">;
+  /** Where the policy field mask applies within the output `data` (see MaskTarget). */
+  maskTarget: MaskTarget;
   input: z.ZodType<I>;
   output: z.ZodType<O>;
   /** Policy purpose for this invocation. */

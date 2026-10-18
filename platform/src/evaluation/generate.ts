@@ -345,7 +345,7 @@ export function checkDrift(root: string, files: readonly PlannedFile[], managed:
   const planned = new Set(files.map((f) => f.path));
   const report: DriftReport = { missing: [], changed: [], stale: [] };
   for (const f of files) {
-    let current: string | null = null;
+    let current: string | null;
     try {
       current = readFileSync(join(root, f.path), "utf8");
     } catch {

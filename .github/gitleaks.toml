@@ -1,0 +1,30 @@
+# gitleaks configuration (scripts/ci/gitleaks.sh). Default rules apply in full;
+# the allowlists below are deliberately narrow. Review any addition: an allowlist
+# entry must name exactly what it excuses and why it cannot be a credential.
+title = "voice-support-platform"
+
+[extend]
+useDefault = true
+
+# HashiCorp Security's PUBLIC PGP key fingerprint, pinned so the provider mirror can
+# verify SHA256SUMS signatures (published at https://www.hashicorp.com/security).
+[[allowlists]]
+description = "Public HashiCorp release-signing key fingerprint"
+regexTarget = "match"
+regexes = ['''HASHICORP_KEY_FPR="C874011F0AB405110D02105534365D9472D7468F"''']
+
+# SYNTHETIC opaque fixture identifiers (prefix_synth...) from platform tests and the
+# synthetic world. They are generated labels, never credentials.
+[[allowlists]]
+description = "SYNTHETIC opaque fixture identifiers"
+regexTarget = "secret"
+regexes = ['''^[a-z][a-z0-9]{1,11}_synth[A-Za-z0-9_-]*$''']
+
+# Prose in Markdown documentation that the generic rule mistakes for a key
+# (all-lowercase words joined by '/' or '-'; real keys contain digits or mixed case).
+[[allowlists]]
+description = "Lowercase prose fragments in docs"
+condition = "AND"
+paths = ['''(^|/)docs/.*\.md$''']
+regexTarget = "secret"
+regexes = ['''^[a-z]+([/-][a-z]+)*$''']
