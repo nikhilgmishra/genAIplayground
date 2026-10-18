@@ -154,6 +154,19 @@ run "verifier_role_is_read_only_and_separate_from_writers" {
     condition     = contains([for s in jsondecode(local.key_policy).Statement : s.Sid], "VerifierDecryptsViaS3Only") && local.writer_allowed_s3_actions == ["s3:PutObject"] && contains(local.writer_denied_actions, "s3:GetObject*") && contains(local.writer_denied_actions, "kms:Decrypt")
     error_message = "[OPS-AUD-02] the verifier decrypts via S3 only; the writer stays write-only (no GetObject, no kms:Decrypt)"
   }
+
+  # Wildcard-aware (same check as modules/kms): kms:Create* would match kms:CreateGrant.
+  assert {
+    condition = alltrue([
+      for s in jsondecode(local.key_policy).Statement : try(s.Condition.Bool["kms:GrantIsForAWSResource"], null) == "true"
+      if s.Effect == "Allow" && (try(s.Principal.AWS, null) != null || try(s.Principal, null) == "*") && (
+        try(s.NotAction, null) == null
+        ? anytrue([for a in flatten([try(s.Action, [])]) : can(regex("^(?i)${replace(replace(a, "*", ".*"), "?", ".")}$", "kms:CreateGrant"))])
+        : !anytrue([for a in flatten([s.NotAction]) : can(regex("^(?i)${replace(replace(a, "*", ".*"), "?", ".")}$", "kms:CreateGrant"))])
+      )
+    ])
+    error_message = "[SPEC-14.kms] no Allow for an IAM principal on the audit key may match kms:CreateGrant without Bool kms:GrantIsForAWSResource = true"
+  }
 }
 
 run "rejects_null_object_lock_mode" {

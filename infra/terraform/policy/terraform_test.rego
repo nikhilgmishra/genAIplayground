@@ -569,6 +569,52 @@ test_ci_identity_creation_and_other_modules_allowed if {
 	count(terraform.deny) == 0 with input as plan([task])
 }
 
+# ------------------------------------------------------------ KMS grants in key policies
+
+kms_admins := ["arn:aws:iam::111111111111:role/vsp-test-deployer", "arn:aws:iam::111111111111:role/vsp-test-gha-apply"]
+
+kms_attach_aws_resources := {"Sid": "AttachKeyToAwsResourcesOnly", "Effect": "Allow", "Principal": {"AWS": kms_admins}, "Action": ["kms:CreateGrant", "kms:ListGrants", "kms:RevokeGrant"], "Resource": "*", "Condition": {"Bool": {"kms:GrantIsForAWSResource": "true"}}}
+
+kms_workload := {"Sid": "WorkloadUseByNamedRolesOnly", "Effect": "Allow", "Principal": {"AWS": "arn:aws:iam::111111111111:root"}, "Action": ["kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:DescribeKey"], "Resource": "*", "Condition": {"ArnEquals": {"aws:PrincipalArn": ["arn:aws:iam::111111111111:role/vsp-test-gateway-task"]}}}
+
+kms_fargate_grants := {"Sid": "AllowFargateEphemeralStorageGrants", "Effect": "Allow", "Principal": {"Service": "fargate.amazonaws.com"}, "Action": ["kms:CreateGrant"], "Resource": "*", "Condition": {"ForAllValues:StringEquals": {"kms:GrantOperations": ["Decrypt"]}}}
+
+kms_admin(actions) := {"Sid": "KeyAdministrationWithoutCryptographicUse", "Effect": "Allow", "Principal": {"AWS": kms_admins}, "Action": actions, "Resource": "*"}
+
+# object.union merges nested objects, so a replaced Condition must be removed first.
+kms_with_condition(st, cond) := object.union(object.remove(st, ["Condition"]), {"Condition": cond})
+
+kms_key(statements) := rc("aws_kms_key", "module.kms.aws_kms_key.this[\"sessions\"]", "module.kms", {"enable_key_rotation": true, "policy": json.marshal({"Version": "2012-10-17", "Statement": statements})})
+
+kms_compliant := [kms_admin(["kms:CreateAlias", "kms:Describe*", "kms:Put*", "kms:Revoke*", "kms:List*"]), kms_attach_aws_resources, kms_workload, kms_fargate_grants]
+
+test_kms_key_policy_with_explicit_admin_actions_passes if {
+	count(terraform.deny) == 0 with input as plan([kms_key(kms_compliant)])
+}
+
+# [SPEC-14.kms] kms:Create* matches kms:CreateGrant, which bypasses AttachKeyToAwsResourcesOnly
+test_kms_admin_create_wildcard_denied if {
+	msgs := terraform.deny with input as plan([kms_key([kms_admin(["kms:Create*", "kms:Describe*"]), kms_attach_aws_resources])])
+	some m in msgs
+	startswith(m, "KMS-GRANT")
+	contains(m, "KeyAdministrationWithoutCryptographicUse")
+}
+
+test_kms_create_grant_without_aws_resource_condition_denied if {
+	has_prefix(terraform.deny, "KMS-GRANT") with input as plan([kms_key([kms_admin(["KMS:create*"])])]) # case-insensitive
+	has_prefix(terraform.deny, "KMS-GRANT") with input as plan([kms_key([kms_admin(["kms:*Grant"])])])
+	has_prefix(terraform.deny, "KMS-GRANT") with input as plan([kms_key([{"Effect": "Allow", "Principal": {"AWS": kms_admins}, "NotAction": ["kms:Decrypt"], "Resource": "*"}])])
+	has_prefix(terraform.deny, "KMS-GRANT") with input as plan([kms_key([{"Effect": "Allow", "Principal": "*", "Action": "kms:CreateGrant", "Resource": "*", "Condition": {"Bool": {"kms:GrantIsForAWSResource": "false"}}}])])
+	has_prefix(terraform.deny, "KMS-GRANT") with input as plan([kms_key([kms_with_condition(kms_attach_aws_resources, {"BoolIfExists": {"kms:GrantIsForAWSResource": "true"}})])])
+	has_prefix(terraform.deny, "KMS-GRANT") with input as plan([kms_key([object.union(kms_workload, {"Action": ["kms:CreateGrant"]})])]) # root + aws:PrincipalArn only
+}
+
+test_kms_create_grant_scoped_to_aws_resources_allowed if {
+	count(terraform.deny) == 0 with input as plan([kms_key([kms_with_condition(kms_attach_aws_resources, {"Bool": {"kms:GrantIsForAWSResource": true}})])])
+	count(terraform.deny) == 0 with input as plan([kms_key([object.union(kms_attach_aws_resources, {"Action": "kms:*Grant*"})])])
+	count(terraform.deny) == 0 with input as plan([kms_key([{"Effect": "Allow", "Principal": {"AWS": kms_admins}, "NotAction": ["kms:CreateGrant", "kms:Decrypt*"], "Resource": "*"}])])
+}
+
 # ------------------------------------------------------------ summary
 
 test_summary_reports_fail if {

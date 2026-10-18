@@ -7,8 +7,12 @@
 locals {
   root_arn = "arn:${var.partition}:iam::${var.account_id}:root"
 
+  # No "kms:Create*": it also matches kms:CreateGrant, which would let any key administrator
+  # grant the key to any grantee (including another account) and make the conditioned
+  # AttachKeyToAwsResourcesOnly statement meaningless. CreateAlias is the only other create
+  # action a key policy authorizes (CreateKey is authorized by IAM alone); aws_kms_alias needs it.
   admin_actions = [
-    "kms:Create*",
+    "kms:CreateAlias",
     "kms:Describe*",
     "kms:Enable*",
     "kms:List*",

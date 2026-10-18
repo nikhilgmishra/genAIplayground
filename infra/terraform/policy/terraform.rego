@@ -733,6 +733,41 @@ deny contains msg if {
 	msg := sprintf("CI-IDENTITY: %s would be changed by CI; changes to the CI identity are applied by an account administrator", [rc.address])
 }
 
+# ---------------------------------------------------------------- 12. KMS grants in key policies
+
+# An IAM principal (key administrators, the account root that delegates to IAM policies, or
+# "*") may create grants only for AWS resources. Matching uses the evaluator's action globs,
+# so kms:Create* or a NotAction that leaves kms:CreateGrant in counts, and the statement must
+# carry a Bool kms:GrantIsForAWSResource condition that holds for "true" and not for "false".
+# Other conditions do not count (fail closed). Service principals (e.g. Fargate) are not IAM principals.
+deny contains msg if {
+	some k in of_type("aws_kms_key")
+	is_string(after(k).policy)
+	some st in iam_statements(json.unmarshal(after(k).policy))
+	st.Effect == "Allow"
+	kms_iam_principal(st.Principal)
+	iam_action_in(st, "kms:CreateGrant")
+	not kms_grant_for_aws_resources_only(st)
+	msg := sprintf("KMS-GRANT: %s statement %s lets an IAM principal create grants that are not for AWS resources (needs Bool kms:GrantIsForAWSResource = true; kms:Create* matches kms:CreateGrant)", [k.address, object.get(st, "Sid", "(no Sid)")])
+}
+
+kms_iam_principal("*")
+
+kms_iam_principal(p) if {
+	is_object(p)
+	"AWS" in object.keys(p)
+}
+
+kms_grant_for_aws_resources_only(st) if {
+	vals := kms_condition_values(st.Condition.Bool["kms:GrantIsForAWSResource"])
+	iam_condition("Bool", "true", vals)
+	not iam_condition("Bool", "false", vals)
+}
+
+kms_condition_values(x) := x if is_array(x)
+
+kms_condition_values(x) := [x] if not is_array(x)
+
 # ---------------------------------------------------------------- summary
 
 summary := {
