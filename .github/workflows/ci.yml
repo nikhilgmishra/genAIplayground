@@ -130,7 +130,7 @@ jobs:
 
       - name: Upload evidence
         if: always()
-        uses: actions/upload-artifact@v4 # pin to full commit SHA before production
+        uses: actions/upload-artifact@v7 # pin to full commit SHA before production
         with:
           name: evidence-build-test
           path: evidence/
@@ -164,7 +164,7 @@ jobs:
 
       - name: Upload evidence
         if: always()
-        uses: actions/upload-artifact@v4 # pin to full commit SHA before production
+        uses: actions/upload-artifact@v7 # pin to full commit SHA before production
         with:
           name: evidence-terraform
           path: |
@@ -187,7 +187,7 @@ jobs:
 
       - name: Upload evidence
         if: always()
-        uses: actions/upload-artifact@v4 # pin to full commit SHA before production
+        uses: actions/upload-artifact@v7 # pin to full commit SHA before production
         with:
           name: evidence-secrets
           path: evidence/
@@ -234,7 +234,7 @@ jobs:
 
       - name: Upload SBOM and evidence
         if: always()
-        uses: actions/upload-artifact@v4 # pin to full commit SHA before production
+        uses: actions/upload-artifact@v7 # pin to full commit SHA before production
         with:
           name: evidence-supply-chain
           path: evidence/
