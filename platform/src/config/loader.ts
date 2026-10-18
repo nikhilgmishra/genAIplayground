@@ -126,3 +126,60 @@ export function loadPlatformConfig(opts: LoadConfigOptions): LoadedConfig {
   const { config, applied } = applyEnvOverrides(parsed, opts.env ?? process.env);
   return { config, source: { file, fileDigest: sha256Hex(bytes), overridesApplied: applied } };
 }
+
+/**
+ * Added by the gateway module (additive): container infrastructure variables
+ * from the deployment contract (infra/terraform/README.md "Interface contracts"):
+ * VSP_ENVIRONMENT, VSP_MUTATIONS_ENABLED and PORT (gateway 8080, worker 8081).
+ * They select WHICH reviewed config file loads and fence writes; they never
+ * change reviewed settings. Values are validated strictly; errors carry the
+ * variable NAME only. Other VSP_* deployment variables (database endpoints,
+ * queue URLs, secret ARNs) are read by the components that need them.
+ */
+export class InfrastructureEnvRejectedError extends ValidationError {
+  constructor(
+    reasonCode: "INFRA_ENV_ENVIRONMENT_INVALID" | "INFRA_ENV_ENVIRONMENT_REQUIRED" | "INFRA_ENV_BOOLEAN_INVALID" | "INFRA_ENV_PORT_INVALID",
+    readonly variable: string,
+  ) {
+    super(reasonCode);
+  }
+}
+
+export interface InfrastructureEnv {
+  environment: Environment;
+  /**
+   * Regional write fence (spec section 12). Defaults: true in local/ci; false
+   * elsewhere unless VSP_MUTATIONS_ENABLED is exactly "true" (fail closed).
+   */
+  mutationsEnabled: boolean;
+  port: number;
+}
+
+export function loadInfrastructureEnv(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  opts: { defaultPort: number; environment?: Environment } = { defaultPort: 8080 },
+): InfrastructureEnv {
+  let environment: Environment;
+  if (opts.environment) environment = opts.environment;
+  else {
+    const raw = env.VSP_ENVIRONMENT;
+    if (raw === undefined || raw === "") throw new InfrastructureEnvRejectedError("INFRA_ENV_ENVIRONMENT_REQUIRED", "VSP_ENVIRONMENT");
+    const parsed = Environment.safeParse(raw);
+    if (!parsed.success) throw new InfrastructureEnvRejectedError("INFRA_ENV_ENVIRONMENT_INVALID", "VSP_ENVIRONMENT");
+    environment = parsed.data;
+  }
+  const offline = environment === "local" || environment === "ci";
+  const fence = env.VSP_MUTATIONS_ENABLED;
+  let mutationsEnabled = offline;
+  if (fence !== undefined && fence !== "") {
+    if (fence !== "true" && fence !== "false") throw new InfrastructureEnvRejectedError("INFRA_ENV_BOOLEAN_INVALID", "VSP_MUTATIONS_ENABLED");
+    mutationsEnabled = fence === "true";
+  }
+  let port = opts.defaultPort;
+  const rawPort = env.PORT;
+  if (rawPort !== undefined && rawPort !== "") {
+    if (!/^\d{1,5}$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65_535) throw new InfrastructureEnvRejectedError("INFRA_ENV_PORT_INVALID", "PORT");
+    port = Number(rawPort);
+  }
+  return { environment, mutationsEnabled, port };
+}

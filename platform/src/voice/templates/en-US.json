@@ -844,6 +844,602 @@
         "notes": "",
         "acknowledgmentOnly": false
       }
+    },
+    {
+      "templateId": "appointment.option_offer",
+      "version": "0.1.0-draft",
+      "responseClass": "PROTECTED_FACT",
+      "text": "The next open time is {date} at {time}, {timeZone}. Would you like that time?",
+      "slots": {
+        "date": {
+          "type": "date"
+        },
+        "time": {
+          "type": "time"
+        },
+        "timeZone": {
+          "type": "time_zone"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Offers one open administrative time from the scheduling system for the authorized subject (no clinical matching). Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "appointment.no_options",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I don't see an open time in that range. I can check other dates, or connect you with a person.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "No open time in the requested range. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "appointment.create_confirmation",
+      "version": "0.1.0-draft",
+      "responseClass": "COMMITMENT",
+      "text": "To confirm, I'll book a new appointment on {date} at {time}, {timeZone}. Say yes to confirm, or no to cancel.",
+      "slots": {
+        "date": {
+          "type": "date"
+        },
+        "time": {
+          "type": "time"
+        },
+        "timeZone": {
+          "type": "time_zone"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Confirmation question bound to a prepared appointment booking (date, time and time zone read back before commit). Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "appointment.change_committed",
+      "version": "0.1.0-draft",
+      "responseClass": "COMMITMENT",
+      "text": "Your appointment is now on {date} at {time}, {timeZone}.",
+      "slots": {
+        "date": {
+          "type": "date"
+        },
+        "time": {
+          "type": "time"
+        },
+        "timeZone": {
+          "type": "time_zone"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Spoken only from a COMMITTED commit receipt for appointment.reschedule. Added by the business layer (wave 2).",
+        "notes": "Never used for a pending, failed or unknown outcome (ACT-03).",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "appointment.create_committed",
+      "version": "0.1.0-draft",
+      "responseClass": "COMMITMENT",
+      "text": "Your new appointment is booked for {date} at {time}, {timeZone}.",
+      "slots": {
+        "date": {
+          "type": "date"
+        },
+        "time": {
+          "type": "time"
+        },
+        "timeZone": {
+          "type": "time_zone"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Spoken only from a COMMITTED commit receipt for appointment.create. Added by the business layer (wave 2).",
+        "notes": "Never used for a pending, failed or unknown outcome (ACT-03).",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "appointment.slot_unavailable_next_option",
+      "version": "0.1.0-draft",
+      "responseClass": "PROTECTED_FACT",
+      "text": "That time was just taken, so nothing was changed. The next open time is {date} at {time}, {timeZone}. Would you like that time instead?",
+      "slots": {
+        "date": {
+          "type": "date"
+        },
+        "time": {
+          "type": "time"
+        },
+        "timeZone": {
+          "type": "time_zone"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Slot conflict at commit: nothing changed; offers the next authoritative open time. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "appointment.slot_unavailable",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "That time was just taken, so nothing was changed. I can look for other times, or connect you with a person.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Slot conflict at commit with no other open time in the window. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "appointment.state_changed",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "Your appointment changed since we started, so nothing was changed yet. Let me check the current details again.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Optimistic-concurrency conflict: the prepared change is invalidated and must be prepared again. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "action.outcome_unknown",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I couldn't confirm whether that change went through, so I won't try it again until it's checked. I can connect you with a person.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Ambiguous commit outcome (UNKNOWN): never announced as success and never retried before reconciliation (ACT-03). Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "billing.review_confirmation",
+      "version": "0.1.0-draft",
+      "responseClass": "COMMITMENT",
+      "text": "To confirm, I'll submit a billing review for the invoice issued on {issuedDate}. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel.",
+      "slots": {
+        "issuedDate": {
+          "type": "date"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Confirmation question bound to a prepared billing review. States that a review is not a change to the balance (ACT-04). Added by the business layer (wave 2).",
+        "notes": "No refund, waiver or coverage wording.",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "billing.payment_page",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "You can pay on our secure payment page or in the portal. For your protection, I can't take card numbers on this call.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Directs to the approved hosted payment page; card data is never collected by voice. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "billing.not_payable",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "There isn't an open balance I can send you to pay right now. I can connect you with a person if you have a question about it.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "No OPEN invoice with a balance; no payment path is offered. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "commitment.request_accepted_pending_sync",
+      "version": "0.1.0-draft",
+      "responseClass": "COMMITMENT",
+      "text": "I've submitted your request. It isn't complete yet, and our team will follow up. Your support reference is {supportReference}. It is still being synchronized and is not a case number.",
+      "slots": {
+        "supportReference": {
+          "type": "support_reference"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Request accepted with an internal support reference pending synchronization; never says resolved (ACT-04). Added by the business layer (wave 2).",
+        "notes": "Never presented as a Salesforce Case number (spec section 8).",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "commitment.request_accepted_no_reference",
+      "version": "0.1.0-draft",
+      "responseClass": "COMMITMENT",
+      "text": "I've submitted your request. It isn't complete yet, and our team will follow up.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Request accepted when the support reference is not yet available (reconciliation pending). Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "case.status",
+      "version": "0.1.0-draft",
+      "responseClass": "PROTECTED_FACT",
+      "text": "Your request {supportReference} is {caseStatus}.",
+      "slots": {
+        "supportReference": {
+          "type": "support_reference"
+        },
+        "caseStatus": {
+          "type": "enum",
+          "enumValues": [
+            "RECEIVED",
+            "IN_PROGRESS",
+            "WAITING_FOR_YOU",
+            "WAITING_FOR_OUR_TEAM",
+            "COMPLETED",
+            "CLOSED"
+          ],
+          "labels": {
+            "RECEIVED": "received",
+            "IN_PROGRESS": "in progress",
+            "WAITING_FOR_YOU": "waiting for information from you",
+            "WAITING_FOR_OUR_TEAM": "waiting for our team",
+            "COMPLETED": "completed",
+            "CLOSED": "closed"
+          }
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Status of the authorized caller's own support request. A created request is not a resolution (ACT-04). Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "case.recap_open_issue",
+      "version": "0.1.0-draft",
+      "responseClass": "PROTECTED_FACT",
+      "text": "I see an open request with reference {supportReference}, about {issueCategory}. Are you calling about that request?",
+      "slots": {
+        "supportReference": {
+          "type": "support_reference"
+        },
+        "issueCategory": {
+          "type": "enum",
+          "enumValues": [
+            "general_question",
+            "portal_login_help",
+            "appointment",
+            "billing_question",
+            "billing_dispute",
+            "claim_status",
+            "provider_onboarding",
+            "credentialing_documents",
+            "remittance",
+            "partner_intake",
+            "complaint",
+            "case_follow_up",
+            "privacy_concern",
+            "safety_concern",
+            "clinical_question_redirected",
+            "accessibility_request",
+            "language_support",
+            "other"
+          ],
+          "labels": {
+            "general_question": "a general question",
+            "portal_login_help": "portal sign-in help",
+            "appointment": "an appointment",
+            "billing_question": "a billing question",
+            "billing_dispute": "a billing review",
+            "claim_status": "a claim status",
+            "provider_onboarding": "provider onboarding",
+            "credentialing_documents": "credentialing documents",
+            "remittance": "a remittance",
+            "partner_intake": "a partner request",
+            "complaint": "a complaint",
+            "case_follow_up": "a follow-up",
+            "privacy_concern": "a privacy concern",
+            "safety_concern": "a request for help",
+            "clinical_question_redirected": "a question for our care team",
+            "accessibility_request": "an accessibility request",
+            "language_support": "language support",
+            "other": "another request"
+          }
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Repeat-caller recap from support memory, only after A2 authentication of the same subject (DATA-04). Added by the business layer (wave 2).",
+        "notes": "Never spoken before authentication or on a shared device.",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "case.none_found",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I couldn't find an open request I can share on this call. I can create a new request, or connect you with a person.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "No shareable request; reveals nothing about other records. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "login.guidance",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I can't reset passwords or take a password by phone. On the sign-in page, choose the account recovery option, or I can connect you with a person.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Portal sign-in guidance: never resets credentials or asks for a password; directs to the identity provider's own recovery. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "login.recovery_human",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "Account recovery has to go through our secure recovery process. I can connect you with a person who can help.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Lockout or lost MFA device: trusted human recovery process. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "credentialing.documents_missing",
+      "version": "0.1.0-draft",
+      "responseClass": "PROTECTED_FACT",
+      "text": "Documents still needed: {missingCount}. One of them is {documentType}.",
+      "slots": {
+        "missingCount": {
+          "type": "count"
+        },
+        "documentType": {
+          "type": "enum",
+          "enumValues": [
+            "LICENSE",
+            "MALPRACTICE_INSURANCE",
+            "W9",
+            "DEA",
+            "BOARD_CERTIFICATION"
+          ],
+          "labels": {
+            "LICENSE": "your license information",
+            "MALPRACTICE_INSURANCE": "proof of malpractice insurance",
+            "W9": "a completed W-9 form",
+            "DEA": "your DEA registration",
+            "BOARD_CERTIFICATION": "your board certification"
+          }
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Credentialing document status from the provider record; never a credentialing decision. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "knowledge.no_answer",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I don't have approved information about that. I can connect you with a person.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "No approved knowledge item matched; nothing is improvised. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "lookup.none_found",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "I don't see a record I can share on this call. I can connect you with a person.",
+      "slots": {},
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Empty authorized lookup; reveals nothing about other records. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
+      "templateId": "remittance.returned",
+      "version": "0.1.0-draft",
+      "responseClass": "FINANCIAL_FACT",
+      "text": "The remittance for {periodStart} through {periodEnd}, with a total of {amount}, was returned. I can connect you with our provider support team.",
+      "slots": {
+        "periodStart": {
+          "type": "date"
+        },
+        "periodEnd": {
+          "type": "date"
+        },
+        "amount": {
+          "type": "money_minor_usd"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Returned remittance for an authorized practice; routes to provider relations. Added by the business layer (wave 2).",
+        "notes": "",
+        "acknowledgmentOnly": false
+      }
     }
   ]
 }

@@ -51,6 +51,18 @@ The split is `sha256("vsp-corpus-split.v1:" + scenarioId)`: a scenario never mov
 development and held-out acceptance when others are added or removed. Journeys are development
 scenarios (they are demonstrated, so they cannot be held-out evidence).
 
+### Final business tool names (platform/src/gateway/tools)
+
+The gateway serves the tool names used in the skeletons, with two differences a driver must know:
+
+- A billing review is two calls: `prepare_billing_review` (returns the pending action and the
+  confirmation template) and then `submit_billing_review` with `{actionId, digest}` after the
+  trusted confirmation. Skeletons that list only `submit_billing_review` (for example
+  `billing_dispute`) describe the commit step; the prepare call precedes it.
+- `get_login_guidance` is an additional A0 tool (portal sign-in help; it never resets credentials).
+
+The authoritative list is `BUSINESS_TOOL_NAMES` in `platform/src/gateway/tools/definitions.ts`.
+
 ## Script vocabulary
 
 Caller turns are synthetic utterances. System events (`platform/src/evaluation/vocabulary.ts`)

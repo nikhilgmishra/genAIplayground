@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type {
   AuthContext,
+  IntegrationIdentity,
   PolicyDecision,
   PolicyInput,
   PolicyPurpose,
@@ -60,4 +61,34 @@ export interface ToolModule<I = unknown, O = unknown> {
    */
   resolveResource(auth: AuthContext, input: I): Promise<PolicyInput["resource"]>;
   execute(ctx: ToolExecutionContext, input: I): Promise<ToolOutcome<O>>;
+  /**
+   * Added by the gateway module (additive, optional). SAFETY_AND_HUMAN_ROUTE tools
+   * only: runs when no session resolves (unknown, expired, revoked, ended, wrong
+   * generation or missing), because safety routing and human requests never require
+   * account authentication (SAFE-02). The context carries no AuthContext; the call
+   * id is supplied only when the trusted transport binding identifies it. A
+   * SAFETY_AND_HUMAN_ROUTE tool without this method still returns an honest
+   * non-success result when no session resolves (the independent Studio route
+   * remains the safety backstop).
+   */
+  executeWithoutSession?(ctx: SessionlessExecutionContext, input: I): Promise<ToolOutcome<O>>;
+}
+
+/**
+ * Added by the gateway module (additive). Context for SAFETY_AND_HUMAN_ROUTE tools
+ * when no trusted session resolves (SAFE-02). Nothing here is caller-asserted:
+ * tenant and integration come from transport authentication, `callId` only from
+ * the trusted session binding (null when it cannot be established).
+ */
+export interface SessionlessExecutionContext {
+  auth: null;
+  tenantId: string;
+  integration: IntegrationIdentity;
+  callId: string | null;
+  request: ToolRequest;
+  /** Policy decision when evaluation succeeded; safety/human routing never depends on it. */
+  decision: PolicyDecision | null;
+  /** Why no session resolved (reason code). */
+  sessionReasonCode: string;
+  now: Date;
 }

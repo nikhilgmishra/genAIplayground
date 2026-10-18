@@ -79,6 +79,47 @@ export const OpsConfigSchema = z.strictObject({
   }),
 });
 
+/**
+ * Added by the gateway module (additive, optional): inbound integration
+ * authentication and HTTP limits for the gateway. Absent => local/ci use the
+ * LOCAL FIXTURE integration tokens and every other environment refuses to start
+ * the gateway (GATEWAY_INBOUND_AUTH_NOT_CONFIGURED). Values (issuer, audience,
+ * JWKS URI, client ids) come from the integration owner; nothing is defaulted.
+ */
+const InboundChannel = z.enum(["mcp_tools", "telephony_control", "portal", "webhook"]);
+export const GatewayInboundAuthSchema = z.strictObject({
+  kind: z.literal("oauth2_jwt"),
+  issuer: z.string().url().max(512),
+  audience: z.string().min(3).max(256),
+  jwksUri: EndpointUrl,
+  algorithms: z.array(z.enum(["RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512", "EdDSA"])).min(1).max(10),
+  clockToleranceSeconds: z.number().int().min(0).max(120),
+  maxTokenAgeSeconds: z.number().int().min(30).max(86_400).nullable(),
+  clientIdClaim: z.enum(["client_id", "azp", "sub"]),
+  clients: z
+    .array(
+      z.strictObject({
+        clientId: z.string().min(3).max(256),
+        integrationId: z.string().regex(/^[a-z0-9-]{3,64}$/),
+        credentialId: z.string().min(3).max(128),
+        channels: z.array(InboundChannel).min(1).max(4),
+      }),
+    )
+    .min(1)
+    .max(32),
+  scopeToChannel: z.record(z.string().regex(/^[A-Za-z0-9._:-]{3,64}$/), InboundChannel),
+});
+export const GatewayConfigSchema = z.strictObject({
+  inboundAuth: GatewayInboundAuthSchema.nullable(),
+  http: z
+    .strictObject({
+      bodyLimitBytes: z.number().int().min(1024).max(1_048_576),
+      rateLimit: z.strictObject({ max: z.number().int().min(1).max(100_000), timeWindowMs: z.number().int().min(1000).max(3_600_000) }).nullable(),
+    })
+    .optional(),
+});
+export type GatewayConfig = z.infer<typeof GatewayConfigSchema>;
+
 export const PlatformConfigSchema = z
   .strictObject({
     /** Human-readable label (e.g. LOCAL FIXTURE); stripped by the loader. */
@@ -130,6 +171,8 @@ export const PlatformConfigSchema = z
     sessionStore: z.strictObject({ kind: z.enum(["memory", "dynamodb"]), tableName: z.string().regex(/^[A-Za-z0-9_.-]{3,255}$/).nullable() }),
     phi: z.strictObject({ endpointsEnabled: z.boolean() }).optional(),
     ops: OpsConfigSchema.optional(),
+    /** Added by the gateway module (additive, optional). See GatewayConfigSchema. */
+    gateway: GatewayConfigSchema.optional(),
   })
   .superRefine((cfg, ctx) => {
     if (new Set(cfg.approvals.required).size !== cfg.approvals.required.length) {
@@ -165,4 +208,17 @@ export function parsePlatformConfig(raw: unknown): PlatformConfig {
   }
   const { $comment: _comment, ...config } = r.data;
   return config;
+}
+
+/**
+ * Typed accessor for the optional `gateway` section (kept out of the PlatformConfig
+ * port so existing consumers are unaffected). Returns null when absent; throws
+ * ConfigInvalidError when present but malformed (fail closed).
+ */
+export function gatewayConfigOf(config: PlatformConfig): GatewayConfig | null {
+  const raw = (config as PlatformConfig & { gateway?: unknown }).gateway;
+  if (raw === undefined) return null;
+  const r = GatewayConfigSchema.safeParse(raw);
+  if (!r.success) throw new ConfigInvalidError(r.error.issues.map((i) => `gateway.${i.path.map(safeSegment).join(".") || "$"}:${i.code}`));
+  return r.data;
 }

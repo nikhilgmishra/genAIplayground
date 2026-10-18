@@ -95,6 +95,11 @@ export interface HandoffResult {
   journey: TransferJourney | null;
   /** Approved template id for what the caller hears next. */
   speechTemplateId: string;
+  /**
+   * Added by the business layer (additive, optional): internal support reference created
+   * for the handoff, when one could be created without delaying the route.
+   */
+  supportReference?: string | null;
 }
 
 export interface HandoffService {
