@@ -36,7 +36,9 @@ record() {
   echo "$1"
 }
 
-"${TF}" version | head -1
+# Capture before trimming: `| head -1` can SIGPIPE terraform under pipefail (exit 141).
+tf_version_line() { local v; v="$("${TF}" version)"; echo "${v%%$'\n'*}"; }
+tf_version_line
 if "${TF}" fmt -recursive -check -diff "${TFROOT}" >"${log}" 2>&1; then
   record "PASS fmt infra/terraform"
 else
@@ -86,7 +88,7 @@ if [[ -n "${REPORT}" ]]; then
   mkdir -p "$(dirname "${REPORT}")"
   {
     echo "# terraform-check (offline: mock providers, plan only; nothing applied)"
-    echo "terraform: $("${TF}" version | head -1)"
+    echo "terraform: $(tf_version_line)"
     echo "generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf '%s\n' "${results[@]}"
     echo "failures: ${failures}"

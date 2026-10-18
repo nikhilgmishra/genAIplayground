@@ -35,7 +35,7 @@ trap 'rm -rf "${tmp}"' EXIT
 
 case "${tool}" in
   gitleaks)
-    if [[ -x "${TOOLS}/gitleaks" ]] && "${TOOLS}/gitleaks" version 2>/dev/null | grep -q "${GITLEAKS_VERSION}"; then exit 0; fi
+    if [[ -x "${TOOLS}/gitleaks" ]] && [[ "$("${TOOLS}/gitleaks" version 2>/dev/null || true)" == *"${GITLEAKS_VERSION}"* ]]; then exit 0; fi
     curl -fsSL -o "${tmp}/gitleaks.tar.gz" \
       "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
     verify "${tmp}/gitleaks.tar.gz" "${GITLEAKS_SHA256}"
@@ -43,7 +43,7 @@ case "${tool}" in
     install -m 0755 "${tmp}/gitleaks" "${TOOLS}/gitleaks"
     ;;
   trivy)
-    if [[ -x "${TOOLS}/trivy" ]] && "${TOOLS}/trivy" --version 2>/dev/null | grep -q "${TRIVY_VERSION}"; then exit 0; fi
+    if [[ -x "${TOOLS}/trivy" ]] && [[ "$("${TOOLS}/trivy" --version 2>/dev/null || true)" == *"${TRIVY_VERSION}"* ]]; then exit 0; fi
     curl -fsSL -o "${tmp}/trivy.tar.gz" \
       "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
     verify "${tmp}/trivy.tar.gz" "${TRIVY_SHA256}"
@@ -51,7 +51,7 @@ case "${tool}" in
     install -m 0755 "${tmp}/trivy" "${TOOLS}/trivy"
     ;;
   cosign)
-    if [[ -x "${TOOLS}/cosign" ]] && "${TOOLS}/cosign" version 2>/dev/null | grep -q "${COSIGN_VERSION}"; then exit 0; fi
+    if [[ -x "${TOOLS}/cosign" ]] && [[ "$("${TOOLS}/cosign" version 2>/dev/null || true)" == *"${COSIGN_VERSION}"* ]]; then exit 0; fi
     curl -fsSL -o "${tmp}/cosign" \
       "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64"
     verify "${tmp}/cosign" "${COSIGN_SHA256}"

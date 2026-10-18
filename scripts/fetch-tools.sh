@@ -23,14 +23,18 @@ verify() {
   fi
 }
 
-if [[ ! -x "${TOOLS}/opa" ]] || ! "${TOOLS}/opa" version | grep -q "Version: ${OPA_VERSION}"; then
+# Capture tool output before matching: piping into `grep -q`/`head` can SIGPIPE the
+# producer, which `set -o pipefail` turns into a spurious failure (exit 141).
+version_of() { "$@" 2>/dev/null || true; }
+
+if [[ ! -x "${TOOLS}/opa" ]] || [[ "$(version_of "${TOOLS}/opa" version)" != *"Version: ${OPA_VERSION}"* ]]; then
   curl -fsSL -o "${TOOLS}/opa" \
     "https://github.com/open-policy-agent/opa/releases/download/v${OPA_VERSION}/opa_linux_amd64_static"
   verify "${TOOLS}/opa" "${OPA_SHA256}"
   chmod +x "${TOOLS}/opa"
 fi
 
-if [[ ! -x "${TOOLS}/terraform" ]] || ! "${TOOLS}/terraform" version | grep -q "v${TERRAFORM_VERSION}"; then
+if [[ ! -x "${TOOLS}/terraform" ]] || [[ "$(version_of "${TOOLS}/terraform" version)" != *"v${TERRAFORM_VERSION}"* ]]; then
   tmp="$(mktemp -d)"
   curl -fsSL -o "${tmp}/tf.zip" \
     "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
@@ -39,5 +43,7 @@ if [[ ! -x "${TOOLS}/terraform" ]] || ! "${TOOLS}/terraform" version | grep -q "
   rm -rf "${tmp}"
 fi
 
-"${TOOLS}/opa" version | head -1
-"${TOOLS}/terraform" version | head -1
+opa_version="$("${TOOLS}/opa" version)"
+terraform_version="$("${TOOLS}/terraform" version)"
+echo "${opa_version%%$'\n'*}"
+echo "${terraform_version%%$'\n'*}"
