@@ -72,8 +72,11 @@ locals {
         Sid       = "KeyAdministrationWithoutCryptographicUse"
         Effect    = "Allow"
         Principal = { AWS = var.key_admin_role_arns }
+        # kms:CreateAlias, never kms:Create*: it matches kms:CreateGrant, and an unconditioned
+        # grant would let an administrator give itself (or another account) Decrypt on the
+        # evidence key. S3 SSE-KMS needs no grants, so administrators get none.
         Action = [
-          "kms:Create*", "kms:Describe*", "kms:Enable*", "kms:List*", "kms:Put*", "kms:Update*",
+          "kms:CreateAlias", "kms:Describe*", "kms:Enable*", "kms:List*", "kms:Put*", "kms:Update*",
           "kms:Revoke*", "kms:Disable*", "kms:Get*", "kms:TagResource", "kms:UntagResource",
           "kms:CancelKeyDeletion", "kms:RotateKeyOnDemand",
         ]

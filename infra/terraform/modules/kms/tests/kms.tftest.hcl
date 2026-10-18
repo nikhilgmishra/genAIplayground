@@ -68,6 +68,32 @@ run "keys_rotate_and_policies_are_scoped" {
     error_message = "key administrators must not be able to decrypt"
   }
 
+  # Wildcard-aware (IAM action names are case-insensitive): an Allow for an IAM principal (the
+  # key administrators, or the account root that delegates to IAM policies) whose Action or
+  # NotAction admits kms:CreateGrant must carry Bool kms:GrantIsForAWSResource = true, so no
+  # administrator can grant the key to an arbitrary grantee or account.
+  assert {
+    condition = alltrue(flatten([for _, p in local.key_policies : [
+      for s in jsondecode(p).Statement : try(s.Condition.Bool["kms:GrantIsForAWSResource"], null) == "true"
+      if s.Effect == "Allow" && (try(s.Principal.AWS, null) != null || try(s.Principal, null) == "*") && (
+        try(s.NotAction, null) == null
+        ? anytrue([for a in flatten([try(s.Action, [])]) : can(regex("^(?i)${replace(replace(a, "*", ".*"), "?", ".")}$", "kms:CreateGrant"))])
+        : !anytrue([for a in flatten([s.NotAction]) : can(regex("^(?i)${replace(replace(a, "*", ".*"), "?", ".")}$", "kms:CreateGrant"))])
+      )
+    ]]))
+    error_message = "[SPEC-14.kms] no Allow for an IAM principal may match kms:CreateGrant without Bool kms:GrantIsForAWSResource = true (kms:Create* matches CreateGrant)"
+  }
+
+  assert {
+    condition = alltrue([for _, p in local.key_policies : anytrue([
+      for s in jsondecode(p).Statement : contains(s.Action, "kms:CreateGrant") && s.Condition.Bool["kms:GrantIsForAWSResource"] == "true"
+      if s.Sid == "AttachKeyToAwsResourcesOnly"
+      ]) && anytrue([
+      for s in jsondecode(p).Statement : contains(s.Action, "kms:CreateAlias") if s.Sid == "KeyAdministrationWithoutCryptographicUse"
+    ])])
+    error_message = "key administrators keep kms:CreateAlias (aws_kms_alias) and grants for AWS resources (RDS, DynamoDB, ...)"
+  }
+
   assert {
     condition = one([
       for s in jsondecode(local.key_policies["sessions"]).Statement : s.Condition.ArnEquals["aws:PrincipalArn"] if s.Sid == "WorkloadUseByNamedRolesOnly"
