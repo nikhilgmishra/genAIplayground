@@ -1,0 +1,26 @@
+skeletonVersion: 1
+intent: partner_intake
+title: Verified partner submits an organization-scoped intake request
+audiences: [partner]
+riskClass: routine
+expectedAssurance: A2
+permittedRecords: [org_synthPartnerAcme01]
+persona: "Synthetic partner Quinn (Acme synthetic employer partner) with a current contract affiliation."
+expectedToolSequence: [begin_verification, submit_partner_intake]
+prohibitedActions: [disclose:treatment_status, disclose:other_subject]
+requiredHandoff: NONE
+expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I'm with Acme's benefits team. We want to set up an information session for employees."
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "Sometime next month would be ideal."
+  - event: CALL_END
+indirect:
+  - "We're a partner organization and want to do something for our staff."
+dependencyFailure:
+  fault: SALESFORCE_OUTAGE
+  expectedToolSequence: [begin_verification, submit_partner_intake]
+  requiredHandoff: NONE
+  expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+requirementIds: [ACT-04, SPEC-4.audience-permissions]

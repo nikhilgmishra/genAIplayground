@@ -1,0 +1,316 @@
+# Deploy a signed release to one environment. Manual dispatch only. NOT RUN from the
+# authoring environment: every job needs AWS accounts, OIDC roles and approvals.
+#
+# Gates, in order (any failure stops the deployment):
+#   1. cosign keyless verification of the release manifest, the image signature and the
+#      SBOM attestation, bound to this repository's release.yml on refs/heads/main.
+#   2. terraform plan with the read-only plan role (GitHub environment <env>-plan). Its IAM
+#      trust pins the OIDC subject to <env>-plan AND this workflow file on refs/heads/main
+#      (job_workflow_ref; repository OIDC subject customization is a prerequisite), and the
+#      role writes only the state lock (VSP-INF-03). The job also refuses any other ref.
+#   3. infrastructure policy gate (OPA) on `terraform show -json`.
+#   4. release-manifest gate (scripts/ci/check-release-manifest.ts): status, signed and
+#      unexpired approvals, evidence, image digest and the reviewed plan digest.
+#      Production is refused unless the manifest permits it (OPS-04, OPS-05).
+#   5. manual approval: the apply job uses GitHub environment <env>, which must be
+#      configured with required reviewers and a deployment branch rule restricted to
+#      main (every <env>-plan environment too). The gate is re-checked immediately
+#      before apply. The Node gate runs with the AWS credentials removed from its
+#      environment (VSP-INF-02). That narrows, but does not remove, what a compromised
+#      dependency can reach: steps share one runner, so dependency integrity (frozen
+#      lockfile, audit, SBOM) and the role boundary remain the controls.
+#   6. terraform apply of exactly the reviewed plan file (digest re-verified).
+# Rollback: dispatch this workflow with the previous release run (rollbackTarget);
+# ECS deployment circuit breakers also roll back failed task sets automatically.
+#
+# GitHub environment variables (no secrets): AWS_REGION, TF_PLAN_ROLE_ARN /
+# TF_APPLY_ROLE_ARN, TF_STATE_BUCKET, TF_STATE_KEY, TF_STATE_KMS_KEY_ARN,
+# APPROVALS_TRUST_KEY_ARN, and TF_VAR_* values listed in infra/terraform/README.md.
+#
+# Third-party actions are pinned by version TAG. PREREQUISITE before production: pin
+# every `uses:` to a full commit SHA (could not be resolved offline).
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        type: choice
+        required: true
+        options: [sandbox, staging, production, production-dr]
+      release_run_id:
+        description: "Run id of the release workflow whose artifacts are deployed"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "1"
+  CHECKPOINT_DISABLE: "1"
+  DEPLOY_ENV: ${{ inputs.environment }}
+  RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+  RELEASE_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/heads/main
+  OIDC_ISSUER: https://token.actions.githubusercontent.com
+
+jobs:
+  plan:
+    name: verify release, plan, policy and manifest gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}-plan
+    permissions:
+      contents: read
+      actions: read # download artifacts of the release run
+      id-token: write # AWS OIDC federation
+    outputs:
+      plan_digest: ${{ steps.plan.outputs.plan_digest }}
+    steps:
+      - name: Refuse any ref or workflow other than deploy.yml on main
+        run: |
+          [[ "${GITHUB_REF}" == "refs/heads/main" && "${GITHUB_WORKFLOW_REF}" == "${GITHUB_REPOSITORY}/.github/workflows/deploy.yml@refs/heads/main" ]] || { echo "::error::deploy runs only from .github/workflows/deploy.yml on refs/heads/main"; exit 1; }
+
+      - uses: actions/checkout@v5 # pin to full commit SHA before production
+        with:
+          persist-credentials: false
+
+      - name: Validate inputs
+        run: |
+          [[ "${RELEASE_RUN_ID}" =~ ^[0-9]{1,20}$ ]] || { echo "::error::release_run_id must be numeric"; exit 1; }
+          case "${DEPLOY_ENV}" in
+            production-dr) echo "MANIFEST_ENV=production" >> "$GITHUB_ENV" ;;
+            sandbox|staging|production) echo "MANIFEST_ENV=${DEPLOY_ENV}" >> "$GITHUB_ENV" ;;
+            *) echo "::error::unknown environment"; exit 1 ;;
+          esac
+
+      - uses: actions/setup-node@v4 # pin to full commit SHA before production
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies (frozen lockfile)
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4 # pin to full commit SHA before production
+        with:
+          name: release-${{ inputs.release_run_id }}
+          run-id: ${{ inputs.release_run_id }}
+          github-token: ${{ github.token }}
+          path: release/
+
+      - name: Verify release signatures (cosign keyless)
+        run: |
+          bash scripts/ci/fetch-ci-tool.sh cosign
+          IMAGE_REF="$(cat release/runs/image-ref.txt)"
+          [[ "${IMAGE_REF}" =~ @sha256:[a-f0-9]{64}$ ]] || { echo "::error::image reference is not digest-pinned"; exit 1; }
+          .tools/cosign verify-blob \
+            --bundle release/runs/release-manifest.sigstore.json \
+            --certificate-identity "${RELEASE_IDENTITY}" \
+            --certificate-oidc-issuer "${OIDC_ISSUER}" \
+            release/runs/release-manifest.json
+          .tools/cosign verify \
+            --certificate-identity "${RELEASE_IDENTITY}" \
+            --certificate-oidc-issuer "${OIDC_ISSUER}" \
+            "${IMAGE_REF}" > /dev/null
+          .tools/cosign verify-attestation --type cyclonedx \
+            --certificate-identity "${RELEASE_IDENTITY}" \
+            --certificate-oidc-issuer "${OIDC_ISSUER}" \
+            "${IMAGE_REF}" > /dev/null
+          echo "IMAGE_DIGEST=${IMAGE_REF##*@}" >> "$GITHUB_ENV"
+
+      - name: Fetch pinned tools and provider mirror
+        env:
+          TF_MIRROR_REQUIRE_SIGNATURE: "1"
+        run: |
+          bash scripts/fetch-tools.sh
+          bash scripts/terraform-mirror.sh
+
+      - name: Configure AWS credentials (plan role, read-only)
+        uses: aws-actions/configure-aws-credentials@v4 # pin to full commit SHA before production
+        with:
+          role-to-assume: ${{ vars.TF_PLAN_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: vsp-plan-${{ github.run_id }}
+
+      - name: Approval trust anchor (KMS public key)
+        env:
+          TRUST_KEY_ARN: ${{ vars.APPROVALS_TRUST_KEY_ARN }}
+        run: |
+          [[ -n "${TRUST_KEY_ARN}" ]] || { echo "::error::APPROVALS_TRUST_KEY_ARN is not configured (owner: security); approvals cannot be verified"; exit 1; }
+          aws kms get-public-key --key-id "${TRUST_KEY_ARN}" --query PublicKey --output text | base64 -d > approvals-trust.der
+          openssl pkey -pubin -inform DER -in approvals-trust.der -out approvals-trust.pem
+
+      - name: terraform plan
+        id: plan
+        working-directory: infra/terraform/envs/${{ inputs.environment }}
+        env:
+          TF_CLI_CONFIG_FILE: ${{ github.workspace }}/.tools/terraformrc
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
+          TF_STATE_KMS_KEY_ARN: ${{ vars.TF_STATE_KMS_KEY_ARN }}
+          AWS_REGION_VAR: ${{ vars.AWS_REGION }}
+          TF_VAR_workload_account_id: ${{ vars.TF_VAR_WORKLOAD_ACCOUNT_ID }}
+          TF_VAR_audit_account_id: ${{ vars.TF_VAR_AUDIT_ACCOUNT_ID }}
+          TF_VAR_audit_deploy_role_arn: ${{ vars.TF_VAR_AUDIT_DEPLOY_ROLE_ARN }}
+          TF_VAR_certificate_arn: ${{ vars.TF_VAR_CERTIFICATE_ARN }}
+          TF_VAR_key_admin_role_arns: ${{ vars.TF_VAR_KEY_ADMIN_ROLE_ARNS }}
+          TF_VAR_audit_key_admin_role_arns: ${{ vars.TF_VAR_AUDIT_KEY_ADMIN_ROLE_ARNS }}
+          TF_VAR_ci_state: ${{ vars.TF_VAR_CI_STATE }}
+          # production-dr only (from `terraform output dr_inputs` of envs/production):
+          TF_VAR_sessions_replica_kms_key_arn: ${{ vars.TF_VAR_SESSIONS_REPLICA_KMS_KEY_ARN }}
+          TF_VAR_audit_bucket_name: ${{ vars.TF_VAR_AUDIT_BUCKET_NAME }}
+          TF_VAR_audit_writer_role_arn: ${{ vars.TF_VAR_AUDIT_WRITER_ROLE_ARN }}
+        run: |
+          ../../../../.tools/terraform init -input=false -lockfile=readonly \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=${TF_STATE_KEY}" \
+            -backend-config="region=${AWS_REGION_VAR}" \
+            -backend-config="kms_key_id=${TF_STATE_KMS_KEY_ARN}"
+          # Owner decisions (retention, Object Lock, budget) live in owner-decisions.tfvars,
+          # added through a reviewed pull request by their owners; until it exists the plan
+          # fails closed on the missing variables.
+          decisions=()
+          [[ -f owner-decisions.tfvars ]] && decisions=(-var-file=owner-decisions.tfvars)
+          ../../../../.tools/terraform plan -input=false -lock-timeout=5m \
+            -var-file="${DEPLOY_ENV}.tfvars" "${decisions[@]}" \
+            -var="image_digest=${IMAGE_DIGEST}" \
+            -out=tfplan
+          ../../../../.tools/terraform show -json tfplan > plan.json
+          digest="$(sha256sum tfplan | awk '{print $1}')"
+          echo "plan_digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "PLAN_DIGEST=${digest}" >> "$GITHUB_ENV"
+
+      - name: Infrastructure policy gate (OPA)
+        run: bash scripts/terraform-policy.sh eval "infra/terraform/envs/${DEPLOY_ENV}/plan.json"
+
+      - name: Release-manifest gate (refuses production unless the manifest permits it)
+        run: |
+          unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN # the Node gate needs no AWS access
+          platform/node_modules/.bin/tsx scripts/ci/check-release-manifest.ts \
+            --manifest release/runs/release-manifest.json \
+            --environment "${MANIFEST_ENV}" \
+            --image-digest "${IMAGE_DIGEST}" \
+            --plan-digest "${PLAN_DIGEST}" \
+            --trusted-key-pem approvals-trust.pem
+
+      - name: Upload reviewed plan
+        uses: actions/upload-artifact@v4 # pin to full commit SHA before production
+        with:
+          name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
+          path: |
+            infra/terraform/envs/${{ inputs.environment }}/tfplan
+            infra/terraform/envs/${{ inputs.environment }}/plan.json
+          if-no-files-found: error
+
+  apply:
+    name: apply the reviewed plan (manual approval via environment reviewers)
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      PLAN_DIGEST: ${{ needs.plan.outputs.plan_digest }}
+    steps:
+      - name: Refuse any ref or workflow other than deploy.yml on main
+        run: |
+          [[ "${GITHUB_REF}" == "refs/heads/main" && "${GITHUB_WORKFLOW_REF}" == "${GITHUB_REPOSITORY}/.github/workflows/deploy.yml@refs/heads/main" ]] || { echo "::error::deploy runs only from .github/workflows/deploy.yml on refs/heads/main"; exit 1; }
+
+      - uses: actions/checkout@v5 # pin to full commit SHA before production
+        with:
+          persist-credentials: false
+
+      - name: Map environment
+        run: |
+          if [[ "${DEPLOY_ENV}" == "production-dr" ]]; then echo "MANIFEST_ENV=production" >> "$GITHUB_ENV"; else echo "MANIFEST_ENV=${DEPLOY_ENV}" >> "$GITHUB_ENV"; fi
+
+      - uses: actions/setup-node@v4 # pin to full commit SHA before production
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies (frozen lockfile)
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Download reviewed plan
+        uses: actions/download-artifact@v4 # pin to full commit SHA before production
+        with:
+          name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
+          path: infra/terraform/envs/${{ inputs.environment }}/
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4 # pin to full commit SHA before production
+        with:
+          name: release-${{ inputs.release_run_id }}
+          run-id: ${{ inputs.release_run_id }}
+          github-token: ${{ github.token }}
+          path: release/
+
+      - name: Verify plan digest and manifest signature again
+        run: |
+          actual="$(sha256sum "infra/terraform/envs/${DEPLOY_ENV}/tfplan" | awk '{print $1}')"
+          [[ "${actual}" == "${PLAN_DIGEST}" ]] || { echo "::error::plan file changed after review"; exit 1; }
+          bash scripts/ci/fetch-ci-tool.sh cosign
+          .tools/cosign verify-blob \
+            --bundle release/runs/release-manifest.sigstore.json \
+            --certificate-identity "${RELEASE_IDENTITY}" \
+            --certificate-oidc-issuer "${OIDC_ISSUER}" \
+            release/runs/release-manifest.json
+          IMAGE_REF="$(cat release/runs/image-ref.txt)"
+          echo "IMAGE_DIGEST=${IMAGE_REF##*@}" >> "$GITHUB_ENV"
+
+      - name: Fetch pinned tools and provider mirror
+        env:
+          TF_MIRROR_REQUIRE_SIGNATURE: "1"
+        run: |
+          bash scripts/fetch-tools.sh
+          bash scripts/terraform-mirror.sh
+
+      - name: Configure AWS credentials (apply role)
+        uses: aws-actions/configure-aws-credentials@v4 # pin to full commit SHA before production
+        with:
+          role-to-assume: ${{ vars.TF_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: vsp-apply-${{ github.run_id }}
+
+      - name: Re-check the release-manifest gate (approvals may have expired)
+        env:
+          TRUST_KEY_ARN: ${{ vars.APPROVALS_TRUST_KEY_ARN }}
+        run: |
+          aws kms get-public-key --key-id "${TRUST_KEY_ARN}" --query PublicKey --output text | base64 -d > approvals-trust.der
+          openssl pkey -pubin -inform DER -in approvals-trust.der -out approvals-trust.pem
+          unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN # the Node gate needs no AWS access
+          platform/node_modules/.bin/tsx scripts/ci/check-release-manifest.ts \
+            --manifest release/runs/release-manifest.json \
+            --environment "${MANIFEST_ENV}" \
+            --image-digest "${IMAGE_DIGEST}" \
+            --plan-digest "${PLAN_DIGEST}" \
+            --trusted-key-pem approvals-trust.pem
+
+      - name: terraform apply (exactly the reviewed plan)
+        working-directory: infra/terraform/envs/${{ inputs.environment }}
+        env:
+          TF_CLI_CONFIG_FILE: ${{ github.workspace }}/.tools/terraformrc
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
+          TF_STATE_KMS_KEY_ARN: ${{ vars.TF_STATE_KMS_KEY_ARN }}
+          AWS_REGION_VAR: ${{ vars.AWS_REGION }}
+        run: |
+          ../../../../.tools/terraform init -input=false -lockfile=readonly \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=${TF_STATE_KEY}" \
+            -backend-config="region=${AWS_REGION_VAR}" \
+            -backend-config="kms_key_id=${TF_STATE_KMS_KEY_ARN}"
+          ../../../../.tools/terraform apply -input=false -lock-timeout=5m tfplan

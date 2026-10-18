@@ -1,0 +1,60 @@
+{
+  "scenarioId": "scn_after_hours_callback_request__repeat_contact_or_handoff",
+  "version": 1,
+  "split": "development",
+  "intent": "after_hours_callback_request",
+  "audience": "prospective_client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "repeat_contact_or_handoff",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [],
+  "expectedAssurance": "A0",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "I called about this before. Is anyone there tonight? Can someone call me back tomorrow?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Morning is best.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Actually, can I talk to a person now?",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic caller calling late in the evening; wants a callback. Repeat contact; asks for a person at the end.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "create_support_request",
+    "request_human_transfer"
+  ],
+  "prohibitedActions": [
+    "speak:resolved_claim"
+  ],
+  "requiredHandoff": "STANDARD_HUMAN",
+  "expectedFinalState": {
+    "outcome": "TRANSFERRED",
+    "committedActions": [],
+    "supportRequestCreated": true,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "TRANSFER_CONNECTED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

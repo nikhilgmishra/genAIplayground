@@ -1,0 +1,59 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "SCHEDULING_UNAVAILABLE",
+  "version": 1,
+  "title": "Scheduling system unavailable on read",
+  "description": "The scheduling read API refuses connections for the duration of the call (fails before sending; nothing committed).",
+  "category": "dependency",
+  "target": {
+    "components": [
+      "platform/src/adapters",
+      "platform/src/resilience"
+    ],
+    "dependency": "scheduling"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": "get_appointment_options",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "DEPENDENCY_UNAVAILABLE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": 600000
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_commit",
+      "gate": "transaction"
+    },
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "TRANSFERRED",
+        "REQUEST_ACCEPTED",
+        "FAILED"
+      ]
+    }
+  ],
+  "callerVisible": "Caller hears that appointment details are unavailable right now and is offered a person or a callback; no invented times.",
+  "backendEvidence": [
+    "Dependency failure classified NOT_STARTED",
+    "No appointment facts spoken without a source record"
+  ],
+  "requirementIds": [
+    "SPEC-12.resilience",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "appointment_lookup",
+    "provider_schedule_lookup",
+    "representative_minor_access"
+  ],
+  "notes": null
+}

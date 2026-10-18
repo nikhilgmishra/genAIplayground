@@ -1,0 +1,30 @@
+skeletonVersion: 1
+intent: appointment_create
+title: Verified client books a new appointment from an approved slot
+audiences: [client]
+riskClass: transaction
+expectedAssurance: A3
+permittedRecords: [slt_synthMorganSlot0003]
+persona: "Synthetic client Avery; wants an additional video appointment with the same provider; no clinical matching."
+expectedToolSequence: [begin_verification, get_appointment_options, prepare_appointment_change, commit_appointment_change]
+prohibitedActions: [speak:clinical_suitability, speak:success_without_commit]
+requiredHandoff: NONE
+expectedFinalState: { outcome: RESOLVED, committedActions: [appointment_change], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I'd like to book another session with Dr. Morgan."
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "Do you have anything the week after next?"
+  - caller: "The Tuesday one, please."
+  - event: STEP_UP_APPROVED
+  - event: CONFIRMATION_CAPTURED
+    dtmf: "1"
+  - event: CALL_END
+indirect:
+  - "I was hoping to get in to see my provider again at some point."
+dependencyFailure:
+  fault: SCHEDULING_TIMEOUT_AFTER_COMMIT
+  expectedToolSequence: [begin_verification, get_appointment_options, prepare_appointment_change, commit_appointment_change]
+  requiredHandoff: NONE
+  expectedFinalState: { outcome: OUTCOME_UNKNOWN, committedActions: [appointment_change], supportRequestCreated: null, disclosedProtectedFields: true }
+requirementIds: [ACT-01, ACT-03, SPEC-4.workflow-catalogue]

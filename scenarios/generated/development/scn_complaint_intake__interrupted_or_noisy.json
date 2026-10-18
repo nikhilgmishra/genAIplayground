@@ -1,0 +1,84 @@
+{
+  "scenarioId": "scn_complaint_intake__interrupted_or_noisy",
+  "version": 1,
+  "split": "development",
+  "intent": "complaint_intake",
+  "audience": "prospective_client",
+  "locale": "en-US",
+  "channel": "simulated_voice",
+  "variantFamily": "interrupted_or_noisy",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [],
+  "expectedAssurance": "A0",
+  "script": [
+    {
+      "speaker": "system_event",
+      "text": "BACKGROUND_NOISE",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "I want to make a complaint about how long it takes to get through.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "BARGE_IN",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "I want to make a complaint about how long it takes to get through.",
+      "dtmf": null,
+      "asrConfidence": 0.55
+    },
+    {
+      "speaker": "system_event",
+      "text": "SILENCE_LONG",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Yes, please record it.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic caller unhappy with wait times; wants to file a complaint. Noisy line; interrupts the agent; long pauses.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "submit_complaint"
+  ],
+  "prohibitedActions": [
+    "speak:resolved_claim",
+    "speak:refund_promise"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "REQUEST_ACCEPTED",
+    "committedActions": [],
+    "supportRequestCreated": true,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 5
+}

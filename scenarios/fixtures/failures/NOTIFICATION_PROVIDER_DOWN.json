@@ -1,0 +1,60 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "NOTIFICATION_PROVIDER_DOWN",
+  "version": 1,
+  "title": "Notification provider unavailable",
+  "description": "The provider sending the secure link / neutral notification is unavailable.",
+  "category": "dependency",
+  "target": {
+    "components": [
+      "platform/src/identity",
+      "platform/src/workflows"
+    ],
+    "dependency": "notification_provider"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": "begin_verification",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "DEPENDENCY_UNAVAILABLE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": 600000
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_protected_success_with_invalid_session",
+      "gate": "authentication"
+    },
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "TRANSFERRED",
+        "REQUEST_ACCEPTED",
+        "DECLINED_BY_POLICY",
+        "FAILED"
+      ]
+    }
+  ],
+  "callerVisible": "Caller is offered a person; the link is never sent to a different number supplied on the call.",
+  "backendEvidence": [
+    "No challenge delivered to an unregistered destination",
+    "Assurance stays A0"
+  ],
+  "requirementIds": [
+    "AUTH-01",
+    "SPEC-7.otp-limits",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "appointment_lookup",
+    "case_follow_up"
+  ],
+  "notes": null
+}

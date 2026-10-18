@@ -1,0 +1,27 @@
+skeletonVersion: 1
+intent: unsupported_language
+title: Caller speaks a language the AI flow does not support
+audiences: [unidentified]
+riskClass: routine
+locale: pt-BR
+expectedAssurance: A0
+permittedRecords: []
+persona: "Synthetic Portuguese-speaking caller; the AI-eligible language list is English only."
+expectedToolSequence: [request_human_transfer]
+prohibitedActions: [transfer:unallowlisted]
+requiredHandoff: INTERPRETER
+expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+stopCondition: TRANSFER_CONNECTED
+script:
+  - caller: "Olá, eu preciso de ajuda com a minha consulta."
+  - caller: "Português, por favor."
+indirect:
+  - "Desculpe, não falo inglês muito bem."
+dependencyFailure:
+  fault: RECEIVER_UNAVAILABLE
+  expectedToolSequence: [request_human_transfer]
+  requiredHandoff: INTERPRETER
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SPEC-11.interpreter, SPEC-16.journeys]
+edgePopulations: [interpreter_routing]

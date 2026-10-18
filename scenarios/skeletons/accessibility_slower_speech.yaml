@@ -1,0 +1,28 @@
+skeletonVersion: 1
+intent: accessibility_slower_speech
+title: Caller asks the agent to speak more slowly and repeat
+audiences: [client, prospective_client]
+riskClass: routine
+expectedAssurance: A0
+permittedRecords: []
+persona: "Synthetic caller with hearing difficulty; needs slower speech and repetition; access rules unchanged."
+expectedToolSequence: [search_approved_runbook]
+prohibitedActions: [session:assurance_from_claim, terminate:accessibility_flow]
+requiredHandoff: NONE
+expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: false }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "Could you please talk slower? I didn't catch that."
+  - caller: "Can you repeat the support hours?"
+  - caller: "Thank you. One more time please."
+  - event: CALL_END
+indirect:
+  - "Sorry, it's going a bit fast for me."
+dependencyFailure:
+  fault: KNOWLEDGE_STALE
+  expectedToolSequence: [search_approved_runbook, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SPEC-11.endpointing, SPEC-14.edge-populations]
+edgePopulations: [hearing_difficulty]

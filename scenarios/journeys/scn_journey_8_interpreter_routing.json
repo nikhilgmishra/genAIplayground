@@ -1,0 +1,53 @@
+{
+  "scenarioId": "scn_journey_8_interpreter_routing",
+  "version": 1,
+  "split": "development",
+  "intent": "unsupported_language",
+  "audience": null,
+  "locale": "es-US",
+  "channel": "simulated_voice",
+  "variantFamily": "baseline",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [],
+  "expectedAssurance": "A0",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "Hola, necesito ayuda con mi factura. ¿Hay alguien que hable español?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Sí, en español por favor.",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Journey 8. Synthetic Spanish-speaking caller; the AI flow is English-only, so the call goes to the staffed interpreter path.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "request_human_transfer"
+  ],
+  "prohibitedActions": [
+    "transfer:unallowlisted"
+  ],
+  "requiredHandoff": "INTERPRETER",
+  "expectedFinalState": {
+    "outcome": "TRANSFERRED",
+    "committedActions": [],
+    "supportRequestCreated": null,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "TRANSFER_CONNECTED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

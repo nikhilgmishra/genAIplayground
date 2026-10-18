@@ -1,0 +1,758 @@
+##############################################################################
+#  LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION                           #
+#  Local adapters only: PGlite, OPA WASM and LOCAL FIXTURE                   #
+#  Talkdesk, Salesforce, IdP and business systems.                           #
+##############################################################################
+LocalConversationDriver (LOCAL FIXTURE): full local stack — buildContainer(local) + real buildBusiness + worker loops over PGlite, OPA WASM and labelled local adapter fixtures; Studio steps over the HTTP telephony-control API, tools over MCP or the HTTP tool route, portal approvals via the LOCAL FIXTURE OIDC provider
+LOCAL SIMULATED COORDINATOR — deterministic rule-based stand-in for the Talkdesk conversational layer (keyword rules over synthetic utterances); NOT a language model and NOT model evaluation
+run run_demo_4tSfGzwe90rgZL-I1Cp8ZVbp; tools over the HTTP tool route (fastify.inject); 21 journeys
+
+==============================================================================
+scn_journey_1_client_reschedule_conflict  (appointment_reschedule; synthetic persona: Journey 1. Synthetic client Avery; the first chosen slot is booked concurrently; agent re-reads options and binds a fresh confirmation.)
+  [0] caller (synthetic script): "I need to move my appointment next week."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words thistle, emerald before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 5
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_appointment_options -> SUCCESS via http
+      caller hears (appointment.option_offer, DRAFT): "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 8
+  [2] caller (synthetic script): "Friday afternoon, the first option please."
+      tool prepare_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [3] system event: STEP_UP_APPROVED
+      backend: assurance=A2 | ledger: appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [4] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool commit_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+      caller hears (appointment.slot_unavailable_next_option, DRAFT): "That time was just taken, so nothing was changed. The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time instead?"
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED
+               support: — | workflows: —
+               transfer: — | audit events: 15
+  [5] caller (synthetic script): "It was taken? Okay, the Monday one then."
+      tool get_appointment_options -> SUCCESS via http
+      tool prepare_appointment_change -> SUCCESS via http
+      caller hears (appointment.option_offer, DRAFT): "The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time?"
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED; appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 18
+  [6] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool commit_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+      caller hears (appointment.change_committed, DRAFT): "Your appointment is now on October 26, 2026 at 11:00 AM, Central Time."
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED; appointment.reschedule=COMMITTED receipt rcp_mwPr-WEDuB4l-Rv2znn4i5ev
+               support: — | workflows: —
+               transfer: — | audit events: 23
+  [7] system event: CALL_END
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED; appointment.reschedule=COMMITTED receipt rcp_mwPr-WEDuB4l-Rv2znn4i5ev
+               support: — | workflows: —
+               transfer: — | audit events: 25
+  -> outcome recorded by the backend: RESOLVED (COMMITTED_RECEIPT_VERIFIED)
+  -> audit: 25 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_2_disputed_charge_review  (billing_dispute; synthetic persona: Journey 2. Synthetic client Avery disputes a charge; a durable billing review is accepted with a reference; no refund is promised.)
+  [0] caller (synthetic script): "I want to dispute the late cancellation charge on my bill."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words laurel, winter before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 5
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_invoice_status -> SUCCESS via http
+      tool prepare_billing_review -> SUCCESS via http
+      caller hears (invoice.line_explanation, DRAFT): "The charge for September 20, 2026 is $25.00, for a session fee."
+      caller hears (billing.review_confirmation, DRAFT): "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [2] caller (synthetic script): "I cancelled two days ahead. I want my money back."
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [3] caller (synthetic script): "So you're promising I'll get a refund?"
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [4] system event: STEP_UP_APPROVED
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [5] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool submit_billing_review -> SUCCESS via http
+      caller hears (billing.review_confirmation, DRAFT): "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+      caller hears (commitment.request_accepted_pending_sync, DRAFT): "I've submitted your request. It isn't complete yet, and our team will follow up. Your support reference is S R, S X Z 9, U 9 B E. It is still being synchronized and is not a case number."
+      backend: assurance=A2 | ledger: billing.review.submit=COMMITTED receipt rcp_Y-s_U6FzWg2JxJ1DNflyOI16
+               support: SR-SXZ9-U9BE REQUEST_ACCEPTED sync=SYNCED case=500SYNhK7QYKWxjifG | workflows: billing_dispute_review=ACCEPTED
+               transfer: — | audit events: 19
+  [6] system event: CALL_END
+      backend: assurance=A2 | ledger: billing.review.submit=COMMITTED receipt rcp_Y-s_U6FzWg2JxJ1DNflyOI16
+               support: SR-SXZ9-U9BE REQUEST_ACCEPTED sync=SYNCED case=500SYNhK7QYKWxjifG | workflows: billing_dispute_review=ACCEPTED
+               transfer: — | audit events: 21
+  -> outcome recorded by the backend: REQUEST_ACCEPTED (REQUEST_ACCEPTED_NOT_RESOLUTION)
+  -> audit: 21 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_3_delegated_practice_remittance  (delegated_practice_remittance; synthetic persona: Journey 3. Synthetic practice staff Riley with a delegation-registry grant for North practice only; South is denied.)
+  [0] caller (synthetic script): "I handle billing for the North practice. What's the status of our September remittance?"
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words lantern, ocean before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 5
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_remittance_status -> SUCCESS via http
+      caller hears (remittance.status, DRAFT): "The remittance for September 1, 2026 through September 30, 2026 has a status of sent, with a total of $12,500.00."
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 8
+  [2] caller (synthetic script): "And the October one?"
+      tool get_remittance_status -> SUCCESS via http
+      caller hears (remittance.status, DRAFT): "The remittance for October 1, 2026 through October 15, 2026 has a status of scheduled, with a total of $6,100.00."
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 9
+  [3] caller (synthetic script): "Can you check the South practice too?"
+      tool get_remittance_status -> POLICY_DENIED (RELATIONSHIP_NOT_ESTABLISHED) [hostile probe OTHER_ORGANIZATION_REMITTANCE] via http
+      caller hears (policy.denied_generic, DRAFT): "I can't help with that on this call. I can connect you with a person."
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [4] system event: CALL_END
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 12
+  -> outcome recorded by the backend: INFORMATION_PROVIDED (INFORMATION_PROVIDED)
+  -> audit: 12 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_4_partner_denied_unrelated_client  (partner_employee_treatment_status; synthetic persona: Journey 4. Synthetic partner Quinn (verified affiliation) asks about an unrelated client; denied without confirming the person is a client.)
+  [0] caller (synthetic script): "I'm with Acme's benefits team. I need to know if our employee Blake has been coming to appointments."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words cotton, feather before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 5
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_appointment_options -> POLICY_DENIED (PARTNER_NO_INDIVIDUAL_ACCESS) [hostile probe OTHER_SUBJECT_APPOINTMENTS] via http
+      caller hears (policy.denied_generic, DRAFT): "I can't help with that on this call. I can connect you with a person."
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 8
+  [2] caller (synthetic script): "We sponsor the benefit, so we should have access."
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 8
+  [3] system event: CALL_END
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  -> outcome recorded by the backend: DECLINED_BY_POLICY (POLICY_DECLINED)
+  -> audit: 10 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_5_unverified_human_request  (human_request; synthetic persona: Journey 5. Unverified synthetic caller asks for a human; no verification may be required.)
+  [0] caller (synthetic script): "Agent. I want a person."
+      tool request_human_transfer -> SUCCESS via http
+      caller hears (transfer.in_progress, DRAFT): "I'm connecting you with a person now. Please stay on the line."
+      backend: assurance=A0 | ledger: —
+               support: SR-9M3M-WFMG OUTCOME_UNKNOWN sync=SYNCED case=500SYN3F2UUUFHlcRV | workflows: —
+               transfer: STANDARD CONNECTED [dst_support_general:CALLER_CONFIRMED_CONNECTED] | audit events: 13
+  [1] caller (synthetic script): "No, I don't want to verify anything, just a person."
+      backend: assurance=A0 | ledger: —
+               support: SR-9M3M-WFMG OUTCOME_UNKNOWN sync=SYNCED case=500SYN3F2UUUFHlcRV | workflows: —
+               transfer: STANDARD CONNECTED [dst_support_general:CALLER_CONFIRMED_CONNECTED] | audit events: 13
+  -> outcome recorded by the backend: TRANSFERRED (CALLER_CONFIRMED_CONNECTED)
+  -> audit: 15 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_6_safety_handoff_unauthenticated  (safety_disclosure_self; synthetic persona: Journey 6. Unverified synthetic caller discloses possible self-harm risk; fixed acknowledgment and priority human connection without authentication.)
+  [0] caller (synthetic script): "I have a question about my bill, but honestly I don't want to be alive anymore."
+      tool request_safety_route -> SUCCESS via http
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      backend: assurance=A0 | ledger: —
+               support: SR-56R9-X4QH OUTCOME_UNKNOWN sync=SYNCED case=500SYN8ajkYRE0VINe | workflows: —
+               transfer: SAFETY CONNECTED [dst_safety_priority:CALLER_CONFIRMED_CONNECTED] | audit events: 19
+  [1] caller (synthetic script): "I don't know what to do."
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      backend: assurance=A0 | ledger: —
+               support: SR-56R9-X4QH OUTCOME_UNKNOWN sync=SYNCED case=500SYN8ajkYRE0VINe | workflows: —
+               transfer: SAFETY CONNECTED [dst_safety_priority:CALLER_CONFIRMED_CONNECTED] | audit events: 22
+  -> outcome recorded by the backend: TRANSFERRED (CALLER_CONFIRMED_CONNECTED)
+  -> audit: 24 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_7_recording_declined  (recording_declined; synthetic persona: Journey 7. Synthetic client declines recording; recording never starts and the approved alternative (staffed route) is offered.)
+  [start] caller hears (recording.decline_alternative, PENDING_LEGAL_APPROVAL): "Understood. I won't continue with the automated assistant. I'm connecting you with a person."
+  [start] caller hears (transfer.in_progress, DRAFT): "I'm connecting you with a person now. Please stay on the line."
+  [0] system event: RECORDING_DECLINED
+      backend: assurance=A0 | ledger: —
+               support: SR-83CU-NRLX OUTCOME_UNKNOWN sync=SYNCED case=500SYNzIxzPYad4ARx | workflows: —
+               transfer: STANDARD CONNECTED [dst_support_general:CALLER_CONFIRMED_CONNECTED] | audit events: 12
+  [1] caller (synthetic script): "I don't want to be recorded."
+      backend: assurance=A0 | ledger: —
+               support: SR-83CU-NRLX OUTCOME_UNKNOWN sync=SYNCED case=500SYNzIxzPYad4ARx | workflows: —
+               transfer: STANDARD CONNECTED [dst_support_general:CALLER_CONFIRMED_CONNECTED] | audit events: 12
+  [2] caller (synthetic script): "What can I do instead?"
+      backend: assurance=A0 | ledger: —
+               support: SR-83CU-NRLX OUTCOME_UNKNOWN sync=SYNCED case=500SYNzIxzPYad4ARx | workflows: —
+               transfer: STANDARD CONNECTED [dst_support_general:CALLER_CONFIRMED_CONNECTED] | audit events: 12
+  -> outcome recorded by the backend: TRANSFERRED (CALLER_CONFIRMED_CONNECTED)
+  -> audit: 14 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_8_interpreter_routing  (unsupported_language; synthetic persona: Journey 8. Synthetic Spanish-speaking caller; the AI flow is English-only, so the call goes to the staffed interpreter path.)
+  [0] caller (synthetic script): "Hola, necesito ayuda con mi factura. ¿Hay alguien que hable español?"
+      tool request_human_transfer -> SUCCESS via http
+      caller hears (language.interpreter_route, DRAFT): "Un momento. Le estoy comunicando con un intérprete."
+      backend: assurance=A0 | ledger: —
+               support: SR-Y4BW-V2TH OUTCOME_UNKNOWN sync=SYNCED case=500SYN6ASvByuT8TVz | workflows: —
+               transfer: STANDARD CONNECTED [dst_interpreter:CALLER_CONFIRMED_CONNECTED] | audit events: 13
+  [1] caller (synthetic script): "Sí, en español por favor."
+      backend: assurance=A0 | ledger: —
+               support: SR-Y4BW-V2TH OUTCOME_UNKNOWN sync=SYNCED case=500SYN6ASvByuT8TVz | workflows: —
+               transfer: STANDARD CONNECTED [dst_interpreter:CALLER_CONFIRMED_CONNECTED] | audit events: 13
+  -> outcome recorded by the backend: TRANSFERRED (CALLER_CONFIRMED_CONNECTED)
+  -> audit: 15 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_9_repeat_caller_resume_issue  (repeat_caller_resume_issue; synthetic persona: Journey 9. Synthetic client Avery resumes an authorized open issue; a short recap is given only after authentication.)
+  [0] system event: CALLER_ID_PRESENTED
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 23
+  [1] caller (synthetic script): "I called yesterday about my billing review."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words carpet, compass before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 25
+  [2] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_authorized_case_status -> SUCCESS via http
+      caller hears (case.recap_open_issue, DRAFT): "I see an open request with reference S R, L 2 F 5, D G N G, about a billing review. Are you calling about that request?"
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 28
+  [3] caller (synthetic script): "Yes, that one. What happens next?"
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 28
+  [4] system event: CALL_END
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 30
+  -> outcome recorded by the backend: INFORMATION_PROVIDED (INFORMATION_PROVIDED)
+  -> audit: 30 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_1_client_reschedule_conflict__auth_expiry_mid_call  (appointment_reschedule; synthetic persona: Journey 1. Synthetic client Avery; the first chosen slot is booked concurrently; agent re-reads options and binds a fresh confirmation. Fault injected: AUTH_EXPIRY_MID_CALL.)
+  injected fault(s): AUTH_EXPIRY_MID_CALL
+  [0] caller (synthetic script): "I need to move my appointment next week."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words bridge, window before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 5
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_appointment_options -> SUCCESS via http
+      caller hears (appointment.option_offer, DRAFT): "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 8
+  [2] caller (synthetic script): "Friday afternoon, the first option please."
+      tool prepare_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [3] system event: STEP_UP_APPROVED
+      backend: assurance=A2 | ledger: appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [4] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool commit_appointment_change -> POLICY_DENIED (SESSION_EXPIRED) via http
+      tool request_human_transfer -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=EXPIRED
+               support: SR-SATC-HDPC OUTCOME_UNKNOWN sync=SYNCED case=500SYNxIMBRiXSbaja | workflows: —
+               transfer: STANDARD CONNECTED [dst_support_general:CALLER_CONFIRMED_CONNECTED] | audit events: 24
+  [5] caller (synthetic script): "It was taken? Okay, the Monday one then."
+      backend: assurance=A2 | ledger: appointment.reschedule=EXPIRED
+               support: SR-SATC-HDPC OUTCOME_UNKNOWN sync=SYNCED case=500SYNxIMBRiXSbaja | workflows: —
+               transfer: STANDARD CONNECTED [dst_support_general:CALLER_CONFIRMED_CONNECTED] | audit events: 24
+  [6] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      backend: assurance=A2 | ledger: appointment.reschedule=EXPIRED
+               support: SR-SATC-HDPC OUTCOME_UNKNOWN sync=SYNCED case=500SYNxIMBRiXSbaja | workflows: —
+               transfer: STANDARD CONNECTED [dst_support_general:CALLER_CONFIRMED_CONNECTED] | audit events: 24
+  [7] system event: CALL_END
+      backend: assurance=A2 | ledger: appointment.reschedule=EXPIRED
+               support: SR-SATC-HDPC OUTCOME_UNKNOWN sync=SYNCED case=500SYNxIMBRiXSbaja | workflows: —
+               transfer: STANDARD CONNECTED [dst_support_general:CALLER_CONFIRMED_CONNECTED] | audit events: 26
+  -> outcome recorded by the backend: TRANSFERRED (CALLER_CONFIRMED_CONNECTED)
+  -> audit: 26 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): FAIL — task.outcome=FAIL
+  -> backend evidence present
+
+==============================================================================
+scn_journey_1_client_reschedule_conflict__concurrent_same_account  (appointment_reschedule; synthetic persona: Journey 1 with a concurrent call: another synthetic call for Avery changes the same appointment first; the stale commit is refused and a freshly prepared, freshly confirmed change commits o
+  injected fault(s): CONCURRENT_SAME_ACCOUNT
+  [0] caller (synthetic script): "I need to move my appointment next week."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words basil, dahlia before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 5
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_appointment_options -> SUCCESS via http
+      caller hears (appointment.option_offer, DRAFT): "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 8
+  [2] caller (synthetic script): "Friday afternoon, the first option please."
+      tool prepare_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [3] system event: STEP_UP_APPROVED
+      backend: assurance=A2 | ledger: appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [4] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool commit_appointment_change -> PERMANENT_FAILURE (STATE_CHANGED) via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=INVALIDATED
+               support: — | workflows: —
+               transfer: — | audit events: 29
+  [5] caller (synthetic script): "It was taken? Okay, the Monday one then."
+      tool get_appointment_options -> SUCCESS via http
+      tool prepare_appointment_change -> SUCCESS via http
+      caller hears (appointment.option_offer, DRAFT): "The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time?"
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 27, 2026 at 1:30 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=INVALIDATED; appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 32
+  [6] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool commit_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 27, 2026 at 1:30 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+      caller hears (appointment.change_committed, DRAFT): "Your appointment is now on October 26, 2026 at 11:00 AM, Central Time."
+      backend: assurance=A2 | ledger: appointment.reschedule=INVALIDATED; appointment.reschedule=COMMITTED receipt rcp_Uwpakf_Zz9BF3jOD4gF6jaMC
+               support: — | workflows: —
+               transfer: — | audit events: 37
+  [7] system event: CALL_END
+      backend: assurance=A2 | ledger: appointment.reschedule=INVALIDATED; appointment.reschedule=COMMITTED receipt rcp_Uwpakf_Zz9BF3jOD4gF6jaMC
+               support: — | workflows: —
+               transfer: — | audit events: 39
+  -> outcome recorded by the backend: RESOLVED (COMMITTED_RECEIPT_VERIFIED)
+  -> audit: 39 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_1_client_reschedule_conflict__crash_after_commit  (appointment_reschedule; synthetic persona: Journey 1. Synthetic client Avery; the first chosen slot is booked concurrently; agent re-reads options and binds a fresh confirmation. Fault injected: CRASH_AFTER_COMMIT.)
+  injected fault(s): CRASH_AFTER_COMMIT
+  [0] caller (synthetic script): "I need to move my appointment next week."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words ruby, lemon before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 5
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_appointment_options -> SUCCESS via http
+      caller hears (appointment.option_offer, DRAFT): "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 8
+  [2] caller (synthetic script): "Friday afternoon, the first option please."
+      tool prepare_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [3] system event: STEP_UP_APPROVED
+      backend: assurance=A2 | ledger: appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [4] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool commit_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+      caller hears (appointment.slot_unavailable_next_option, DRAFT): "That time was just taken, so nothing was changed. The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time instead?"
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED
+               support: — | workflows: —
+               transfer: — | audit events: 15
+  [5] caller (synthetic script): "It was taken? Okay, the Monday one then."
+      tool get_appointment_options -> SUCCESS via http
+      tool prepare_appointment_change -> SUCCESS via http
+      caller hears (appointment.option_offer, DRAFT): "The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time?"
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED; appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 18
+  [6] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool commit_appointment_change -> UNKNOWN_OUTCOME (COMMIT_OUTCOME_UNKNOWN) via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED; appointment.reschedule=UNKNOWN
+               support: — | workflows: —
+               transfer: — | audit events: 23
+  [7] system event: CALL_END
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED; appointment.reschedule=UNKNOWN
+               support: — | workflows: —
+               transfer: — | audit events: 25
+  -> outcome recorded by the backend: RESOLVED (COMMITTED_RECEIPT_VERIFIED)
+  -> audit: 27 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_1_client_reschedule_conflict__interrupted_confirmation  (appointment_reschedule; synthetic persona: Journey 1. Synthetic client Avery; the first chosen slot is booked concurrently; agent re-reads options and binds a fresh confirmation. Fault injected: INTERRUPTED_CONFIRMATION.)
+  injected fault(s): INTERRUPTED_CONFIRMATION
+  [0] caller (synthetic script): "I need to move my appointment next week."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words olive, ember before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 5
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_appointment_options -> SUCCESS via http
+      caller hears (appointment.option_offer, DRAFT): "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 8
+  [2] caller (synthetic script): "Friday afternoon, the first option please."
+      tool prepare_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [3] system event: BARGE_IN
+      backend: assurance=A2 | ledger: appointment.reschedule=INVALIDATED
+               support: — | workflows: —
+               transfer: — | audit events: 13
+  [4] caller (synthetic script): "Wait, no, make it Monday instead."
+      tool get_appointment_options -> SUCCESS via http
+      tool prepare_appointment_change -> SUCCESS via http
+      caller hears (appointment.option_offer, DRAFT): "The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time?"
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=INVALIDATED; appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 16
+  [5] system event: STEP_UP_APPROVED
+      backend: assurance=A2 | ledger: appointment.reschedule=INVALIDATED; appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 16
+  [6] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool commit_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+      caller hears (appointment.change_committed, DRAFT): "Your appointment is now on October 26, 2026 at 11:00 AM, Central Time."
+      backend: assurance=A2 | ledger: appointment.reschedule=INVALIDATED; appointment.reschedule=COMMITTED receipt rcp_gtfUqdPAG4aymvVAKA0JqVeL
+               support: — | workflows: —
+               transfer: — | audit events: 21
+  [7] system event: CALL_END
+      backend: assurance=A2 | ledger: appointment.reschedule=INVALIDATED; appointment.reschedule=COMMITTED receipt rcp_gtfUqdPAG4aymvVAKA0JqVeL
+               support: — | workflows: —
+               transfer: — | audit events: 23
+  -> outcome recorded by the backend: RESOLVED (COMMITTED_RECEIPT_VERIFIED)
+  -> audit: 23 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_1_client_reschedule_conflict__scheduling_timeout_after_commit  (appointment_reschedule; synthetic persona: Journey 1. Synthetic client Avery; the first chosen slot is booked concurrently; agent re-reads options and binds a fresh confirmation. Fault injected: SCHEDULING_TIMEOUT_AFTER_COMM
+  injected fault(s): SCHEDULING_TIMEOUT_AFTER_COMMIT
+  [0] caller (synthetic script): "I need to move my appointment next week."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words blossom, cobble before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 5
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_appointment_options -> SUCCESS via http
+      caller hears (appointment.option_offer, DRAFT): "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 8
+  [2] caller (synthetic script): "Friday afternoon, the first option please."
+      tool prepare_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [3] system event: STEP_UP_APPROVED
+      backend: assurance=A2 | ledger: appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [4] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool commit_appointment_change -> SUCCESS via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+      caller hears (appointment.slot_unavailable_next_option, DRAFT): "That time was just taken, so nothing was changed. The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time instead?"
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED
+               support: — | workflows: —
+               transfer: — | audit events: 15
+  [5] caller (synthetic script): "It was taken? Okay, the Monday one then."
+      tool get_appointment_options -> SUCCESS via http
+      tool prepare_appointment_change -> SUCCESS via http
+      caller hears (appointment.option_offer, DRAFT): "The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time?"
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED; appointment.reschedule=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 18
+  [6] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool commit_appointment_change -> UNKNOWN_OUTCOME (COMMIT_OUTCOME_UNKNOWN) via http
+      caller hears (appointment.change_confirmation, DRAFT): "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED; appointment.reschedule=UNKNOWN
+               support: — | workflows: —
+               transfer: — | audit events: 23
+  [7] system event: CALL_END
+      backend: assurance=A2 | ledger: appointment.reschedule=FAILED; appointment.reschedule=UNKNOWN
+               support: — | workflows: —
+               transfer: — | audit events: 25
+  -> outcome recorded by the backend: RESOLVED (COMMITTED_RECEIPT_VERIFIED)
+  -> audit: 27 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_2_disputed_charge_review__audit_outage  (billing_dispute; synthetic persona: Journey 2. Synthetic client Avery disputes a charge; a durable billing review is accepted with a reference; no refund is promised. Fault injected: AUDIT_OUTAGE.)
+  injected fault(s): AUDIT_OUTAGE
+  [0] caller (synthetic script): "I want to dispute the late cancellation charge on my bill."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words ballad, paper before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 3
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_invoice_status -> RETRYABLE_FAILURE (AUDIT_UNAVAILABLE) via http
+      tool request_human_transfer -> SUCCESS via http
+      caller hears (transfer.in_progress, DRAFT): "I'm connecting you with a person now. Please stay on the line."
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: STANDARD CONNECTED [dst_billing_specialist:CALLER_CONFIRMED_CONNECTED] | audit events: 3
+  [2] caller (synthetic script): "I cancelled two days ahead. I want my money back."
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: STANDARD CONNECTED [dst_billing_specialist:CALLER_CONFIRMED_CONNECTED] | audit events: 3
+  [3] caller (synthetic script): "So you're promising I'll get a refund?"
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: STANDARD CONNECTED [dst_billing_specialist:CALLER_CONFIRMED_CONNECTED] | audit events: 3
+  [4] system event: STEP_UP_APPROVED
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: STANDARD CONNECTED [dst_billing_specialist:CALLER_CONFIRMED_CONNECTED] | audit events: 3
+  [5] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: STANDARD CONNECTED [dst_billing_specialist:CALLER_CONFIRMED_CONNECTED] | audit events: 3
+  [6] system event: CALL_END
+      backend: assurance=A2 | ledger: —
+               support: — | workflows: —
+               transfer: STANDARD CONNECTED [dst_billing_specialist:CALLER_CONFIRMED_CONNECTED] | audit events: 7
+  -> outcome recorded by the backend: TRANSFERRED (CALLER_CONFIRMED_CONNECTED)
+  -> audit: 7 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_2_disputed_charge_review__duplicate_webhook  (billing_dispute; synthetic persona: Journey 2. Synthetic client Avery disputes a charge; a durable billing review is accepted with a reference; no refund is promised. Fault injected: DUPLICATE_WEBHOOK.)
+  injected fault(s): DUPLICATE_WEBHOOK
+  [0] caller (synthetic script): "I want to dispute the late cancellation charge on my bill."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words hazel, ferry before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 5
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_invoice_status -> SUCCESS via http
+      tool prepare_billing_review -> SUCCESS via http
+      caller hears (invoice.line_explanation, DRAFT): "The charge for September 20, 2026 is $25.00, for a session fee."
+      caller hears (billing.review_confirmation, DRAFT): "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [2] caller (synthetic script): "I cancelled two days ahead. I want my money back."
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [3] caller (synthetic script): "So you're promising I'll get a refund?"
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [4] system event: STEP_UP_APPROVED
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [5] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool submit_billing_review -> SUCCESS via http
+      caller hears (billing.review_confirmation, DRAFT): "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+      caller hears (commitment.request_accepted_pending_sync, DRAFT): "I've submitted your request. It isn't complete yet, and our team will follow up. Your support reference is S R, 5 K K L, T F R M. It is still being synchronized and is not a case number."
+      backend: assurance=A2 | ledger: billing.review.submit=COMMITTED receipt rcp_c7XIPjuLDRqmFFORrfh59zIa
+               support: SR-5KKL-TFRM REQUEST_ACCEPTED sync=SYNCED case=500SYN4lPqE6uy7FcO | workflows: billing_dispute_review=ACCEPTED
+               transfer: — | audit events: 19
+  [6] system event: CALL_END
+      backend: assurance=A2 | ledger: billing.review.submit=COMMITTED receipt rcp_c7XIPjuLDRqmFFORrfh59zIa
+               support: SR-5KKL-TFRM REQUEST_ACCEPTED sync=SYNCED case=500SYN4lPqE6uy7FcO | workflows: billing_dispute_review=ACCEPTED
+               transfer: — | audit events: 21
+  -> outcome recorded by the backend: REQUEST_ACCEPTED (REQUEST_ACCEPTED_NOT_RESOLUTION)
+  -> audit: 21 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_2_disputed_charge_review__salesforce_outage  (billing_dispute; synthetic persona: Journey 2. Synthetic client Avery disputes a charge; a durable billing review is accepted with a reference; no refund is promised. Fault injected: SALESFORCE_OUTAGE.)
+  injected fault(s): SALESFORCE_OUTAGE
+  [0] caller (synthetic script): "I want to dispute the late cancellation charge on my bill."
+      tool begin_verification -> SUCCESS via http
+      caller hears (verification.secure_link_match_code, DRAFT): "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words anchor, oasis before you approve."
+      backend: assurance=A0 | ledger: —
+               support: — | workflows: —
+               transfer: — | audit events: 5
+  [1] system event: VERIFICATION_SECURE_LINK_APPROVED
+      tool get_invoice_status -> SUCCESS via http
+      tool prepare_billing_review -> SUCCESS via http
+      caller hears (invoice.line_explanation, DRAFT): "The charge for September 20, 2026 is $25.00, for a session fee."
+      caller hears (billing.review_confirmation, DRAFT): "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [2] caller (synthetic script): "I cancelled two days ahead. I want my money back."
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [3] caller (synthetic script): "So you're promising I'll get a refund?"
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [4] system event: STEP_UP_APPROVED
+      backend: assurance=A2 | ledger: billing.review.submit=PREPARED
+               support: — | workflows: —
+               transfer: — | audit events: 10
+  [5] system event: CONFIRMATION_CAPTURED (DTMF 1)
+      tool submit_billing_review -> SUCCESS via http
+      caller hears (billing.review_confirmation, DRAFT): "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+      caller hears (commitment.request_accepted_pending_sync, DRAFT): "I've submitted your request. It isn't complete yet, and our team will follow up. Your support reference is S R, 4 5 5 N, H U V B. It is still being synchronized and is not a case number."
+      backend: assurance=A2 | ledger: billing.review.submit=COMMITTED receipt rcp_GrGtHWbSDqiA6iKQBc0hZZp-
+               support: SR-455N-HUVB REQUEST_ACCEPTED sync=RETRY_SCHEDULED | workflows: billing_dispute_review=ACCEPTED
+               transfer: — | audit events: 19
+  [6] system event: CALL_END
+      backend: assurance=A2 | ledger: billing.review.submit=COMMITTED receipt rcp_GrGtHWbSDqiA6iKQBc0hZZp-
+               support: SR-455N-HUVB REQUEST_ACCEPTED sync=RETRY_SCHEDULED | workflows: billing_dispute_review=ACCEPTED
+               transfer: — | audit events: 21
+  -> outcome recorded by the backend: REQUEST_ACCEPTED (REQUEST_ACCEPTED_NOT_RESOLUTION)
+  -> audit: 23 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_5_unverified_human_request__receiver_unavailable  (human_request; synthetic persona: Journey 5. Unverified synthetic caller asks for a human; no verification may be required. Fault injected: RECEIVER_UNAVAILABLE.)
+  injected fault(s): RECEIVER_UNAVAILABLE
+  [0] caller (synthetic script): "Agent. I want a person."
+      tool request_human_transfer -> SUCCESS via http
+      caller hears (transfer.in_progress, DRAFT): "I'm connecting you with a person now. Please stay on the line."
+      backend: assurance=A0 | ledger: —
+               support: SR-TXC5-QGC9 OUTCOME_UNKNOWN sync=SYNCED case=500SYNxVsg2DuqgmI4 | workflows: —
+               transfer: STANDARD CONNECTED [dst_support_general:RECEIVER_UNAVAILABLE -> dst_outage_continuity:CALLER_CONFIRMED_CONNECTED] | audit events: 18
+  [1] caller (synthetic script): "No, I don't want to verify anything, just a person."
+      backend: assurance=A0 | ledger: —
+               support: SR-TXC5-QGC9 OUTCOME_UNKNOWN sync=SYNCED case=500SYNxVsg2DuqgmI4 | workflows: —
+               transfer: STANDARD CONNECTED [dst_support_general:RECEIVER_UNAVAILABLE -> dst_outage_continuity:CALLER_CONFIRMED_CONNECTED] | audit events: 18
+  -> outcome recorded by the backend: TRANSFERRED (CALLER_CONFIRMED_CONNECTED)
+  -> audit: 20 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_6_safety_handoff_unauthenticated__bridge_dropped  (safety_disclosure_self; synthetic persona: Journey 6. Unverified synthetic caller discloses possible self-harm risk; fixed acknowledgment and priority human connection without authentication. Fault injected: BRIDGE_DROPPED.)
+  injected fault(s): BRIDGE_DROPPED
+  [0] caller (synthetic script): "I have a question about my bill, but honestly I don't want to be alive anymore."
+      tool request_safety_route -> SUCCESS via http
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      backend: assurance=A0 | ledger: —
+               support: SR-NH42-KAUV OUTCOME_UNKNOWN sync=SYNCED case=500SYNJxAkcZ8301Gz | workflows: —
+               transfer: SAFETY CONNECTED [dst_safety_priority:BRIDGE_DROPPED -> dst_safety_backup:CALLER_CONFIRMED_CONNECTED] | audit events: 25
+  [1] caller (synthetic script): "I don't know what to do."
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      backend: assurance=A0 | ledger: —
+               support: SR-NH42-KAUV OUTCOME_UNKNOWN sync=SYNCED case=500SYNJxAkcZ8301Gz | workflows: —
+               transfer: SAFETY CONNECTED [dst_safety_priority:BRIDGE_DROPPED -> dst_safety_backup:CALLER_CONFIRMED_CONNECTED] | audit events: 28
+  -> outcome recorded by the backend: TRANSFERRED (CALLER_CONFIRMED_CONNECTED)
+  -> audit: 30 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_6_safety_handoff_unauthenticated__quota_exhausted  (safety_disclosure_self; synthetic persona: Journey 6. Unverified synthetic caller discloses possible self-harm risk; fixed acknowledgment and priority human connection without authentication. Fault injected: QUOTA_EXHAUSTED.)
+  injected fault(s): QUOTA_EXHAUSTED
+  [0] caller (synthetic script): "I have a question about my bill, but honestly I don't want to be alive anymore."
+      tool request_safety_route -> SUCCESS via http
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      backend: assurance=A0 | ledger: —
+               support: SR-T6S5-9XRM OUTCOME_UNKNOWN sync=SYNCED case=500SYNv7PcZzeajdNl | workflows: —
+               transfer: SAFETY CONNECTED [dst_safety_priority:CALLER_CONFIRMED_CONNECTED] | audit events: 19
+  [1] caller (synthetic script): "I don't know what to do."
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      backend: assurance=A0 | ledger: —
+               support: SR-T6S5-9XRM OUTCOME_UNKNOWN sync=SYNCED case=500SYNv7PcZzeajdNl | workflows: —
+               transfer: SAFETY CONNECTED [dst_safety_priority:CALLER_CONFIRMED_CONNECTED] | audit events: 22
+  -> outcome recorded by the backend: TRANSFERRED (CALLER_CONFIRMED_CONNECTED)
+  -> audit: 24 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+==============================================================================
+scn_journey_6_safety_handoff_unauthenticated__transfer_failed  (safety_disclosure_self; synthetic persona: Journey 6. Unverified synthetic caller discloses possible self-harm risk; fixed acknowledgment and priority human connection without authentication. Fault injected: TRANSFER_FAILED.)
+  injected fault(s): TRANSFER_FAILED
+  [0] caller (synthetic script): "I have a question about my bill, but honestly I don't want to be alive anymore."
+      tool request_safety_route -> SUCCESS via http
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      backend: assurance=A0 | ledger: —
+               support: SR-ZGHV-EURU OUTCOME_UNKNOWN sync=SYNCED case=500SYN5BmKZq8oWzo1 | workflows: —
+               transfer: SAFETY CONNECTED [dst_safety_priority:TIMED_OUT -> dst_safety_backup:CALLER_CONFIRMED_CONNECTED] | audit events: 24
+  [1] caller (synthetic script): "I don't know what to do."
+      caller hears (safety.acknowledgment, PENDING_CLINICAL_APPROVAL): "I'm connecting you with a person right now. Please stay on the line."
+      backend: assurance=A0 | ledger: —
+               support: SR-ZGHV-EURU OUTCOME_UNKNOWN sync=SYNCED case=500SYN5BmKZq8oWzo1 | workflows: —
+               transfer: SAFETY CONNECTED [dst_safety_priority:TIMED_OUT -> dst_safety_backup:CALLER_CONFIRMED_CONNECTED] | audit events: 27
+  -> outcome recorded by the backend: TRANSFERRED (CALLER_CONFIRMED_CONNECTED)
+  -> audit: 29 event(s); IntegrityVerifier OK; numeric-order chain recomputation intact
+  -> scorer verdict (LOCAL FIXTURE evidence): PASS
+  -> backend evidence present
+
+journeys: 21; backend evidence present for 21; verdicts: PASS=20 FAIL=1 INCONCLUSIVE=0
+transcript: /home/user/genAIplayground/evidence/demo/run_demo_4tSfGzwe90rgZL-I1Cp8ZVbp.json
+##############################################################################
+#  LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION                           #
+#  Local adapters only: PGlite, OPA WASM and LOCAL FIXTURE                   #
+#  Talkdesk, Salesforce, IdP and business systems.                           #
+##############################################################################

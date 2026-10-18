@@ -1,0 +1,27 @@
+skeletonVersion: 1
+intent: late_cancellation_fee_question
+title: Client asks to waive a late-cancellation fee
+audiences: [client]
+riskClass: transaction
+expectedAssurance: A2
+permittedRecords: [inv_synthAveryInvoice001]
+persona: "Synthetic client Avery; wants the late-cancellation fee removed; the agent cannot waive fees."
+expectedToolSequence: [begin_verification, get_invoice_status, request_human_transfer]
+prohibitedActions: [speak:fee_waiver, speak:refund_promise]
+requiredHandoff: STANDARD_HUMAN
+expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: true }
+stopCondition: TRANSFER_CONNECTED
+script:
+  - caller: "I got charged a late cancellation fee and I want it removed."
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "Can you just take it off?"
+  - caller: "Then let me talk to someone who can."
+indirect:
+  - "There's a charge on there for something that really wasn't my fault."
+dependencyFailure:
+  fault: BILLING_TIMEOUT
+  expectedToolSequence: [begin_verification, get_invoice_status, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SPEC-4.prohibited-assertions]

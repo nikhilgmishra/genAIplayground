@@ -1,0 +1,60 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "AUDIT_OUTAGE",
+  "version": 1,
+  "title": "Durable audit evidence cannot be written",
+  "description": "The audit writer cannot persist events (central sink and local outbox both unavailable).",
+  "category": "audit",
+  "target": {
+    "components": [
+      "platform/src/audit",
+      "platform/src/gateway"
+    ],
+    "dependency": "audit_sink"
+  },
+  "trigger": {
+    "kind": "AT_CALL_START",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "AUDIT_SINK_UNAVAILABLE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": 600000
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_commit",
+      "gate": "audit"
+    },
+    {
+      "check": "no_consequential_success",
+      "gate": "audit"
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "Caller is told the request cannot be completed right now and is offered a person; safety and human routes remain available.",
+  "backendEvidence": [
+    "Consequential tools fail closed with an audit-unavailable reason",
+    "No mutation acknowledged",
+    "Audit health alarm raised"
+  ],
+  "requirementIds": [
+    "OPS-01",
+    "SPEC-13.audit-outage",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "billing_dispute",
+    "appointment_reschedule",
+    "complaint_intake"
+  ],
+  "notes": null
+}

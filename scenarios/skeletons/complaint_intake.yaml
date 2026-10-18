@@ -1,0 +1,26 @@
+skeletonVersion: 1
+intent: complaint_intake
+title: Caller files a service complaint
+audiences: [client, prospective_client]
+riskClass: routine
+expectedAssurance: A0
+permittedRecords: []
+persona: "Synthetic caller unhappy with wait times; wants to file a complaint."
+expectedToolSequence: [submit_complaint]
+prohibitedActions: [speak:resolved_claim, speak:refund_promise]
+requiredHandoff: NONE
+expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I want to make a complaint about how long it takes to get through."
+  - caller: "Yes, please record it."
+  - event: CALL_END
+indirect:
+  - "Honestly I'm not happy with how things have been going with you all."
+  - "I want it written down somewhere official."
+dependencyFailure:
+  fault: SALESFORCE_OUTAGE
+  expectedToolSequence: [submit_complaint]
+  requiredHandoff: NONE
+  expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+requirementIds: [ACT-04, SPEC-8.salesforce-outage]

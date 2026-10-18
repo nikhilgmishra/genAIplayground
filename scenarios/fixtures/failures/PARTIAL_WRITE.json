@@ -1,0 +1,65 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "PARTIAL_WRITE",
+  "version": 2,
+  "title": "Dependency reports a partial write",
+  "description": "The dependency applies the first step of a multi-step write (the booking, recorded under the provider idempotency key) and then fails the confirmation step, reporting PARTIAL_WRITE (UNKNOWN).",
+  "category": "dependency",
+  "target": {
+    "components": [
+      "platform/src/actions",
+      "platform/src/adapters/local"
+    ],
+    "dependency": "scheduling"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": "commit_appointment_change",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "PARTIAL_WRITE",
+    "afterExternalCommit": true,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    },
+    {
+      "check": "reconciliation_recorded",
+      "gate": "transaction"
+    },
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "RESOLVED",
+        "OUTCOME_UNKNOWN",
+        "CALLER_DISCONNECTED",
+        "REQUEST_ACCEPTED",
+        "TRANSFERRED",
+        "FAILED"
+      ]
+    }
+  ],
+  "callerVisible": "Caller is not told the change is complete until reconciliation by the provider idempotency key finds the committed booking; otherwise the outcome stays unknown and a person or callback follows up.",
+  "backendEvidence": [
+    "Action UNKNOWN until reconciled",
+    "Exactly one external effect, found by the provider idempotency key",
+    "Operator-visible reconciliation item"
+  ],
+  "requirementIds": [
+    "ACT-03",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "appointment_reschedule"
+  ],
+  "notes": "Version 2: the plan is afterExternalCommit, so the reconciled commit may end RESOLVED (only with reconciliation_recorded and commit receipts); INFORMATION_PROVIDED / DECLINED_BY_POLICY (the action silently dropped) stay excluded. The LOCAL FIXTURE scheduling system records the booking under the key before raising the error (platform/src/adapters/local/scheduling-fixture.ts)."
+}

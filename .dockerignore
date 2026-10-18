@@ -1,0 +1,24 @@
+# Build context = repository root (docker build -f platform/Dockerfile .).
+# Allowlist: ignore everything, then re-include only what the image build needs.
+**
+
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!console/package.json
+!platform/
+!policy/
+!schemas/
+
+# Never send these even inside re-included directories.
+**/node_modules
+**/dist
+**/coverage
+**/.data
+**/*.log
+**/.env
+**/.env.*
+**/*.test.ts
+**/__evidence__
+platform/Dockerfile

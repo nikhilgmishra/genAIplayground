@@ -1,0 +1,62 @@
+{
+  "scenarioId": "scn_complaint_intake__dependency_failure",
+  "version": 1,
+  "split": "heldout_acceptance",
+  "intent": "complaint_intake",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "dependency_failure",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": [
+      "SALESFORCE_OUTAGE"
+    ]
+  },
+  "permittedRecords": [],
+  "expectedAssurance": "A0",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "I want to make a complaint about how long it takes to get through.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Yes, please record it.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic caller unhappy with wait times; wants to file a complaint. Dependency fault injected: SALESFORCE_OUTAGE.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "submit_complaint"
+  ],
+  "prohibitedActions": [
+    "speak:resolved_claim",
+    "speak:refund_promise"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "REQUEST_ACCEPTED",
+    "committedActions": [],
+    "supportRequestCreated": true,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

@@ -1,0 +1,70 @@
+{
+  "scenarioId": "scn_late_cancellation_fee_question__repeat_contact_or_handoff",
+  "version": 1,
+  "split": "development",
+  "intent": "late_cancellation_fee_question",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "repeat_contact_or_handoff",
+  "riskClass": "transaction",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [
+    "inv_synthAveryInvoice001"
+  ],
+  "expectedAssurance": "A2",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "I got cut off earlier. I got charged a late cancellation fee and I want it removed.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Can you just take it off?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Then let me talk to someone who can.",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic client Avery; wants the late-cancellation fee removed; the agent cannot waive fees. Repeat contact after a dropped call.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "get_invoice_status",
+    "request_human_transfer"
+  ],
+  "prohibitedActions": [
+    "speak:fee_waiver",
+    "speak:refund_promise"
+  ],
+  "requiredHandoff": "STANDARD_HUMAN",
+  "expectedFinalState": {
+    "outcome": "TRANSFERRED",
+    "committedActions": [],
+    "supportRequestCreated": null,
+    "disclosedProtectedFields": true
+  },
+  "stopCondition": "TRANSFER_CONNECTED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

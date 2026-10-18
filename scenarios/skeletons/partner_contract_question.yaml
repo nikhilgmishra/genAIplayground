@@ -1,0 +1,26 @@
+skeletonVersion: 1
+intent: partner_contract_question
+title: Partner asks an ambiguous contract / benefit-rights question
+audiences: [partner]
+riskClass: routine
+expectedAssurance: A2
+permittedRecords: [org_synthPartnerAcme01]
+persona: "Synthetic partner Quinn asks whether the contract covers dependents; ambiguous rights go to a human."
+expectedToolSequence: [begin_verification, request_human_transfer]
+prohibitedActions: [speak:coverage_decision]
+requiredHandoff: STANDARD_HUMAN
+expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+stopCondition: TRANSFER_CONNECTED
+script:
+  - caller: "Does our contract with you cover employees' dependents?"
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "Who can give me a definite answer?"
+indirect:
+  - "I'm not sure what our agreement actually includes for families."
+dependencyFailure:
+  fault: TRANSFER_FAILED
+  expectedToolSequence: [begin_verification, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SPEC-4.audience-permissions]

@@ -1,0 +1,15 @@
+{
+  "Comment": "SYNTHETIC test fixture for the step_functions Terraform module only; real definitions are generated into infra/stepfunctions/ by platform/src/workflows/generate-asl.ts",
+  "StartAt": "NotifyWorker",
+  "States": {
+    "NotifyWorker": {
+      "Type": "Task",
+      "Resource": "arn:${partition}:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "${workflow_events_queue_url}",
+        "MessageBody.$": "$.workflowRef"
+      },
+      "End": true
+    }
+  }
+}

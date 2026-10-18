@@ -1,0 +1,417 @@
+# Expected Talkdesk tenant configuration (repository definition) for drift detection.
+#
+# STATUS: UNVERIFIED — no tenant export has been reviewed. Values marked UNKNOWN,
+# UNDECIDED, TO_BE_PINNED_FROM_RELEASE_MANIFEST or TALKDESK_QUEUE_PLACEHOLDER_* are
+# placeholders that a reviewed change must replace with tenant facts (they never match
+# automatically; drift-check reports them as NEW_FACT or UNOBSERVED, never as MATCH).
+#
+# Only the `tenantConfiguration` subtree is compared by talkdesk/tools/drift-check.mjs.
+# Destinations mirror DESTINATIONS in platform/src/fixtures/synthetic-world.ts and are
+# checked by talkdesk/tools/validate-package.mjs.
+
+schemaVersion: vsp.talkdesk.expected-config.v1
+status: UNVERIFIED
+environment: sandbox
+syntheticDataOnly: true
+sources:
+  destinations: platform/src/fixtures/synthetic-world.ts#DESTINATIONS
+  destinationConfigType: platform/src/config/ports.ts#DestinationConfig
+  aiAgentConfig: talkdesk/ai-agent-config.yaml
+  studioFlowSpec: talkdesk/studio-flow-spec.md
+  mcpConnection: talkdesk/mcp-connection.md
+  authGate: talkdesk/auth-gate.md
+exportMethod: UNKNOWN            # VQ-TD-37; until documented, operator transcription into observed-config.template.yaml
+
+tenantConfiguration:
+  tenant:
+    talkdeskAccountId: UNKNOWN
+    environmentKind: sandbox
+    region: UNKNOWN
+    plan: UNKNOWN
+    aiAgentPlatformEntitlement: UNKNOWN
+
+  recording:
+    startPolicy: AFTER_CONSENT_GRANTED          # SF-04; DATA-03
+    tenantDefaultRecordAllOverridden: true      # must be true or SF-04 is BLOCKED
+    perInteractionSuppressionForHumanLeg: UNKNOWN
+    recordingSeparateFromTranscriptionAndAsr: UNKNOWN
+
+  destinations:
+    - destinationId: dst_safety_priority
+      purpose: SAFETY_PRIORITY
+      vendorQueueRef: TALKDESK_QUEUE_PLACEHOLDER_SAFETY
+      fallbackDestinationIds: [dst_safety_backup]
+      languages: [en, es]
+      talkdeskQueueName: UNKNOWN
+      queuePriority: HIGHEST_AVAILABLE
+      requiresAuthentication: false               # SAFE-02
+    - destinationId: dst_safety_backup
+      purpose: SAFETY_PRIORITY
+      vendorQueueRef: TALKDESK_QUEUE_PLACEHOLDER_SAFETY_BACKUP
+      fallbackDestinationIds: []
+      languages: [en, es]
+      talkdeskQueueName: UNKNOWN
+      queuePriority: HIGHEST_AVAILABLE
+      requiresAuthentication: false
+    - destinationId: dst_support_general
+      purpose: STANDARD_SUPPORT
+      vendorQueueRef: TALKDESK_QUEUE_PLACEHOLDER_GENERAL
+      fallbackDestinationIds: [dst_outage_continuity]
+      languages: [en, es]
+      talkdeskQueueName: UNKNOWN
+      queuePriority: STANDARD
+      requiresAuthentication: false
+    - destinationId: dst_billing_specialist
+      purpose: BILLING_SPECIALIST
+      vendorQueueRef: TALKDESK_QUEUE_PLACEHOLDER_BILLING
+      fallbackDestinationIds: [dst_support_general]
+      languages: [en]
+      talkdeskQueueName: UNKNOWN
+      queuePriority: STANDARD
+      requiresAuthentication: false
+    - destinationId: dst_provider_support
+      purpose: PROVIDER_SUPPORT
+      vendorQueueRef: TALKDESK_QUEUE_PLACEHOLDER_PROVIDER
+      fallbackDestinationIds: [dst_support_general]
+      languages: [en]
+      talkdeskQueueName: UNKNOWN
+      queuePriority: STANDARD
+      requiresAuthentication: false
+    - destinationId: dst_partner_support
+      purpose: PARTNER_SUPPORT
+      vendorQueueRef: TALKDESK_QUEUE_PLACEHOLDER_PARTNER
+      fallbackDestinationIds: [dst_support_general]
+      languages: [en]
+      talkdeskQueueName: UNKNOWN
+      queuePriority: STANDARD
+      requiresAuthentication: false
+    - destinationId: dst_interpreter
+      purpose: INTERPRETER
+      vendorQueueRef: TALKDESK_QUEUE_PLACEHOLDER_INTERPRETER
+      fallbackDestinationIds: [dst_support_general]
+      languages: ["*"]
+      talkdeskQueueName: UNKNOWN
+      queuePriority: STANDARD
+      requiresAuthentication: false
+    - destinationId: dst_clinical_route
+      purpose: CLINICAL_ROUTE
+      vendorQueueRef: TALKDESK_QUEUE_PLACEHOLDER_CLINICAL
+      fallbackDestinationIds: [dst_support_general]
+      languages: [en]
+      talkdeskQueueName: UNKNOWN
+      queuePriority: STANDARD
+      requiresAuthentication: false
+    - destinationId: dst_outage_continuity
+      purpose: OUTAGE_CONTINUITY
+      vendorQueueRef: TALKDESK_QUEUE_PLACEHOLDER_CONTINUITY
+      fallbackDestinationIds: []
+      languages: [en, es]
+      talkdeskQueueName: UNKNOWN
+      queuePriority: STANDARD
+      requiresAuthentication: false
+
+  # Default destination per AI/Studio exit reason when no valid dst_* id is available (studio-flow-spec.md section 4).
+  exitDefaults:
+    SAFETY_ROUTE: dst_safety_priority
+    CLINICAL_ROUTE: dst_clinical_route
+    INTERPRETER_REQUIRED: dst_interpreter
+    CONSENT_DECLINED: dst_support_general
+    AI_ERROR: dst_support_general
+    CONTINUITY: dst_support_general
+    HUMAN_REQUESTED: dst_support_general
+    GUARDRAIL_EXIT: dst_support_general
+    LIMIT_REACHED: dst_support_general
+    VERIFICATION_RECOVERY: dst_support_general
+    UNRECOGNISED: dst_support_general
+
+  studio:
+    flows:
+      - flowId: vsp_main_inbound
+        publishedVersion: UNKNOWN
+        steps: [SF-00, SF-01, SF-02, SF-04, SF-05, SF-06, SF-07, SF-08, SF-09, SF-H, SF-S, SF-11, SF-12, SF-13, SF-C, SF-E]
+        recordingStartsAfterStep: SF-04
+        humanRouteDtmf: "0"
+        humanRoutePhrases: [agent]
+        humanRouteDependsOnGateway: false        # SPEC-3.independent-route
+        safetyBranchRequiresAuthentication: false
+        speechInputBeforeConsent: false
+      - flowId: vsp_authgate_probe
+        publishedVersion: UNKNOWN
+        purpose: AUTH_GATE_PROBE_SANDBOX_ONLY
+        enabledInProduction: false
+    variables:
+      - name: vsp_auth_gate
+        type: boolean
+        initialValue: false                       # boolean, never "" / null / "false" (auth-gate.md stop rule applies)
+        modelWritable: false
+        modelReadable: false
+        writtenBy: [SF-08, SF-11]
+      - name: vsp_session_ref
+        type: string
+        initialValue: UNSET
+        modelWritable: false
+        modelReadable: DEPENDS_ON_TB01_OPTION
+        writtenBy: [SF-06]
+      - name: vsp_session_generation
+        type: integer
+        initialValue: UNSET
+        modelWritable: false
+        modelReadable: false
+        writtenBy: [SF-06, SF-11, SF-13]
+      - name: vsp_language
+        type: enum
+        initialValue: UNSET
+        modelWritable: false
+        modelReadable: true
+        writtenBy: [SF-02]
+      - name: vsp_consent_recording
+        type: enum
+        initialValue: NOT_CAPTURED
+        modelWritable: false
+        modelReadable: false
+        writtenBy: [SF-04]
+      - name: vsp_consent_processing
+        type: enum
+        initialValue: NOT_CAPTURED
+        modelWritable: false
+        modelReadable: false
+        writtenBy: [SF-04]
+      - name: vsp_role
+        type: enum
+        initialValue: unselected
+        modelWritable: false
+        modelReadable: true
+        writtenBy: [SF-05]
+      - name: vsp_mode
+        type: enum
+        initialValue: NORMAL
+        modelWritable: false
+        modelReadable: false
+        writtenBy: [SF-06, SF-07, SF-C]
+      - name: vsp_ai_admitted
+        type: boolean
+        initialValue: false
+        modelWritable: false
+        modelReadable: false
+        writtenBy: [SF-07]
+      - name: vsp_destination_id
+        type: string
+        initialValue: UNSET
+        modelWritable: false
+        modelReadable: false
+        writtenBy: [SF-13]
+      - name: vsp_otp_digits
+        type: string
+        initialValue: UNSET
+        modelWritable: false
+        modelReadable: false
+        writtenBy: [SF-11]
+        enabled: false                            # until capability gate CG-02 (TB-03) is evidenced
+    dtmfMenus:
+      - id: menu.language_select
+        keys: { "1": en, "2": es, "9": INTERPRETER, "0": HUMAN }
+        noInput: INTERPRETER
+      - id: menu.role_select
+        keys: { "1": client, "2": provider_or_practice_staff, "3": partner_or_payer, "4": personal_representative, "0": HUMAN }
+        noInput: unselected
+      - id: menu.confirmation
+        keys: { "1": CONFIRM, "2": CANCEL, "0": HUMAN }
+        noInput: NOT_CONFIRMED
+    # Paths as PUBLISHED by the gateway (schemas/openapi/gateway.openapi.json; drift-check --openapi
+    # compares them). The bearer session reference travels only in the X-VSP-Session-Ref header
+    # (never in a URL); X-VSP-Interaction-Id binds the session to the current call. Tenant
+    # behaviour of every step is UNVERIFIED. One integrationId per Talkdesk tenant: the
+    # telephony_control credential differs from the mcp_tools credential by channel only.
+    httpSteps:
+      - operationId: telephony.startCall
+        ref: TC-01
+        method: POST
+        path: /telephony/v1/calls
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: NONE
+        status: PUBLISHED_BY_GATEWAY
+      - operationId: telephony.recordConsent
+        ref: TC-02
+        method: POST
+        path: /telephony/v1/session/consent
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
+      - operationId: telephony.selectRole
+        ref: TC-03
+        method: POST
+        path: /telephony/v1/session/role
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
+      - operationId: telephony.authGate
+        ref: TC-04
+        method: GET
+        path: /telephony/v1/session/auth-gate
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
+      - operationId: telephony.admission
+        ref: TC-05
+        method: GET
+        path: /telephony/v1/session/admission
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
+      - operationId: telephony.submitOtp
+        ref: TC-06
+        method: POST
+        path: /telephony/v1/session/otp
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_DISABLED_UNTIL_TB03
+      - operationId: telephony.pendingConfirmation
+        ref: TC-07
+        method: GET
+        path: /telephony/v1/session/pending-confirmation
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_DISABLED_UNTIL_TB02
+      - operationId: telephony.confirmAction
+        ref: TC-08
+        method: POST
+        path: /telephony/v1/session/actions/{actionId}/confirm
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_DISABLED_UNTIL_TB02
+      - operationId: webhooks.transferEvents
+        ref: TC-09
+        method: POST
+        path: /v1/webhooks/transfer-events
+        integrationId: talkdesk-sandbox
+        channel: webhook                       # event authentication undocumented (TB-09): LOCAL FIXTURE HMAC only, refused outside local/ci
+        sessionRefHeader: NONE
+        status: LOCAL_FIXTURE_ONLY_UNTIL_TB07_TB09
+      - operationId: telephony.applyChange
+        ref: TC-10
+        method: POST
+        path: /telephony/v1/session/change
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
+      - operationId: telephony.endCall
+        ref: TC-11
+        method: POST
+        path: /telephony/v1/session/end
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
+      - operationId: telephony.handoffContext
+        ref: TC-12
+        method: GET
+        path: /telephony/v1/session/handoff
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
+  aiAgent:
+    agents: [vsp_coordinator, vsp_scheduling, vsp_billing_claims, vsp_provider_partner, vsp_intake]
+    deterministicSkills: [vsp_verification_skill, vsp_confirmation_skill]
+    versionIdentity:
+      agentConfigVersion: UNKNOWN
+      model: UNKNOWN
+      voice: UNKNOWN
+      promptTemplates: UNKNOWN
+    guardrail:
+      sha256: e8df17c3aef1bd2e6817c86e6eabee0601cb03a8da2a91918f2f9fd1c617a354
+      characterCount: 287
+      onTrigger: EXIT_TO_STUDIO
+    conversationLimits:
+      onAnyLimit: EXIT_TO_STUDIO
+    toolsByAgent:
+      - id: vsp_coordinator
+        tools: [request_human_transfer, request_safety_route, search_approved_runbook, get_login_guidance]
+      - id: vsp_scheduling
+        tools: [request_human_transfer, request_safety_route, get_appointment_options, prepare_appointment_change, commit_appointment_change]
+      - id: vsp_billing_claims
+        tools: [request_human_transfer, request_safety_route, get_invoice_status, prepare_billing_review, submit_billing_review, get_claim_status]
+      - id: vsp_provider_partner
+        tools: [request_human_transfer, request_safety_route, get_provider_onboarding_status, get_remittance_status, submit_partner_intake]
+      - id: vsp_intake
+        tools: [request_human_transfer, request_safety_route, create_support_request, submit_complaint, get_authorized_case_status]
+      - id: vsp_verification_skill
+        tools: [begin_verification]
+      - id: vsp_confirmation_skill
+        tools: []
+
+  mcpConnection:
+    endpointPath: /mcp
+    host: UNKNOWN
+    transport: streamable_http
+    authMethod: oauth2_client_credentials
+    integrationId: talkdesk-sandbox            # same integrationId as the telephony_control credential (mcp-connection.md section 3)
+    channel: mcp_tools
+    sessionBindingMode: UNDECIDED            # trusted_header | server_to_server_lookup | tool_argument_lookup_exception (mcp-connection.md section 5)
+    toolCatalogDigest: TO_BE_PINNED_FROM_RELEASE_MANIFEST
+    dynamicToolRegistration: false
+
+  # Template ids Studio plays. Texts come only from the approved template registry (platform/src/voice);
+  # the operator transcribes the prompt text configured in Studio and drift-check derives its sha256.
+  templates:
+    - templateId: opening.greeting
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: menu.language_select
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: disclosure.recording_processing
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: consent.prompt
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: consent.declined_alternative
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: menu.role_select
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: safety.priority_acknowledgment
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: safety.menu_option
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: verification.secure_link_sent
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: verification.unavailable_use_human
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: human.connecting
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: interpreter.connecting
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: transfer.hold_update
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: transfer.failed_next_route
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: continuity.outage_message
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+    - templateId: continuity.callback_offer
+      textSha256: TO_BE_PINNED_FROM_TEMPLATE_REGISTRY
+
+# Approval each Studio-played template needs before use beyond synthetic sandbox tests
+# (repository metadata; not compared against the tenant).
+templateApprovals:
+  opening.greeting: legal
+  menu.language_select: language_leads
+  disclosure.recording_processing: legal
+  consent.prompt: legal
+  consent.declined_alternative: legal
+  menu.role_select: support_operations
+  safety.priority_acknowledgment: clinical
+  safety.menu_option: clinical
+  verification.secure_link_sent: security
+  verification.unavailable_use_human: security
+  human.connecting: support_operations
+  interpreter.connecting: language_leads
+  transfer.hold_update: support_operations
+  transfer.failed_next_route: support_operations
+  continuity.outage_message: support_operations
+  continuity.callback_offer: legal

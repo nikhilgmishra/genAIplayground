@@ -1,0 +1,241 @@
+# Continuous integration quality gates (spec sections 14-16). Runs on pull requests
+# and pushes; uses no cloud credentials and performs no billable or PHI-touching
+# work (OPS-05).
+#
+# Third-party actions are pinned by version TAG. PREREQUISITE before production:
+# pin every `uses:` to a full 40-character commit SHA (with the tag as a comment);
+# SHAs could not be resolved from the offline authoring environment. Dependabot
+# (github-actions ecosystem) keeps the pins current.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_IN_AUTOMATION: "1"
+  CHECKPOINT_DISABLE: "1"
+
+jobs:
+  build-test:
+    name: lint, typecheck, unit tests, drift checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5 # pin to full commit SHA before production
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4 # pin to full commit SHA before production
+        with:
+          node-version-file: .nvmrc
+
+      - name: Enable pnpm via corepack (version from package.json packageManager)
+        run: |
+          corepack enable
+          pnpm --version
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch pinned tools (OPA, Terraform; SHA256 verified)
+        run: bash scripts/fetch-tools.sh
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests (platform + console)
+        run: pnpm test
+
+      - name: Policy tests (OPA bundle)
+        run: |
+          if [[ ! -f scripts/policy.sh ]]; then
+            echo "::error::scripts/policy.sh is missing (owner: policy engineer); policy tests cannot run"
+            exit 1
+          fi
+          bash scripts/policy.sh test
+
+      - name: Policy golden decision gate
+        run: pnpm --filter @vsp/platform exec vitest run src/policy
+
+      - name: Protocol schema drift check
+        run: pnpm --filter @vsp/platform schemas:gen -- --check
+
+      - name: Tool catalogue, OpenAPI and resolution-contract drift checks
+        run: |
+          cd platform
+          pnpm exec tsx src/gateway/generate-catalog.ts --check
+          pnpm exec tsx src/gateway/generate-openapi.ts --check
+          pnpm exec tsx src/business/contracts/cli-generate-doc.ts --check
+
+      - name: Step Functions ASL drift check
+        run: |
+          if [[ ! -f platform/src/workflows/generate-asl.ts ]]; then
+            echo "::error::platform/src/workflows/generate-asl.ts is missing (owner: workflows engineer); ASL drift cannot be checked"
+            exit 1
+          fi
+          cd platform
+          pnpm exec tsx src/workflows/generate-asl.ts --check
+
+      - name: CI tooling tests (SBOM, metric drift, release-manifest gate, workflow lint)
+        run: |
+          node --test scripts/ci/sbom.test.mjs scripts/ci/check-metric-names.test.mjs scripts/ci/check-workflows.test.mjs
+          platform/node_modules/.bin/tsx --test scripts/ci/check-release-manifest.test.ts
+
+      - name: Terraform metric names exist in the platform catalogue
+        run: node scripts/ci/check-metric-names.mjs
+
+      - name: Workflow security lint
+        run: node scripts/ci/check-workflows.mjs
+
+      - name: Talkdesk configuration package consistency (internal only; not tenant evidence)
+        run: |
+          node talkdesk/tools/validate-package.mjs
+          node --test talkdesk/tools/package.test.mjs
+
+      - name: Prerequisite register render is current
+        run: node docs/tools/render-prerequisites.mjs --check
+
+      - name: Scenario corpus drift check
+        run: |
+          cd platform
+          pnpm exec tsx src/evaluation/generate.ts --check
+          pnpm exec tsx src/evaluation/generate-risk.ts --check
+
+      - name: Capacity model arithmetic
+        run: python3 scripts/capacity_model.py
+
+      - name: Collect evidence
+        if: always()
+        run: |
+          mkdir -p evidence/runs
+          {
+            echo "workflow=ci job=build-test"
+            echo "commit=${GITHUB_SHA}"
+            echo "ref=${GITHUB_REF}"
+            echo "run=${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+            echo "status=${{ job.status }}"
+          } > evidence/runs/ci-build-test.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4 # pin to full commit SHA before production
+        with:
+          name: evidence-build-test
+          path: evidence/
+          if-no-files-found: warn
+
+  terraform:
+    name: terraform fmt/validate/test + infrastructure policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5 # pin to full commit SHA before production
+        with:
+          persist-credentials: false
+
+      - name: Fetch pinned tools (OPA, Terraform)
+        run: bash scripts/fetch-tools.sh
+
+      - name: Provider mirror (hashicorp/aws, signature + SHA256 verified)
+        env:
+          TF_MIRROR_REQUIRE_SIGNATURE: "1"
+        run: bash scripts/terraform-mirror.sh
+
+      - name: terraform fmt, init -backend=false, validate, test (mock providers)
+        run: bash scripts/terraform-check.sh --report evidence/runs/terraform-check.txt
+
+      - name: Infrastructure policy unit tests (OPA)
+        run: bash scripts/terraform-policy.sh test
+
+      - name: Infrastructure policy gate on offline plans (fake credentials, no AWS access)
+        run: bash scripts/terraform-policy.sh offline evidence/runs/terraform-offline-plans
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4 # pin to full commit SHA before production
+        with:
+          name: evidence-terraform
+          path: |
+            evidence/
+            !evidence/runs/terraform-offline-plans/*.plan.log
+          if-no-files-found: warn
+
+  secrets:
+    name: secret scanning (gitleaks)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5 # pin to full commit SHA before production
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: gitleaks (pinned binary, full history, redacted)
+        run: bash scripts/ci/gitleaks.sh git evidence/runs/gitleaks.sarif
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4 # pin to full commit SHA before production
+        with:
+          name: evidence-secrets
+          path: evidence/
+          if-no-files-found: warn
+
+  supply-chain:
+    name: dependency audit, SBOM, license inventory
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5 # pin to full commit SHA before production
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4 # pin to full commit SHA before production
+        with:
+          node-version-file: .nvmrc
+
+      - name: Enable pnpm via corepack
+        run: corepack enable
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Dependency audit (blocking on critical)
+        run: pnpm audit --audit-level=critical
+
+      - name: Dependency audit report (high; non-blocking until triaged)
+        run: |
+          mkdir -p evidence/runs
+          if ! pnpm audit --audit-level=high --json > evidence/runs/pnpm-audit.json; then
+            echo "::warning::high-severity advisories present; triage required before release (owner: security)"
+          fi
+
+      - name: SBOM (CycloneDX 1.5) and license inventory
+        run: |
+          mkdir -p evidence/runs
+          pnpm list -r --json --depth Infinity > evidence/runs/pnpm-list.json
+          pnpm licenses list --json > evidence/runs/licenses.json
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" node scripts/ci/sbom.mjs \
+            --input evidence/runs/pnpm-list.json \
+            --licenses evidence/runs/licenses.json \
+            --output evidence/runs/sbom.cdx.json
+
+      - name: Upload SBOM and evidence
+        if: always()
+        uses: actions/upload-artifact@v4 # pin to full commit SHA before production
+        with:
+          name: evidence-supply-chain
+          path: evidence/
+          if-no-files-found: warn

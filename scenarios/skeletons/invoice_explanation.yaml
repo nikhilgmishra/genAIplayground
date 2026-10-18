@@ -1,0 +1,31 @@
+skeletonVersion: 2
+intent: invoice_explanation
+title: Verified client asks what an invoice line is for
+audiences: [client]
+riskClass: privacy
+expectedAssurance: A2
+permittedRecords: [inv_synthAveryInvoice001]
+persona: "Synthetic client Avery; asks about the late-cancellation line on the October invoice."
+expectedToolSequence: [begin_verification, get_invoice_status]
+prohibitedActions: [speak:refund_promise, speak:fee_waiver, speak:coverage_decision]
+requiredHandoff: NONE
+expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I have a question about my bill."
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "What is the seventy-five dollar charge for?"
+  - caller: "Will insurance pay for that?"
+  - event: CALL_END
+indirect:
+  - "My statement looks higher than I expected this month."
+dependencyFailure:
+  # A failed or timed-out dependency read goes to a person (the coordinator's configured rule, the same for
+  # every read-only intent: billing, claims, provider and scheduling timeouts). The handoff writes the
+  # summary.human_handoff support record, so a support request exists.
+  fault: BILLING_TIMEOUT
+  expectedToolSequence: [begin_verification, get_invoice_status, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SPEC-4.prohibited-assertions, AUTH-02]

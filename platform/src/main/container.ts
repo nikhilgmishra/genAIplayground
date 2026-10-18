@@ -1,0 +1,714 @@
+/**
+ * Composition root (gateway + worker). The configuration guard runs FIRST: the
+ * reviewed config file for the environment is loaded, the policy bundle and
+ * the committed tool catalogue digest are read, and `assertDeployable` decides
+ * whether anything may be constructed (OPS-04). A rejected configuration throws
+ * ConfigurationRejectedError before any database, adapter, HTTP server or port
+ * exists.
+ *
+ * local / ci (IMPLEMENTED_OFFLINE): PGlite with every migration, the OPA WASM
+ * policy bundle, the in-memory session store, the identity services over the
+ * LOCAL FIXTURE directory / OIDC / notifications, the real audit writer, health,
+ * query and shipper (LOCAL FIXTURE file sink), the action ledger, outbox +
+ * dispatcher + in-memory publisher (LOCAL FIXTURE), the workflow engine, the
+ * transfer coordinator over the telephony fixture, safety, voice templates and
+ * response gate, the knowledge service over the SYNTHETIC approved corpus,
+ * support memory, ops (kill switches, budgets with an ILLUSTRATIVE local budget,
+ * capacity, admission), every local adapter fixture in the AdapterRegistry,
+ * then the business module (BuildBusiness injected by the entry point), the
+ * pinned catalogue (must equal schemas/tools/catalog.json), the ToolPipeline and
+ * the gateway Fastify app with LOCAL FIXTURE integration tokens.
+ *
+ * sandbox / staging / production: after the guard, the live composition is
+ * refused (LIVE_COMPOSITION_NOT_IMPLEMENTED): live database/session-store/
+ * queue/audit-sink wiring, live business adapters and JWKS-backed inbound
+ * authentication are not connected here (BLOCKED on the prerequisites listed
+ * in the README). Nothing is simulated in their place.
+ */
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { FastifyInstance } from "fastify";
+import { LedgerActionService } from "../actions/action-service.js";
+import { ToolRequestIdempotency } from "../actions/tool-idempotency.js";
+import { LOCAL_FIXTURE_REQUEST_HASH_PEPPER } from "../actions/fixtures/request-hash-pepper.fixture.js";
+import { createLocalFixtureSet } from "../adapters/local/fixture-set.js";
+import type { LocalFixtureSet } from "../adapters/local/fixture-set.js";
+import { LocalIdentityDirectoryFixture } from "../adapters/local/identity-directory.js";
+import { NotificationFixture } from "../adapters/local/notification-fixture.js";
+import { LocalOidcProviderFixture, LocalOidcVerifierFixture } from "../adapters/local/oidc-fixture.js";
+import { createBlockedLiveRegistry } from "../adapters/live/blocked-set.js";
+import type { AdapterRegistry } from "../adapters/registry.js";
+import { DeferredAuditQueue } from "../audit/deferred.js";
+import { PgAuditHealth } from "../audit/health.js";
+import { PgAuditQuery } from "../audit/query.js";
+import { AuditShipper } from "../audit/shipper.js";
+import { LocalFsAuditSinkFixture } from "../audit/sinks/local-fs.js";
+import { PgAuditWriter } from "../audit/writer.js";
+import type { BuildBusiness, BusinessModule, ToolDeps } from "../business/contract.js";
+import { LocalAccountStateFixture, LocalConsentRegistryFixture } from "../business/fixtures/recheck.fixture.js";
+import { BusinessPreDisclosureRecheck } from "../business/recheck.js";
+import { loadInfrastructureEnv } from "../config/loader.js";
+import type { PlatformConfig } from "../config/ports.js";
+import { gatewayConfigOf } from "../config/schema.js";
+import { loadDeployableConfig } from "../config/startup.js";
+import type { GuardReport } from "../config/guard.js";
+import { migrate } from "../db/migrate.js";
+import { PgliteDb } from "../db/pglite.js";
+import { STAFF } from "../fixtures/synthetic-world.js";
+import { CATALOG_FILE, buildCatalog, catalogDriftAgainst, loadPinnedCatalogFile } from "../gateway/catalog.js";
+import type { PinnedCatalog } from "../gateway/catalog.js";
+import { LOCAL_FIXTURE_TOKENS, LocalFixtureTokenAuthenticator } from "../gateway/auth.js";
+import { InteractionIndexCallSessions } from "../gateway/call-sessions.js";
+import type { IntegrationAuthenticator } from "../gateway/auth.js";
+import { CallOutcomeTracker, HandoffIndex, SessionLeaseRegistry } from "../gateway/call-state.js";
+import { GatewayAudit } from "../gateway/gateway-audit.js";
+import { buildGatewayApp } from "../gateway/http/app.js";
+import { ReadinessProbe, healthRoutes } from "../gateway/http/health-routes.js";
+import { portalRoutes } from "../gateway/http/portal-routes.js";
+import { telephonyRoutes } from "../gateway/http/telephony-routes.js";
+import { toolRoutes } from "../gateway/http/tool-routes.js";
+import { webhookRoutes } from "../gateway/http/webhook-routes.js";
+import { mcpRoutes } from "../gateway/mcp.js";
+import { ToolPipeline, routingFromPolicyCatalogue } from "../gateway/pipeline.js";
+import { LocalInteractionLookupFixture, SessionBindingResolver } from "../gateway/session-binding.js";
+import { AssertionKeyRing } from "../identity/assertions/key-ring.js";
+import { SignedAssertionService } from "../identity/assertions/assertion-service.js";
+import { LocalEs256Signer } from "../identity/assertions/signers.js";
+import { identityConfigFromPlatform } from "../identity/config.js";
+import { LOCAL_FIXTURE_OTP_PEPPER } from "../identity/identity-harness.fixture.js";
+import { MemoryKvStoreFixture } from "../identity/kv/memory-kv-store.js";
+import { TrustedSessionService } from "../identity/session-service.js";
+import { SecureVerificationService } from "../identity/verification-service.js";
+import { LOCAL_ALLOWED_LINK_DOMAINS, loadLocalCorpus } from "../knowledge/corpus.js";
+import type { KnowledgeItemInput } from "../knowledge/ports.js";
+import { KnowledgeServicePg } from "../knowledge/service.js";
+import { SupportMemoryPg } from "../memory/support-memory.js";
+import { createLogger } from "../observability/logger.js";
+import { InMemoryMetrics, createMetricCatalogue } from "../observability/metrics.js";
+import type { Logger } from "../observability/ports.js";
+import { createOpsServices } from "../ops/compose.js";
+import { KillSwitchGatedNotificationSender } from "../ops/notification-gate.js";
+import { KillSwitchGatedSupportRecords } from "../ops/integration-gate.js";
+import type { OpsServices } from "../ops/compose.js";
+import { PgOutboxDispatcher } from "../outbox/dispatcher.js";
+import { MemoryPublisherFixture } from "../outbox/memory-publisher.fixture.js";
+import { PgOutbox } from "../outbox/outbox.js";
+import { OpaWasmPolicyEngine } from "../policy/engine.js";
+import { ensurePolicyBundle } from "../policy/ensure-bundle.js";
+import { EgressGuard } from "../privacy/egress.js";
+import type { EgressPolicyConfig } from "../privacy/egress.js";
+import { LOCAL_FIXTURE_EGRESS_POLICY, assertStartupEgress, checkStartupEgress, egressTargetsFor } from "../privacy/egress-startup.js";
+import type { EgressStartupReport, TelemetryExportTarget } from "../privacy/egress-startup.js";
+import { InMemoryQuarantineStoreFixture, RedactionService } from "../privacy/redaction-service.js";
+import type { Environment, VersionSet } from "../protocol/index.js";
+import { PROTOCOL_VERSION } from "../protocol/index.js";
+import { CircuitBreakerRegistry } from "../resilience/circuit-breaker.js";
+import { createPlatformDatasetRegistry } from "../retention/datasets.js";
+import { RetentionJob } from "../retention/job.js";
+import { RuleBasedSafetySignalDetector } from "../safety/detector.js";
+import { SafetyPipeline } from "../safety/pipeline.js";
+import { DeterministicSafetyRouter } from "../safety/router.js";
+import { SafetyEventRecorder } from "../safety/safety-events.js";
+import type { Clock } from "../shared/clock.js";
+import { iso, systemClock } from "../shared/clock.js";
+import { ConfigurationRejectedError } from "../shared/errors.js";
+import { TemplateResponseGate } from "../voice/gate.js";
+import { loadDefaultTemplateRegistry } from "../voice/registry.js";
+import type { TemplateRegistry } from "../voice/ports.js";
+import { InMemoryTurnTracker } from "../voice/turns.js";
+import { PgWorkflowEngine } from "../workflows/engine.js";
+import { PgDurableGrantStore } from "../workflows/grants.js";
+import { createDefaultRegistry } from "../workflows/registry.js";
+import { MemoryTransferStore, TransferCoordinator } from "../workflows/transfer.js";
+
+export const LOCAL_CONTAINER_LABEL = "LOCAL FIXTURE COMPOSITION — SYNTHETIC DATA ONLY — NOT A PRODUCTION DEPLOYMENT";
+
+/** Runtime components that are not business adapters but are reported to the guard (OPS-04). */
+export const RUNTIME_COMPONENTS = ["session-store", "transfer-store", "outbox-publisher", "audit-sink", "integration-auth", "interaction-lookup", "metrics-sink"] as const;
+
+export interface ContainerOptions {
+  environment: Environment;
+  /** Business module factory (platform/src/business buildBusiness, or a stub in tests). */
+  buildBusiness: BuildBusiness;
+  clock?: Clock;
+  env?: Readonly<Record<string, string | undefined>>;
+  configDir?: string;
+  repoRoot?: string;
+  logger?: Logger;
+  /** Tool names known to the metric catalogue (defaults to the committed catalogue's names). */
+  metricToolNames?: readonly string[];
+  /**
+   * local/ci only: accept a business module whose catalogue differs from
+   * schemas/tools/catalog.json (stub business in tests). Refused elsewhere.
+   */
+  allowUncommittedCatalog?: boolean;
+  /** Ingest the SYNTHETIC approved knowledge corpus (default true). */
+  ingestKnowledge?: boolean;
+  /** OTP fallback switch (TB-03: default false). */
+  otpEnabled?: boolean;
+  /** Per-integration rate limit; null disables (tests). Defaults to the gateway config or 600/min. */
+  rateLimit?: { max: number; timeWindowMs: number } | null;
+  /** Directory for the LOCAL FIXTURE audit sink (a fresh temp dir by default, removed on close). */
+  auditSinkDir?: string;
+  /**
+   * Process instance id (for example the ECS task id) naming this instance's outbox
+   * dispatcher audit stream (`outbox.<instanceId>`), so instances never contend on one
+   * chain head. Defaults to VSP_INSTANCE_ID, else "local-1".
+   */
+  instanceId?: string;
+  /**
+   * Egress allowlist (DATA-01). PlatformConfig has no egress section yet (config module), so the
+   * entry point passes it. Default: LOCAL_FIXTURE_EGRESS_POLICY in local/ci (approves nothing); none
+   * elsewhere (EGRESS_POLICY_NOT_CONFIGURED refuses startup).
+   */
+  egressPolicy?: EgressPolicyConfig;
+  /** Telemetry / export destinations the entry point composes (none in the local composition); each must pass the egress policy. */
+  telemetryExports?: readonly TelemetryExportTarget[];
+}
+
+export interface Container {
+  label: string;
+  environment: Environment;
+  config: PlatformConfig;
+  report: GuardReport;
+  tenantIds: readonly string[];
+  mutationsEnabled: boolean;
+  clock: Clock;
+  logger: Logger;
+  metrics: InMemoryMetrics;
+  db: PgliteDb;
+  policy: OpaWasmPolicyEngine;
+  kv: MemoryKvStoreFixture;
+  identity: {
+    sessions: TrustedSessionService;
+    verification: SecureVerificationService;
+    assertions: SignedAssertionService;
+    directory: LocalIdentityDirectoryFixture;
+    notifications: NotificationFixture;
+    idp: LocalOidcProviderFixture;
+  };
+  audit: PgAuditWriter;
+  auditHealth: PgAuditHealth;
+  auditQuery: PgAuditQuery;
+  auditSink: LocalFsAuditSinkFixture;
+  auditShipper: AuditShipper;
+  /** Bounded, process-local deferral for handoff (route) audit events during an audit outage; never for mutations. */
+  deferredAudit: DeferredAuditQueue;
+  /** Egress guard checked at startup against every configured destination, and the redaction service (QA / transcript artifacts). */
+  privacy: { egress: EgressGuard; redaction: RedactionService; egressReport: EgressStartupReport };
+  outbox: PgOutbox;
+  publisher: MemoryPublisherFixture;
+  dispatcher: PgOutboxDispatcher;
+  actions: LedgerActionService;
+  toolIdempotency: ToolRequestIdempotency;
+  fixtures: LocalFixtureSet;
+  adapters: AdapterRegistry;
+  workflows: PgWorkflowEngine;
+  /** Durable action grants checked by the workflow engine and issued by the business layer (spec section 7). */
+  grants: PgDurableGrantStore;
+  /** Pre-disclosure / material-change recheck wired into the workflow engine (spec section 9) and its LOCAL FIXTURE consent registry. */
+  recheck: { service: BusinessPreDisclosureRecheck; consent: LocalConsentRegistryFixture };
+  transferStore: MemoryTransferStore;
+  transfers: TransferCoordinator;
+  knowledge: KnowledgeServicePg;
+  memory: SupportMemoryPg;
+  ops: OpsServices;
+  templates: TemplateRegistry;
+  turns: InMemoryTurnTracker;
+  safety: SafetyPipeline;
+  versions: VersionSet;
+  deps: ToolDeps;
+  business: BusinessModule;
+  catalog: PinnedCatalog;
+  pipeline: ToolPipeline;
+  interactionLookup: LocalInteractionLookupFixture;
+  leases: SessionLeaseRegistry;
+  handoffs: HandoffIndex;
+  callOutcomes: CallOutcomeTracker;
+  authenticator: IntegrationAuthenticator;
+  retention: RetentionJob;
+  app: FastifyInstance;
+  close(): Promise<void>;
+}
+
+const OFFLINE: readonly Environment[] = ["local", "ci"];
+
+/** Policy bundle for the guard: built from sources offline; only the pre-built bundle elsewhere (null if unreadable). */
+async function loadPolicyForGuard(environment: Environment, clock: Clock, logger: Logger): Promise<OpaWasmPolicyEngine | null> {
+  try {
+    if (OFFLINE.includes(environment)) return await OpaWasmPolicyEngine.load({ bundleDir: ensurePolicyBundle().bundleDir, clock, logger });
+    return await OpaWasmPolicyEngine.load({ clock, logger });
+  } catch {
+    return null;
+  }
+}
+
+function committedCatalogDigest(): string | null {
+  try {
+    return loadPinnedCatalogFile(CATALOG_FILE).manifest.digest;
+  } catch {
+    return null;
+  }
+}
+
+/** What a non-offline process would instantiate today: BLOCKED live stubs for business systems and Talkdesk. */
+function plannedLiveKinds(): Record<string, "local_fixture" | "live"> {
+  return createBlockedLiveRegistry().kinds();
+}
+
+/**
+ * Builds the container. Throws ConfigurationRejectedError (reason codes only)
+ * when the guard rejects the configuration or the environment's composition is
+ * not available. Never binds a port: entry points listen after it returns.
+ */
+export async function buildContainer(opts: ContainerOptions): Promise<Container> {
+  const clock = opts.clock ?? systemClock;
+  const environment = opts.environment;
+  const offline = OFFLINE.includes(environment);
+  const env = opts.env ?? process.env;
+  const infra = loadInfrastructureEnv(env, { defaultPort: 8080, environment });
+  const bootLogger = opts.logger ?? createLogger({ service: "vsp-gateway" });
+
+  if (!offline && opts.allowUncommittedCatalog) throw new ConfigurationRejectedError(["UNCOMMITTED_CATALOG_OUTSIDE_LOCAL_CI@toolCatalog"]);
+
+  // ------------------------------------------------------------------ guard first (OPS-04)
+  const policy = await loadPolicyForGuard(environment, clock, bootLogger);
+  const pinnedDigest = committedCatalogDigest();
+  const identityKinds: Record<string, "local_fixture" | "live"> = offline
+    ? {
+        "identity-directory": "local_fixture",
+        "oidc-client-idp": "local_fixture",
+        notifications: "local_fixture",
+        // The LOCAL console composition (main/console.ts) runs the workforce IdP fixture and local sign-in.
+        "workforce-sso": "local_fixture",
+        "console-local-sign-in": "local_fixture",
+      }
+    : {};
+  const runtimeKinds: Record<string, "local_fixture" | "live"> = offline ? Object.fromEntries(RUNTIME_COMPONENTS.map((c) => [c, "local_fixture" as const])) : {};
+  // Offline: exactly the components wired below (fixture set + identity fixtures + runtime fixtures).
+  const adapterKinds = offline ? { ...plannedOfflineKinds(), ...identityKinds, ...runtimeKinds } : plannedLiveKinds();
+  const deployable = await loadDeployableConfig({
+    environment,
+    clock,
+    adapterKinds,
+    loadedPolicy: policy ? { version: policy.policyVersion, digest: policy.bundleDigest } : null,
+    toolCatalogDigest: pinnedDigest,
+    env,
+    configDir: opts.configDir,
+    repoRoot: opts.repoRoot,
+    logger: bootLogger,
+  });
+  const config = deployable.config;
+  const gatewayConfig = gatewayConfigOf(config);
+  // Egress (DATA-01, fail closed): every configured live adapter endpoint and telemetry/export destination
+  // is checked against the egress allowlist before anything is constructed.
+  const egressReport = checkStartupEgress({ environment, policy: opts.egressPolicy ?? null, targets: egressTargetsFor(config, opts.telemetryExports ?? []) });
+
+  if (!offline || !policy) {
+    const reasons = ["LIVE_COMPOSITION_NOT_IMPLEMENTED@runtime", ...egressReport.violations];
+    if (!policy) reasons.push("POLICY_BUNDLE_NOT_LOADED@policy.bundlePath");
+    if (!gatewayConfig?.inboundAuth) reasons.push("GATEWAY_INBOUND_AUTH_NOT_CONFIGURED@gateway.inboundAuth");
+    bootLogger.error("container.refused", { environment, reasonCode: "LIVE_COMPOSITION_NOT_IMPLEMENTED" });
+    throw new ConfigurationRejectedError(reasons);
+  }
+  if (config.toolCatalog.expectedDigest && pinnedDigest !== config.toolCatalog.expectedDigest) {
+    throw new ConfigurationRejectedError(["TOOL_CATALOG_DIGEST_MISMATCH@toolCatalog.expectedDigest"]);
+  }
+  assertStartupEgress(egressReport);
+
+  // ------------------------------------------------------------------ offline composition
+  const logger = bootLogger.child({ component: "container" });
+  const tenantId = config.tenantId;
+  const tenantIds = [tenantId];
+  const metrics = new InMemoryMetrics({
+    catalogue: createMetricCatalogue({ toolNames: [...new Set([...(opts.metricToolNames ?? []), ...pinnedNamesOrEmpty()])] }),
+    unknownMetric: "drop",
+  });
+  const db = await PgliteDb.create();
+  const sinkDir = opts.auditSinkDir ?? mkdtempSync(join(tmpdir(), "vsp-local-audit-sink-"));
+  const ownsSinkDir = opts.auditSinkDir === undefined;
+  let app: FastifyInstance | null = null;
+  try {
+    await migrate(db);
+    const templates = loadDefaultTemplateRegistry();
+
+    // Identity (LOCAL FIXTURE directory, OIDC and notifications; in-memory session store).
+    const kv = new MemoryKvStoreFixture();
+    const directory = new LocalIdentityDirectoryFixture({ extraPeople: [] });
+    const notifications = new NotificationFixture({ clock, registeredChannelRefs: directory.allVerifiedChannelRefs() });
+    // OPS-KS-01: every outbound send passes the OUTBOUND_NOTIFICATIONS and INTEGRATION "notifications" kill
+    // switches (fail closed). `ops` is composed below; the closure reads it only when a send happens.
+    const gatedNotifications = new KillSwitchGatedNotificationSender({ inner: notifications, snapshot: () => ops.killSwitches.snapshot(tenantId), logger });
+    const idp = await LocalOidcProviderFixture.create({ clock });
+    const oidc = new LocalOidcVerifierFixture(idp, { clock });
+    const identityConfig = identityConfigFromPlatform(config, { policyVersion: policy.policyVersion, otpEnabled: opts.otpEnabled ?? false });
+    const sessions = new TrustedSessionService({ kv, clock, logger, metrics, config: identityConfig.session });
+    const verification = new SecureVerificationService({
+      sessions,
+      kv,
+      directory,
+      oidc,
+      notifications: gatedNotifications,
+      clock,
+      logger,
+      metrics,
+      otpPepper: LOCAL_FIXTURE_OTP_PEPPER,
+      config: identityConfig.verification,
+    });
+    const assertions = new SignedAssertionService({ keyRing: new AssertionKeyRing(new LocalEs256Signer()), kv, clock, issuer: "vsp-identity/local" });
+
+    // Audit, outbox, ledger.
+    const audit = new PgAuditWriter({ db, clock, stream: "runtime" });
+    const auditHealth = new PgAuditHealth({ db, clock, policy: { maxBacklog: config.audit.maxBacklog, maxBacklogAgeSeconds: config.audit.maxBacklogAgeSeconds }, probeId: "gateway" });
+    const auditQuery = new PgAuditQuery(db, "app_auditor");
+    const auditSink = new LocalFsAuditSinkFixture(sinkDir);
+    const auditShipper = new AuditShipper({ db, sink: auditSink, clock, logger });
+    // Route evidence only (handoffs): deferred while the audit store is unwritable, appended in order on recovery.
+    const deferredAudit = new DeferredAuditQueue({ writer: audit, clock, logger, metrics, health: auditHealth });
+    // Privacy: the runtime egress guard (same policy as the startup check) and the redaction service for
+    // QA / transcript artifact handling. The LOCAL FIXTURE quarantine store is not approved by the local
+    // policy, so a quarantined artifact is never sent anywhere (it stays in its restricted origin).
+    const egress = new EgressGuard(opts.egressPolicy ?? LOCAL_FIXTURE_EGRESS_POLICY, { environment, logger, metrics });
+    const redaction = new RedactionService({ quarantine: new InMemoryQuarantineStoreFixture("egr_local_quarantine_fixture"), egress, logger, clock, metrics });
+    const outbox = new PgOutbox({ clock });
+    const publisher = new MemoryPublisherFixture();
+    const instanceId = opts.instanceId ?? env.VSP_INSTANCE_ID ?? "local-1";
+    if (!/^[A-Za-z0-9_.-]{1,48}$/.test(instanceId)) throw new ConfigurationRejectedError(["INSTANCE_ID_INVALID@VSP_INSTANCE_ID"]);
+    const dispatcher = new PgOutboxDispatcher({ db, publisher, clock, tenants: tenantIds, audit, logger, instanceId });
+    const actions = new LedgerActionService({ db, clock, audit, auditHealth, outbox, logger });
+    // Persisted request hashes are keyed with a secret pepper (DP-02); LOCAL FIXTURE pepper offline, Secrets Manager live (BLOCKED).
+    const toolIdempotency = new ToolRequestIdempotency({ db, clock, requestHashPepper: LOCAL_FIXTURE_REQUEST_HASH_PEPPER });
+
+    // Adapters (LOCAL FIXTURES registered under the config keys).
+    const fixtureSet = createLocalFixtureSet({
+      clock,
+      logger,
+      destinations: config.destinations.map((d) => ({ destinationId: d.destinationId, vendorQueueRef: d.vendorQueueRef, purpose: d.purpose })),
+      extra: { "identity-directory": directory, "oidc-client-idp": oidc, notifications: gatedNotifications },
+    });
+
+    // Workflows, transfers, knowledge, memory, ops, safety, voice.
+    // Durable action grants (spec section 7): issued by the business layer inside the accepting
+    // transaction; every guarded workflow transition requires a valid grant for its declared action.
+    const grants = new PgDurableGrantStore({ db, clock, audit, logger });
+    // Pre-disclosure / material-change recheck (spec section 9): current consent, representation, account
+    // state and policy for the grant's actor and subject (LOCAL FIXTURE account and consent registries).
+    const consentRegistry = new LocalConsentRegistryFixture(clock);
+    const recheck = new BusinessPreDisclosureRecheck({
+      policy,
+      directory,
+      relationships: fixtureSet.relationships,
+      billing: fixtureSet.billing,
+      accounts: new LocalAccountStateFixture(directory),
+      consent: consentRegistry,
+      environment,
+      logger,
+    });
+    const workflows = new PgWorkflowEngine({ db, registry: createDefaultRegistry(), audit, clock, logger, metrics, grantStore: grants, recheck });
+    const transferStore = new MemoryTransferStore();
+    const transfers = new TransferCoordinator({
+      store: transferStore,
+      telephony: fixtureSet.telephony,
+      destinations: config.destinations,
+      clock,
+      audit,
+      logger,
+      config: {
+        environment,
+        updateTemplateIds: { STANDARD: "transfer.failed_next_route", SAFETY: "transfer.safety_update" },
+        // Engineering defaults pending operations approval (TB-07: vendor transfer events unverified).
+        attemptTimeoutMs: { STANDARD: 60_000, SAFETY: 30_000 },
+        maxStandardContinuityAttempts: 3,
+      },
+    });
+    const knowledge = new KnowledgeServicePg({ db, environment, clock, logger, metrics, embedder: null, allowedLinkDomains: LOCAL_ALLOWED_LINK_DOMAINS, audit });
+    if (opts.ingestKnowledge !== false) {
+      await knowledge.ingest(
+        tenantId,
+        loadLocalCorpus({ set: "approved", environment }).map((f) => f.item as KnowledgeItemInput),
+      );
+    }
+    const snapshot = await knowledge.snapshot(tenantId);
+    const memory = new SupportMemoryPg({ db, tenantIds, clock, logger, metrics });
+    const ops = createOpsServices(config, { db, audit, clock, metrics, logger });
+    if (config.ops?.budgets.requireBudget ?? true) await defineLocalIllustrativeBudget(ops, tenantId, environment, clock);
+    const safety = new SafetyPipeline();
+    const turns = new InMemoryTurnTracker();
+    const responseGate = new TemplateResponseGate({ registry: templates, metrics });
+
+    const versions: VersionSet = {
+      agentConfig: config.models.active.agentConfig,
+      model: config.models.active.model,
+      voice: config.models.active.voice,
+      promptTemplates: templates.digest(),
+      policyBundle: policy.policyVersion,
+      toolCatalog: pinnedDigest ?? "0".repeat(64),
+      knowledgeSnapshot: snapshot.version,
+      schema: PROTOCOL_VERSION,
+    };
+
+    // Per-call gateway state (per process): every handoff from any surface is indexed for TC-12 and
+    // TC-11 through the HandoffService observer; the pipeline records outcome evidence flags.
+    const handoffs = new HandoffIndex(clock);
+    const callOutcomes = new CallOutcomeTracker();
+    // Safety evidence for every safety route source (SAFE-HANDOFF-07), and the server-side call -> live session
+    // resolution for safety routes without a session context (SAFE-HANDOFF-05; LOCAL FIXTURE interaction index).
+    const safetyEvents = new SafetyEventRecorder({ db, audit, clock, logger, metrics });
+    const interactionLookup = new LocalInteractionLookupFixture();
+    const authenticator = new LocalFixtureTokenAuthenticator({ environment, tenantId });
+    const callSessions = new InteractionIndexCallSessions({
+      lookup: interactionLookup,
+      sessions,
+      integration: () => authenticator.authenticate(`Bearer ${LOCAL_FIXTURE_TOKENS.telephony_control}`, "telephony_control").catch(() => null),
+    });
+    const deps: ToolDeps = {
+      tenantId,
+      environment,
+      clock,
+      logger,
+      metrics,
+      db,
+      audit,
+      auditHealth,
+      auditQuery,
+      policy,
+      sessions,
+      verification,
+      assertions,
+      actions,
+      outbox,
+      workflows,
+      transfers,
+      knowledge,
+      memory,
+      killSwitches: ops.killSwitches,
+      admission: ops.admission,
+      adapters: {
+        identityDirectory: directory,
+        relationships: fixtureSet.relationships,
+        scheduling: fixtureSet.scheduling,
+        billing: fixtureSet.billing,
+        claims: fixtureSet.claims,
+        provider: fixtureSet.provider,
+        // OPS-KS-02: background Salesforce sync stops (and is held pending) while INTEGRATION salesforce or WRITES is engaged.
+        supportRecords: new KillSwitchGatedSupportRecords({ inner: fixtureSet.supportRecords, snapshot: () => ops.killSwitches.snapshot(tenantId), logger }),
+        telephony: fixtureSet.telephony,
+        notifications: gatedNotifications,
+      },
+      destinations: config.destinations,
+      safety: { detector: new RuleBasedSafetySignalDetector(), router: new DeterministicSafetyRouter() },
+      templates,
+      responseGate,
+      versions,
+      localFixture: true,
+      grants,
+      handoffObserver: (callId, result, priority) => handoffs.record(callId, result, priority),
+      deferredAudit,
+      safetyEvents,
+      callSessions,
+    };
+
+    // Business module and the pinned catalogue (must match the committed, reviewed file).
+    const business = opts.buildBusiness(deps);
+    const catalog = buildCatalog(business.tools);
+    if (!opts.allowUncommittedCatalog) {
+      const drift = catalogDriftAgainst(catalog, loadPinnedCatalogFile(CATALOG_FILE));
+      if (drift) throw new ConfigurationRejectedError([`${drift}@schemas/tools/catalog.json`]);
+    } else {
+      versions.toolCatalog = catalog.digest;
+    }
+    Object.freeze(versions);
+
+    const binding = new SessionBindingResolver({
+      mode: config.sessionBinding.mode,
+      exceptionApprovalId: config.sessionBinding.exceptionApprovalId,
+      sessions,
+      lookup: interactionLookup,
+    });
+    const pipeline = new ToolPipeline({
+      tenantId,
+      environment,
+      clock,
+      logger,
+      metrics,
+      catalog,
+      binding,
+      killSwitches: ops.killSwitches,
+      admission: ops.admission,
+      policy,
+      relationships: fixtureSet.relationships,
+      idempotency: toolIdempotency,
+      audit,
+      // Engineering defaults pending SRE review (spec section 12 resilience).
+      breakers: new CircuitBreakerRegistry({ clock, metrics }, { windowMs: 60_000, minimumRequests: 10, failureRateThreshold: 0.5, cooldownMs: 30_000, halfOpenMaxProbes: 1, halfOpenSuccessesToClose: 2 }),
+      speechPrecheck: responseGate,
+      templates,
+      versions,
+      localFixture: true,
+      routing: routingFromPolicyCatalogue(policy.catalogue),
+      mutationsEnabled: infra.mutationsEnabled,
+      callOutcomes,
+    });
+
+    const leases = new SessionLeaseRegistry();
+    const gatewayAudit = new GatewayAudit(audit, clock, logger, versions);
+    const rateLimit =
+      opts.rateLimit !== undefined
+        ? opts.rateLimit
+        : gatewayConfig?.http?.rateLimit !== undefined
+          ? gatewayConfig.http.rateLimit
+          : { max: 600, timeWindowMs: 60_000 };
+    app = await buildGatewayApp({
+      logger,
+      authenticator,
+      rateLimit,
+      // Tool-call limiter windows use the container clock (safety/human-route tools are never limited).
+      clock,
+      ...(gatewayConfig?.http ? { bodyLimitBytes: gatewayConfig.http.bodyLimitBytes } : {}),
+      routes: [
+        ...healthRoutes(new ReadinessProbe({ db, policy, auditHealth, configGuardPassed: deployable.report.deployable })),
+        ...toolRoutes({ pipeline, catalog }),
+        ...mcpRoutes({ pipeline, catalog, logger }),
+        ...telephonyRoutes({
+          tenantId,
+          environment,
+          clock,
+          logger,
+          sessions,
+          verification,
+          otpEnabled: identityConfig.verification.otpEnabled,
+          actions,
+          admission: ops.admission,
+          turns,
+          gate: new TemplateResponseGate({ registry: templates, turnTracker: turns, metrics }),
+          templates,
+          safety,
+          handoff: business.handoff,
+          outcomes: business.outcomes,
+          auditHealth,
+          audit: gatewayAudit,
+          interactionLookup,
+          leases,
+          handoffs,
+          supportRequests: business.supportRequests,
+          journeys: transfers,
+          callOutcomes,
+          safetyEvents,
+          ...(business.confirmationSlots ? { confirmationSlots: business.confirmationSlots } : {}),
+          versions,
+          destinations: config.destinations,
+        }),
+        ...portalRoutes({ tenantId, verification, audit: gatewayAudit }),
+        ...webhookRoutes({ environment, clock, transfers }),
+      ],
+    });
+
+    // Every platform dataset with a retention rule (support memory, support records, idempotency, console ...).
+    const registry = createPlatformDatasetRegistry();
+    const retention = new RetentionJob({ db, registry, tenantIds, clock, logger, audit, configRetention: config.retention });
+
+    logger.info("container.ready", { environment, reasonCode: "LOCAL_FIXTURE_COMPOSITION", catalogDigest: catalog.digest, policyVersion: policy.policyVersion });
+    const builtApp = app;
+    return {
+      label: LOCAL_CONTAINER_LABEL,
+      environment,
+      config,
+      report: deployable.report,
+      tenantIds,
+      mutationsEnabled: infra.mutationsEnabled,
+      clock,
+      logger,
+      metrics,
+      db,
+      policy,
+      kv,
+      identity: { sessions, verification, assertions, directory, notifications, idp },
+      audit,
+      auditHealth,
+      auditQuery,
+      auditSink,
+      auditShipper,
+      deferredAudit,
+      privacy: { egress, redaction, egressReport },
+      outbox,
+      publisher,
+      dispatcher,
+      actions,
+      toolIdempotency,
+      fixtures: fixtureSet,
+      adapters: fixtureSet.registry,
+      workflows,
+      grants,
+      recheck: { service: recheck, consent: consentRegistry },
+      transferStore,
+      transfers,
+      knowledge,
+      memory,
+      ops,
+      templates,
+      turns,
+      safety,
+      versions,
+      deps,
+      business,
+      catalog,
+      pipeline,
+      interactionLookup,
+      leases,
+      handoffs,
+      callOutcomes,
+      authenticator,
+      retention,
+      app: builtApp,
+      async close() {
+        await builtApp.close().catch(() => undefined);
+        await db.close().catch(() => undefined);
+        if (ownsSinkDir) rmSync(sinkDir, { recursive: true, force: true });
+      },
+    };
+  } catch (err) {
+    await app?.close().catch(() => undefined);
+    await db.close().catch(() => undefined);
+    if (ownsSinkDir) rmSync(sinkDir, { recursive: true, force: true });
+    throw err;
+  }
+}
+
+/** Kinds of the components `createLocalFixtureSet` registers (same keys as platform/config/*.json). */
+function plannedOfflineKinds(): Record<string, "local_fixture" | "live"> {
+  return Object.fromEntries(["scheduling", "billing", "claims", "provider-system", "relationship-directory", "salesforce", "talkdesk-telephony"].map((k) => [k, "local_fixture" as const]));
+}
+
+function pinnedNamesOrEmpty(): string[] {
+  try {
+    return loadPinnedCatalogFile(CATALOG_FILE).definitions.map((d) => d.name);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * LOCAL FIXTURE budget: ILLUSTRATIVE figures (not an approved budget; approvedBy
+ * null is reported as unapproved) so admission's fail-closed budget check
+ * (requireBudget) can be exercised offline. Defined by the SYNTHETIC security
+ * admin through the real BudgetServicePg (audited).
+ */
+async function defineLocalIllustrativeBudget(ops: OpsServices, tenantId: string, environment: Environment, clock: Clock): Promise<void> {
+  const now = clock.now();
+  await ops.budgets.defineBudget({
+    tenantId,
+    environment,
+    cohort: "*",
+    workflow: "*",
+    vendor: "*",
+    periodStart: iso(new Date(now.getTime() - 86_400_000)),
+    periodEnd: iso(new Date(now.getTime() + 365 * 86_400_000)),
+    limitUsd: 1000,
+    safetyReserveUsd: 100,
+    meteringDelayMinutes: 60,
+    approvedBy: null,
+    version: "local-illustrative-1",
+    staff: { staffId: STAFF.securityAdmin.staffId, roles: [...STAFF.securityAdmin.roles], mfa: true, authenticatedAt: iso(now), breakGlass: null },
+  });
+}

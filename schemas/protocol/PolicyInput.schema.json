@@ -1,0 +1,456 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/PolicyInput.json",
+  "title": "PolicyInput",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "pattern": "^[a-z_]+:[a-z_]+$"
+    },
+    "purpose": {
+      "type": "string",
+      "enum": [
+        "caller_self_service",
+        "delegated_practice_administration",
+        "partner_administration",
+        "representative_access",
+        "safety_routing",
+        "human_handoff",
+        "public_information",
+        "staff_support",
+        "audit_review",
+        "durable_follow_up"
+      ]
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "local",
+        "ci",
+        "sandbox",
+        "staging",
+        "production"
+      ]
+    },
+    "now": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "tool": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "minAssurance": {
+              "type": "string",
+              "enum": [
+                "A0",
+                "A1",
+                "A2",
+                "A3"
+              ]
+            },
+            "consequential": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "name",
+            "version",
+            "minAssurance",
+            "consequential"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "tenantId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        "sessionGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "actorId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selectedRole": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "client",
+                "prospective_client",
+                "provider",
+                "practice_staff",
+                "partner",
+                "payer_representative",
+                "personal_representative"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "subjectId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "organizationId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "permittedScopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assurance": {
+          "type": "string",
+          "enum": [
+            "A0",
+            "A1",
+            "A2",
+            "A3"
+          ]
+        },
+        "authenticatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "revoked": {
+          "type": "boolean"
+        },
+        "riskFlags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "RECENT_NUMBER_CHANGE",
+              "OTP_ABUSE_SUSPECTED",
+              "ENUMERATION_SUSPECTED",
+              "SHARED_DEVICE_POSSIBLE",
+              "PARTICIPANT_CHANGED",
+              "ACCOUNT_RECOVERY_IN_PROGRESS",
+              "FRAUD_REVIEW",
+              "SAFETY_ESCALATION_ACTIVE"
+            ]
+          }
+        },
+        "consentRecording": {
+          "type": "string",
+          "enum": [
+            "GRANTED",
+            "DECLINED",
+            "UNKNOWN",
+            "NOT_REQUIRED"
+          ]
+        },
+        "consentAutomatedProcessing": {
+          "type": "string",
+          "enum": [
+            "GRANTED",
+            "DECLINED",
+            "UNKNOWN",
+            "NOT_REQUIRED"
+          ]
+        },
+        "stepUpDigest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stepUpExpiresAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "tenantId",
+        "sessionGeneration",
+        "actorId",
+        "selectedRole",
+        "subjectId",
+        "organizationId",
+        "permittedScopes",
+        "assurance",
+        "authenticatedAt",
+        "expiresAt",
+        "revoked",
+        "riskFlags",
+        "consentRecording",
+        "consentAutomatedProcessing",
+        "stepUpDigest",
+        "stepUpExpiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "resource": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z_]{3,40}$"
+        },
+        "tenantId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        "subjectId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "organizationId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "PUBLIC",
+            "INTERNAL",
+            "PHI",
+            "PHI_RESTRICTED",
+            "FINANCIAL",
+            "VERIFICATION_SECRET"
+          ]
+        },
+        "actionDigest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "tenantId",
+        "subjectId",
+        "organizationId",
+        "classification",
+        "actionDigest"
+      ],
+      "additionalProperties": false
+    },
+    "relationships": {
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "self",
+              "treating_provider",
+              "practice_member",
+              "practice_delegate",
+              "partner_affiliate",
+              "partner_contract_purpose",
+              "legal_representative",
+              "parental_authority"
+            ]
+          },
+          "actorId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "subjectId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "organizationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scopes": {
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z_]+:[a-z_]+$"
+            }
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "identity_provider",
+              "enrollment_system",
+              "delegation_registry",
+              "partner_contract_registry",
+              "legal_authority_registry"
+            ]
+          },
+          "validUntil": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "constraints": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "MINOR_CONFIDENTIALITY_REVIEW",
+                "CUSTODY_DISPUTE",
+                "AUTHORIZATION_EXPIRED"
+              ]
+            }
+          }
+        },
+        "required": [
+          "type",
+          "actorId",
+          "subjectId",
+          "organizationId",
+          "scopes",
+          "source",
+          "validUntil",
+          "constraints"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "killSwitches": {
+      "type": "object",
+      "properties": {
+        "aiAdmission": {
+          "type": "boolean"
+        },
+        "writes": {
+          "type": "boolean"
+        },
+        "intents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "integrations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "aiAdmission",
+        "writes",
+        "intents",
+        "integrations"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "action",
+    "purpose",
+    "environment",
+    "now",
+    "tool",
+    "auth",
+    "resource",
+    "relationships",
+    "killSwitches"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,66 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "CONCURRENT_SAME_ACCOUNT",
+  "version": 1,
+  "title": "Two concurrent calls change the same appointment",
+  "description": "A second synthetic call for the same account prepares and commits a change to the same appointment version while the first call is waiting for confirmation.",
+  "category": "concurrency",
+  "target": {
+    "components": [
+      "platform/src/actions",
+      "platform/src/adapters/local"
+    ],
+    "dependency": "scheduling"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": "commit_appointment_change",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "CONCURRENT_SESSION_COMMIT",
+    "afterExternalCommit": false,
+    "count": 1,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    },
+    {
+      "check": "confirmation_fresh",
+      "gate": "transaction"
+    },
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "INFORMATION_PROVIDED",
+        "DECLINED_BY_POLICY",
+        "TRANSFERRED",
+        "FAILED",
+        "RESOLVED"
+      ]
+    }
+  ],
+  "callerVisible": "The second commit sees a changed state, the caller is told the appointment changed since the options were read, and new options are offered after a fresh confirmation.",
+  "backendEvidence": [
+    "Optimistic-concurrency conflict (STATE_CHANGED) on the stale before-state version",
+    "Exactly one effect on the appointment",
+    "Audit events for both attempts"
+  ],
+  "requirementIds": [
+    "ACT-01",
+    "ACT-02",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "appointment_reschedule",
+    "appointment_cancel"
+  ],
+  "notes": "RESOLVED is acceptable only for a commit that re-prepared against the current version and was freshly confirmed."
+}

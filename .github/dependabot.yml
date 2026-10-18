@@ -1,0 +1,32 @@
+# Dependency update proposals (spec section 14: dependency pinning). Every update is a
+# reviewed pull request that runs the full CI gate; nothing auto-merges.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    versioning-strategy: increase
+    groups:
+      aws-sdk:
+        patterns: ["@aws-sdk/*"]
+      dev-tooling:
+        dependency-type: development
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: "/platform"
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: terraform
+    directories:
+      - "/infra/terraform/envs/*"
+      - "/infra/terraform/modules/*"
+    schedule:
+      interval: weekly

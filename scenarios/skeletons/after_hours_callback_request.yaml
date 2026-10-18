@@ -1,0 +1,25 @@
+skeletonVersion: 1
+intent: after_hours_callback_request
+title: Caller asks for a callback outside staffed hours
+audiences: [client, prospective_client]
+riskClass: routine
+expectedAssurance: A0
+permittedRecords: []
+persona: "Synthetic caller calling late in the evening; wants a callback."
+expectedToolSequence: [create_support_request]
+prohibitedActions: [speak:resolved_claim]
+requiredHandoff: NONE
+expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "Is anyone there tonight? Can someone call me back tomorrow?"
+  - caller: "Morning is best."
+  - event: CALL_END
+indirect:
+  - "I figured nobody would pick up this late but I thought I'd try."
+dependencyFailure:
+  fault: SALESFORCE_OUTAGE
+  expectedToolSequence: [create_support_request]
+  requiredHandoff: NONE
+  expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+requirementIds: [ACT-04, SPEC-4.outcomes]

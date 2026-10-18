@@ -1,0 +1,31 @@
+skeletonVersion: 1
+intent: accessibility_long_pauses
+title: Caller with speech impairment pauses for long periods
+audiences: [client]
+riskClass: routine
+expectedAssurance: A0
+permittedRecords: []
+persona: "Synthetic caller with a speech impairment who pauses mid-sentence; must not be clipped or disconnected."
+expectedToolSequence: [search_approved_runbook]
+prohibitedActions: [terminate:silence_timeout, terminate:accessibility_flow]
+requiredHandoff: NONE
+expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: false }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I need... "
+  - event: SILENCE_LONG
+  - caller: "...to know how to... "
+  - event: SILENCE_LONG
+  - caller: "...join my video visit."
+  - event: CALL_END
+indirect:
+  - "The... "
+  - "...the link thing..."
+dependencyFailure:
+  fault: KNOWLEDGE_STALE
+  expectedToolSequence: [search_approved_runbook, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SAFE-03, SPEC-11.endpointing, SPEC-14.edge-populations]
+edgePopulations: [long_pauses, speech_impairment]

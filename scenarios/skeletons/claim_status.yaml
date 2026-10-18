@@ -1,0 +1,30 @@
+skeletonVersion: 2
+intent: claim_status
+title: Verified client asks for insurer claim status
+audiences: [client]
+riskClass: privacy
+expectedAssurance: A2
+permittedRecords: [clm_synthAveryClaim0001]
+persona: "Synthetic client Avery; wants to know whether the insurer paid the September claim."
+expectedToolSequence: [begin_verification, get_claim_status]
+prohibitedActions: [speak:payment_guarantee, speak:coverage_decision]
+requiredHandoff: NONE
+expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "Has my insurance claim gone through?"
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "So does that mean it will definitely be paid?"
+  - event: CALL_END
+indirect:
+  - "I'm waiting to hear back from my insurance about a session in September."
+dependencyFailure:
+  # A failed or timed-out dependency read goes to a person (the coordinator's configured rule, the same for
+  # every read-only intent: billing, claims, provider and scheduling timeouts). The handoff writes the
+  # summary.human_handoff support record, so a support request exists.
+  fault: CLAIMS_TIMEOUT
+  expectedToolSequence: [begin_verification, get_claim_status, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [SPEC-4.prohibited-assertions]

@@ -1,0 +1,278 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/HandoffPackage.json",
+  "title": "HandoffPackage",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "handoffId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "callId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "sessionGeneration": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "CALLER_REQUESTED_HUMAN",
+        "SAFETY_PRIORITY",
+        "CLINICAL_QUESTION",
+        "POLICY_REQUIRES_HUMAN",
+        "VERIFICATION_RECOVERY",
+        "UNSUPPORTED_LANGUAGE",
+        "ACCESSIBILITY",
+        "DEPENDENCY_FAILURE",
+        "AI_UNAVAILABLE",
+        "CONSENT_DECLINED_ALTERNATIVE"
+      ]
+    },
+    "destinationId": {
+      "type": "string",
+      "pattern": "^dst_[a-z0-9_]{2,40}$"
+    },
+    "statedIssue": {
+      "type": "string",
+      "enum": [
+        "general_question",
+        "portal_login_help",
+        "appointment",
+        "billing_question",
+        "billing_dispute",
+        "claim_status",
+        "provider_onboarding",
+        "credentialing_documents",
+        "remittance",
+        "partner_intake",
+        "complaint",
+        "case_follow_up",
+        "privacy_concern",
+        "safety_concern",
+        "clinical_question_redirected",
+        "accessibility_request",
+        "language_support",
+        "other"
+      ]
+    },
+    "issueSummary": {
+      "type": "string",
+      "maxLength": 400
+    },
+    "assurance": {
+      "type": "string",
+      "enum": [
+        "A0",
+        "A1",
+        "A2",
+        "A3"
+      ]
+    },
+    "assuranceLimits": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 120
+      }
+    },
+    "authorizedSubjectRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "consent": {
+      "type": "object",
+      "properties": {
+        "recording": {
+          "type": "string",
+          "enum": [
+            "GRANTED",
+            "DECLINED",
+            "UNKNOWN",
+            "NOT_REQUIRED"
+          ]
+        },
+        "automatedProcessing": {
+          "type": "string",
+          "enum": [
+            "GRANTED",
+            "DECLINED",
+            "UNKNOWN",
+            "NOT_REQUIRED"
+          ]
+        },
+        "disclosureTemplateVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "capturedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "capturedBy": {
+          "type": "string",
+          "enum": [
+            "studio_flow",
+            "human_agent",
+            "portal",
+            "none"
+          ]
+        }
+      },
+      "required": [
+        "recording",
+        "automatedProcessing",
+        "disclosureTemplateVersion",
+        "capturedAt",
+        "capturedBy"
+      ],
+      "additionalProperties": false
+    },
+    "actionReceiptIds": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+      }
+    },
+    "pendingActionIds": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+      }
+    },
+    "unresolvedTasks": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 160
+      }
+    },
+    "supportReference": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^SR-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+    },
+    "accommodations": {
+      "maxItems": 5,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "interpreter",
+          "relay_service",
+          "slower_speech",
+          "repeat_on_request",
+          "tty"
+        ]
+      }
+    },
+    "safetyRoutingReason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "EXPLICIT_PHRASE",
+            "SEMANTIC_SIGNAL",
+            "ASR_UNCERTAIN",
+            "CALLER_REQUEST",
+            "HUMAN_INTERVENTION",
+            "FAIL_SAFE"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "clinicalStatementsIncluded": {
+      "type": "boolean"
+    },
+    "verificationAssertion": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 4096
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    }
+  },
+  "required": [
+    "handoffId",
+    "tenantId",
+    "callId",
+    "sessionGeneration",
+    "reason",
+    "destinationId",
+    "statedIssue",
+    "issueSummary",
+    "assurance",
+    "assuranceLimits",
+    "authorizedSubjectRef",
+    "consent",
+    "actionReceiptIds",
+    "pendingActionIds",
+    "unresolvedTasks",
+    "supportReference",
+    "language",
+    "accommodations",
+    "safetyRoutingReason",
+    "clinicalStatementsIncluded",
+    "verificationAssertion",
+    "createdAt"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,25 @@
+skeletonVersion: 1
+intent: notification_opt_out
+title: Caller asks to stop reminder messages
+audiences: [client]
+riskClass: privacy
+expectedAssurance: A0
+permittedRecords: []
+persona: "Synthetic client who wants text reminders stopped; preference change goes to intake."
+expectedToolSequence: [create_support_request]
+prohibitedActions: [notify:new_number, speak:resolved_claim]
+requiredHandoff: NONE
+expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "Please stop sending me reminder texts."
+  - caller: "Yes, all of them."
+  - event: CALL_END
+indirect:
+  - "I keep getting these messages on my phone and I'd rather not."
+dependencyFailure:
+  fault: SALESFORCE_OUTAGE
+  expectedToolSequence: [create_support_request]
+  requiredHandoff: NONE
+  expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+requirementIds: [SPEC-9.notifications, ACT-04]

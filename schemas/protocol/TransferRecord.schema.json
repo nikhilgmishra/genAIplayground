@@ -1,0 +1,117 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/TransferRecord.json",
+  "title": "TransferRecord",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "transferId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "handoffId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "callId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "destinationId": {
+      "type": "string",
+      "pattern": "^dst_[a-z0-9_]{2,40}$"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "SAFETY",
+        "STANDARD"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "REQUESTED",
+        "QUEUED",
+        "RECEIVER_ACCEPTED",
+        "BRIDGED",
+        "CALLER_CONFIRMED_CONNECTED",
+        "COMPLETED",
+        "TIMED_OUT",
+        "RECEIVER_UNAVAILABLE",
+        "BRIDGE_DROPPED",
+        "CALLER_DISCONNECTED",
+        "FAILED"
+      ]
+    },
+    "history": {
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "REQUESTED",
+              "QUEUED",
+              "RECEIVER_ACCEPTED",
+              "BRIDGED",
+              "CALLER_CONFIRMED_CONNECTED",
+              "COMPLETED",
+              "TIMED_OUT",
+              "RECEIVER_UNAVAILABLE",
+              "BRIDGE_DROPPED",
+              "CALLER_DISCONNECTED",
+              "FAILED"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "state",
+          "at",
+          "source"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "receiverAcknowledgedPackage": {
+      "type": "boolean"
+    },
+    "fallbackDestinationIds": {
+      "maxItems": 4,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^dst_[a-z0-9_]{2,40}$"
+      }
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    }
+  },
+  "required": [
+    "transferId",
+    "handoffId",
+    "callId",
+    "destinationId",
+    "priority",
+    "state",
+    "history",
+    "receiverAcknowledgedPackage",
+    "fallbackDestinationIds",
+    "updatedAt"
+  ],
+  "additionalProperties": false
+}

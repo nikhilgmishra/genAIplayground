@@ -1,0 +1,53 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "DUPLICATE_WEBHOOK",
+  "version": 1,
+  "title": "Vendor redelivers the same event twice",
+  "description": "The same inbound event (workflow callback / vendor webhook) is delivered twice with the same event id after the first delivery was processed.",
+  "category": "delivery",
+  "target": {
+    "components": [
+      "platform/src/outbox",
+      "platform/src/workflows",
+      "platform/src/gateway"
+    ],
+    "dependency": null
+  },
+  "trigger": {
+    "kind": "AFTER_TOOL_RESULT",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "DUPLICATE_DELIVERY",
+    "afterExternalCommit": false,
+    "count": 2,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    }
+  ],
+  "callerVisible": "No caller-visible change; the caller receives one reference and one neutral notification at most.",
+  "backendEvidence": [
+    "Second delivery deduplicated by event id / idempotency key",
+    "One workflow transition and one support record",
+    "Dedup decision recorded"
+  ],
+  "requirementIds": [
+    "ACT-02",
+    "SPEC-8.outbox",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "billing_dispute",
+    "complaint_intake",
+    "partner_intake"
+  ],
+  "notes": "Inbound webhook authentication for the real vendor is BLOCKED (TB-09); the fixture exercises only deduplication."
+}

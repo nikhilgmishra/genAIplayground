@@ -1,0 +1,406 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/AuditEvent.json",
+  "title": "AuditEvent",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "schemaVersion": {
+      "type": "string",
+      "const": "audit.v1"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "correlationId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "parentId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "actorRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "subjectRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "role": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "client",
+                "prospective_client",
+                "provider",
+                "practice_staff",
+                "partner",
+                "payer_representative",
+                "personal_representative"
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "support_agent",
+                "supervisor",
+                "safety_responder",
+                "auditor",
+                "knowledge_editor",
+                "policy_approver",
+                "deployment_operator",
+                "security_admin"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceComponent": {
+      "type": "string",
+      "enum": [
+        "gateway",
+        "mcp_adapter",
+        "telephony_control",
+        "identity",
+        "policy",
+        "actions",
+        "workflow",
+        "knowledge",
+        "safety",
+        "voice_gate",
+        "console",
+        "worker",
+        "retention",
+        "config"
+      ]
+    },
+    "callId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sessionRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 128
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sessionGeneration": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "turnId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 80
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "versions": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "agentConfig": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            },
+            "model": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            },
+            "voice": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            },
+            "promptTemplates": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            },
+            "policyBundle": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            },
+            "toolCatalog": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "knowledgeSnapshot": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            },
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            }
+          },
+          "required": [
+            "agentConfig",
+            "model",
+            "voice",
+            "promptTemplates",
+            "policyBundle",
+            "toolCatalog",
+            "knowledgeSnapshot",
+            "schema"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "action": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+    },
+    "policyDecision": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "decisionId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            "allow": {
+              "type": "boolean"
+            },
+            "reasonCodes": {
+              "maxItems": 16,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+              }
+            },
+            "policyVersion": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "decisionId",
+            "allow",
+            "reasonCodes",
+            "policyVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "assurance": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "A0",
+            "A1",
+            "A2",
+            "A3"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evidencePointers": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 200
+      }
+    },
+    "beforeHash": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "afterHash": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "idempotencyKey": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 128
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "ALLOWED",
+        "DENIED",
+        "SUCCEEDED",
+        "FAILED",
+        "PENDING",
+        "UNKNOWN",
+        "INVALIDATED",
+        "RECONCILED"
+      ]
+    },
+    "reasonCode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "dataClass": {
+      "type": "string",
+      "enum": [
+        "TRANSIENT_CONVERSATION",
+        "BUSINESS_RECORD",
+        "RESTRICTED_QA_MEDIA",
+        "SECURITY_AUDIT"
+      ]
+    },
+    "sourceStream": {
+      "type": "string",
+      "pattern": "^[a-z0-9_.-]{3,64}$"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "prevHash": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "eventId",
+    "schemaVersion",
+    "occurredAt",
+    "correlationId",
+    "parentId",
+    "tenantId",
+    "actorRef",
+    "subjectRef",
+    "role",
+    "sourceComponent",
+    "callId",
+    "sessionRef",
+    "sessionGeneration",
+    "turnId",
+    "versions",
+    "action",
+    "policyDecision",
+    "assurance",
+    "evidencePointers",
+    "beforeHash",
+    "afterHash",
+    "idempotencyKey",
+    "outcome",
+    "reasonCode",
+    "dataClass",
+    "sourceStream",
+    "sequence",
+    "prevHash",
+    "hash"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,1304 @@
+# Requirement catalogue (spec: docs/spec/voice-support-specification.txt).
+#
+# Every acceptance invariant (exact text) and the specification requirements as
+# SPEC-<section>.<topic> ids. Each entry names where the requirement is enforced
+# (module paths), how it is verified, and whether verification beyond the offline
+# slice is externally BLOCKED (owner prerequisite in docs/prerequisites.yaml).
+# `aliases` maps tags that tests already use to the canonical id.
+#
+# The traceability generator (platform/src/evaluation/traceability.ts) reads this
+# file, scans test titles for [TAG]s and renders docs/REQUIREMENTS_TRACEABILITY.md.
+# Release status is never inferred from this file alone: IMPLEMENTED_OFFLINE needs
+# at least one tagged test and every tagged test passing in a recorded run.
+catalogVersion: "2026-10-18.1"
+source: docs/spec/voice-support-specification.txt
+verificationTypes: [unit, property, contract, adversarial, workflow, audio, load, manual, operational]
+requirements:
+  # ---------------------------------------------------------------- invariants
+  - id: AUTH-01
+    kind: invariant
+    section: "Acceptance invariants; 7"
+    text: "Caller ID, DOB, NPI and spoken claims never authenticate a session alone."
+    enforcement: [platform/src/identity, policy/]
+    verification: [unit, adversarial]
+    externalBlock: { reason: "Real IdP account linking and registered-channel data", prerequisites: [PRQ-005, PRQ-030] }
+  - id: AUTH-02
+    kind: invariant
+    section: "Acceptance invariants; 7, 14"
+    text: "Every protected read and mutation is authorized in trusted backend code."
+    enforcement: [platform/src/gateway, platform/src/policy, policy/]
+    verification: [unit, adversarial]
+    externalBlock: null
+  - id: AUTH-03
+    kind: invariant
+    section: "Acceptance invariants; 7"
+    text: "Actor, subject, organization, assurance and consent are server-established."
+    enforcement: [platform/src/identity, platform/src/gateway, platform/src/protocol/common.ts]
+    verification: [unit, adversarial]
+    externalBlock: { reason: "Vendor session binding outside model-controlled arguments (TB-01)", prerequisites: [PRQ-013] }
+  - id: AUTH-04
+    kind: invariant
+    section: "Acceptance invariants; 7"
+    text: "Expired or revoked sessions fail closed even if TTL cleanup has not run."
+    enforcement: [platform/src/identity]
+    verification: [unit]
+    externalBlock: null
+  - id: AUTH-05
+    kind: invariant
+    section: "Acceptance invariants; 4, 7"
+    text: "A provider or partner cannot access an unrelated person's records."
+    enforcement: [policy/, platform/src/identity, platform/migrations]
+    verification: [unit, adversarial]
+    externalBlock: { reason: "Authoritative enrollment and delegation registries", prerequisites: [PRQ-005, PRQ-007] }
+  - id: AUTH-06
+    kind: invariant
+    section: "Acceptance invariants; 7"
+    text: "Verification secrets never reach a model, transcript or ordinary logs."
+    enforcement: [platform/src/identity, platform/src/observability, platform/src/audit]
+    verification: [unit, audio]
+    externalBlock: { reason: "Isolated DTMF capture must be proven on the vendor path (TB-03)", prerequisites: [PRQ-015] }
+  - id: AUTH-07
+    kind: invariant
+    section: "Acceptance invariants; 2"
+    text: "Talkdesk Auth Gate false, null, undefined and reused-session cases are tested."
+    enforcement: [platform/src/identity, talkdesk/auth-gate.md]
+    verification: [unit, contract]
+    externalBlock: { reason: "Auth Gate behaviour in a tenant sandbox (TB-06)", prerequisites: [PRQ-018] }
+  - id: DATA-01
+    kind: invariant
+    section: "Acceptance invariants; 6"
+    text: "No PHI goes to an unapproved endpoint, developer tool or analytics sink."
+    enforcement: [platform/src/privacy, platform/src/observability, platform/src/config]
+    verification: [unit, operational]
+    externalBlock: { reason: "BAA coverage and approved observability export", prerequisites: [PRQ-002, PRQ-047] }
+  - id: DATA-02
+    kind: invariant
+    section: "Acceptance invariants; 6"
+    text: "Raw audio remains sensitive even when a later transcript is redacted."
+    enforcement: [platform/src/privacy, platform/src/retention, docs/privacy]
+    verification: [unit, manual]
+    externalBlock: { reason: "Reviewed data-flow inventory covering vendor audio paths", prerequisites: [PRQ-003] }
+  - id: DATA-03
+    kind: invariant
+    section: "Acceptance invariants; 6"
+    text: "Recording and processing follow approved consent and retention controls."
+    enforcement: [platform/src/privacy, platform/src/retention, talkdesk/studio-flow-spec.md]
+    verification: [unit, audio]
+    externalBlock: { reason: "Approved consent wording and retention schedule", prerequisites: [PRQ-025, PRQ-026] }
+  - id: DATA-04
+    kind: invariant
+    section: "Acceptance invariants; 9"
+    text: "A summary or memory cannot establish identity, consent or medical fact."
+    enforcement: [platform/src/memory]
+    verification: [unit]
+    externalBlock: null
+  - id: ACT-01
+    kind: invariant
+    section: "Acceptance invariants; 8"
+    text: "Every consequential action has fresh, transaction-bound confirmation."
+    enforcement: [platform/src/actions, platform/src/voice]
+    verification: [unit, property, workflow]
+    externalBlock: { reason: "Deterministic confirmation capture on the vendor path (TB-02)", prerequisites: [PRQ-014] }
+  - id: ACT-02
+    kind: invariant
+    section: "Acceptance invariants; 8"
+    text: "Retry, redelivery and crash-after-commit tests create no duplicate effect."
+    enforcement: [platform/src/actions, platform/src/outbox]
+    verification: [unit, property, workflow]
+    externalBlock: { reason: "Provider idempotency semantics for real business systems", prerequisites: [PRQ-007] }
+  - id: ACT-03
+    kind: invariant
+    section: "Acceptance invariants; 8"
+    text: "An ambiguous timeout is reconciled before retry or success is announced."
+    enforcement: [platform/src/actions]
+    verification: [unit, workflow]
+    externalBlock: { reason: "Authoritative lookup-by-key in real business systems", prerequisites: [PRQ-007] }
+  - id: ACT-04
+    kind: invariant
+    section: "Acceptance invariants; 4"
+    text: "Case creation and workflow acceptance do not count as issue resolution."
+    enforcement: [platform/src/workflows, platform/src/business, platform/src/evaluation/scorer.ts]
+    verification: [unit, workflow]
+    externalBlock: null
+  - id: ACT-05
+    kind: invariant
+    section: "Acceptance invariants; 11"
+    text: "Protected utterances cannot be spoken before authorization and validation."
+    enforcement: [platform/src/voice]
+    verification: [unit, audio]
+    externalBlock: { reason: "Before-speech validation on the vendor path (TB-04)", prerequisites: [PRQ-016] }
+  - id: SAFE-01
+    kind: invariant
+    section: "Acceptance invariants; 10"
+    text: "No diagnosis, therapy, clinical screening or medication recommendation."
+    enforcement: [platform/src/safety, platform/src/voice]
+    verification: [unit, adversarial, manual]
+    externalBlock: { reason: "Clinician-approved boundary scripts and human-reviewed clinical corpus", prerequisites: [PRQ-008, PRQ-028, PRQ-012] }
+  - id: SAFE-02
+    kind: invariant
+    section: "Acceptance invariants; 10"
+    text: "Safety routing and human requests do not require account authentication."
+    enforcement: [platform/src/safety, platform/src/ops, platform/src/gateway]
+    verification: [unit, workflow, audio]
+    externalBlock: { reason: "Early safety signal and deterministic handoff on the vendor path (TB-05)", prerequisites: [PRQ-017] }
+  - id: SAFE-03
+    kind: invariant
+    section: "Acceptance invariants; 2, 12"
+    text: "Refusal counts, silence and cost limits never silently terminate safety flow."
+    enforcement: [platform/src/ops, platform/src/safety, talkdesk/ai-agent-config.yaml]
+    verification: [unit, audio]
+    externalBlock: { reason: "Guardrail exit behaviour in a tenant sandbox (TB-05)", prerequisites: [PRQ-017] }
+  - id: SAFE-04
+    kind: invariant
+    section: "Acceptance invariants; 10"
+    text: "Transfer succeeds only with receiver acceptance and verified connection."
+    enforcement: [platform/src/workflows/transfer.ts]
+    verification: [unit, workflow, audio]
+    externalBlock: { reason: "Transfer event export from the vendor (TB-07)", prerequisites: [PRQ-019] }
+  - id: SAFE-05
+    kind: invariant
+    section: "Acceptance invariants; 10"
+    text: "A caller, model or retrieved document cannot choose an arbitrary dial target."
+    enforcement: [platform/src/config, platform/src/workflows/transfer.ts]
+    verification: [unit, adversarial]
+    externalBlock: null
+  - id: OPS-01
+    kind: invariant
+    section: "Acceptance invariants; 13"
+    text: "Every accepted consequential action has durable independent audit evidence."
+    enforcement: [platform/src/audit, platform/src/actions]
+    verification: [unit, workflow, operational]
+    externalBlock: { reason: "Separately administered audit account with Object Lock", prerequisites: [PRQ-037, PRQ-040] }
+  - id: OPS-02
+    kind: invariant
+    section: "Acceptance invariants; 3, 12"
+    text: "AI failure preserves a usable telephony route with documented capacity."
+    enforcement: [talkdesk/studio-flow-spec.md, platform/src/ops]
+    verification: [operational, audio]
+    externalBlock: { reason: "Staffed capacity, quotas and continuity arrangement", prerequisites: [PRQ-009, PRQ-022, PRQ-049] }
+  - id: OPS-03
+    kind: invariant
+    section: "Acceptance invariants; 14"
+    text: "Unknown capabilities, missing evidence and unrun tests are not PASS."
+    enforcement: [platform/src/evaluation/scorer.ts, platform/src/evaluation/aggregate.ts, platform/src/evaluation/traceability.ts, docs/prerequisites.yaml]
+    verification: [unit]
+    externalBlock: null
+    # Review finding id used by the release-manifest evidence-bound regression tests.
+    aliases: [OPS-REL-01]
+  - id: OPS-04
+    kind: invariant
+    section: "Acceptance invariants; 16"
+    text: "Production refuses fixture adapters and missing mandatory approvals."
+    enforcement: [platform/src/config/guard.ts]
+    verification: [unit]
+    externalBlock: { reason: "Trusted approval signing key", prerequisites: [PRQ-023] }
+  - id: OPS-05
+    kind: invariant
+    section: "Acceptance invariants; 12, 16"
+    text: "No paid tests, PHI access or production changes without scoped authorization."
+    enforcement: [platform/src/config/guard.ts, approvals/, platform/src/ops/budgets.ts]
+    verification: [unit, operational]
+    externalBlock: { reason: "Approved budgets and signed approval records", prerequisites: [PRQ-010, PRQ-024] }
+  - id: OPS-06
+    kind: invariant
+    section: "Acceptance invariants; 15, 16"
+    text: "Model, voice, knowledge, tools and policy versions are pinned and reviewable."
+    enforcement: [platform/src/evaluation/manifest.ts, platform/src/protocol/release.ts]
+    verification: [unit, operational]
+    externalBlock: { reason: "Vendor version identity, pinned CI actions and base image", prerequisites: [PRQ-020, PRQ-041, PRQ-042] }
+    # Review finding id used by the release.yml manifest-command regression tests.
+    aliases: [OPS-REL-02]
+
+  # ---------------------------------------------------------------- section 2
+  - id: SPEC-2.auth-gate-values
+    kind: spec
+    section: "2 Verified platform capabilities"
+    text: "Auth Gate is tested for missing, null, false, string values, expiry and session reuse; an unauthenticated session is never initialized with a gate-opening value."
+    enforcement: [platform/src/identity, talkdesk/auth-gate.md]
+    verification: [unit, contract]
+    externalBlock: { reason: "Tenant Auth Gate behaviour (TB-06)", prerequisites: [PRQ-018] }
+  - id: SPEC-2.version-proof
+    kind: spec
+    section: "2 Verified platform capabilities"
+    text: "Prove which agent/model/voice version each simulator or evaluation test exercises; never invent simulator endpoints."
+    enforcement: [platform/src/evaluation/runner.ts, talkdesk/simulator-and-evaluation-runbook.md]
+    verification: [manual, operational]
+    externalBlock: { reason: "Version identity in vendor exports (TB-08)", prerequisites: [PRQ-020] }
+  - id: SPEC-2.guardrail-exit
+    kind: spec
+    section: "2 Verified platform capabilities"
+    text: "Guardrail exits route back to Studio; crisis and accessibility interactions reach a human without being terminated by refusal counters, silence limits or maximum turns."
+    enforcement: [talkdesk/ai-agent-config.yaml, talkdesk/studio-flow-spec.md, platform/src/safety]
+    verification: [audio, manual]
+    aliases: [SPEC-2.guardrail]
+    externalBlock: { reason: "Guardrail exit behaviour in a tenant sandbox (TB-05)", prerequisites: [PRQ-017] }
+  - id: SPEC-2.model-evidence
+    kind: spec
+    section: "2 Claims to remove or qualify"
+    text: "Exact model, region, quota and endpoint evidence is required before selecting a speech or language model; vendor latency and quality claims are not adopted without matched, dated evidence."
+    enforcement: [docs/vendor-integration-inventory.md, platform/src/evaluation/manifest.ts]
+    verification: [manual]
+    externalBlock: { reason: "Model/voice selection evidence", prerequisites: [PRQ-045] }
+
+  # ---------------------------------------------------------------- section 3
+  - id: SPEC-3.trust-boundaries
+    kind: spec
+    section: "3 Trust boundaries and deployment"
+    text: "Caller input, retrieved articles, tool free text, transcripts and uploads are untrusted; the gateway reconstructs permissions from server-side state on every action."
+    enforcement: [platform/src/gateway, docs/ARCHITECTURE.md]
+    verification: [unit, adversarial]
+    externalBlock: null
+  - id: SPEC-3.independent-human-route
+    kind: spec
+    section: "3 Trust boundaries and deployment"
+    text: "An independent Studio route to human support exists that needs no model response, gateway request or policy decision."
+    enforcement: [talkdesk/studio-flow-spec.md]
+    verification: [audio, operational]
+    externalBlock: { reason: "Tenant sandbox and staffed queues", prerequisites: [PRQ-004, PRQ-009] }
+  - id: SPEC-3.workflow-engine
+    kind: spec
+    section: "3 Preferred stack"
+    text: "Durable work uses Step Functions Standard workflows; no second workflow engine, Kafka or separate vector database by default."
+    enforcement: [platform/src/workflows, infra/stepfunctions, docs/adr]
+    verification: [unit, manual]
+    aliases: [SPEC-3.stepfunctions]
+    externalBlock: { reason: "AWS sandbox account", prerequisites: [PRQ-037] }
+  - id: SPEC-3.vendor-capability-gate
+    kind: spec
+    section: "3 Vendor capability gate"
+    text: "Before PHI-bearing production calls, demonstrate trusted call-context binding, secure verification entry, protected tool access, before-speech controls, early safety signal, safe guardrail exits, version identity, event exports, transfer behaviour and contracted concurrency."
+    enforcement: [talkdesk/capability-gate.md]
+    verification: [audio, manual]
+    externalBlock: { reason: "Vendor capability evidence TB-01..TB-10", prerequisites: [PRQ-013, PRQ-014, PRQ-015, PRQ-016, PRQ-017, PRQ-018, PRQ-019, PRQ-022] }
+  - id: SPEC-3.ingress
+    kind: spec
+    section: "3 Trust boundaries and deployment"
+    text: "Only the ingress needed by Talkdesk is exposed, with TLS, WAF and narrow authentication; stateful services stay private; IP allowlists are supplemental."
+    enforcement: [infra/terraform]
+    verification: [operational]
+    externalBlock: { reason: "AWS accounts and deployed infrastructure", prerequisites: [PRQ-037] }
+
+  # ---------------------------------------------------------------- section 4
+  - id: SPEC-4.outcomes
+    kind: spec
+    section: "4 Initial workflow catalogue"
+    text: "Distinct outcomes RESOLVED, REQUEST_ACCEPTED, TRANSFERRED, INFORMATION_PROVIDED, DECLINED_BY_POLICY, CALLER_DISCONNECTED, FAILED and OUTCOME_UNKNOWN; hang-up, HTTP 200 or Case creation alone never set RESOLVED."
+    enforcement: [platform/src/workflows/outcome.ts, platform/src/protocol/common.ts, platform/src/evaluation/scorer.ts, platform/src/business/outcomes.ts]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-4.resolution-contracts
+    kind: spec
+    section: "4 Initial workflow catalogue"
+    text: "Each workflow has a versioned resolution contract (audience, intent, assurance, permitted fields, source system, actions, success evidence, confirmation, escalation owner, deadline, after-hours behaviour, prohibited assertions)."
+    enforcement: [platform/src/business, platform/src/protocol/contracts.ts]
+    verification: [unit]
+    externalBlock: { reason: "Approved contracts from business owners", prerequisites: [PRQ-033] }
+  - id: SPEC-4.workflow-catalogue
+    kind: spec
+    section: "4 Initial workflow catalogue"
+    text: "Implement public FAQs, login guidance, appointment lookup/create/reschedule, invoice explanation, claim status, provider onboarding, remittance lookup, partner intake, complaint intake and Case follow-up; unsupported workflows get honest intake or handoff."
+    enforcement: [platform/src/business, platform/src/gateway, scenarios/skeletons]
+    verification: [unit, workflow]
+    aliases: [SPEC-4.scheduling, SPEC-4.provider, SPEC-4.claims, SPEC-4.billing, SPEC-4.appointment-create, SPEC-4.claim-status, SPEC-4.complaint, SPEC-4.invoice, SPEC-4.login, SPEC-4.partner-intake, SPEC-8.case-status]
+    externalBlock: { reason: "Business-system APIs", prerequisites: [PRQ-007] }
+  - id: SPEC-4.audience-permissions
+    kind: spec
+    section: "4 Audience permissions"
+    text: "Provider identifiers, partner email domains and caller statements do not establish access; staff permissions come from authoritative enrollment and delegation records; no blanket patient search; no employer access to treatment status."
+    enforcement: [policy/, platform/src/identity]
+    verification: [unit, adversarial]
+    aliases: [SPEC-4.audience]
+    externalBlock: { reason: "Authoritative registries", prerequisites: [PRQ-005] }
+  - id: SPEC-4.role-selection
+    kind: spec
+    section: "4 Audience permissions"
+    text: "A multi-role user selects one role; privileges are never combined silently."
+    enforcement: [platform/src/identity, policy/]
+    verification: [unit]
+    aliases: [SPEC-4.single-role]
+    externalBlock: null
+  - id: SPEC-4.payments-isolated
+    kind: spec
+    section: "4 Initial workflow catalogue"
+    text: "Payments use an approved hosted payment page or isolated PCI flow; card numbers and security codes never enter speech transcripts or models."
+    enforcement: [platform/src/voice, platform/src/privacy]
+    verification: [unit, adversarial]
+    aliases: [SPEC-4.payment-page]
+    externalBlock: { reason: "Approved hosted payment page", prerequisites: [PRQ-050] }
+  - id: SPEC-4.prohibited-assertions
+    kind: spec
+    section: "4 Initial workflow catalogue"
+    text: "Invoice explanations do not decide coverage, waive fees or promise refunds; claim status is not an eligibility or payment guarantee; login help never asks for passwords or bypasses IdP recovery; scheduling does no clinical suitability matching."
+    enforcement: [platform/src/voice, platform/src/business]
+    verification: [unit, adversarial]
+    externalBlock: null
+
+  # ---------------------------------------------------------------- section 5
+  - id: SPEC-5.prerequisite-register
+    kind: spec
+    section: "5 Prerequisites and ownership"
+    text: "Each prerequisite stores owner, status, evidence reference, approval date, expiry, environment and next action; UNKNOWN and BLOCKED are never equivalent to approved."
+    enforcement: [docs/prerequisites.yaml, docs/tools/render-prerequisites.mjs]
+    verification: [unit]
+    aliases: [SPEC-5.prerequisites]
+    externalBlock: null
+
+  # ---------------------------------------------------------------- section 6
+  - id: SPEC-6.data-classes
+    kind: spec
+    section: "6 Data protection and compliance controls"
+    text: "Separate transient conversational data, business records, restricted QA media and security/audit evidence; retention by class and legal purpose; no invented universal retention duration."
+    enforcement: [platform/src/retention, platform/src/audit/sinks, docs/privacy]
+    verification: [unit]
+    aliases: [SPEC-6.3]
+    externalBlock: { reason: "Retention schedule from counsel", prerequisites: [PRQ-025] }
+  - id: SPEC-6.redaction
+    kind: spec
+    section: "6 Data protection and compliance controls"
+    text: "Redact or tokenize before general logs, analytics and downstream sharing; redaction failure quarantines the artifact and never justifies sending raw content to a debugging vendor."
+    enforcement: [platform/src/privacy]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-6.no-phi-in-identifiers
+    kind: spec
+    section: "6 Data protection and compliance controls"
+    text: "No PHI in URLs, metric labels, alert text, resource names, trace baggage, error messages or support tickets."
+    enforcement: [platform/src/shared/ids.ts, platform/src/observability]
+    verification: [unit]
+    aliases: [SPEC-6.no-phi-in-urls, SPEC-6.no-phi-url]
+    externalBlock: null
+  - id: SPEC-6.consent-before-recording
+    kind: spec
+    section: "6 Data protection and compliance controls"
+    text: "Consent is configured before recording where required; the approved alternative is offered on decline; never claim a call is unrecorded while processing continues."
+    enforcement: [platform/src/privacy/consent.ts, talkdesk/studio-flow-spec.md]
+    verification: [unit, audio]
+    externalBlock: { reason: "Jurisdiction-approved disclosure and alternative", prerequisites: [PRQ-026] }
+  - id: SPEC-6.case-minimization
+    kind: spec
+    section: "6 Data protection and compliance controls"
+    text: "Store a concise approved summary and a permission-checked evidence reference in Cases instead of full transcripts; never public or long-lived recording links."
+    enforcement: [platform/src/business, platform/src/adapters]
+    verification: [unit, contract]
+    aliases: [SPEC-8.restricted]
+    externalBlock: { reason: "Salesforce sandbox and Case schema", prerequisites: [PRQ-006] }
+
+  # ---------------------------------------------------------------- section 7
+  - id: SPEC-7.assurance-tiers
+    kind: spec
+    section: "7 Assurance tiers"
+    text: "Assurance tiers A0 unverified, A1 verified possession, A2 account authenticated and A3 recent step-up gate permitted scope; authentication and authorization are separate."
+    enforcement: [policy/, platform/src/protocol/common.ts, platform/src/identity]
+    verification: [unit]
+    externalBlock: { reason: "Identity risk assessment for A1 scope", prerequisites: [PRQ-030] }
+  - id: SPEC-7.secure-link-binding
+    kind: spec
+    section: "7 Preferred verification journey"
+    text: "Secure link or in-portal approval requires existing account authentication and is bound with a nonce and transaction match to the current trusted call session; session swapping is prevented."
+    enforcement: [platform/src/identity]
+    verification: [unit, adversarial]
+    aliases: [SPEC-7.OIDC, SPEC-7.secure-link, SPEC-7.transaction-matching]
+    externalBlock: { reason: "Non-production IdP tenants", prerequisites: [PRQ-036] }
+  - id: SPEC-7.otp-limits
+    kind: spec
+    section: "7 Preferred verification journey"
+    text: "OTP fallback only to the existing verified channel, neutral message, five-minute expiry, throttling and attempt limits (proposed 3 per challenge, 5 per account per hour); never to a number supplied on the same call."
+    enforcement: [platform/src/identity/verification-service.ts]
+    verification: [unit]
+    aliases: [SPEC-7.OTP]
+    externalBlock: { reason: "Security-approved values and isolated DTMF (TB-03)", prerequisites: [PRQ-029, PRQ-015] }
+  - id: SPEC-7.anti-enumeration
+    kind: spec
+    section: "7 Preferred verification journey"
+    text: "Name and date of birth locate a candidate only inside the verification service; generic responses for zero, one or multiple matches; never confirm someone receives services before authorization."
+    enforcement: [platform/src/identity, platform/src/adapters/local]
+    verification: [unit, adversarial]
+    aliases: [SPEC-7.DIRECTORY, SPEC-7.VERIFY, SPEC-7.no-enumeration]
+    externalBlock: null
+  - id: SPEC-7.session-model
+    kind: spec
+    section: "7 Trusted session and permission model"
+    text: "The server records tenant, call, session generation, actor, role, subject, organization, delegation, scopes, assurance, times, method, consent, risk flags, policy version and revocation; the opaque session reference is bound to the integration and call."
+    enforcement: [platform/src/identity, platform/src/protocol/auth.ts]
+    verification: [unit]
+    aliases: [SPEC-7.SESSION, SPEC-7.KV, SPEC-7.session]
+    externalBlock: null
+  - id: SPEC-7.assertions
+    kind: spec
+    section: "7 Trusted session and permission model"
+    text: "Signed short-lived assertions are minted and validated only by trusted components with issuer, audience, expiry, nonce and key rotation."
+    enforcement: [platform/src/identity/assertions]
+    verification: [unit]
+    aliases: [SPEC-7.ASSERTION]
+    externalBlock: { reason: "KMS signing keys", prerequisites: [PRQ-037] }
+  - id: SPEC-7.privilege-expiry
+    kind: spec
+    section: "7 Trusted session and permission model"
+    text: "Privileges expire at call end, participant change, account switching, recovery, revocation or risk escalation; a transfer may carry a signed verification result for the same call; async work uses a narrow durable action grant."
+    enforcement: [platform/src/identity, platform/src/workflows]
+    verification: [unit]
+    aliases: [SPEC-7.TRANSFER, SPEC-7.risk, SPEC-7.durable-grant]
+    externalBlock: null
+  - id: SPEC-7.data-layer-isolation
+    kind: spec
+    section: "7 Trusted session and permission model"
+    text: "Field-level minimization and organization isolation are applied at the data layer; unrelated clients are denied even when an authenticated provider knows their identifiers; an employer partner gains no access to treatment status."
+    enforcement: [policy/, platform/migrations, platform/src/ops/staff-authz.ts]
+    verification: [unit, adversarial]
+    aliases: [SPEC-7.organization-isolation, SPEC-7.field-minimization]
+    externalBlock: null
+  - id: SPEC-7.workforce-separation
+    kind: spec
+    section: "7 Trusted session and permission model"
+    text: "Staff use workforce SSO with MFA and least privilege; roles are separated; break-glass is time-bound, justified and reviewed; the model cannot request or grant elevated access."
+    enforcement: [platform/src/console-api, platform/src/ops/staff-authz.ts]
+    verification: [unit]
+    aliases: [SPEC-7.break-glass, SPEC-7.staff, SPEC-7.staff-mfa, SPEC-7.staff-separation, SPEC-7.staff-sso]
+    externalBlock: { reason: "Workforce IdP tenant", prerequisites: [PRQ-036] }
+
+  # ---------------------------------------------------------------- section 8
+  - id: SPEC-8.tool-surface
+    kind: spec
+    section: "8 Tool interface"
+    text: "Only narrowly scoped tools are exposed; no raw SQL, arbitrary Salesforce query, arbitrary HTTP fetch, unrestricted export, shell, broad CRM search or generic update."
+    enforcement: [platform/src/gateway, talkdesk/ai-agent-config.yaml]
+    verification: [unit, adversarial]
+    aliases: [SPEC-8.mcp]
+    externalBlock: null
+  - id: SPEC-8.tool-schema
+    kind: spec
+    section: "8 Tool interface"
+    text: "Each tool has a versioned strict JSON Schema, bounded input, enums, classification, minimum assurance, permissions, timeout, retry policy, idempotency semantics and response schema; unknown versions and unexpected response fields are rejected; the catalogue is pinned and hashed."
+    enforcement: [platform/src/gateway, platform/src/protocol/tools.ts]
+    verification: [unit, contract]
+    aliases: [SPEC-8.1, SPEC-8.idempotency, SPEC-8.output-schema]
+    externalBlock: null
+  - id: SPEC-8.webhook-auth
+    kind: spec
+    section: "8 Tool interface"
+    text: "Inbound webhooks are validated with the vendor's documented mechanism and replay protection; no invented signature protocol."
+    enforcement: [platform/src/gateway]
+    verification: [unit, contract]
+    aliases: [SPEC-8.webhook]
+    externalBlock: { reason: "Documented vendor webhook authentication (TB-09)", prerequisites: [PRQ-021] }
+  - id: SPEC-8.service-identities
+    kind: spec
+    section: "8 Tool interface"
+    text: "Separate service identities per environment and integration; short-lived OAuth2 preferred; secrets rotated in Secrets Manager; static tokens only as recorded narrow exceptions."
+    enforcement: [platform/src/config, infra/terraform, platform/src/gateway/auth.ts]
+    verification: [unit, operational]
+    aliases: [SPEC-8.service-identity, SPEC-8.oauth2, SPEC-15.integration-identity]
+    externalBlock: { reason: "Integration credentials and exception approval", prerequisites: [PRQ-037, PRQ-052] }
+  - id: SPEC-8.prepare-commit
+    kind: spec
+    section: "8 Preparing and committing changes"
+    text: "A mutation is prepared with authoritative target, before-state version, exact change, impact, fees, policy decision, expiry and confirmation phrase; confirmation binds to the prepared action digest."
+    enforcement: [platform/src/actions]
+    verification: [unit, property]
+    externalBlock: null
+  - id: SPEC-8.commit-recheck
+    kind: spec
+    section: "8 Preparing and committing changes"
+    text: "Commit rechecks authorization, freshness, current state and confirmation with optimistic concurrency and idempotency; interruption, changed request, ambiguous confirmation, identity change or expiry invalidates the pending action; no prefetched mutations."
+    enforcement: [platform/src/actions]
+    verification: [unit, property]
+    aliases: [SPEC-8.concurrency]
+    externalBlock: null
+  - id: SPEC-8.ledger
+    kind: spec
+    section: "8 Preparing and committing changes"
+    text: "An action ledger and transactional outbox are persisted before durable delivery, with row-level isolation and unique action ids."
+    enforcement: [platform/src/actions, platform/src/outbox, platform/migrations]
+    verification: [unit]
+    aliases: [SPEC-8.3]
+    externalBlock: null
+  - id: SPEC-8.outbox
+    kind: spec
+    section: "8 Preparing and committing changes"
+    text: "Events are delivered at least once and consumers deduplicate."
+    enforcement: [platform/src/outbox]
+    verification: [unit, contract]
+    externalBlock: { reason: "AWS SQS in a sandbox account", prerequisites: [PRQ-037] }
+  - id: SPEC-8.timeout-states
+    kind: spec
+    section: "8 Preparing and committing changes"
+    text: "On timeout distinguish NOT_STARTED, COMMITTED, FAILED and UNKNOWN; reconcile UNKNOWN by idempotency key or authoritative state before any retry; compensation is domain-approved."
+    enforcement: [platform/src/actions, platform/src/gateway/pipeline.ts]
+    verification: [unit, workflow]
+    aliases: [SPEC-8.reconciliation, SPEC-8.timeout]
+    externalBlock: { reason: "Provider idempotency and lookup semantics", prerequisites: [PRQ-007] }
+  - id: SPEC-8.salesforce-model
+    kind: spec
+    section: "8 Salesforce behavior"
+    text: "Dedicated integration identity; interaction separated from issue; unique external ids and documented upsert prevent duplicates; organizational duplicate rules are not disabled broadly."
+    enforcement: [platform/src/adapters, platform/src/adapters/support-records-schema.ts]
+    verification: [contract]
+    aliases: [SPEC-8.4]
+    externalBlock: { reason: "Salesforce sandbox", prerequisites: [PRQ-006, PRQ-035] }
+  - id: SPEC-8.salesforce-outage
+    kind: spec
+    section: "8 Salesforce behavior"
+    text: "When Salesforce is unavailable an encrypted internal support request and reference are persisted and reconciled asynchronously, described as pending synchronization, never as an invented Case number; operators get a reconciliation dashboard, DLQ and repair flow."
+    enforcement: [platform/src/business, platform/src/outbox, platform/src/console-api]
+    verification: [unit, workflow]
+    aliases: [SPEC-8.salesforce]
+    externalBlock: null
+
+  # ---------------------------------------------------------------- section 9
+  - id: SPEC-9.workflow
+    kind: spec
+    section: "9 Work that continues after the call"
+    text: "Follow-up is a versioned state machine; every nonterminal state has owner, deadline, retry budget and escalation route; no PHI or task tokens in workflow names or general logs."
+    enforcement: [platform/src/workflows]
+    verification: [unit, workflow]
+    externalBlock: { reason: "Step Functions in a sandbox account", prerequisites: [PRQ-037] }
+  - id: SPEC-9.task-tokens
+    kind: spec
+    section: "9 Work that continues after the call"
+    text: "Human approvals arrive through authenticated, authorized endpoints; task tokens never appear in client URLs, are scoped to one task and expire; the model cannot complete a task by inventing approval."
+    enforcement: [platform/src/workflows/tokens.ts]
+    verification: [unit]
+    aliases: [SPEC-9.human-task, SPEC-9.task-token, SPEC-9.workflow-token]
+    externalBlock: null
+  - id: SPEC-9.recheck
+    kind: spec
+    section: "9 Work that continues after the call"
+    text: "Before later disclosure or material change, recheck consent, representation, account state and policy; revocations apply immediately."
+    enforcement: [platform/src/workflows/recheck.ts]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-9.notifications
+    kind: spec
+    section: "9 Work that continues after the call"
+    text: "Notifications follow registered preferences, quiet hours and consent with neutral messages; outbound calling is separately enabled."
+    enforcement: [platform/src/workflows/notification-policy.ts]
+    verification: [unit]
+    aliases: [SPEC-9.notification, SPEC-9.NOTIFY]
+    externalBlock: { reason: "Notification provider contract", prerequisites: [PRQ-048] }
+  - id: SPEC-9.knowledge-ingestion
+    kind: spec
+    section: "9 Approved knowledge and limited memory"
+    text: "Knowledge enters through a controlled pipeline with owner, audience, intent, jurisdiction, language, dates, sensitivity, approval and version; embedded instructions, links, attachments and executable content are sanitized; conflicting or expired items go to human review."
+    enforcement: [platform/src/knowledge]
+    verification: [unit, adversarial]
+    aliases: [SPEC-9.sanitize, SPEC-9.ingestion, SPEC-9.conflict, SPEC-9.knowledge, SPEC-9.knowledge-sanitize]
+    externalBlock: { reason: "Approved corpus snapshot", prerequisites: [PRQ-032] }
+  - id: SPEC-9.retrieval
+    kind: spec
+    section: "9 Approved knowledge and limited memory"
+    text: "Retrieval applies authorization and policy filters before semantic search and again before return; no shared embedding index of customer transcripts; citation ids and article versions accompany policy-derived responses."
+    enforcement: [platform/src/knowledge]
+    verification: [unit, adversarial]
+    externalBlock: null
+  - id: SPEC-9.memory
+    kind: spec
+    section: "9 Approved knowledge and limited memory"
+    text: "Only useful support memory with provenance labels and expiry; machine summaries never grant authorization or become medical facts; no recap before authentication on a shared phone; no unrestricted dreaming, self-editing policy or cross-customer memory."
+    enforcement: [platform/src/memory]
+    verification: [unit]
+    aliases: [SPEC-9.recap]
+    externalBlock: null
+
+  # ---------------------------------------------------------------- section 10
+  - id: SPEC-10.no-clinical-advice
+    kind: spec
+    section: "10 Administrative support with a safety escape route"
+    text: "Clinical questions trigger a concise boundary statement and a human or clinician route; no diagnosis, therapy, severity screening, medication recommendation or mental-state inference from voice."
+    enforcement: [platform/src/safety/clinical-boundary.ts, platform/src/voice]
+    verification: [unit, adversarial, manual]
+    externalBlock: { reason: "Clinician-approved boundary templates and reviewed corpus", prerequisites: [PRQ-028, PRQ-012] }
+  - id: SPEC-10.safety-signals
+    kind: spec
+    section: "10 Administrative support with a safety escape route"
+    text: "Safety concerns are detected from multiple signals (explicit phrases, contextual semantic detection, uncertain ASR, caller requests, human intervention); deterministic policy selects the response and route."
+    enforcement: [platform/src/safety]
+    verification: [unit, adversarial]
+    aliases: [SPEC-10.detection, SPEC-10.semantic, SPEC-10.asr, SPEC-10.human-intervention, SPEC-10.fail-safe]
+    externalBlock: { reason: "Early safety signal on the vendor path (TB-05)", prerequisites: [PRQ-017] }
+  - id: SPEC-10.signal-test-coverage
+    kind: spec
+    section: "10 Administrative support with a safety escape route"
+    text: "Safety tests include indirect language, negation, historical references, third-party concerns, non-English speech and ambiguous idioms; frustration is not automatically an emergency."
+    enforcement: [platform/src/safety, scenarios/risk]
+    verification: [unit, adversarial, manual]
+    aliases: [SPEC-10.idiom, SPEC-10.historical, SPEC-10.negation, SPEC-10.frustration, SPEC-10.indirect]
+    externalBlock: { reason: "Human-reviewed safety corpus and clinical review", prerequisites: [PRQ-012, PRQ-008] }
+  - id: SPEC-10.safety-response
+    kind: spec
+    section: "10 Administrative support with a safety escape route"
+    text: "On a credible or unresolved concern stop administrative troubleshooting, revoke pending nonessential mutations, use a clinician-approved fixed acknowledgment and begin priority human connection without authentication, account ownership or payment."
+    enforcement: [platform/src/safety, platform/src/actions]
+    verification: [unit, workflow]
+    aliases: [SPEC-10.1, SPEC-10.routing, SPEC-10.safety, SPEC-10.stop-admin-work]
+    externalBlock: { reason: "Clinician-approved scripts", prerequisites: [PRQ-008, PRQ-028] }
+  - id: SPEC-10.no-auto-external-crisis
+    kind: spec
+    section: "10 Administrative support with a safety escape route"
+    text: "External crisis or emergency services are never conferenced automatically because a keyword fired; no synthetic tests against public crisis lines."
+    enforcement: [platform/src/safety/router.ts, platform/src/config]
+    verification: [unit, manual]
+    externalBlock: { reason: "Operational agreements owned by the clinical safety lead", prerequisites: [PRQ-008] }
+  - id: SPEC-10.transfer
+    kind: spec
+    section: "10 Transfer contract"
+    text: "Transfer states REQUESTED, QUEUED, RECEIVER_ACCEPTED, BRIDGED, CALLER_CONFIRMED_CONNECTED and COMPLETED with timeout, failure and disconnect events; a successful dial command is not a transfer; only allowlisted destinations from trusted configuration."
+    enforcement: [platform/src/workflows/transfer.ts]
+    verification: [unit, workflow]
+    externalBlock: { reason: "Vendor transfer events (TB-07)", prerequisites: [PRQ-019] }
+  - id: SPEC-10.handoff-package
+    kind: spec
+    section: "10 Transfer contract"
+    text: "The authorized receiver gets a concise context package (issue, assurance and limits, subject, consent, actions and receipts, open tasks, reference, language/accommodation, safety reason) and receipt and acceptance are confirmed."
+    enforcement: [platform/src/workflows, platform/src/protocol/support.ts]
+    verification: [unit]
+    aliases: [SPEC-10.context, SPEC-10.handoff]
+    externalBlock: null
+  - id: SPEC-10.transfer-failure
+    kind: spec
+    section: "10 Transfer contract"
+    text: "The caller stays connected while the human joins; on failure an approved update plays and the next staffed route is invoked; the call is never silently ended."
+    enforcement: [platform/src/workflows/transfer.ts, talkdesk/studio-flow-spec.md]
+    verification: [workflow, audio]
+    externalBlock: { reason: "Transfer drills on the telephone path", prerequisites: [PRQ-019, PRQ-043] }
+  - id: SPEC-10.safety-latency
+    kind: spec
+    section: "10 Transfer contract"
+    text: "Engineering target: initiate the priority route within two seconds of a validated safety event, with utterance-to-detection measured separately; a numeric deadline never abandons a caller."
+    enforcement: [platform/src/safety, platform/src/observability/slo.ts]
+    verification: [load, audio]
+    aliases: [SPEC-10.latency]
+    externalBlock: { reason: "Measurement on the real telephone path", prerequisites: [PRQ-043] }
+
+  # ---------------------------------------------------------------- section 11
+  - id: SPEC-11.opening-disclosure
+    kind: spec
+    section: "11 Voice experience and response controls"
+    text: "Opening language identifies the company and automated role, offers a human and gives the jurisdiction-approved recording/processing disclosure."
+    enforcement: [platform/src/voice/templates, talkdesk/studio-flow-spec.md]
+    verification: [unit, audio]
+    aliases: [SPEC-11.opening]
+    externalBlock: { reason: "Approved disclosure wording", prerequisites: [PRQ-026, PRQ-028] }
+  - id: SPEC-11.voice-selection
+    kind: spec
+    section: "11 Voice experience and response controls"
+    text: "A licensed stock voice is chosen by blinded telephone-quality listening tests; no cloning or impersonation."
+    enforcement: [talkdesk/ai-agent-config.yaml]
+    verification: [manual]
+    externalBlock: { reason: "Listening tests and model/voice approval", prerequisites: [PRQ-045] }
+  - id: SPEC-11.ack-not-resolution
+    kind: spec
+    section: "11 Voice experience and response controls"
+    text: "A safe acknowledgment does not count as resolution latency or success; genuine delays get an honest status and a callback or human route."
+    enforcement: [platform/src/voice, platform/src/observability/slo.ts]
+    verification: [unit]
+    aliases: [SPEC-11.acknowledgment]
+    externalBlock: null
+  - id: SPEC-11.barge-in
+    kind: spec
+    section: "11 Voice experience and response controls"
+    text: "Barge-in stops queued speech and invalidates stale segments; audio segments, tool results and approvals carry a turn id and session generation."
+    enforcement: [platform/src/voice/speech-queue.ts, platform/src/voice/turns.ts]
+    verification: [unit, audio]
+    externalBlock: { reason: "Barge-in measurement on the telephone path", prerequisites: [PRQ-043] }
+  - id: SPEC-11.endpointing
+    kind: spec
+    section: "11 Voice experience and response controls"
+    text: "Callers who pause, stutter, speak slowly or use assistive communication are not clipped; endpointing is tested per supported language; slower speech and repeat-on-request do not change access rules."
+    enforcement: [talkdesk/ai-agent-config.yaml, platform/src/voice]
+    verification: [audio]
+    externalBlock: { reason: "Consented voice fixtures and PSTN tests", prerequisites: [PRQ-012, PRQ-043] }
+  - id: SPEC-11.interpreter
+    kind: spec
+    section: "11 Voice experience and response controls"
+    text: "Unsupported languages go to a staffed interpreter path."
+    enforcement: [talkdesk/studio-flow-spec.md, platform/src/config]
+    verification: [unit, audio]
+    aliases: [SPEC-16.interpreter]
+    externalBlock: { reason: "Interpreter queues", prerequisites: [PRQ-009] }
+  - id: SPEC-11.response-gate
+    kind: spec
+    section: "11 Voice experience and response controls"
+    text: "Protected responses are validated before their first audible segment using approved templates; where streaming validation cannot prove the guarantee the utterance is held or rendered deterministically."
+    enforcement: [platform/src/voice/gate.ts]
+    verification: [unit]
+    aliases: [SPEC-11.templates]
+    externalBlock: { reason: "Before-speech validation on the vendor path (TB-04)", prerequisites: [PRQ-016] }
+  - id: SPEC-11.response-record
+    kind: spec
+    section: "11 Voice experience and response controls"
+    text: "The response record references current authorization, accepted sources, receipts and policy; missing proof fails closed to a safe explanation and human route."
+    enforcement: [platform/src/voice]
+    verification: [unit]
+    aliases: [SPEC-11.fail-closed]
+    externalBlock: null
+  - id: SPEC-11.confirmation-readback
+    kind: spec
+    section: "11 Voice experience and response controls"
+    text: "Names are confirmed by spelling when needed and amounts, dates, time zones and consequences are confirmed before committing changes; only the minimum sensitive information is read."
+    enforcement: [platform/src/voice]
+    verification: [unit]
+    aliases: [SPEC-11.confirmation]
+    externalBlock: null
+
+  # ---------------------------------------------------------------- section 12
+  - id: SPEC-12.capacity-model
+    kind: spec
+    section: "12 Illustrative capacity model"
+    text: "Capacity figures are labelled planning assumptions; 30 days of real arrival data is required before procurement."
+    enforcement: [docs/capacity-cost-model.md, scripts/capacity_model.py, platform/src/ops/capacity.ts]
+    verification: [unit]
+    aliases: [SPEC-12.capacity]
+    externalBlock: { reason: "Traffic statistics", prerequisites: [PRQ-046] }
+  - id: SPEC-12.quotas
+    kind: spec
+    section: "12 Illustrative capacity model"
+    text: "Quotas are contracted and tested separately for trunks, call starts, media legs, AI sessions, ASR/TTS, tokens, tools, exports, Salesforce APIs, notifications and workflows."
+    enforcement: [docs/vendor-integration-inventory.md, platform/src/ops]
+    verification: [load, manual]
+    aliases: [SPEC-12.quota]
+    externalBlock: { reason: "Written vendor quotas (TB-10)", prerequisites: [PRQ-022] }
+  - id: SPEC-12.bounded-caching
+    kind: spec
+    section: "12 Illustrative capacity model"
+    text: "Salesforce is not pulled on every speech turn; bounded authorized caching carries source timestamps and commits use real-time checks."
+    enforcement: [platform/src/adapters, platform/src/business]
+    verification: [unit]
+    aliases: [SPEC-12.caching]
+    externalBlock: null
+  - id: SPEC-12.load-test
+    kind: spec
+    section: "12 Illustrative capacity model"
+    text: "Load tests use distributions, long calls, transfer legs, retries and reconnects; test at least 400 sustained tool requests per second with bounded bursts; a mocked load test does not substitute for the vendor path."
+    enforcement: [platform/test, scripts]
+    verification: [load]
+    externalBlock: { reason: "Billable load against the vendor path", prerequisites: [PRQ-022, PRQ-010] }
+  - id: SPEC-12.resilience
+    kind: spec
+    section: "12 Human capacity and graceful degradation"
+    text: "Readiness checks, warm capacity, per-dependency bulkheads, timeouts, bounded retries with jitter and circuit breakers."
+    enforcement: [platform/src/resilience]
+    verification: [unit]
+    aliases: [SPEC-12.timeouts, SPEC-12.circuit-breakers, SPEC-12.bulkheads, SPEC-12.circuit-breaker, SPEC-12.retry, SPEC-13.readiness]
+    externalBlock: null
+  - id: SPEC-12.no-retry-stacking
+    kind: spec
+    section: "12 Human capacity and graceful degradation"
+    text: "Avoid retries on top of retries; concurrent duplicate executions do not stack."
+    enforcement: [platform/src/resilience, platform/src/actions/tool-idempotency.ts]
+    verification: [unit]
+    aliases: [SPEC-12.retries, SPEC-12.3]
+    externalBlock: null
+  - id: SPEC-12.admission
+    kind: spec
+    section: "12 Human capacity and graceful degradation"
+    text: "Backpressure and admission control shed noncritical analytics and model work first while the safe route stays available."
+    enforcement: [platform/src/ops/admission.ts]
+    verification: [unit, load]
+    aliases: [SPEC-12.load-shedding, SPEC-13.admission, SPEC-12.rate-limit]
+    externalBlock: null
+  - id: SPEC-12.db-outage
+    kind: spec
+    section: "12 Human capacity and graceful degradation"
+    text: "A database outage blocks protected reads and writes while the telephone route remains usable."
+    enforcement: [platform/src/gateway, platform/src/actions, platform/src/safety/safety-events.ts, platform/src/resilience]
+    verification: [unit, workflow]
+    externalBlock: null
+  - id: SPEC-12.budget-cutoff
+    kind: spec
+    section: "12 Cost controls"
+    text: "Budget exhaustion stops new nonessential automation and routes to continuity service; an active safety handoff is never disconnected for a financial limit; a bounded safety reserve exists."
+    enforcement: [platform/src/ops/budgets.ts]
+    verification: [unit]
+    aliases: [SPEC-12.cost, SPEC-12.budget, SPEC-12.budgets]
+    externalBlock: { reason: "Approved budgets and rate cards", prerequisites: [PRQ-010] }
+  - id: SPEC-12.recovery
+    kind: spec
+    section: "12 Recovery objectives"
+    text: "Proposed application recovery within 15 minutes and cross-region data loss no worse than five minutes, subject to measurement; writes fenced during uncertainty; restore and failover drills before broad release."
+    enforcement: [infra/terraform, docs/RUNBOOKS, platform/src/gateway/pipeline.ts, platform/src/config/loader.ts]
+    verification: [unit, operational]
+    aliases: [SPEC-12.write-fence, SPEC-15.dr-fence]
+    externalBlock: { reason: "Regions, accounts and drills", prerequisites: [PRQ-039, PRQ-011] }
+
+  # ---------------------------------------------------------------- section 13
+  - id: SPEC-13.slo-definitions
+    kind: spec
+    section: "13 Service objectives"
+    text: "Service objectives define measurement point, denominator, exclusions and window in code; P50, P95 and P99 are published by language, intent, region, customer type, model, voice, auth path and load band."
+    enforcement: [platform/src/observability/slo.ts]
+    verification: [unit]
+    aliases: [SPEC-13.slo]
+    externalBlock: null
+  - id: SPEC-13.dashboards
+    kind: spec
+    section: "13 Operational dashboards"
+    text: "Dashboards cover arrivals, sessions, queues, transfers, identity, tools, dependencies, safety, clinical requests, CRM reconciliation, knowledge freshness, ASR, cost, quotas and audit-export completeness."
+    enforcement: [platform/src/observability, infra/terraform]
+    verification: [unit, operational]
+    aliases: [SPEC-13.metrics]
+    externalBlock: { reason: "Approved metrics export and on-call", prerequisites: [PRQ-011, PRQ-047] }
+  - id: SPEC-13.resolution-metrics
+    kind: spec
+    section: "13 Operational dashboards"
+    text: "Verified resolution, repeat contact and reopened cases are measured; containment is separate from resolution; the model is never rewarded for suppressing transfers."
+    enforcement: [platform/src/observability, platform/src/evaluation/aggregate.ts]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-13.audit-model
+    kind: spec
+    section: "13 Audit event model"
+    text: "Every meaningful event carries id, schema version, UTC time, correlation and parent ids, tenant, opaque actor/subject, role, component, call/session/turn, configuration versions, action, policy decision and reason, assurance, evidence pointers, hashes, idempotency key, outcome and data class; no raw secrets or model reasoning."
+    enforcement: [platform/src/audit/schema.ts, platform/src/protocol/audit.ts]
+    verification: [unit]
+    aliases: [SPEC-13.3, SPEC-13.audit-event]
+    externalBlock: null
+  - id: SPEC-13.audit-integrity
+    kind: spec
+    section: "13 Audit event model"
+    text: "Audit events are append-only in an independently administered account with restricted deletion, tamper-evident manifests, integrity checks and monitored ingestion gaps; completeness is reconciled against source counts."
+    enforcement: [platform/src/audit/chain.ts, platform/src/audit/verifier.ts, platform/src/audit/shipper.ts, platform/src/audit/monitor.ts]
+    verification: [unit, operational]
+    aliases: [SPEC-13.audit]
+    externalBlock: { reason: "Audit account with Object Lock", prerequisites: [PRQ-037, PRQ-040] }
+  - id: SPEC-13.audit-access
+    kind: spec
+    section: "13 Audit event model"
+    text: "Sensitive content is separated from security metadata; access to both is audited; audit-view users cannot rewrite evidence; audit search is bounded."
+    enforcement: [platform/src/audit/query.ts, platform/migrations]
+    verification: [unit]
+    aliases: [SPEC-13.5]
+    externalBlock: null
+  - id: SPEC-13.audit-outage
+    kind: spec
+    section: "13 Audit event model"
+    text: "A local durable outbox may buffer within a bounded policy; if durable evidence cannot be written, consequential actions are blocked and the call degrades to safe routing."
+    enforcement: [platform/src/audit/health.ts, platform/src/gateway]
+    verification: [unit, workflow]
+    aliases: [SPEC-13.bounded-buffer]
+    externalBlock: null
+  - id: SPEC-13.console
+    kind: spec
+    section: "13 Incident and control console"
+    text: "Authorized staff can inspect a journey, join or transfer via supported controls, review a pending action, cancel uncommitted work, retry a reconciled operation, inspect a policy and trace a Case; only safe tested actions."
+    enforcement: [platform/src/console-api, console/]
+    verification: [unit]
+    aliases: [SPEC-13.4]
+    externalBlock: { reason: "Workforce SSO", prerequisites: [PRQ-036] }
+  - id: SPEC-13.killswitch
+    kind: spec
+    section: "13 Incident and control console"
+    text: "Separate kill switches for new AI admissions, an intent, an integration, writes, a model/voice version and outbound notifications; every kill switch preserves safety and human routes."
+    enforcement: [platform/src/ops/kill-switches.ts]
+    verification: [unit]
+    aliases: [SPEC-13.kill-switches, SPEC-13.kill-switch, SPEC-13.kill]
+    externalBlock: null
+  - id: SPEC-13.incident-playbooks
+    kind: spec
+    section: "13 Incident and control console"
+    text: "Escalation roster and playbooks exist for PHI exposure, unsafe output, failed safety transfer, authentication bypass, dependency outage, unexpected spending, duplicate commit and vendor behaviour changes."
+    enforcement: [docs/RUNBOOKS]
+    verification: [manual, operational]
+    aliases: [SPEC-13.runbooks]
+    externalBlock: { reason: "On-call roster and drills", prerequisites: [PRQ-011] }
+
+  # ---------------------------------------------------------------- section 14
+  - id: SPEC-14.threat-model
+    kind: spec
+    section: "14 Security verification"
+    text: "Threat model covers caller spoofing, SIM swap, enumeration, session fixation, replay, cross-tenant access, confused deputy, prompt injection, exfiltration, malicious URLs, SSRF, forged webhooks, unauthorized callbacks, approval replay, insiders, secret leakage, supply chain and denial of service."
+    enforcement: [docs/security, platform/src/identity, platform/src/gateway]
+    verification: [manual, adversarial]
+    aliases: [SPEC-14.REPLAY, SPEC-14.FIXATION, SPEC-14.ENUMERATION, SPEC-14.cross-tenant, SPEC-14.session-fixation, SPEC-14.dos, SPEC-14.http-security]
+    externalBlock: { reason: "Security and privacy review", prerequisites: [PRQ-003] }
+  - id: SPEC-14.supply-chain
+    kind: spec
+    section: "14 Security verification"
+    text: "Least-privilege IAM, workload identity, TLS, KMS, dependency pinning, SBOM, signature verification, image/dependency/secret scanning and infrastructure policy checks."
+    enforcement: [.github, scripts/ci, infra/terraform, platform/Dockerfile]
+    verification: [operational]
+    externalBlock: { reason: "Pinned CI actions and base image", prerequisites: [PRQ-041, PRQ-042] }
+  - id: SPEC-14.hostile-gateway-tests
+    kind: spec
+    section: "14 Security verification"
+    text: "The gateway is tested directly with hostile tool calls even if the conversational prompt would never generate them; a model never decides authorization."
+    enforcement: [platform/src/gateway, scenarios/risk]
+    verification: [adversarial]
+    aliases: [SPEC-14.hostile]
+    externalBlock: null
+  - id: SPEC-14.pentest
+    kind: spec
+    section: "14 Security verification"
+    text: "Independent security review and penetration testing of backend and telephone journey; no unresolved critical finding enters production."
+    enforcement: [docs/security]
+    verification: [manual]
+    externalBlock: { reason: "Independent assessment", prerequisites: [PRQ-051] }
+  - id: SPEC-14.test-layers
+    kind: spec
+    section: "14 Test layers and minimum corpus"
+    text: "Deterministic unit and property tests, vendor contract tests, synthetic multi-turn dialogues and real PSTN audio tests exercising codecs, interruptions, transfers, consent and noisy audio."
+    enforcement: [platform/src/evaluation/runner.ts, platform/test]
+    verification: [unit, audio]
+    externalBlock: { reason: "PSTN test budget, numbers and plan", prerequisites: [PRQ-043] }
+  - id: SPEC-14.intent-corpus
+    kind: spec
+    section: "14 Test layers and minimum corpus"
+    text: "At least 50 reviewed support intents across all audiences and eight variant families (baseline, frustrated, indirect/ambiguous, interrupted/noisy, verification failure, malicious instruction, dependency failure, repeat-contact/handoff) with risk-based rather than combinatorial expansion."
+    enforcement: [scenarios/skeletons, platform/src/evaluation/generate.ts]
+    verification: [unit, manual]
+    externalBlock: { reason: "Human review of the corpus by QA and language leads", prerequisites: [PRQ-012] }
+  - id: SPEC-14.risk-corpus
+    kind: spec
+    section: "14 Test layers and minimum corpus"
+    text: "At least 500 human-reviewed privacy, authorization, clinical-boundary and safety-routing scenarios, separate from routine quality tests."
+    enforcement: [scenarios/risk, platform/src/evaluation/generate-risk.ts]
+    verification: [unit, manual]
+    externalBlock: { reason: "Human review (drafts only exist)", prerequisites: [PRQ-012, PRQ-008] }
+  - id: SPEC-14.repetitions
+    kind: spec
+    section: "14 Test layers and minimum corpus"
+    text: "Selected nondeterministic cases are repeated at least five times per release."
+    enforcement: [platform/src/evaluation/runner.ts, platform/src/evaluation/generate.ts]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-14.edge-populations
+    kind: spec
+    section: "14 Test layers and minimum corpus"
+    text: "Tests include long pauses, speech impairment, accented speech, hearing/relay use, interpreter routing, third-party callers, minors, expired proxies, role switching, cross-account requests and shared devices; protected characteristics are never inferred from audio."
+    enforcement: [scenarios/skeletons, scenarios/risk]
+    verification: [unit, audio, manual]
+    externalBlock: { reason: "Consented voice fixtures and reviewers", prerequisites: [PRQ-012] }
+  - id: SPEC-14.failure-injection
+    kind: spec
+    section: "14 Test layers and minimum corpus"
+    text: "Vendor and business failures are tested: timeouts, stale knowledge, exhausted quotas, out-of-order events, duplicate callbacks, partial writes, crash after external commit, regional failover, receiver unavailable, dropped bridge, consent refusal, audit outage, redaction failure, maximum-turn guardrails and refusal in the crisis route."
+    enforcement: [scenarios/fixtures/failures, platform/src/adapters/local, platform/src/evaluation/runner.ts]
+    verification: [unit, workflow]
+    aliases: [SPEC-14.faults]
+    externalBlock: null
+  - id: SPEC-14.policy-expansion
+    kind: spec
+    section: "14 Test layers and minimum corpus"
+    text: "A policy update cannot silently expand access."
+    enforcement: [policy/, platform/src/policy]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-14.production-derived
+    kind: spec
+    section: "14 Test layers and minimum corpus"
+    text: "Production-derived scenarios only after approved access, minimization and review; LLM judges only in approved environments, calibrated against human labels, and never establish whether an external action committed."
+    enforcement: [platform/src/evaluation/scorer.ts, platform/src/evaluation/runner.ts]
+    verification: [unit, manual]
+    externalBlock: { reason: "Approved evaluation environment", prerequisites: [PRQ-003] }
+  - id: SPEC-14.hard-gates
+    kind: spec
+    section: "14 Pass and fail criteria"
+    text: "Safety, authorization, consent, transaction correctness, allowed data egress and audit evidence are hard gates; any critical failure fails the scenario and blocks the release; a high average cannot offset a missed safety handoff or unauthorized disclosure."
+    enforcement: [platform/src/evaluation/scorer.ts]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-14.goal-completion
+    kind: spec
+    section: "14 Pass and fail criteria"
+    text: "Proposed at least 95 percent validated goal completion per launch-eligible routine intent with no critical failures; warmth and clarity thresholds are set before listening tests; inter-rater agreement is measured."
+    enforcement: [platform/src/evaluation/aggregate.ts]
+    verification: [unit, manual]
+    externalBlock: { reason: "Human listening tests and reviewers", prerequisites: [PRQ-012, PRQ-045] }
+  - id: SPEC-14.uncertainty
+    kind: spec
+    section: "14 Pass and fail criteria"
+    text: "Zero failures in a finite set is not zero risk; report sample size, repetition, dependence, uncertainty and slice coverage (e.g. rough 95 percent upper bound near 0.1 percent at 3,000 independent opportunities)."
+    enforcement: [platform/src/evaluation/stats.ts, platform/src/evaluation/aggregate.ts]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-14.scorecard
+    kind: spec
+    section: "14 Scorecard and release evidence"
+    text: "One append-only result record per run with run, scenario, split, audience, language, channel, variant, permissions, versions, vendor ids, assertions, gate results, committed state, quality scores, latency, cost, transfer outcome, resolution, failure code, evidence and reviewer; missing evidence is INCONCLUSIVE, never PASS."
+    enforcement: [platform/src/evaluation/results.ts, platform/src/evaluation/scorer.ts]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-14.aggregation
+    kind: spec
+    section: "14 Scorecard and release evidence"
+    text: "Aggregate by intent, language, audience, failure severity, version and regression; keep production-frequency weights and oversampled risk tests separate; never hide rare critical failures in weighted averages."
+    enforcement: [platform/src/evaluation/aggregate.ts]
+    verification: [unit]
+    externalBlock: { reason: "Production-frequency weights need traffic statistics", prerequisites: [PRQ-046] }
+  - id: SPEC-14.traceability
+    kind: spec
+    section: "14 Scorecard and release evidence"
+    text: "Every requirement maps to enforcement location, test ids, evidence and release status."
+    enforcement: [docs/requirements/catalog.yaml, platform/src/evaluation/traceability.ts]
+    verification: [unit]
+    externalBlock: null
+
+  # ---------------------------------------------------------------- section 15
+  - id: SPEC-15.offline-slice
+    kind: spec
+    section: "15 Phase 1 complete offline slice"
+    text: "One representative journey from unverified caller through secure mock authentication, authorized lookup, prepared and confirmed action, durable case, failed-dependency recovery, warm-transfer state machine and audit trace, against labelled local adapters."
+    enforcement: [platform/src/demo, platform/src/main]
+    verification: [workflow]
+    aliases: [SPEC-15.phase-1]
+    externalBlock: null
+  - id: SPEC-15.pilot-promotion
+    kind: spec
+    section: "15 Phase 4 restricted pilot"
+    text: "Staged exposure (for example 1, 5, 10, 25, 50 percent) only with reviewed evidence and named approvals; a critical privacy, mutation, clinical or safety-handoff failure triggers immediate containment."
+    enforcement: [docs/release/phase-gates.md, platform/src/ops]
+    verification: [operational, manual]
+    externalBlock: { reason: "Pilot approvals", prerequisites: [PRQ-024] }
+  - id: SPEC-15.rollback
+    kind: spec
+    section: "15 Phase 5 scale and continuous operation"
+    text: "Rehearsed rollback to a known-good orchestration, tool catalogue, policy and compatible schema; in-flight workflows retain version compatibility; every model, voice, prompt, knowledge, schema, vendor or policy change triggers regression."
+    enforcement: [platform/src/workflows, platform/src/evaluation/manifest.ts]
+    verification: [unit, operational]
+    aliases: [SPEC-15.phase5]
+    externalBlock: { reason: "Rollback drills", prerequisites: [PRQ-011] }
+  - id: SPEC-15.no-self-promotion
+    kind: spec
+    section: "15 Phase 5 scale and continuous operation"
+    text: "No autonomous self-promotion, unreviewed production learning or automatic retraining from production calls."
+    enforcement: [platform/src/memory, platform/src/evaluation/manifest.ts]
+    verification: [manual]
+    externalBlock: null
+
+  # ---------------------------------------------------------------- section 16
+  - id: SPEC-16.offline-first
+    kind: spec
+    section: "16 Working mode and boundaries"
+    text: "Begin offline with synthetic data; no spend, calls, real notifications, new credentials, PHI, live routing changes, billing changes, deletions or production deploys without approved scope."
+    enforcement: [platform/src/config/guard.ts, platform/src/fixtures/synthetic-world.ts]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-16.integration-records
+    kind: spec
+    section: "16 Working mode and boundaries"
+    text: "Every integration records method, endpoint, version, auth mechanism, schema, rate limit, retention, data class and source; unsupported capabilities are BLOCKED, not simulated as production success."
+    enforcement: [platform/src/adapters/integration-inventory.ts, docs/vendor-integration-inventory.md]
+    verification: [unit]
+    aliases: [SPEC-16.inventory]
+    externalBlock: null
+  - id: SPEC-16.prod-guard
+    kind: spec
+    section: "16 Repository deliverables"
+    text: "Production configuration rejects fixture adapters, missing credentials, unapproved models, unknown policy versions, permissive CORS, disabled audit and missing approvals."
+    enforcement: [platform/src/config/guard.ts, platform/src/config/schema.ts]
+    verification: [unit]
+    aliases: [SPEC-16.config]
+    externalBlock: { reason: "Trusted approval key", prerequisites: [PRQ-023] }
+  - id: SPEC-16.phi-endpoints-disabled
+    kind: spec
+    section: "16 Repository deliverables"
+    text: "Production PHI endpoints remain disabled until prerequisites are evidenced."
+    enforcement: [platform/src/config/guard.ts]
+    verification: [unit]
+    aliases: [SPEC-16.phi]
+    externalBlock: { reason: "PHI processing approval", prerequisites: [PRQ-002, PRQ-024] }
+  - id: SPEC-16.local-demo
+    kind: spec
+    section: "16 Repository deliverables"
+    text: "Local start command, test commands, synthetic credentials only and a documented end-to-end demo with an explicit local-adapter badge."
+    enforcement: [platform/src/demo, platform/src/main]
+    verification: [workflow]
+    aliases: [SPEC-16.badge, SPEC-16.local-badge]
+    externalBlock: null
+  - id: SPEC-16.openapi
+    kind: spec
+    section: "16 Repository deliverables"
+    text: "Produce OpenAPI and JSON Schemas: the committed gateway OpenAPI document matches the registered routes and every route is documented."
+    enforcement: [platform/src/gateway/openapi.ts, platform/src/gateway/generate-openapi.ts, schemas/openapi]
+    verification: [unit, contract]
+    aliases: [SPEC-8.openapi]
+    externalBlock: null
+  - id: SPEC-16.protocol-artifacts
+    kind: spec
+    section: "16 Minimum protocol artifacts"
+    text: "AuthContext, ToolRequest, ToolResult, PreparedAction, CommitReceipt, SupportRequest, HandoffPackage, WorkflowEvent, AuditEvent, ScenarioDefinition, EvaluationResult and ReleaseManifest are strict schemas with opaque ids; ToolResult distinguishes success, retryable, permanent, policy denial, pending and unknown."
+    enforcement: [platform/src/protocol, schemas/protocol]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-16.scenario-definition
+    kind: spec
+    section: "16 Minimum protocol artifacts"
+    text: "ScenarioDefinition carries version, audience, locale, initial state, permitted records, script or persona, adversarial turn, expected tools, prohibited actions, handoff, final state and stop condition; persona variants come from one skeleton; deterministic failure fixtures are independent of LLM generation; development and held-out acceptance sets are separate."
+    enforcement: [platform/src/protocol/evaluation.ts, platform/src/evaluation/generate.ts, scenarios/fixtures/failures]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-16.release-manifest
+    kind: spec
+    section: "16 Minimum protocol artifacts"
+    text: "ReleaseManifest binds source commit, build/image digest, infrastructure plan, schema version, Talkdesk configuration id, model/voice configuration, tool-schema digest, policy bundle, knowledge snapshot, evaluation corpus, test evidence, quota and load evidence, retention configuration, rollback target and approvals; approval records cannot be fabricated."
+    enforcement: [platform/src/evaluation/manifest.ts, platform/src/config/approvals.ts]
+    verification: [unit]
+    externalBlock: { reason: "Manifest signing key and human approvals", prerequisites: [PRQ-023, PRQ-024] }
+  - id: SPEC-16.journeys
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Demonstrate the nine journeys (verified reschedule with conflict, disputed charge to durable review without refund promise, provider delegated remittance, partner denied unrelated client, unverified human request, safety handoff without authentication, recording declined, interpreter routing, repeat caller resumes authorized open issue) with caller-visible behaviour and backend evidence."
+    enforcement: [scenarios/journeys, platform/src/demo]
+    verification: [workflow]
+    aliases: [SPEC-16.journey]
+    externalBlock: { reason: "Telephone-path demonstration", prerequisites: [PRQ-043] }
+  - id: SPEC-16.fault-injection
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Inject authentication expiry, two concurrent calls for one account, an interrupted confirmation, duplicate webhooks, crash after commit, Salesforce outage, failed transfer and audit outage, and verify the final system state rather than conversation text."
+    enforcement: [scenarios/fixtures/failures, scenarios/journeys/faulted, platform/src/evaluation/scorer.ts]
+    verification: [workflow]
+    aliases: [SPEC-16.faults]
+    externalBlock: null
+  # One entry per required journey and injected fault (platform/test/journeys); the aggregate
+  # SPEC-16.journeys and SPEC-16.fault-injection entries keep the corpus and scorer tests.
+  - id: SPEC-16.journey-1
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Demonstrate a verified client rescheduling an appointment with conflict handling, showing both caller-visible behaviour and backend evidence."
+    enforcement: [platform/src/business, platform/src/actions, scenarios/journeys]
+    verification: [workflow]
+    aliases: [SPEC-16.reschedule]
+    externalBlock: { reason: "Telephone-path demonstration", prerequisites: [PRQ-043] }
+  - id: SPEC-16.journey-2
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Demonstrate a disputed charge routed into a durable review without promising a refund, showing both caller-visible behaviour and backend evidence."
+    enforcement: [platform/src/business, platform/src/workflows, scenarios/journeys]
+    verification: [workflow]
+    aliases: [SPEC-16.billing-dispute]
+    externalBlock: { reason: "Telephone-path demonstration", prerequisites: [PRQ-043] }
+  - id: SPEC-16.journey-3
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Demonstrate a provider checking a delegated practice's remittance, showing both caller-visible behaviour and backend evidence."
+    enforcement: [policy/, platform/src/business, scenarios/journeys]
+    verification: [workflow]
+    externalBlock: { reason: "Telephone-path demonstration; authoritative delegation registries", prerequisites: [PRQ-043, PRQ-005] }
+  - id: SPEC-16.journey-4
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Demonstrate a partner denied access to an unrelated client, showing both caller-visible behaviour and backend evidence."
+    enforcement: [policy/, platform/src/business, scenarios/journeys]
+    verification: [workflow]
+    externalBlock: { reason: "Telephone-path demonstration; authoritative enrollment registries", prerequisites: [PRQ-043, PRQ-005] }
+  - id: SPEC-16.journey-5
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Demonstrate an unverified caller requesting a human, showing both caller-visible behaviour and backend evidence."
+    enforcement: [platform/src/gateway, platform/src/workflows/transfer.ts, scenarios/journeys]
+    verification: [workflow]
+    externalBlock: { reason: "Telephone-path demonstration; vendor transfer events (TB-07)", prerequisites: [PRQ-043, PRQ-019] }
+  - id: SPEC-16.journey-6
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Demonstrate a clinician-approved safety handoff without authentication, showing both caller-visible behaviour and backend evidence."
+    enforcement: [platform/src/safety, platform/src/workflows/transfer.ts, scenarios/journeys]
+    verification: [workflow]
+    externalBlock: { reason: "Telephone-path demonstration; clinician-approved scripts", prerequisites: [PRQ-043, PRQ-008, PRQ-028] }
+  - id: SPEC-16.journey-7
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Demonstrate a caller declining recording, showing both caller-visible behaviour and backend evidence."
+    enforcement: [platform/src/privacy/consent.ts, talkdesk/studio-flow-spec.md, scenarios/journeys]
+    verification: [workflow]
+    externalBlock: { reason: "Telephone-path demonstration; approved disclosure and alternative wording", prerequisites: [PRQ-043, PRQ-026] }
+  - id: SPEC-16.journey-8
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Demonstrate an unavailable language routed to an interpreter, showing both caller-visible behaviour and backend evidence."
+    enforcement: [platform/src/business, platform/src/config, scenarios/journeys]
+    verification: [workflow]
+    externalBlock: { reason: "Telephone-path demonstration; staffed interpreter paths", prerequisites: [PRQ-043, PRQ-009] }
+  - id: SPEC-16.journey-9
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Demonstrate a repeat caller resuming an authorized open issue, showing both caller-visible behaviour and backend evidence."
+    enforcement: [platform/src/memory, platform/src/business, scenarios/journeys]
+    verification: [workflow]
+    externalBlock: { reason: "Telephone-path demonstration", prerequisites: [PRQ-043] }
+  - id: SPEC-16.fault-auth-expiry
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Inject authentication expiry and verify the final system state, not just the conversation text."
+    enforcement: [platform/src/identity, platform/src/gateway, scenarios/journeys/faulted]
+    verification: [workflow]
+    externalBlock: null
+  - id: SPEC-16.fault-concurrent-calls
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Inject two concurrent calls for the same account and verify the final system state, not just the conversation text."
+    enforcement: [platform/src/actions, scenarios/journeys/faulted]
+    verification: [workflow]
+    externalBlock: null
+  - id: SPEC-16.fault-interrupted-confirmation
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Inject an interrupted confirmation and verify the final system state, not just the conversation text."
+    enforcement: [platform/src/actions, platform/src/voice, scenarios/journeys/faulted]
+    verification: [workflow]
+    externalBlock: null
+  - id: SPEC-16.fault-duplicate-webhooks
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Inject duplicate webhooks and verify the final system state, not just the conversation text."
+    enforcement: [platform/src/gateway/http, platform/src/workflows/transfer.ts, scenarios/journeys/faulted]
+    verification: [workflow]
+    externalBlock: null
+  - id: SPEC-16.fault-crash-after-commit
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Inject a crash after commit and verify the final system state, not just the conversation text."
+    enforcement: [platform/src/actions, platform/src/worker, scenarios/journeys/faulted]
+    verification: [workflow]
+    externalBlock: null
+  - id: SPEC-16.fault-salesforce-outage
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Inject a Salesforce outage and verify the final system state, not just the conversation text."
+    enforcement: [platform/src/business, platform/src/outbox, platform/src/worker, scenarios/journeys/faulted]
+    verification: [workflow]
+    externalBlock: null
+  - id: SPEC-16.fault-failed-transfer
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Inject a failed transfer and verify the final system state, not just the conversation text."
+    enforcement: [platform/src/workflows/transfer.ts, scenarios/journeys/faulted]
+    verification: [workflow]
+    externalBlock: null
+  - id: SPEC-16.fault-audit-outage
+    kind: spec
+    section: "16 Required demonstration journeys"
+    text: "Inject an audit outage and verify the final system state, not just the conversation text."
+    enforcement: [platform/src/audit, platform/src/actions, scenarios/journeys/faulted]
+    verification: [workflow]
+    externalBlock: null
+  - id: SPEC-16.console-functional
+    kind: spec
+    section: "16 Repository deliverables"
+    text: "The operations console is functional, access-controlled and accessible, audits administrative actions and exposes no raw database queries, shared secrets or unrestricted transcript downloads."
+    enforcement: [console/, platform/src/console-api]
+    verification: [unit]
+    aliases: [SPEC-16.console, SPEC-16.console-a11y, SPEC-16.console-errors, SPEC-16.console-token]
+    externalBlock: { reason: "Workforce SSO", prerequisites: [PRQ-036] }
+  - id: SPEC-16.decisions
+    kind: spec
+    section: "16 Instructions for the coding agent"
+    text: "Material decisions are recorded (architecture decision records)."
+    enforcement: [docs/DECISIONS.md, docs/adr]
+    verification: [unit]
+    externalBlock: null
+  - id: SPEC-16.progress-handoff
+    kind: spec
+    section: "Progress and handoff; 16 Completion reporting"
+    text: "IMPLEMENTATION_STATUS, PREREQUISITES, DECISIONS, REQUIREMENTS_TRACEABILITY, TEST_EVIDENCE and RUNBOOKS are maintained with reproducible commands, evidence locations, versions and next steps."
+    enforcement: [docs]
+    verification: [unit]
+    aliases: [SPEC-16.handoff]
+    externalBlock: null
+  - id: SPEC-16.status-vocabulary
+    kind: spec
+    section: "16 Completion reporting"
+    text: "Distinguish IMPLEMENTED_OFFLINE, VERIFIED_SANDBOX, APPROVED_PILOT and VERIFIED_PRODUCTION; never call mocked integrations production-ready or claim compliance, perfect safety, zero risk, guaranteed cost caps or zero data loss without evidence."
+    enforcement: [platform/src/protocol/release.ts, platform/src/evaluation/manifest.ts, platform/src/evaluation/traceability.ts, platform/src/adapters/integration-inventory.ts]
+    verification: [unit]
+    externalBlock: null

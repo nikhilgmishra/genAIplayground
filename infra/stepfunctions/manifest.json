@@ -1,0 +1,66 @@
+{
+  "generator": "platform/src/workflows/generate-asl.ts",
+  "stateMachineType": "STANDARD",
+  "placeholders": {
+    "system_task_queue_url": "SQS queue for system work items (ACCEPTED, VALIDATING, WAITING_FOR_SYSTEM, READY_TO_COMMIT), consumed by the workflow worker.",
+    "human_task_queue_url": "SQS queue for human-task work items (WAITING_FOR_HUMAN), consumed by the human-task bridge that opens the console task.",
+    "notify_queue_url": "SQS queue for caller follow-up (WAITING_FOR_CALLER): neutral notification per preferences/quiet hours/consent, then wait for the caller.",
+    "escalation_queue_url": "SQS queue that receives escalation notices (deadline exceeded, retry budget exhausted, invalid signal) for the escalation owner.",
+    "recheck_queue_url": "SQS queue for pre-disclosure / material-change rechecks (consent, representation, account state, current policy)."
+  },
+  "logging": {
+    "level": "ERROR",
+    "includeExecutionData": false
+  },
+  "workflows": [
+    {
+      "workflowType": "billing_dispute_review",
+      "definitionVersion": "1.0.0",
+      "file": "billing_dispute_review.asl.json",
+      "sha256": "8ea63f2738f742057c2e4be076a7df01a77788c7391c78d2e4035e3a3138fd99",
+      "stateMachineType": "STANDARD"
+    },
+    {
+      "workflowType": "callback_request",
+      "definitionVersion": "1.0.0",
+      "file": "callback_request.asl.json",
+      "sha256": "bfd35cf1869551186bbb7c2f33fe8cfcc32b1d9dea2198a73c6e29680b4a261b",
+      "stateMachineType": "STANDARD"
+    },
+    {
+      "workflowType": "claim_investigation",
+      "definitionVersion": "1.0.0",
+      "file": "claim_investigation.asl.json",
+      "sha256": "519caf73b7c1cb07e3976c409bb86cd66d23e844340ee1e02a5962a929c1841f",
+      "stateMachineType": "STANDARD"
+    },
+    {
+      "workflowType": "complaint_review",
+      "definitionVersion": "1.0.0",
+      "file": "complaint_review.asl.json",
+      "sha256": "f6920fceaef70e8d56b95133da7a1f408707ee6b06b6eeaf6229ba34ba983f24",
+      "stateMachineType": "STANDARD"
+    },
+    {
+      "workflowType": "partner_onboarding",
+      "definitionVersion": "1.0.0",
+      "file": "partner_onboarding.asl.json",
+      "sha256": "4b97c19ac1e2f6e32e6f5f42e3a3dee4085e51621b623783d225adb22843c5ff",
+      "stateMachineType": "STANDARD"
+    },
+    {
+      "workflowType": "provider_document_review",
+      "definitionVersion": "1.0.0",
+      "file": "provider_document_review.asl.json",
+      "sha256": "27dbec1886969acd959054bedfe42fbd668a5e51a4e649ee5981a19a538cfd3d",
+      "stateMachineType": "STANDARD"
+    },
+    {
+      "workflowType": "support_request_sync",
+      "definitionVersion": "1.0.0",
+      "file": "support_request_sync.asl.json",
+      "sha256": "2c3eccbed879919e1081107d1efb890d8bd51e70f3fd49a67bab472bdc42460a",
+      "stateMachineType": "STANDARD"
+    }
+  ]
+}

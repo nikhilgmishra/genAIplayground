@@ -1,0 +1,113 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/VerificationAssertionClaims.json",
+  "title": "VerificationAssertionClaims",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "iss": {
+      "type": "string",
+      "minLength": 3
+    },
+    "aud": {
+      "type": "string",
+      "minLength": 3
+    },
+    "sub": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "exp": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "iat": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "nbf": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "jti": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "nonce": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 128
+    },
+    "sid": {
+      "type": "string",
+      "pattern": "^ses_[A-Za-z0-9_-]{16,64}$"
+    },
+    "gen": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "call": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "asr": {
+      "type": "string",
+      "enum": [
+        "A0",
+        "A1",
+        "A2",
+        "A3"
+      ]
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "client",
+        "prospective_client",
+        "provider",
+        "practice_staff",
+        "partner",
+        "payer_representative",
+        "personal_representative"
+      ]
+    },
+    "purpose": {
+      "type": "string",
+      "enum": [
+        "transfer_receiver",
+        "durable_action_grant",
+        "portal_binding"
+      ]
+    },
+    "actions": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z_.]+$"
+      }
+    }
+  },
+  "required": [
+    "iss",
+    "aud",
+    "sub",
+    "exp",
+    "iat",
+    "nbf",
+    "jti",
+    "nonce",
+    "sid",
+    "gen",
+    "call",
+    "asr",
+    "role",
+    "purpose",
+    "actions"
+  ],
+  "additionalProperties": false
+}

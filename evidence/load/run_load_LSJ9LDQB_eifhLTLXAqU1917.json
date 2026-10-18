@@ -1,0 +1,351 @@
+{
+  "label": "LOCAL LOOPBACK, PGlite single connection, NOT the vendor/telephone path, NOT capacity evidence",
+  "badge": "LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION",
+  "notCapacityEvidence": true,
+  "runId": "run_load_LSJ9LDQB_eifhLTLXAqU1917",
+  "generatedAt": "2026-10-18T09:16:10.195Z",
+  "environment": "local",
+  "executionMode": "local_fixture",
+  "command": "cd platform && npx tsx ../scripts/load/run-local-load.mts --sustained 25 --burst 5 --rate 400 --connections 40 --burst-connections 100 --warmup 3 --reference-rate 20 --reference 10",
+  "host": {
+    "node": "v22.22.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpus": 4,
+    "cpuModel": "Intel(R) Xeon(R) Processor @ 2.80GHz"
+  },
+  "target": {
+    "listener": "127.0.0.1 (ephemeral port, loopback only)",
+    "database": "PGlite 0.3.15 in-process (WASM), single connection, same thread as the gateway",
+    "transport": "HTTP tool route POST /v1/tools/:name/1.0.0 on the Fastify listener (mcp_tools LOCAL FIXTURE token, trusted session headers)",
+    "generator": "autocannon 8.0.0 in a separate Node process",
+    "rateLimit": {
+      "max": 10000000,
+      "timeWindowMs": 60000,
+      "note": "per-integration limiter active with a raised ceiling; the default limit would refuse this load by design"
+    },
+    "auditShipIntervalMs": 1000
+  },
+  "targetSustainedRps": 400,
+  "phases": [
+    {
+      "name": "reference.public_read",
+      "endpoint": {
+        "tool": "search_approved_runbook",
+        "safetyClass": "PUBLIC_READ",
+        "sessionAssurance": "A0"
+      },
+      "config": {
+        "connections": 4,
+        "durationS": 10,
+        "overallRate": 20
+      },
+      "result": {
+        "label": "reference.public_read",
+        "url": "http://127.0.0.1:38533/v1/tools/search_approved_runbook/1.0.0",
+        "connections": 4,
+        "targetRate": 20,
+        "durationS": 10.02,
+        "requestsSent": 220,
+        "responses": 200,
+        "status2xx": 200,
+        "non2xx": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "bodyChecked": 200,
+        "bodyNotSuccess": 0,
+        "reasonCodes": {},
+        "statusCounts": {
+          "200": 200
+        },
+        "errorRate": 0,
+        "throughputRps": 19.96,
+        "throughputBytesPerS": 32440,
+        "latencyMs": {
+          "p50": 64.02,
+          "p95": 140.51,
+          "p99": 157.42,
+          "max": 186.77,
+          "mean": 73.27
+        },
+        "autocannonLatencyMs": {
+          "p50": 38,
+          "p90": 93,
+          "p99": 139
+        }
+      },
+      "sustainedTargetMet": null
+    },
+    {
+      "name": "reference.protected_read",
+      "endpoint": {
+        "tool": "get_invoice_status",
+        "safetyClass": "PROTECTED_READ",
+        "sessionAssurance": "A2"
+      },
+      "config": {
+        "connections": 4,
+        "durationS": 10,
+        "overallRate": 20
+      },
+      "result": {
+        "label": "reference.protected_read",
+        "url": "http://127.0.0.1:38533/v1/tools/get_invoice_status/1.0.0",
+        "connections": 4,
+        "targetRate": 20,
+        "durationS": 10.02,
+        "requestsSent": 220,
+        "responses": 200,
+        "status2xx": 200,
+        "non2xx": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "bodyChecked": 200,
+        "bodyNotSuccess": 0,
+        "reasonCodes": {},
+        "statusCounts": {
+          "200": 200
+        },
+        "errorRate": 0,
+        "throughputRps": 19.96,
+        "throughputBytesPerS": 39920,
+        "latencyMs": {
+          "p50": 53.82,
+          "p95": 124.02,
+          "p99": 149.43,
+          "max": 155.51,
+          "mean": 63.03
+        },
+        "autocannonLatencyMs": {
+          "p50": 32,
+          "p90": 80,
+          "p99": 125
+        }
+      },
+      "sustainedTargetMet": null
+    },
+    {
+      "name": "sustained.public_read",
+      "endpoint": {
+        "tool": "search_approved_runbook",
+        "safetyClass": "PUBLIC_READ",
+        "sessionAssurance": "A0"
+      },
+      "config": {
+        "connections": 40,
+        "durationS": 25,
+        "overallRate": 400
+      },
+      "result": {
+        "label": "sustained.public_read",
+        "url": "http://127.0.0.1:38533/v1/tools/search_approved_runbook/1.0.0",
+        "connections": 40,
+        "targetRate": 400,
+        "durationS": 25.03,
+        "requestsSent": 1569,
+        "responses": 1169,
+        "status2xx": 1169,
+        "non2xx": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "bodyChecked": 1169,
+        "bodyNotSuccess": 0,
+        "reasonCodes": {},
+        "statusCounts": {
+          "200": 1169
+        },
+        "errorRate": 0,
+        "throughputRps": 46.7,
+        "throughputBytesPerS": 75843.2,
+        "latencyMs": {
+          "p50": 800.13,
+          "p95": 1080.25,
+          "p99": 1763.03,
+          "max": 7550.26,
+          "mean": 839.66
+        },
+        "autocannonLatencyMs": {
+          "p50": 423,
+          "p90": 791,
+          "p99": 3929
+        }
+      },
+      "sustainedTargetMet": false
+    },
+    {
+      "name": "sustained.protected_read",
+      "endpoint": {
+        "tool": "get_invoice_status",
+        "safetyClass": "PROTECTED_READ",
+        "sessionAssurance": "A2"
+      },
+      "config": {
+        "connections": 40,
+        "durationS": 25,
+        "overallRate": 400
+      },
+      "result": {
+        "label": "sustained.protected_read",
+        "url": "http://127.0.0.1:38533/v1/tools/get_invoice_status/1.0.0",
+        "connections": 40,
+        "targetRate": 400,
+        "durationS": 25.03,
+        "requestsSent": 1600,
+        "responses": 1200,
+        "status2xx": 1200,
+        "non2xx": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "bodyChecked": 1200,
+        "bodyNotSuccess": 0,
+        "reasonCodes": {},
+        "statusCounts": {
+          "200": 1200
+        },
+        "errorRate": 0,
+        "throughputRps": 47.94,
+        "throughputBytesPerS": 95798.4,
+        "latencyMs": {
+          "p50": 770.82,
+          "p95": 1126.26,
+          "p99": 1675.23,
+          "max": 4250.78,
+          "mean": 814.22
+        },
+        "autocannonLatencyMs": {
+          "p50": 410,
+          "p90": 763,
+          "p99": 1521
+        }
+      },
+      "sustainedTargetMet": false
+    },
+    {
+      "name": "burst.public_read",
+      "endpoint": {
+        "tool": "search_approved_runbook",
+        "safetyClass": "PUBLIC_READ",
+        "sessionAssurance": "A0"
+      },
+      "config": {
+        "connections": 100,
+        "durationS": 5,
+        "overallRate": null
+      },
+      "result": {
+        "label": "burst.public_read",
+        "url": "http://127.0.0.1:38533/v1/tools/search_approved_runbook/1.0.0",
+        "connections": 100,
+        "targetRate": null,
+        "durationS": 5.03,
+        "requestsSent": 298,
+        "responses": 198,
+        "status2xx": 198,
+        "non2xx": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "bodyChecked": 198,
+        "bodyNotSuccess": 0,
+        "reasonCodes": {},
+        "statusCounts": {
+          "200": 198
+        },
+        "errorRate": 0,
+        "throughputRps": 39.36,
+        "throughputBytesPerS": 64233.6,
+        "latencyMs": {
+          "p50": 488.17,
+          "p95": 985.52,
+          "p99": 3821.62,
+          "max": 4523.49,
+          "mean": 585.21
+        },
+        "autocannonLatencyMs": {
+          "p50": 488,
+          "p90": 774,
+          "p99": 3821
+        }
+      },
+      "sustainedTargetMet": null
+    },
+    {
+      "name": "burst.protected_read",
+      "endpoint": {
+        "tool": "get_invoice_status",
+        "safetyClass": "PROTECTED_READ",
+        "sessionAssurance": "A2"
+      },
+      "config": {
+        "connections": 100,
+        "durationS": 5,
+        "overallRate": null
+      },
+      "result": {
+        "label": "burst.protected_read",
+        "url": "http://127.0.0.1:38533/v1/tools/get_invoice_status/1.0.0",
+        "connections": 100,
+        "targetRate": null,
+        "durationS": 5.03,
+        "requestsSent": 214,
+        "responses": 114,
+        "status2xx": 114,
+        "non2xx": 0,
+        "errors": 0,
+        "timeouts": 0,
+        "bodyChecked": 114,
+        "bodyNotSuccess": 0,
+        "reasonCodes": {},
+        "statusCounts": {
+          "200": 114
+        },
+        "errorRate": 0,
+        "throughputRps": 22.66,
+        "throughputBytesPerS": 45510.4,
+        "latencyMs": {
+          "p50": 280.61,
+          "p95": 3215.24,
+          "p99": 4397.85,
+          "max": 4761.2,
+          "mean": 627.33
+        },
+        "autocannonLatencyMs": {
+          "p50": 280,
+          "p90": 2202,
+          "p99": 4397
+        }
+      },
+      "sustainedTargetMet": null
+    }
+  ],
+  "finalState": {
+    "auditRowsBefore": 334,
+    "auditRowsAfter": 3703,
+    "auditRowsDelta": 3369,
+    "successfulResponses": 3081,
+    "everySuccessAudited": true,
+    "auditShipRuns": 26,
+    "auditShipFailures": 0,
+    "auditShipBlockedRuns": 0,
+    "auditShipBlockedReasons": {},
+    "auditBacklogAfterShip": 0,
+    "integrity": {
+      "verifier": "IntegrityVerifier",
+      "streams": 1,
+      "events": 3703,
+      "localOk": true,
+      "shippedOk": true,
+      "findings": 0,
+      "findingCodes": [],
+      "failedStreams": [],
+      "numericOrderChainOk": true
+    }
+  },
+  "verdict": {
+    "sustainedTargetMet": false,
+    "zeroErrors": true,
+    "notes": [
+      "sustained.public_read: achieved 46.7 req/s against the 400 req/s target (error rate 0)",
+      "sustained.protected_read: achieved 47.94 req/s against the 400 req/s target (error rate 0)"
+    ]
+  }
+}

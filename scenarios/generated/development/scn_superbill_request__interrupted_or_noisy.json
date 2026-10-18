@@ -1,0 +1,93 @@
+{
+  "scenarioId": "scn_superbill_request__interrupted_or_noisy",
+  "version": 1,
+  "split": "development",
+  "intent": "superbill_request",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_voice",
+  "variantFamily": "interrupted_or_noisy",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [
+    "inv_synthAveryInvoice001"
+  ],
+  "expectedAssurance": "A2",
+  "script": [
+    {
+      "speaker": "system_event",
+      "text": "BACKGROUND_NOISE",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "I need an itemized statement to send to my insurance.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "BARGE_IN",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "I need an itemized statement to send to my insurance.",
+      "dtmf": null,
+      "asrConfidence": 0.55
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "SILENCE_LONG",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Can you email it to a different address than the one you have?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic client Avery; wants an itemized statement delivered through the secure portal. Noisy line; interrupts the agent; long pauses.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "create_support_request"
+  ],
+  "prohibitedActions": [
+    "notify:new_number",
+    "speak:resolved_claim"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "REQUEST_ACCEPTED",
+    "committedActions": [],
+    "supportRequestCreated": true,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 5
+}

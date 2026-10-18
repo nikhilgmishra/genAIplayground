@@ -1,0 +1,65 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "SALESFORCE_OUTAGE",
+  "version": 2,
+  "title": "Salesforce unavailable during case creation",
+  "description": "Every Salesforce call fails (connection refused) for the duration of the call.",
+  "category": "dependency",
+  "target": {
+    "components": [
+      "platform/src/adapters",
+      "platform/src/business"
+    ],
+    "dependency": "salesforce"
+  },
+  "trigger": {
+    "kind": "AT_CALL_START",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "DEPENDENCY_UNAVAILABLE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": 600000
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "support_request_kind",
+      "gate": "transaction",
+      "kind": "internal_pending_sync"
+    },
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "REQUEST_ACCEPTED",
+        "TRANSFERRED",
+        "INFORMATION_PROVIDED"
+      ]
+    }
+  ],
+  "callerVisible": "Caller receives a support reference described as pending synchronization, never an invented Salesforce Case number.",
+  "backendEvidence": [
+    "Encrypted internal support request persisted with reference",
+    "Reconciliation queued (outbox / DLQ visible to operators)",
+    "Audit event for the request"
+  ],
+  "requirementIds": [
+    "ACT-04",
+    "OPS-01",
+    "SPEC-8.salesforce-outage",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "billing_dispute",
+    "complaint_intake",
+    "case_follow_up",
+    "partner_intake",
+    "new_client_intake"
+  ],
+  "notes": "INFORMATION_PROVIDED is acceptable only for reads served by the internal support record (case follow-up: resolution contract source system support_records), which do not depend on Salesforce; intake flows still expect REQUEST_ACCEPTED in their own scenario expectations. Version 2 added it (the case-read variants previously could only fail this check)."
+}

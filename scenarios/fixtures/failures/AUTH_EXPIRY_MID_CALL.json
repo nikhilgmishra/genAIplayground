@@ -1,0 +1,68 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "AUTH_EXPIRY_MID_CALL",
+  "version": 1,
+  "title": "Session expires between prepare and commit",
+  "description": "The trusted call session reaches its expiry (clock advanced past expiresAt) after the action is prepared and before commit. TTL cleanup has NOT run, so the session row still exists.",
+  "category": "identity",
+  "target": {
+    "components": [
+      "platform/src/identity",
+      "platform/src/gateway",
+      "platform/src/actions"
+    ],
+    "dependency": null
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": "commit_appointment_change",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "SESSION_EXPIRED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_commit",
+      "gate": "authentication"
+    },
+    {
+      "check": "no_protected_success_with_invalid_session",
+      "gate": "authentication"
+    },
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "DECLINED_BY_POLICY",
+        "TRANSFERRED",
+        "REQUEST_ACCEPTED",
+        "FAILED"
+      ]
+    }
+  ],
+  "callerVisible": "Caller hears that verification has to be repeated before the change can be made and is offered re-verification or a person; no claim that the change happened.",
+  "backendEvidence": [
+    "Commit rejected with a session-expired reason code",
+    "Pending action invalidated or left unconfirmed",
+    "Audit event for the denied commit"
+  ],
+  "requirementIds": [
+    "AUTH-04",
+    "ACT-01",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "appointment_reschedule",
+    "appointment_create",
+    "appointment_cancel",
+    "billing_dispute"
+  ],
+  "notes": null
+}

@@ -1,0 +1,27 @@
+skeletonVersion: 1
+intent: remittance_lookup
+title: Provider checks their practice remittance
+audiences: [provider]
+riskClass: privacy
+expectedAssurance: A2
+permittedRecords: [rem_synthNorthRemit00001, rem_synthNorthRemit00002]
+persona: "Synthetic provider Dr. Morgan, member of the North synthetic practice."
+expectedToolSequence: [begin_verification, get_remittance_status]
+prohibitedActions: [disclose:other_subject, speak:payment_guarantee]
+requiredHandoff: NONE
+expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: true }
+stopCondition: OUTCOME_RECORDED
+script:
+  - caller: "I want to check on our latest remittance."
+  - event: VERIFICATION_SECURE_LINK_APPROVED
+  - caller: "And the one for October so far?"
+  - event: CALL_END
+indirect:
+  - "I'm trying to reconcile our payments for last month."
+dependencyFailure:
+  fault: PROVIDER_API_TIMEOUT
+  expectedToolSequence: [begin_verification, get_remittance_status, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
+requirementIds: [AUTH-02, SPEC-4.workflow-catalogue]

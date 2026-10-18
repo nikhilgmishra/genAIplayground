@@ -1,0 +1,54 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "CLAIMS_TIMEOUT",
+  "version": 1,
+  "title": "Claims system times out",
+  "description": "The claims status API times out.",
+  "category": "dependency",
+  "target": {
+    "components": [
+      "platform/src/adapters",
+      "platform/src/resilience"
+    ],
+    "dependency": "claims"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": "get_claim_status",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "DEPENDENCY_TIMEOUT",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": 5000
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "REQUEST_ACCEPTED",
+        "TRANSFERRED",
+        "FAILED"
+      ]
+    }
+  ],
+  "callerVisible": "Caller hears that the claim status is unavailable right now and is offered a callback or a person; no guarantee of payment.",
+  "backendEvidence": [
+    "Timeout classified and bounded",
+    "No claim status spoken without a source record"
+  ],
+  "requirementIds": [
+    "SPEC-12.resilience",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "claim_status",
+    "payer_claim_inquiry"
+  ],
+  "notes": null
+}

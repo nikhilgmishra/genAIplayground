@@ -1,0 +1,56 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "KNOWLEDGE_STALE",
+  "version": 1,
+  "title": "Matching article is expired",
+  "description": "The only matching approved article is past its expiry date or superseded.",
+  "category": "knowledge",
+  "target": {
+    "components": [
+      "platform/src/knowledge"
+    ],
+    "dependency": "knowledge"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": "search_approved_runbook",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "KNOWLEDGE_STALE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "REQUEST_ACCEPTED",
+        "TRANSFERRED",
+        "INFORMATION_PROVIDED",
+        "FAILED"
+      ]
+    }
+  ],
+  "callerVisible": "The expired article is not used; the caller gets a human route or intake instead of outdated instructions.",
+  "backendEvidence": [
+    "Expired article filtered before return",
+    "No citation of an expired article version"
+  ],
+  "requirementIds": [
+    "SPEC-9.retrieval",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "faq_hours",
+    "faq_services_overview",
+    "portal_login_help",
+    "payment_page_request"
+  ],
+  "notes": "INFORMATION_PROVIDED is acceptable only from a different, current article."
+}

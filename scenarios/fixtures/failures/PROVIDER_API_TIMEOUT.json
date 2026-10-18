@@ -1,0 +1,56 @@
+{
+  "faultPlanVersion": "fault-plan.v1",
+  "faultId": "PROVIDER_API_TIMEOUT",
+  "version": 1,
+  "title": "Provider network API times out",
+  "description": "The provider onboarding / remittance API times out.",
+  "category": "dependency",
+  "target": {
+    "components": [
+      "platform/src/adapters",
+      "platform/src/resilience"
+    ],
+    "dependency": "provider_network"
+  },
+  "trigger": {
+    "kind": "AT_CALL_START",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "DEPENDENCY_TIMEOUT",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": 5000
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "outcome_in",
+      "gate": "transaction",
+      "outcomes": [
+        "REQUEST_ACCEPTED",
+        "TRANSFERRED",
+        "FAILED"
+      ]
+    }
+  ],
+  "callerVisible": "Provider hears that the status is unavailable and is offered provider support or a callback.",
+  "backendEvidence": [
+    "Timeout classified and bounded",
+    "No status spoken without a source record"
+  ],
+  "requirementIds": [
+    "SPEC-12.resilience",
+    "SPEC-16.fault-injection"
+  ],
+  "appliesToIntents": [
+    "provider_onboarding_status",
+    "credentialing_document_status",
+    "remittance_lookup",
+    "delegated_practice_remittance"
+  ],
+  "notes": null
+}

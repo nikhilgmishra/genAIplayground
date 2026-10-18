@@ -1,0 +1,721 @@
+# Prerequisite register (machine-readable). Human rendering: docs/PREREQUISITES.md.
+#
+# Every entry under `records` strictly matches PrerequisiteRecord in
+# platform/src/protocol/release.ts (unknown keys are rejected) and is validated by
+# platform/test/docs/prerequisites.test.ts.
+#
+# Rules (spec section 5, invariants OPS-03 / OPS-05):
+#  * UNKNOWN and BLOCKED are valid states and are NEVER equivalent to approved.
+#    UNKNOWN  = the state of the external artifact cannot be determined from this
+#               repository (no production or vendor account was inspected).
+#    BLOCKED  = the artifact is known to be absent from what engineering can use, so
+#               the gate cannot pass.
+#  * Only the named human owner moves a record to EVIDENCED or APPROVED, and only with
+#    an evidenceRef and approvalDate. The coding agent never sets these fields.
+#  * Evidence must identify the exact tenant, SKU, region, feature and model where relevant.
+#  * Missing secrets block integration execution, not offline coding.
+#
+# `annotations` carries cross-references that are not part of the strict record
+# schema (spec row, trust-boundary flag, vendor questions, approval requests).
+# Vendor question ids (VQ-*) live in talkdesk/vendor-questions.md; capability gate ids
+# (CG-*) in talkdesk/capability-gate.md; approval request ids (AR-*) in
+# docs/release/approval-requests.md.
+
+schemaVersion: vsp.prerequisites.v1
+asOf: "2026-10-17"
+recordSchema: platform/src/protocol/release.ts#PrerequisiteRecord
+statusMeaning:
+  UNKNOWN: "State of the external artifact not determinable from the repository; not approved."
+  BLOCKED: "Artifact known to be missing for engineering use; gate cannot pass; not approved."
+  REQUESTED: "Owner has been asked through the approval-request pack; not approved."
+  IN_PROGRESS: "Owner is producing the artifact; not approved."
+  EVIDENCED: "Evidence reference exists and was reviewed by the owner (requires evidenceRef and approvalDate)."
+  APPROVED: "Signed human approval exists (requires evidenceRef and approvalDate; approval record in approvals/)."
+  EXPIRED: "Previously approved or evidenced; expiryDate passed; treated as not approved."
+  NOT_APPLICABLE: "Owner has recorded that the prerequisite does not apply (requires a reason in nextAction)."
+
+records:
+  # ---------------------------------------------------------------- spec section 5 owner rows (1..12)
+  - id: PRQ-001
+    owner: Executive sponsor and support owner
+    artifact: Funded scope, prioritised workflow catalogue, success measures (verified resolution, repeat contact, CSAT response rate) and a named incident authority for privacy, safety and outage decisions.
+    gate: Before committing to a production timeline
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Executive sponsor names the incident authority and the workflow priority order in writing; record the document reference here. Engineering continues offline meanwhile.
+    blocks: [PHASE-4, PHASE-5, SPEC-13.incident-roster, SPEC-15.promotion, PILOT_EXPOSURE]
+
+  - id: PRQ-002
+    owner: Privacy counsel and procurement
+    artifact: Executed BAAs and service-specific coverage statements for Talkdesk AI (AI Agent Platform, Autopilot Agentic, recording, transcription, Simulator, evaluation), speech and model providers, Salesforce, AWS and every other PHI processor listed in docs/privacy/data-flow-inventory.md.
+    gate: Before any PHI leaves synthetic environments
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Privacy counsel lists which processors in the data-flow inventory are covered, by contract reference and exact service/feature; procurement sends VQ-TD-46, VQ-SF-01, VQ-AWS-01 and VQ-SPV-01 for written answers.
+    blocks: [DATA-01, DATA-02, DATA-03, PHI_PROCESSING, PHASE-4, TB-08]
+
+  - id: PRQ-003
+    owner: Security and privacy
+    artifact: Reviewed data-flow inventory, risk analysis of the implemented system (not only vendors), threat model, retention matrix and the list of approved coding and evaluation environments (engineering drafts exist in docs/privacy and docs/security; none is approved).
+    gate: Before real records or recordings are used
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Security and privacy review the drafts docs/privacy/data-flow-inventory.md, docs/privacy/retention-matrix.md and docs/security/threat-model.md, record findings, and execute the risk analysis for the implemented system.
+    blocks: [DATA-01, DATA-02, PHI_PROCESSING, SPEC-6.data-flow, SPEC-14.threat-model, PHASE-3]
+
+  - id: PRQ-004
+    owner: Talkdesk administrator and Talkdesk (vendor)
+    artifact: Sandbox tenant, licences, routing exports, documented APIs, transfer controls, written quota commitments and vendor escalation support for the actual plan (not a demo tenant).
+    gate: Before vendor integration tests
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Talkdesk administrator submits VQ-TD-01..VQ-TD-48 to the vendor account team and requests approval AR-01 for sandbox configuration.
+    blocks: [AUTH-07, SAFE-04, OPS-02, CG-01, CG-02, CG-03, CG-04, CG-05, CG-06, CG-07, CG-08, CG-09, CG-10, PHASE-2]
+
+  - id: PRQ-005
+    owner: Identity owner
+    artifact: OIDC test clients for client and provider IdPs, account-linking source of truth (IdP subject to actor), registered-channel verification and change timestamps, account recovery process and proxy/representative authority policies.
+    gate: Before protected workflows
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Identity owner answers VQ-IDP-01..VQ-IDP-07 and issues non-production OIDC clients with synthetic test users (approval AR-04).
+    blocks: [AUTH-01, AUTH-03, AUTH-05, SPEC-7.assurance, appointment_change, invoice_status, remittance_status]
+
+  - id: PRQ-006
+    owner: Salesforce administrator
+    artifact: Sandbox without copied production data, dedicated integration identity, Case schema, sharing model, encrypted fields, external ID fields, API allocation and automation inventory.
+    gate: Before Case writes
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Salesforce administrator answers VQ-SF-02..VQ-SF-09 and requests approval AR-03 for a synthetic-only sandbox integration.
+    blocks: [ACT-02, ACT-04, SPEC-8.salesforce, support_request_sync, case_follow_up]
+
+  - id: PRQ-007
+    owner: Business-system owners (scheduling, billing, claims, provider network)
+    artifact: Documented scheduling, billing, claims and provider APIs with synthetic fixtures, commit semantics, idempotency-key support and authoritative lookup-by-key for reconciliation.
+    gate: Before enabling those intents
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Each owner confirms whether an idempotency key and a lookup-by-key exist for every mutation; without them ACT-03 reconciliation cannot be proven and the intent stays disabled.
+    blocks: [ACT-02, ACT-03, appointment_change, billing_review, claim_status, provider_onboarding_status, remittance_status]
+
+  - id: PRQ-008
+    owner: Clinical safety lead
+    artifact: Approved escalation scripts, staffed safety response plan, external transfer agreements, after-hours protocol and the unavailable-responder terminal procedure after the last safety destination (VQ-OPS-02).
+    gate: Before patient-facing voice
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Clinical safety lead reviews the safety acknowledgment and boundary template ids in platform/src/voice and the safety routing design (ADR-0003 context, spec section 10) and supplies the after-hours and unavailable-responder procedures.
+    blocks: [SAFE-01, SAFE-02, SAFE-03, SAFE-04, CLINICAL_SCRIPTS, PHASE-4]
+
+  - id: PRQ-009
+    owner: Support operations
+    artifact: Queue skills, schedules, accessibility and interpreter paths, overflow capacity, outage service mode staffing and outage exercises.
+    gate: Before any traffic migration
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: production
+    nextAction: Support operations supplies queue wait thresholds, hold-update interval, overflow targets and continuity staffing (VQ-OPS-03) and schedules the first AI-off exercise (docs/RUNBOOKS/ai-off-route.md).
+    blocks: [OPS-02, SPEC-12.human-capacity, SPEC-12.outage-mode, PHASE-3, PHASE-4]
+
+  - id: PRQ-010
+    owner: Finance and platform owner
+    artifact: Vendor rate cards, approved test ceiling, production budget, safety reserve and budget cutoff behaviour.
+    gate: Before any billable execution
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Finance fills the RATE_CARD_REQUIRED fields in docs/release/sandbox-cost-inputs.yaml and answers VQ-FIN-01; no billable execution starts before an approved BILLABLE_TEST_EXECUTION record exists.
+    blocks: [OPS-05, SPEC-12.cost, BILLABLE_TEST_EXECUTION, PSTN_TEST_CALLS, PHASE-2]
+
+  - id: PRQ-011
+    owner: SRE and security operations
+    artifact: On-call roster, dashboards wired to an approved metrics export, paging integration, access-review process, incident response process and recovery drill evidence.
+    gate: Before production promotion
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: production
+    nextAction: SRE lead names the on-call rotation and paging integration for the SNS alarm topic in infra/terraform/modules/observability and schedules the drills listed in docs/RUNBOOKS/README.md.
+    blocks: [OPS-01, OPS-02, SPEC-13.dashboards, SPEC-13.runbooks, SPEC-12.recovery, PRODUCTION_DEPLOYMENT]
+
+  - id: PRQ-012
+    owner: QA and language leads
+    artifact: Reviewed test corpus (at least 50 intents x 8 variant families and at least 500 human-reviewed privacy, authorization, clinical-boundary and safety scenarios), consented voice fixtures, scoring rules and native-speaker reviewers.
+    gate: Before accepting a language or cohort
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: QA lead approves the scenario skeleton format in scenarios/ and names reviewers per supported language; until then no language or cohort is accepted.
+    blocks: [SPEC-14.corpus, SPEC-14.pass-fail, MODEL_VOICE_SELECTION, PHASE-3]
+
+  # ---------------------------------------------------------------- vendor capability gate (TB-01..TB-10)
+  - id: PRQ-013
+    owner: Talkdesk administrator with security leadership
+    artifact: "TB-01: documented mechanism that delivers the opaque session reference (or interaction id) to MCP tools outside model-controlled arguments for our plan, plus MB-01..MB-05 sandbox results."
+    gate: Before any protected tool is served to the conversational layer
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Obtain a written answer to VQ-TD-23; apply the decision rule in ADR-0003 (trusted header, else server-to-server lookup, else protected tools BLOCKED).
+    blocks: [AUTH-02, AUTH-03, CG-01, protected_tools, ADR-0003]
+
+  - id: PRQ-014
+    owner: Talkdesk administrator with security leadership
+    artifact: "TB-02: deterministic Studio/Skill step that captures caller confirmation (DTMF or affirmative) and calls the telephony-control API, proven in sandbox."
+    gate: Before consequential commits are enabled in the autonomous flow
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Obtain written answers to VQ-TD-27 and VQ-TD-28; until evidenced, commit tools stay disabled for autonomous flow and a human agent confirms (ADR-0005).
+    blocks: [ACT-01, CG-03, commit_appointment_change, submit_billing_review, ADR-0005]
+
+  - id: PRQ-015
+    owner: Talkdesk administrator with security leadership
+    artifact: "TB-03: isolated DTMF capture in which digits reach neither ASR, model, recording, transcript, Studio logs nor exports (DT-01..DT-06)."
+    gate: Before OTP fallback is enabled
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Obtain written answers to VQ-TD-08 and VQ-TD-48; until evidenced, OTP fallback stays disabled and verification uses the secure link, portal or a human (ADR-0009).
+    blocks: [AUTH-06, CG-02, otp_fallback, ADR-0009]
+
+  - id: PRQ-016
+    owner: Talkdesk administrator with security leadership and clinical safety lead
+    artifact: "TB-04: written vendor mechanism proving every protected utterance is validated before audio emission (BS-01..BS-04)."
+    gate: Before protected responses are spoken by the native conversational layer
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Obtain a written answer to VQ-TD-18; if the guarantee cannot be shown, protected classes use deterministic rendering only or the separately approved fallback runtime (ADR-0006).
+    blocks: [ACT-05, CG-04, ADR-0006]
+
+  - id: PRQ-017
+    owner: Talkdesk administrator with clinical safety lead
+    artifact: "TB-05: crisis input is available to a deterministic component before guardrail refusal or termination, with a deterministic handoff route (GX-01..GX-03)."
+    gate: Before the autonomous flow launches (spec section 2)
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Obtain written answers to VQ-TD-19 and VQ-TD-30 and run GX-01..GX-03 in sandbox after AR-01; without evidence the autonomous flow does not launch.
+    blocks: [SAFE-02, SAFE-03, CG-05, CG-06, PHASE-4]
+
+  - id: PRQ-018
+    owner: Talkdesk administrator with identity owner
+    artifact: "TB-06: Auth Gate variable can be cleared on expiry and cannot be mutated by the model or tool-output mapping (AG-01..AG-19)."
+    gate: Before the Auth Gate is relied on for user experience
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Obtain written answers to VQ-TD-16, VQ-TD-17 and VQ-TD-21; gateway enforcement stays authoritative regardless of the gate result.
+    blocks: [AUTH-04, AUTH-07, CG-01]
+
+  - id: PRQ-019
+    owner: Talkdesk administrator with support operations
+    artifact: "TB-07: transfer events (queued, receiver accepted, bridged, caller confirmed connected) exported to the gateway with timestamps and interaction ids."
+    gate: Before a transfer can be recorded as TRANSFERRED
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Obtain a written answer to VQ-TD-33; until evidenced transfers end OUTCOME_UNKNOWN and humans reconcile.
+    blocks: [SAFE-04, CG-09, SPEC-10.transfer, SPEC-13.slo-handoff]
+
+  - id: PRQ-020
+    owner: Talkdesk administrator
+    artifact: "TB-08: agent configuration, model, voice and prompt version identifiers present in interaction and AI event exports (VI-01..VI-03)."
+    gate: Before a ReleaseManifest can bind vendor configuration
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Obtain written answers to VQ-TD-12 and VQ-TD-35; release stays BLOCKED until versions are identifiable per interaction.
+    blocks: [OPS-06, CG-07, release_manifest]
+
+  - id: PRQ-021
+    owner: Talkdesk administrator with security leadership
+    artifact: "TB-09: documented webhook or event authentication mechanism (signature, timestamp or nonce, replay protection) for our plan."
+    gate: Before webhook or event ingestion is enabled
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Obtain a written answer to VQ-TD-34; webhook ingestion stays disabled and no signature protocol is invented.
+    blocks: [CG-08, SPEC-8.webhooks, SPEC-14.forged-webhooks]
+
+  - id: PRQ-022
+    owner: Talkdesk administrator with finance and platform owner
+    artifact: "TB-10: written per-tenant quotas for trunks, call starts, media legs, AI sessions, ASR/TTS, model throughput, MCP tool calls and exports at the planning targets (2,000 concurrent, 3,000 surge with controlled admission)."
+    gate: Before capacity gates and load tests
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: production
+    nextAction: Obtain written answers to VQ-TD-10, VQ-TD-11 and VQ-TD-43; the figures in docs/capacity-cost-model.md are planning assumptions until then.
+    blocks: [OPS-02, CG-10, SPEC-12.capacity, SPEC-12.load]
+
+  # ---------------------------------------------------------------- approvals, policy and legal
+  - id: PRQ-023
+    owner: Security leadership
+    artifact: Trusted approval signing key (KMS key reference) used by the configuration guard to verify human approval records in approvals/.
+    gate: Before any environment that requires approval records (sandbox live adapters, staging, production)
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Security leadership creates the signing key in the audit or security account and records its reference for approvals.trustedSigningKeyRef; the coding agent never holds it.
+    blocks: [OPS-04, ADR-0010, approvals_verification]
+
+  - id: PRQ-024
+    owner: Accountable approvers named in approvals/README.md
+    artifact: Signed ApprovalRecord files for the Phase 2 approval requests AR-01..AR-15 (VENDOR_SANDBOX_INTEGRATION, BILLABLE_TEST_EXECUTION, PSTN_TEST_CALLS, RETENTION_SCHEDULE, CLINICAL_SCRIPTS, MODEL_VOICE_SELECTION, SECURITY_REVIEW as applicable). approvals/ currently holds none.
+    gate: Before Phase 2 sandbox integration
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Each approver reviews the matching request in docs/release/approval-requests.md; only the approver creates and signs the record.
+    blocks: [OPS-04, OPS-05, PHASE-2]
+
+  - id: PRQ-025
+    owner: Privacy counsel with security leadership
+    artifact: Retention schedule per data class (transient conversational data, business records, restricted QA media, security/audit evidence) with legal purpose, deletion mechanism and legal-hold handling (RETENTION_SCHEDULE).
+    gate: Before production configuration can set retention (null values block production)
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Privacy counsel fills the TO BE SET BY PRIVACY COUNSEL cells in docs/privacy/retention-matrix.md and answers VQ-LEG-02 and VQ-TD-05; request AR-11.
+    blocks: [DATA-03, RETENTION_SCHEDULE, SPEC-6.retention, retention_jobs]
+
+  - id: PRQ-026
+    owner: Privacy counsel
+    artifact: Jurisdiction-approved recording and automated-agent disclosure, consent matrix and approved alternative wording when a caller declines recording (VQ-LEG-01).
+    gate: Before any call is recorded or processed outside synthetic tests
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Privacy counsel approves the disclosure template versions referenced by ConsentState.disclosureTemplateVersion; until then only synthetic test calls are permitted.
+    blocks: [DATA-03, SPEC-6.consent, recording_declined_journey]
+
+  - id: PRQ-027
+    owner: Privacy counsel
+    artifact: Applicability determination for 42 CFR Part 2, psychotherapy-note protections, state mental-health confidentiality, minors and personal representatives, call recording, biometric, accessibility, outbound-call and PCI rules (VQ-LEG-03).
+    gate: Before PHI processing and before representative or minor workflows
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Privacy counsel records the determination per record type and program; engineering keeps representative and minor access behind human review until then.
+    blocks: [DATA-01, PHI_PROCESSING, representative_access, SPEC-6.legal]
+
+  - id: PRQ-028
+    owner: Clinical safety lead with privacy counsel
+    artifact: Approval of the exact caller-facing template versions for safety acknowledgment, clinical boundary, unavailable-responder update and recording disclosure in the voice template registry (CLINICAL_SCRIPTS).
+    gate: Before patient-facing voice
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Clinical safety lead reviews the template ids and text exported from platform/src/voice; request AR-12.
+    blocks: [SAFE-01, SAFE-03, CLINICAL_SCRIPTS, ACT-05]
+
+  - id: PRQ-029
+    owner: Security leadership with identity owner
+    artifact: Security-approved verification parameters - OTP expiry (proposed 5 minutes), attempts per challenge (proposed 3), attempts per account per hour (proposed 5), secure-link expiry, maximum authentication age and abuse thresholds.
+    gate: Before OTP or secure-link verification is enabled outside local tests
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Security leadership approves or replaces the proposed values (spec section 7, VQ-IDP-09) and records the approval id in verification.approvedBySecurity.
+    blocks: [AUTH-01, AUTH-06, SPEC-7.otp, otp_fallback]
+
+  - id: PRQ-030
+    owner: Identity owner with security leadership
+    artifact: Identity risk assessment that lists the low-risk account operations permitted at assurance A1 (verified possession) and the high-risk changes that always require a human.
+    gate: Before any A1-scoped workflow is enabled
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Identity owner publishes the A1 allowlist; until then policy grants nothing beyond A0 at A1.
+    blocks: [AUTH-01, SPEC-7.assurance, policy_bundle]
+
+  - id: PRQ-031
+    owner: Policy approver with security leadership
+    artifact: Reviewed OPA policy bundle version and digest with golden decision probes, approved for the target environment (POLICY_RELEASE).
+    gate: Before a policy bundle is used outside local and CI
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: staging
+    nextAction: Follow docs/RUNBOOKS/policy-release.md once the policy module publishes its first bundle and golden probe report.
+    blocks: [AUTH-02, AUTH-05, OPS-06, POLICY_RELEASE]
+
+  - id: PRQ-032
+    owner: Knowledge owner with clinical safety lead and privacy counsel
+    artifact: Approved public FAQ and runbook corpus snapshot (owner, audience, intent, jurisdiction, language, effective and expiry dates, sensitivity, approval, version) (KNOWLEDGE_RELEASE).
+    gate: Before knowledge retrieval is used outside local and CI
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: staging
+    nextAction: Follow docs/RUNBOOKS/knowledge-release.md; Salesforce Knowledge export path depends on VQ-SF-09.
+    blocks: [OPS-06, KNOWLEDGE_RELEASE, public_faq, SPEC-9.knowledge]
+
+  - id: PRQ-033
+    owner: Business-system owners with support owner
+    artifact: Approved versioned resolution contracts per workflow (eligible audience, assurance, permitted fields, success evidence, escalation owner, service deadline, after-hours behaviour, prohibited assertions).
+    gate: Before an intent is launch-eligible
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Each owner reviews the DRAFT ResolutionContract for their workflow and records approvedBy; unsupported workflows stay intake or handoff only.
+    blocks: [ACT-04, SPEC-4.contracts, PHASE-3]
+
+  # ---------------------------------------------------------------- sandboxes and environments
+  - id: PRQ-034
+    owner: Talkdesk administrator
+    artifact: Talkdesk sandbox tenant isolated from production with the OAuth2 client for the MCP connection and the telephony-control service identity (approval AR-01).
+    gate: Before vendor integration tests
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Talkdesk administrator confirms tenant id, licences and isolation (VQ-TD-44) and requests AR-01.
+    blocks: [AUTH-07, CG-01, CG-02, CG-03, PHASE-2]
+
+  - id: PRQ-035
+    owner: Salesforce administrator
+    artifact: Salesforce sandbox that contains no copied production data, with the dedicated integration identity and external ID fields (approval AR-03).
+    gate: Before Case writes against a vendor system
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Salesforce administrator confirms the sandbox type (VQ-SF-02) and requests AR-03.
+    blocks: [ACT-02, SPEC-8.salesforce, support_request_sync]
+
+  - id: PRQ-036
+    owner: Identity owner
+    artifact: Non-production client, provider and workforce IdP tenants with OIDC clients (issuer, client id, redirect URIs, PKCE), synthetic test users and console role groups (approval AR-04; VQ-IDP-08).
+    gate: Before secure-link verification and console SSO leave local fixtures
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Identity owner issues the clients and synthetic users and requests AR-04.
+    blocks: [AUTH-01, AUTH-03, SPEC-7.staff, console_sso]
+
+  - id: PRQ-037
+    owner: Cloud platform owner with security leadership
+    artifact: AWS sandbox workload account and separately administered audit account, SCPs, CI OIDC deploy role and Terraform state backend with locking (VQ-AWS-03, VQ-AWS-08; approval AR-02).
+    gate: Before terraform apply in any environment
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Cloud platform owner names the accounts and state backend; request AR-02. Plans remain plan-only until then.
+    blocks: [OPS-01, OPS-05, ADR-0008, PHASE-2]
+
+  - id: PRQ-038
+    owner: Privacy counsel with cloud platform owner
+    artifact: AWS BAA coverage for sandbox, staging, production and audit accounts and reconciliation of every planned AWS component against the current HIPAA eligible services reference (VQ-AWS-01, VQ-AWS-02).
+    gate: Before PHI is processed in AWS
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Cloud platform owner reconciles the component list in docs/privacy/data-flow-inventory.md against the eligible-service reference dated at the time of review; privacy counsel confirms account coverage.
+    blocks: [DATA-01, PHI_PROCESSING]
+
+  - id: PRQ-039
+    owner: Cloud platform owner with SRE lead and executive sponsor
+    artifact: Primary and secondary US regions, data residency constraints and acceptance of the proposed recovery objectives (application recovery within 15 minutes, cross-region data-loss objective no worse than 5 minutes) subject to measured replication.
+    gate: Before regional failover design is finalised and before production promotion
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: production
+    nextAction: Cloud platform owner answers VQ-AWS-06; SRE schedules the restore and failover drills (docs/RUNBOOKS/restore-drill.md, docs/RUNBOOKS/regional-failover.md).
+    blocks: [SPEC-12.recovery, OPS-02, PRODUCTION_DEPLOYMENT]
+
+  - id: PRQ-040
+    owner: Security leadership with privacy counsel
+    artifact: S3 Object Lock mode (governance or compliance) and audit retention class for the audit account bucket (VQ-AWS-09).
+    gate: Before the live audit sink is enabled
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Security and privacy decide the mode per environment; compliance mode cannot be shortened, so sandbox rollback constraints must be accepted first.
+    blocks: [OPS-01, ADR-0008, audit_sink_live]
+
+  # ---------------------------------------------------------------- supply chain and build
+  - id: PRQ-041
+    owner: Platform owner with security leadership
+    artifact: Reviewed list of GitHub Action commit SHAs (full 40-character SHAs, not tags) for every action used by CI workflows, with the review record.
+    gate: Before CI workflows run with deployment or signing permissions
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: ci
+    nextAction: Resolve action SHAs from a network that can reach the GitHub API (not reachable for repository API calls from the development sandbox), review them and replace the tag references in .github/workflows; until then the workflows must not run with deployment or signing permissions.
+    blocks: [OPS-06, SPEC-14.supply-chain, ci_quality_gates]
+
+  - id: PRQ-042
+    owner: Platform owner with security leadership
+    artifact: Container base image for the Node 22 LTS runtime pinned by sha256 digest, with image scan results and SBOM.
+    gate: Before an image is built for any deployed environment
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: ci
+    nextAction: Resolve and scan the base image digest in CI (no Docker daemon is available in the development sandbox) and record it in the ReleaseManifest build.imageDigest.
+    blocks: [OPS-06, SPEC-14.supply-chain, release_manifest]
+
+  # ---------------------------------------------------------------- billable tests and evaluation
+  - id: PRQ-043
+    owner: Finance with operations, Talkdesk administrator and clinical safety lead
+    artifact: PSTN test budget ceiling, test numbers and test-call plan for synthetic personas, including the rule that no synthetic call targets a public crisis line (approval AR-05).
+    gate: Before any real telephone test call
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Finance sets the ceiling in docs/release/sandbox-cost-inputs.yaml (callTestBudgetCeilingUsd) and the approvers review AR-05.
+    blocks: [OPS-05, PSTN_TEST_CALLS, SPEC-14.pstn, PHASE-2]
+
+  - id: PRQ-044
+    owner: Privacy counsel with clinical safety lead and QA lead
+    artifact: Licence review of DistressBench (evaluation-only licence, English, US crisis resources) for supplementary routing-risk evaluation, and confirmation that its clinical-support criteria are not used as targets for the administrative agent.
+    gate: Before DistressBench content is used in any evaluation
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: ci
+    nextAction: Privacy counsel or legal reviews the current licence text (source S18) and records permitted use; until then the dataset is not downloaded or used.
+    blocks: [SPEC-2.distressbench, SPEC-14.safety-eval]
+
+  - id: PRQ-045
+    owner: Talkdesk administrator with security leadership and QA language lead
+    artifact: Exact model, voice, region, quota and endpoint evidence for the selected configuration (including resolution of the Nova 2.5 Sonic context-limit discrepancy if considered) and blinded telephone-quality listening test results (MODEL_VOICE_SELECTION).
+    gate: Before a model or voice version is pinned for sandbox or pilot
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Obtain answers to VQ-TD-02, VQ-SPV-05 and VQ-AWS-07; request AR-13 after listening tests.
+    blocks: [OPS-06, MODEL_VOICE_SELECTION, SPEC-11.voice]
+
+  - id: PRQ-046
+    owner: Support operations with Talkdesk administrator and privacy counsel
+    artifact: At least 30 days of half-hour arrivals, handle-time distributions, language mix, queue mix, transfer rates, abandonment and seasonality, via approved rate-limited exports without raw audio or transcripts.
+    gate: Before procurement of capacity and before the capacity model is treated as anything but illustrative
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: production
+    nextAction: Talkdesk administrator identifies the Explore API reports for our plan (VQ-TD-36) and privacy counsel approves a de-identified export scope.
+    blocks: [SPEC-12.capacity, SPEC-15.phase0, PHASE-0]
+
+  # ---------------------------------------------------------------- other processors and continuity
+  - id: PRQ-047
+    owner: Security leadership with privacy counsel and SRE lead
+    artifact: Observability export approval - OpenTelemetry to CloudWatch configuration and, only if approved, Datadog contract or BAA scope, retention and access controls (VQ-OBS-01).
+    gate: Before telemetry leaves the local process in any deployed environment
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Security decides whether Datadog is in scope at all; default is content-free metrics to CloudWatch only.
+    blocks: [DATA-01, SPEC-13.dashboards, observability_export]
+
+  - id: PRQ-048
+    owner: Identity owner with privacy counsel and procurement
+    artifact: Notification provider contract and BAA scope for neutral SMS, voice and email messages to registered channels, with delivery receipts and idempotency support (VQ-IDP-09).
+    gate: Before any real notification is sent
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Identity owner names the provider; until then notifications use the local fixture sender only.
+    blocks: [DATA-01, SPEC-9.notification, otp_fallback]
+
+  - id: PRQ-049
+    owner: Support operations with procurement and telecom
+    artifact: Separately contracted carrier or continuity arrangement for a whole-Talkdesk outage (numbers, routing, staffing) (VQ-OPS-01).
+    gate: Before any traffic migration
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: production
+    nextAction: Support operations confirms whether an arrangement exists; AWS failover alone cannot cover a Talkdesk outage.
+    blocks: [OPS-02, SPEC-3.continuity]
+
+  - id: PRQ-050
+    owner: Billing system owner with security leadership
+    artifact: Approved hosted payment page or isolated PCI flow and the portal path the voice flow may reference; card numbers and security codes never enter speech, transcripts or models.
+    gate: Before any payment intent is offered
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Billing owner confirms the hosted payment page; until then payment requests are handed to a human.
+    blocks: [DATA-01, SPEC-4.payments]
+
+  - id: PRQ-051
+    owner: Security leadership
+    artifact: Independent security review and penetration test of the backend and the telephone journey, with no unresolved critical finding.
+    gate: Before broad launch
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: staging
+    nextAction: Security leadership scopes the assessment after Phase 2; engineering supplies docs/security/threat-model.md and the hostile gateway test list.
+    blocks: [SPEC-14.pentest, SECURITY_REVIEW, PRODUCTION_DEPLOYMENT]
+
+  - id: PRQ-052
+    owner: Security leadership
+    artifact: Static credential exception (only if OAuth2 client credentials are unavailable for an integration), with narrow scope and rotation (approval AR-08).
+    gate: Before any static bearer token is configured
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: sandbox
+    nextAction: Request AR-08 only if VQ-TD-24 shows OAuth2 is unsupported; otherwise mark NOT_APPLICABLE with that reason.
+    blocks: [SPEC-8.credentials, STATIC_CREDENTIAL_EXCEPTION]
+
+annotations:
+  PRQ-001: { specRow: 1, specSection: "5" }
+  PRQ-002: { specRow: 2, specSection: "5", vendorQuestions: [VQ-TD-46, VQ-SF-01, VQ-AWS-01, VQ-SPV-01, VQ-SPV-08, VQ-EL-01] }
+  PRQ-003: { specRow: 3, specSection: "5,6,14" }
+  PRQ-004: { specRow: 4, specSection: "5", approvalRequests: [AR-01], vendorQuestions: [VQ-TD-01, VQ-TD-20, VQ-TD-44] }
+  PRQ-005: { specRow: 5, specSection: "5,7", approvalRequests: [AR-04], vendorQuestions: [VQ-IDP-01, VQ-IDP-02, VQ-IDP-03, VQ-IDP-04, VQ-IDP-05, VQ-IDP-06, VQ-IDP-07] }
+  PRQ-006: { specRow: 6, specSection: "5,8", approvalRequests: [AR-03], vendorQuestions: [VQ-SF-02, VQ-SF-03, VQ-SF-04, VQ-SF-05, VQ-SF-06, VQ-SF-07, VQ-SF-08] }
+  PRQ-007: { specRow: 7, specSection: "5,8" }
+  PRQ-008: { specRow: 8, specSection: "5,10", vendorQuestions: [VQ-OPS-02] }
+  PRQ-009: { specRow: 9, specSection: "5,12", vendorQuestions: [VQ-OPS-03, VQ-TD-38, VQ-TD-40] }
+  PRQ-010: { specRow: 10, specSection: "5,12", vendorQuestions: [VQ-FIN-01, VQ-AWS-05] }
+  PRQ-011: { specRow: 11, specSection: "5,13" }
+  PRQ-012: { specRow: 12, specSection: "5,14" }
+  PRQ-013: { trustBoundary: TB-01, capabilityGate: CG-01, vendorQuestions: [VQ-TD-23], approvalRequests: [AR-09] }
+  PRQ-014: { trustBoundary: TB-02, capabilityGate: CG-03, vendorQuestions: [VQ-TD-27, VQ-TD-28] }
+  PRQ-015: { trustBoundary: TB-03, capabilityGate: CG-02, vendorQuestions: [VQ-TD-08, VQ-TD-48] }
+  PRQ-016: { trustBoundary: TB-04, capabilityGate: CG-04, vendorQuestions: [VQ-TD-18] }
+  PRQ-017: { trustBoundary: TB-05, capabilityGate: CG-05, vendorQuestions: [VQ-TD-19, VQ-TD-30] }
+  PRQ-018: { trustBoundary: TB-06, capabilityGate: CG-01, vendorQuestions: [VQ-TD-16, VQ-TD-17, VQ-TD-21] }
+  PRQ-019: { trustBoundary: TB-07, capabilityGate: CG-09, vendorQuestions: [VQ-TD-33, VQ-TD-39] }
+  PRQ-020: { trustBoundary: TB-08, capabilityGate: CG-07, vendorQuestions: [VQ-TD-12, VQ-TD-35] }
+  PRQ-021: { trustBoundary: TB-09, capabilityGate: CG-08, vendorQuestions: [VQ-TD-34] }
+  PRQ-022: { trustBoundary: TB-10, capabilityGate: CG-10, vendorQuestions: [VQ-TD-10, VQ-TD-11, VQ-TD-43] }
+  PRQ-023: { specSection: "16", approvalScope: "all" }
+  PRQ-024: { specSection: "16", approvalRequests: [AR-01, AR-02, AR-03, AR-04, AR-05, AR-06, AR-07, AR-08, AR-09, AR-10, AR-11, AR-12, AR-13, AR-14, AR-15] }
+  PRQ-025: { specSection: "6", approvalScope: RETENTION_SCHEDULE, approvalRequests: [AR-11], vendorQuestions: [VQ-LEG-02, VQ-TD-05] }
+  PRQ-026: { specSection: "6,11", vendorQuestions: [VQ-LEG-01, VQ-TD-07] }
+  PRQ-027: { specSection: "6", vendorQuestions: [VQ-LEG-03] }
+  PRQ-028: { specSection: "10,11", approvalScope: CLINICAL_SCRIPTS, approvalRequests: [AR-12] }
+  PRQ-029: { specSection: "7", vendorQuestions: [VQ-IDP-09] }
+  PRQ-030: { specSection: "7" }
+  PRQ-031: { specSection: "3,14", approvalScope: POLICY_RELEASE }
+  PRQ-032: { specSection: "9", approvalScope: KNOWLEDGE_RELEASE, vendorQuestions: [VQ-SF-09] }
+  PRQ-033: { specSection: "4" }
+  PRQ-034: { specSection: "5,15", approvalRequests: [AR-01], vendorQuestions: [VQ-TD-44] }
+  PRQ-035: { specSection: "5,8", approvalRequests: [AR-03], vendorQuestions: [VQ-SF-02] }
+  PRQ-036: { specSection: "5,7", approvalRequests: [AR-04], vendorQuestions: [VQ-IDP-01, VQ-IDP-08] }
+  PRQ-037: { specSection: "3,16", approvalRequests: [AR-02], vendorQuestions: [VQ-AWS-03, VQ-AWS-08] }
+  PRQ-038: { specSection: "2,3,6", vendorQuestions: [VQ-AWS-01, VQ-AWS-02] }
+  PRQ-039: { specSection: "3,12", vendorQuestions: [VQ-AWS-06] }
+  PRQ-040: { specSection: "13", vendorQuestions: [VQ-AWS-09] }
+  PRQ-041: { specSection: "14" }
+  PRQ-042: { specSection: "14,16" }
+  PRQ-043: { specSection: "12,14,16", approvalScope: PSTN_TEST_CALLS, approvalRequests: [AR-05] }
+  PRQ-044: { specSection: "2,14" }
+  PRQ-045: { specSection: "2,11", approvalScope: MODEL_VOICE_SELECTION, approvalRequests: [AR-13], vendorQuestions: [VQ-TD-02, VQ-SPV-05, VQ-AWS-07] }
+  PRQ-046: { specSection: "12,15", vendorQuestions: [VQ-TD-36] }
+  PRQ-047: { specSection: "3,13", vendorQuestions: [VQ-OBS-01] }
+  PRQ-048: { specSection: "7,9", vendorQuestions: [VQ-IDP-09] }
+  PRQ-049: { specSection: "3,12", vendorQuestions: [VQ-OPS-01, VQ-TD-47] }
+  PRQ-050: { specSection: "4" }
+  PRQ-051: { specSection: "14", approvalScope: SECURITY_REVIEW }
+  PRQ-052: { specSection: "8", approvalScope: STATIC_CREDENTIAL_EXCEPTION, approvalRequests: [AR-08], vendorQuestions: [VQ-TD-24] }
