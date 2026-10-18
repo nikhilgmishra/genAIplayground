@@ -1,4 +1,4 @@
-skeletonVersion: 1
+skeletonVersion: 2
 intent: invoice_explanation
 title: Verified client asks what an invoice line is for
 audiences: [client]
@@ -20,8 +20,12 @@ script:
 indirect:
   - "My statement looks higher than I expected this month."
 dependencyFailure:
+  # A failed or timed-out dependency read goes to a person (the coordinator's configured rule, the same for
+  # every read-only intent: billing, claims, provider and scheduling timeouts). The handoff writes the
+  # summary.human_handoff support record, so a support request exists.
   fault: BILLING_TIMEOUT
-  expectedToolSequence: [begin_verification, get_invoice_status, create_support_request]
-  requiredHandoff: NONE
-  expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+  expectedToolSequence: [begin_verification, get_invoice_status, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
 requirementIds: [SPEC-4.prohibited-assertions, AUTH-02]

@@ -8,7 +8,7 @@ import { CALLS } from "../fixtures/synthetic-world.js";
 import { LOCAL_FIXTURE_TOKENS } from "../gateway/auth.js";
 import { buildContainer } from "../main/container.js";
 import type { Container } from "../main/container.js";
-import { STUB_TOOL_NAMES, createStubBusiness } from "../main/fixtures/stub-business.fixture.js";
+import { STUB_TOOL_NAMES, createStubBusiness, stubSupportRequests } from "../main/fixtures/stub-business.fixture.js";
 import { createMemoryLogger } from "../observability/logger.js";
 import type { BusinessModule } from "../business/contract.js";
 import { FakeClock } from "../shared/clock.js";
@@ -16,7 +16,7 @@ import { ConflictError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
 import { InMemoryMetrics } from "../observability/metrics.js";
 import type { RetentionRunReport } from "../retention/ports.js";
-import { ActionReconcileLoop, MeteredLoop, OutboxConsumeLoop, OutboxDispatchLoop, LocalConsumerQueueFixture, RetentionLoop } from "./loops.js";
+import { ActionReconcileLoop, MeteredLoop, OutboxConsumeLoop, OutboxDispatchLoop, LocalConsumerQueueFixture, RetentionLoop, SupportSyncRetryLoop } from "./loops.js";
 import type { LoopReport, WorkerLoop } from "./loops.js";
 import { ManualLoopScheduler } from "./scheduler.js";
 import { Worker, buildWorkerHealthApp, workerLoopsFor } from "./worker.js";
@@ -33,12 +33,17 @@ afterEach(async () => {
 
 const tel = { authorization: `Bearer ${LOCAL_FIXTURE_TOKENS.telephony_control}` };
 
-async function stubContainer(consumers: BusinessModule["consumers"] = {}) {
+/**
+ * LOCAL TEST FIXTURE composition over the stub business. `retryDue` (the support-sync sweep) is
+ * a no-op stand-in unless `withoutRetrySweep` is set (the stub's support requests are never used).
+ */
+async function stubContainer(consumers: BusinessModule["consumers"] = {}, opts: { withoutRetrySweep?: boolean } = {}) {
   const { logger, records } = createMemoryLogger();
   const clock = new FakeClock(START);
+  const stub = createStubBusiness(consumers);
   const container = await buildContainer({
     environment: "local",
-    buildBusiness: createStubBusiness(consumers).build,
+    buildBusiness: opts.withoutRetrySweep ? stub.build : (deps) => ({ ...stub.build(deps), supportRequests: { ...stubSupportRequests, retryDue: async () => 0 } }),
     clock,
     env: {},
     allowUncommittedCatalog: true,
@@ -254,10 +259,12 @@ describe("worker loops over the local composition", () => {
     expect(w.loopNames).toEqual([
       "actions.expire",
       "actions.reconcile",
+      "audit.deferred_flush",
       "audit.ship",
       "outbox.consume",
       "outbox.dispatch",
       "retention.run",
+      "support.sync_retry",
       "telephony.local_fixture_delivery",
       "tools.idempotency_purge",
       "transfers.sweep",
@@ -336,4 +343,96 @@ describe("worker loops over the local composition", () => {
     const after = await c.transferStore.get(stalledId);
     expect(after?.attemptCount).toBeGreaterThan(1);
   }, 120_000);
+});
+
+describe("support-request Salesforce sync retry sweep (support.sync_retry)", () => {
+  const owner = <T extends Record<string, unknown>>(cc: Container, sql: string, params: unknown[] = []) =>
+    cc.db.tx(async (tx) => (await tx.query<T>(sql, params)).rows, { role: "owner" });
+
+  it("[SPEC-8.salesforce][ACT-02][SPEC-15.worker] with only the composed loops a failed sync is retried with backoff, never enqueued twice per attempt, and dead-lettered after the attempt budget", async () => {
+    const { logger, records } = createMemoryLogger();
+    const clock = new FakeClock(START);
+    c = await buildContainer({ environment: "local", buildBusiness, clock, env: {}, logger, rateLimit: null, ingestKnowledge: false });
+    const { loops, closers } = workerLoopsFor(c);
+    w = new Worker({ loops, scheduler: new ManualLoopScheduler(clock), clock, logger, closers });
+    w.start();
+    const tenantId = c.config.tenantId;
+    // LOCAL FIXTURE Salesforce outage for the whole test.
+    c.fixtures.faults.inject({ integrationId: "salesforce", operation: "*", kind: "OUTAGE", mode: "persistent" });
+    const human = await c.app.inject({ method: "POST", url: "/telephony/v1/session/human-request", headers: tel, payload: { callId: CALLS.primary.callId, reason: "CALLER_REQUESTED_HUMAN", language: "en", issueCategory: null } });
+    expect(human.statusCode).toBe(200);
+    const [sr] = await c.business.supportRequests.listForCall(tenantId, CALLS.primary.callId);
+    expect(sr).toBeDefined();
+    const srId = sr?.supportRequestId as string;
+    const syncMessages = async () =>
+      Number((await owner<{ n: string }>(c as Container, "select count(*)::text as n from outbox_messages where topic = 'support_request.sync' and payload->>'supportRequestId' = $1", [srId]))[0]?.n);
+    const state = async () => (await c?.business.supportRequests.get(tenantId, srId))?.syncState;
+    const deliver = async () => {
+      await w?.runLoop("outbox.dispatch");
+      await w?.runLoop("outbox.consume");
+    };
+
+    await deliver();
+    expect(await state()).toBe("RETRY_SCHEDULED");
+    expect(await syncMessages()).toBe(1);
+    // Not yet due: the sweep re-enqueues nothing.
+    expect((await w.runLoop("support.sync_retry")).processed).toBe(0);
+    let retries = 0;
+    for (let i = 0; i < 10 && (await state()) !== "DEAD_LETTER"; i++) {
+      clock.advanceMs(1_000_000);
+      const swept = await w.runLoop("support.sync_retry");
+      expect(swept).toMatchObject({ ok: true, processed: 1 });
+      // Idempotent: a second sweep before delivery re-selects the still-due request, but the
+      // per-attempt outbox dedupe key makes it a no-op (no second message for the same attempt).
+      const before = await syncMessages();
+      expect((await w.runLoop("support.sync_retry")).processed).toBe(1);
+      expect(await syncMessages()).toBe(before);
+      retries += 1;
+      await deliver();
+    }
+    expect(await state()).toBe("DEAD_LETTER");
+    // DEFAULT_SUPPORT_SYNC_POLICY.maxAttempts = 6: the first delivery plus five sweeps.
+    expect(retries).toBe(5);
+    expect(await syncMessages()).toBe(6);
+    // Dead letters wait for the audited operator repair; the sweep never resurrects them.
+    clock.advanceMs(1_000_000);
+    expect((await w.runLoop("support.sync_retry")).processed).toBe(0);
+    expect(c.fixtures.supportRecords.records().cases).toHaveLength(0);
+    // Content-free metrics through the Metrics port (closed loop-name label): processed = due requests swept (2 sweeps x 5 attempts).
+    expect(c.metrics.counterValue("vsp_worker_loop_processed_total", { loop: "support.sync_retry" })).toBe(10);
+    expect(c.metrics.counterValue("vsp_crm_reconciliation_total", { result: "retried" })).toBe(5);
+    expect(c.metrics.counterValue("vsp_crm_reconciliation_total", { result: "dead_lettered" })).toBe(1);
+    expect(JSON.stringify(records)).not.toContain(sr?.referenceNumber as string);
+  }, 120_000);
+
+  it("[SPEC-8.salesforce][OPS-03][SPEC-15.worker] a business module without the retry sweep fails the loop closed and the worker is not ready", async () => {
+    const { container, clock } = await stubContainer({}, { withoutRetrySweep: true });
+    c = container;
+    const { loops, closers } = workerLoopsFor(c);
+    w = new Worker({ loops, scheduler: new ManualLoopScheduler(clock), clock, logger: c.logger, closers });
+    w.start();
+    for (let i = 0; i < 3; i++) await w.runAllOnce();
+    expect(w.status().find((s) => s.name === "support.sync_retry")).toMatchObject({ lastOk: false, lastReasonCode: "SUPPORT_SYNC_RETRY_UNAVAILABLE", consecutiveFailures: 3 });
+    expect(w.readiness()).toMatchObject({ ready: false, reasonCode: "SUPPORT_SYNC_RETRY_UNAVAILABLE" });
+    expect(c.metrics.counterValue("vsp_worker_loop_errors_total", { loop: "support.sync_retry" })).toBe(3);
+  }, 60_000);
+
+  it("[SPEC-8.salesforce][SPEC-15.worker] the sweep is bounded per tenant and reports a failing tenant by reason code without stopping the others", async () => {
+    const calls: { tenantId: string; limit: number | undefined }[] = [];
+    const loop = new SupportSyncRetryLoop(
+      {
+        retryDue: async (tenantId: string, limit?: number) => {
+          calls.push({ tenantId, limit });
+          if (tenantId === "tnt_synthTenant00000002") throw new ConflictError("SUPPORT_REQUEST_CONCURRENT_UPDATE");
+          return 3;
+        },
+      },
+      ["tnt_synthTenant00000001", "tnt_synthTenant00000002", "tnt_synthTenant00000003"],
+      30_000,
+      25,
+    );
+    const r = await loop.runOnce();
+    expect(calls.map((x) => x.limit)).toEqual([25, 25, 25]);
+    expect(r).toMatchObject({ ok: false, processed: 6, reasonCode: "SUPPORT_REQUEST_CONCURRENT_UPDATE", details: { failedTenants: 1 } });
+  });
 });

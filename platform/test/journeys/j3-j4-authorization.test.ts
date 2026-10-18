@@ -8,7 +8,7 @@
  * Both over the LOCAL FIXTURE composition: Studio role menu, portal MFA verification, MCP tools.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { APPOINTMENTS, CLAIMS, INVOICES, ORGANIZATIONS, REMITTANCES } from "../../src/fixtures/synthetic-world.js";
+import { APPOINTMENTS, CLAIMS, INVOICES, ORGANIZATIONS, PEOPLE, REMITTANCES, SLOTS } from "../../src/fixtures/synthetic-world.js";
 import { QUINN, RILEY, createJourneyHarness } from "./harness.js";
 import type { JourneyHarness } from "./harness.js";
 
@@ -50,6 +50,32 @@ describe("[SPEC-16.journey-3] practice staff and delegated remittance", () => {
     const end = await call.end("FLOW_COMPLETED");
     expect(end).toEqual({ ended: true, outcome: "INFORMATION_PROVIDED", reasonCode: "INFORMATION_PROVIDED" });
     await h.expectAuditChainIntact();
+  }, 120_000);
+});
+
+describe("[SPEC-16.journey-3] practice staff follow up their practice's request", () => {
+  it("[SPEC-16.journey-3][AUTH-05][SPEC-8.case-status] Riley's request linked to the account is organization-scoped (North): a later call finds it through get_authorized_case_status", async () => {
+    const first = h.call();
+    await first.start();
+    await first.role("practice_staff");
+    expect((await first.verify(RILEY, "riley.synthetic")).bound).toBe(true);
+    const created = await first.tool("create_support_request", { issueCategory: "remittance", linkToAccount: true, urgency: "STANDARD", language: "en" });
+    expect(created.status).toBe("SUCCESS");
+    expect(created.data?.linkedToAccount).toBe(true);
+    const ref = (created.data?.request as { supportReference: string }).supportReference;
+    const [row] = await h.q<{ subject_ref: string | null; organization_ref: string | null }>("select subject_ref, organization_ref from support_requests where reference_number = $1", [ref]);
+    expect(row).toEqual({ subject_ref: null, organization_ref: ORGANIZATIONS.practiceNorth.organizationId });
+    expect((await first.end("FLOW_COMPLETED")).outcome).toBe("REQUEST_ACCEPTED");
+
+    const later = h.call();
+    await later.start();
+    await later.role("practice_staff");
+    expect((await later.verify(RILEY, "riley.synthetic")).bound).toBe(true);
+    const status = await later.tool("get_authorized_case_status", { supportReference: null });
+    expect(status.status).toBe("SUCCESS");
+    expect((status.data?.cases as { caseRef: string }[]).map((c) => c.caseRef)).toContain(ref);
+    expect(status.speech?.templateId).toBe("case.status");
+    expect((await later.end("FLOW_COMPLETED")).outcome).toBe("INFORMATION_PROVIDED");
   }, 120_000);
 });
 
@@ -99,5 +125,34 @@ describe("[SPEC-16.journey-4] partner denied an unrelated client's records", () 
     expect(denied).toHaveLength(attempts.length);
     expect(denied.every((e) => e.subjectRef === null || e.subjectRef !== INVOICES[0].subjectId)).toBe(true);
     await h.expectAuditChainIntact();
+  }, 120_000);
+});
+
+describe("[SPEC-4.audience] provider's own schedule (LOCAL FIXTURE composition)", () => {
+  it("[AUTH-02][AUTH-05][SPEC-4.audience] Dr. Morgan lists their own open slots (no appointment id) and gets no client record; an unrelated client's appointment stays denied", async () => {
+    const call = h.call();
+    await call.start();
+    await call.role("provider");
+    expect((await call.verify(PEOPLE.morgan, "morgan.synthetic")).bound).toBe(true);
+
+    const own = await call.tool("get_appointment_options", { appointmentId: null, fromDate: "2026-10-20", toDate: "2026-10-31" });
+    expect(own.status).toBe("SUCCESS");
+    const records = own.data?.appointments as { slotId: string | null; appointmentId: string | null; status: string }[];
+    expect(records.map((r) => r.slotId).sort()).toEqual(SLOTS.filter((x) => x.providerActorId === PEOPLE.morgan.actorId).map((x) => x.slotId).sort());
+    expect(records.every((r) => r.status === "OPEN" && r.appointmentId === null)).toBe(true);
+    expect(own.speech?.templateId).toBe("appointment.option_offer");
+    for (const a of APPOINTMENTS) expect(JSON.stringify(own.data)).not.toContain(a.appointmentId);
+
+    // Blake is not Dr. Morgan's treated client: knowing the appointment id grants nothing.
+    const blakeAppt = APPOINTMENTS.find((a) => a.subjectId === PEOPLE.blake.subjectId)?.appointmentId as string;
+    const other = await call.tool("get_appointment_options", { appointmentId: blakeAppt, fromDate: "2026-10-20", toDate: "2026-10-31" });
+    expect(other.status).toBe("POLICY_DENIED");
+    expect(other.data ?? null).toBeNull();
+
+    const events = await h.auditFor(call.callId);
+    const invokes = events.filter((e) => e.action === "tool.invoke" && e.evidencePointers.includes("db://tool_catalog/get_appointment_options/1.0.0"));
+    expect(invokes.map((e) => e.outcome).sort()).toEqual(["DENIED", "SUCCEEDED"]);
+    expect(invokes.find((e) => e.outcome === "SUCCEEDED")?.policyDecision?.reasonCodes).toEqual(["ALLOW_PROVIDER_OWN_SCHEDULE"]);
+    expect((await call.end("FLOW_COMPLETED")).outcome).toBe("INFORMATION_PROVIDED");
   }, 120_000);
 });

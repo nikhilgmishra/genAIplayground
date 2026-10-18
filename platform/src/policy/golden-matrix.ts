@@ -92,6 +92,8 @@ const emeryExpired = fact("legal_representative", P.emery.actorId, P.blake.subje
 /** Treating relationship and renewed proxy that explicitly grant the dedicated options scope. */
 const treatingOptions = fact("treating_provider", P.morgan.actorId, P.avery.subjectId, null, ["appointment:list_options"], "enrollment_system");
 const emeryOptions = fact("legal_representative", P.emery.actorId, P.blake.subjectId, null, ["appointment:list_options"], "legal_authority_registry");
+/** Morgan's own self fact carrying the enrollment scope for the provider's own schedule. */
+const morganScheduleSelf = fact("self", P.morgan.actorId, P.morgan.subjectId, null, ["appointment:list_options"], "identity_provider");
 const danaParental = fact("parental_authority", P.dana.actorId, P.casey.subjectId, null, [...grant("gnt_synthDanaCaseyParental01").scopes], "legal_authority_registry", {
   constraints: ["MINOR_CONFIDENTIALITY_REVIEW"],
 });
@@ -174,6 +176,14 @@ const BASES: BaseCase[] = [
   { key: "client_prepare_billing_review", description: "client prepares a billing review of own invoice (pending, confirmation required; never a refund decision)", tags: ["ACT-01", "SPEC-4.invoice"], traits: MUTATION, input: req("billing:prepare_review", "caller_self_service", avery(), resource("billing_review", P.avery.subjectId, null, "FINANCIAL"), [selfFact(P.avery)]), allowReasons: ["ALLOW_SELF"] },
   { key: "client_list_appointment_options", description: "client lists own appointments and open times with slot ids", tags: ["AUTH-02", "SPEC-4.appointment"], traits: PROTECTED_READ, input: req("appointment:list_options", "caller_self_service", avery(), resource("appointment_options", P.avery.subjectId, null, "PHI"), [selfFact(P.avery)]), allowReasons: ["ALLOW_SELF"] },
   { key: "treating_provider_list_options", description: "treating provider lists the treated client's appointment options (scope appointment:list_options)", tags: ["AUTH-05", "SPEC-4.appointment"], traits: PROTECTED_READ, input: req("appointment:list_options", "caller_self_service", morgan(), resource("appointment", P.avery.subjectId, null, "PHI"), [selfFact(P.morgan), treatingOptions, morganMember]), allowReasons: ["ALLOW_TREATING_PROVIDER"] },
+  {
+    key: "provider_own_schedule_options",
+    description: "provider lists their own open administrative slots (INTERNAL schedule, no client record; self fact with scope appointment:list_options)",
+    tags: ["AUTH-02", "AUTH-05", "SPEC-4.appointment"],
+    traits: PROTECTED_READ,
+    input: req("appointment:list_options", "caller_self_service", morgan(), resource("appointment_options", P.morgan.subjectId, null, "INTERNAL"), [morganScheduleSelf, morganMember]),
+    allowReasons: ["ALLOW_PROVIDER_OWN_SCHEDULE"],
+  },
   { key: "representative_list_options", description: "representative with current authority (scope appointment:list_options) lists appointment options", tags: ["AUTH-05", "SPEC-4.appointment"], traits: PROTECTED_READ, input: req("appointment:list_options", "representative_access", emery(), resource("appointment", P.blake.subjectId, null, "PHI"), [emeryOptions]), allowReasons: ["ALLOW_REPRESENTATIVE"] },
 ];
 
@@ -366,6 +376,12 @@ const EXPLICIT: ExplicitCase[] = [
   { key: "list_options_treating_provider_read_scope_only", description: "a treating relationship granting only appointment:read does not reach appointment options", tags: ["AUTH-05", "SPEC-4.appointment"], input: { ...baseInput("treating_provider_appointment_read"), action: "appointment:list_options" }, expect: { allow: false, reasons: ["SCOPE_NOT_GRANTED"] } },
   { key: "list_options_representative_read_scope_only", description: "a proxy granting only appointment:read does not reach appointment options", tags: ["AUTH-05", "SPEC-4.appointment"], input: { ...baseInput("representative_appointment_read"), action: "appointment:list_options" }, expect: { allow: false, reasons: ["SCOPE_NOT_GRANTED"] } },
   { key: "list_options_other_client", description: "client asks for another client's appointment options", tags: ["AUTH-05", "SPEC-4.appointment"], input: withResource(baseInput("client_list_appointment_options"), { subjectId: P.blake.subjectId }), expect: { allow: false, reasons: ["RELATIONSHIP_NOT_ESTABLISHED"] } },
+  { key: "provider_own_schedule_other_provider", description: "provider asks for another provider's schedule options", tags: ["AUTH-05", "SPEC-4.appointment"], input: withResource(baseInput("provider_own_schedule_options"), { subjectId: P.newbie.subjectId }), expect: { allow: false, reasons: ["RELATIONSHIP_NOT_ESTABLISHED"] } },
+  { key: "provider_own_schedule_unrelated_client", description: "the own-schedule path never reaches an unrelated client's options", tags: ["AUTH-05", "SPEC-4.appointment"], input: withResource(baseInput("provider_own_schedule_options"), { subjectId: P.blake.subjectId }), expect: { allow: false, reasons: ["RELATIONSHIP_NOT_ESTABLISHED"] } },
+  { key: "provider_own_schedule_phi_records", description: "PHI appointment records are not the provider's own schedule (treating relationship still required)", tags: ["AUTH-05", "SPEC-4.appointment"], input: withResource(baseInput("provider_own_schedule_options"), { classification: "PHI" }), expect: { allow: false, reasons: ["CLASSIFICATION_NOT_PERMITTED"] } },
+  { key: "provider_own_schedule_without_scope", description: "provider self fact without the enrollment scope appointment:list_options", tags: ["AUTH-05", "SPEC-4.appointment"], input: { ...baseInput("provider_own_schedule_options"), relationships: [selfFact(P.morgan), morganMember] }, expect: { allow: false, reasons: ["SCOPE_NOT_GRANTED"] } },
+  { key: "provider_own_schedule_delegated_purpose", description: "own schedule is the provider's own service, not delegated practice administration", tags: ["AUTH-05", "SPEC-4.appointment"], input: { ...baseInput("provider_own_schedule_options"), purpose: "delegated_practice_administration" }, expect: { allow: false, reasons: ["PURPOSE_NOT_PERMITTED"] } },
+  { key: "practice_staff_provider_schedule", description: "practice staff (no provider self fact) asks for a provider's schedule options", tags: ["AUTH-05", "SPEC-4.appointment"], input: req("appointment:list_options", "delegated_practice_administration", riley(), resource("appointment_options", P.morgan.subjectId, null, "INTERNAL"), [rileyDelegate]), expect: { allow: false, reasons: ["RELATIONSHIP_NOT_ESTABLISHED", "ROLE_NOT_PERMITTED"] } },
   { key: "list_options_unverified", description: "unverified caller asks for appointment options", tags: ["AUTH-01", "AUTH-02"], input: req("appointment:list_options", "caller_self_service", anonAuth(), resource("appointment_options", P.avery.subjectId, null, "PHI"), []), expect: { allow: false, reasons: ["ASSURANCE_INSUFFICIENT", "RELATIONSHIP_NOT_ESTABLISHED", "ROLE_NOT_SELECTED"] } },
   { key: "prepare_billing_review_other_client", description: "client prepares a billing review of another client's invoice", tags: ["AUTH-05", "ACT-01"], input: withResource(baseInput("client_prepare_billing_review"), { subjectId: P.blake.subjectId }), expect: { allow: false, reasons: ["RELATIONSHIP_NOT_ESTABLISHED"] } },
   {

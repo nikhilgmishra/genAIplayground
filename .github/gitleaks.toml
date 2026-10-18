@@ -39,3 +39,14 @@ condition = "AND"
 paths = ['''(^|/)platform/src/gateway/pipeline\.test\.ts$''']
 regexTarget = "secret"
 regexes = ['''^idem_fixtureKey_[0-9]{6}$''']
+
+# Platform opaque identifiers that carry no authority (audit event, action, receipt,
+# policy decision, correlation, call, transfer, workflow, run and similar ids, created
+# by platform/src/shared/ids.ts newId: "<prefix>_" + random base64url). Random ids can
+# contain "key"-like substrings and trip the generic rule. Bearer-like prefixes are
+# deliberately NOT listed (ses_ session refs, non_ nonces, jti_, kid_, otc_, idempotency
+# keys), so a leaked session reference or challenge is still reported.
+[[allowlists]]
+description = "Non-bearer platform opaque identifiers"
+regexTarget = "secret"
+regexes = ['''^(aud|act|rcp|pdc|cor|cal|xfr|hnd|hof|wf|wft|wfe|rcn|run|req|srq|spr|sr|iss|int|sev|seg|del|ded|rvw|rel|evt|apt|clm|bud|ksw)_[A-Za-z0-9_-]{16,64}$''']

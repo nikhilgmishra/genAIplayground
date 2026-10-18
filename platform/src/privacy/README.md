@@ -31,6 +31,28 @@ and handling rules. Rules that no descriptor field can relax:
 * production rejects `local_fixture` destinations;
 * `assertContentFreeTelemetry()` scans telemetry records for PHI-like values.
 
+### `egress-startup.ts` (DATA-01, OPS-04): startup egress check, composed in `main/container.ts`
+* `egressTargetsFor(config, telemetryExports)` lists every outbound destination the process is configured
+  to use: each `PlatformConfig.adapters` entry (business systems, directories, notifications and
+  telephony receive PHI; the OIDC / workforce IdP adapters receive content-free requests), the
+  inbound-auth JWKS URI, the audit sink, and every telemetry / export destination the entry point
+  composes (`ContainerOptions.telemetryExports`; none in the local composition).
+* `checkStartupEgress` checks each one against the `EgressGuard` allowlist: live targets must declare an
+  endpoint (`EGRESS_ENDPOINT_UNDECLARED`), PHI targets need a PHI-capable destination with coverage and
+  approval, telemetry exports must resolve to a telemetry exporter / analytics sink
+  (`EGRESS_NOT_A_TELEMETRY_DESTINATION`), and every URL rule of the guard applies. In-process LOCAL
+  FIXTURE components have no network egress (`IN_PROCESS_FIXTURE`).
+* Fail closed: the container refuses startup with `ConfigurationRejectedError` (`<REASON>@<config path>`)
+  on any violation, before any database exists. Outside local/ci a missing policy is itself a violation
+  (`EGRESS_POLICY_NOT_CONFIGURED@egress`) and the violations are added to the deployed-environment
+  refusal reasons. In local/ci the default is `LOCAL_FIXTURE_EGRESS_POLICY`, which approves NO
+  destination (the offline composition has no network egress).
+* The container exposes `privacy.egress` (runtime guard, same policy, `vsp_egress_denied_total`),
+  `privacy.redaction` (`RedactionService` over `InMemoryQuarantineStoreFixture`, for QA / transcript
+  artifact handling; no transcript storage exists and none is added) and `privacy.egressReport`.
+  Because the local policy approves nothing, a quarantined artifact is never sent anywhere
+  (`QUARANTINE_STORE_NOT_APPROVED`): it stays in its original restricted location.
+
 ### `consent.ts` (DATA-03)
 * Recording and automated processing follow approved consent state only: `UNKNOWN` is never consent; `NOT_REQUIRED` counts only with an approved jurisdiction rule. Without an approved rule the strictest behaviour applies.
 * `gateProcessors()` blocks recorders without recording consent, transcription/model/synthesis/analytics without processing consent, transcript retention without both (conservative default), and every unapproved processor.
@@ -49,7 +71,8 @@ Shared sensitive-pattern detectors (also used by knowledge ingestion and the egr
 | Item | Prerequisite |
 |---|---|
 | Real egress destinations and their coverage/approval references | Executed BAAs and service-specific coverage (PRQ-002, PRQ-038), observability export approval (PRQ-047) |
-| `PlatformConfig.egress` section (config module owns the schema) | Interface change request; until then the composition root passes an `EgressPolicyConfig` |
+| `PlatformConfig.egress` section (config module owns the schema) | Interface change request; until then the entry point passes `ContainerOptions.egressPolicy` (local/ci default `LOCAL_FIXTURE_EGRESS_POLICY`; deployed environments refuse without one) |
+| Endpoints for the S3 Object Lock audit sink and telemetry exporters in `PlatformConfig` | Config schema change (config owner); until then the audit sink reports `EGRESS_ENDPOINT_UNDECLARED@audit.sink` outside local/ci |
 | Verifying `coverage.approvalId` against signed approval records | Approvals trust key (PRQ-023/PRQ-024) |
 | Jurisdiction consent rules and disclosure wording | Privacy counsel rules per jurisdiction; template approval in the voice registry (PRQ-028) |
 | Durable restricted quarantine store (e.g. S3 + KMS in a restricted account) | Infrastructure approval and PHI processing approval |
@@ -70,4 +93,4 @@ cd platform && npx vitest run src/privacy
 
 ## Requirement IDs enforced here
 
-DATA-01 (no PHI to unapproved endpoints, developer tools or analytics sinks), DATA-02 (raw audio stays sensitive; redaction failure quarantines), DATA-03 (consent-following processors and truthful disclosure), OPS-04 (fixture destinations refused in production), SPEC-6.redaction, SPEC-6.data-classes, SPEC-6.no-phi-in-urls.
+DATA-01 (no PHI to unapproved endpoints, developer tools or analytics sinks; every configured destination checked at startup), DATA-02 (raw audio stays sensitive; redaction failure quarantines), DATA-03 (consent-following processors and truthful disclosure), OPS-04 (fixture destinations refused in production), SPEC-6.redaction, SPEC-6.data-classes, SPEC-6.no-phi-in-urls.

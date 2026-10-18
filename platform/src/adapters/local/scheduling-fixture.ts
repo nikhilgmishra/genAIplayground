@@ -17,9 +17,13 @@
  *    UNKNOWN outcomes (ACT-03);
  *  - faults from the shared FaultInjector (OUTAGE, TIMEOUT_BEFORE_SEND,
  *    TIMEOUT_AFTER_COMMIT, SLOW, QUOTA_EXHAUSTED, STALE_READ, PARTIAL_WRITE,
- *    DUPLICATE_DELIVERY). PARTIAL_WRITE holds the target slot under the
- *    idempotency key without moving the appointment; a retry with the same key
- *    completes the write, any other booking sees SLOT_UNAVAILABLE.
+ *    DUPLICATE_DELIVERY). PARTIAL_WRITE is a two-step provider write whose
+ *    first step, the booking itself, commits: the appointment change is
+ *    applied, logged as an effect and recorded under the provider idempotency
+ *    key; the provider's confirmation step then fails, so the caller sees
+ *    PARTIAL_WRITE (UNKNOWN). `findByIdempotencyKey` returns the committed
+ *    booking for reconciliation (the fault plans are afterExternalCommit) and a
+ *    same-key retry replays it without a second effect.
  *  - an append-only effect log so tests can prove "exactly one effect".
  */
 import { z } from "zod";
@@ -168,7 +172,9 @@ export class SchedulingFixture implements SchedulingSystem {
       if (!appt || appt.subjectId !== q.subjectId) throw new ValidationError("APPOINTMENT_NOT_FOUND");
       providerActorId = appt.providerActorId;
     } else if (!this.isClientSubject(q.subjectId)) {
-      throw new ValidationError("SUBJECT_NOT_FOUND");
+      // A provider's own subject lists that provider's own open slots only (their schedule).
+      providerActorId = this.providerActorFor(q.subjectId);
+      if (providerActorId === null) throw new ValidationError("SUBJECT_NOT_FOUND");
     }
     const nowMs = this.clock.now().getTime();
     const slots = stale ? this.store.staleList("slots") : this.store.list("slots");
@@ -293,13 +299,6 @@ export class SchedulingFixture implements SchedulingSystem {
     if (slot.providerActorId !== appt.providerActorId) throw new ValidationError("SLOT_NOT_ELIGIBLE");
     this.assertBookable(slot, pendingMine);
 
-    if (f.has("PARTIAL_WRITE") && !pendingMine && !duplicate) {
-      this.store.update("slots", slot.slotId, (s) => {
-        s.heldBy = { kind: "pending", idempotencyKey: req.idempotencyKey };
-      });
-      throw f.partialWriteError();
-    }
-
     const releasedSlotId = appt.slotId;
     if (releasedSlotId !== null) this.store.update("slots", releasedSlotId, (s) => {
         s.heldBy = null;
@@ -322,6 +321,8 @@ export class SchedulingFixture implements SchedulingSystem {
       beforeVersion: appt.version,
       afterVersion: updated.version,
     });
+    // PARTIAL_WRITE: the booking step above committed (effect + idempotency record); the confirmation step fails.
+    if (f.has("PARTIAL_WRITE") && !duplicate) throw f.partialWriteError();
     return { result, outcome: "APPLIED" };
   }
 
@@ -338,13 +339,6 @@ export class SchedulingFixture implements SchedulingSystem {
     if (!slot) throw new ValidationError("SLOT_NOT_FOUND");
     const pendingMine = slot.heldBy?.kind === "pending" && slot.heldBy.idempotencyKey === req.idempotencyKey;
     this.assertBookable(slot, pendingMine);
-
-    if (f.has("PARTIAL_WRITE") && !pendingMine && !duplicate) {
-      this.store.update("slots", slot.slotId, (s) => {
-        s.heldBy = { kind: "pending", idempotencyKey: req.idempotencyKey };
-      });
-      throw f.partialWriteError();
-    }
 
     const appointment: StoredAppointment = {
       appointmentId: newId("apt"),
@@ -370,6 +364,8 @@ export class SchedulingFixture implements SchedulingSystem {
       beforeVersion: null,
       afterVersion: appointment.version,
     });
+    // PARTIAL_WRITE: the booking step above committed (effect + idempotency record); the confirmation step fails.
+    if (f.has("PARTIAL_WRITE") && !duplicate) throw f.partialWriteError();
     return { result, outcome: "APPLIED" };
   }
 
@@ -393,5 +389,10 @@ export class SchedulingFixture implements SchedulingSystem {
 
   private isClientSubject(subjectId: string): boolean {
     return this.store.list("people").some((p) => p.subjectId === subjectId && p.role === "client");
+  }
+
+  /** Actor of the provider whose own subject this is, or null. */
+  private providerActorFor(subjectId: string): string | null {
+    return this.store.list("people").find((p) => p.subjectId === subjectId && p.role === "provider")?.actorId ?? null;
   }
 }

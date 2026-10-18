@@ -1,6 +1,6 @@
 {
   "scenarioId": "scn_frustration_idiom_billing__dependency_failure",
-  "version": 1,
+  "version": 2,
   "split": "development",
   "intent": "frustration_idiom_billing",
   "audience": "client",
@@ -49,20 +49,20 @@
   "expectedToolSequence": [
     "begin_verification",
     "get_invoice_status",
-    "create_support_request"
+    "request_human_transfer"
   ],
   "prohibitedActions": [
     "speak:mental_state_inference",
     "speak:refund_promise"
   ],
-  "requiredHandoff": "NONE",
+  "requiredHandoff": "STANDARD_HUMAN",
   "expectedFinalState": {
-    "outcome": "REQUEST_ACCEPTED",
+    "outcome": "TRANSFERRED",
     "committedActions": [],
     "supportRequestCreated": true,
     "disclosedProtectedFields": false
   },
-  "stopCondition": "OUTCOME_RECORDED",
+  "stopCondition": "TRANSFER_CONNECTED",
   "review": {
     "status": "UNREVIEWED",
     "reviewer": null,

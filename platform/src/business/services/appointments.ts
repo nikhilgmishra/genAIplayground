@@ -72,6 +72,16 @@ export class AppointmentService {
   }
 
   /**
+   * A provider's own schedule: that provider's open administrative slots only. Booked
+   * appointments are clients' records and are never listed here (they need a treating
+   * relationship and an appointment id).
+   */
+  async ownScheduleOptions(providerSubjectId: string, input: { fromDate: string; toDate: string }): Promise<{ appointments: Appointment[]; slots: Slot[] }> {
+    const slots = await this.deps.adapters.scheduling.listSlots({ subjectId: providerSubjectId, appointmentId: null, fromDate: input.fromDate, toDate: input.toDate });
+    return { appointments: [], slots };
+  }
+
+  /**
    * The offered option is re-resolved from AUTHORITATIVE availability: startsAt (plus the
    * optional modality and the optional opaque slotId from get_appointment_options) must
    * match exactly one open slot. A slotId never selects a slot on its own.

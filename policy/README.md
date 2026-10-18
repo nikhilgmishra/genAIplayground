@@ -17,8 +17,8 @@ production readiness.
 | `vsp/authz.rego` | Caller-facing entrypoint `vsp/authz/decision` |
 | `vsp/console.rego` | Workforce console entrypoint `vsp/console/decision` |
 | `vsp/lib.rego` | WASM-safe helpers: pure-Rego RFC 3339 parser (canonical `YYYY-MM-DDTHH:MM:SS.sssZ` only), assurance ranks |
-| `vsp/*_test.rego` | `opa test` unit tests (223) and SYNTHETIC fixtures; excluded from the bundle |
-| `golden/probes.json` | 889 golden decision probes generated from a declarative matrix (`platform/src/policy/golden-matrix.ts`) |
+| `vsp/*_test.rego` | `opa test` unit tests (225) and SYNTHETIC fixtures; excluded from the bundle |
+| `golden/probes.json` | 916 golden decision probes generated from a declarative matrix (`platform/src/policy/golden-matrix.ts`) |
 | `golden/approved-expansions.json` | Approved access expansions (`[]`; entries `{probeId, approvedBy, approvalId, reason}`) |
 | `build/` | Build output (gitignored): `bundle.tar.gz`, `policy.wasm`, `data.json`, `.manifest`, `bundle.sha256`, `sources.sha256` |
 
@@ -104,7 +104,7 @@ Per action: `class`, `intent`, `killSwitchClass` (`EXEMPT` / `STANDARD` / `WRITE
 | PUBLIC_READ (A0, PUBLIC only) | `public:read`, `login_help:read` (never credential reset) |
 | INTAKE | `intake:create`, `complaint:create`, `support_request:create` (A0 unlinked; A2 self/representative when linked to a subject), `partner_intake:create` (A2 partner affiliation, organization only) |
 | VERIFICATION (A0) | `verification:begin` (generic status only; no account-existence disclosure) |
-| PROTECTED_READ (A2) | `appointment:read` (self, representative, treating provider with scope), `appointment:list_options` (same paths, scope `appointment:list_options`; mask adds the opaque `slotId`), `invoice:read` (self, representative), `claim:read` (self), `onboarding:read` (provider self, practice delegate/member with scope), `remittance:read` (practice delegate/member for exactly that organization), `case:read` (self; organization cases via practice or partner, INTERNAL only) |
+| PROTECTED_READ (A2) | `appointment:read` (self, representative, treating provider with scope), `appointment:list_options` (same paths, scope `appointment:list_options`; mask adds the opaque `slotId`; plus `provider_own_schedule`: a provider's own open slots, INTERNAL, self fact with scope `appointment:list_options`, `caller_self_service` only), `invoice:read` (self, representative), `claim:read` (self), `onboarding:read` (provider self, practice delegate/member with scope), `remittance:read` (practice delegate/member for exactly that organization), `case:read` (self; organization cases via practice or partner, INTERNAL only) |
 | PREPARE / COMMIT_MUTATION (A2, writes switch) | `appointment:prepare_change`, `appointment:commit_change` (digest + `REQUIRE_CONFIRMATION`), `billing:prepare_review` (client self, no digest, `REQUIRE_CONFIRMATION`), `billing:submit_review` (digest + confirmation; never a refund decision) |
 | HUMAN_BOUNDARY (always deny, `REQUIRE_HUMAN`) | `account:change_payout_destination`, `account:change_tax_info`, `credentialing:decide`, `clinical_record:read`, `identity:recover`, `credential:reset` |
 
@@ -135,7 +135,7 @@ supervisor), `release:view` (auditor, knowledge editor, policy approver, securit
 * `golden/probes.json` is generated from a declarative matrix: allowed base requests and their
   perturbations (up to 20 each: expiry, revocation, tenant, kill switches, consent, risk flags,
   assurance, role, relationships, verification secret, production), explicit cases and console
-  probes (889 in total for bundle `2026.10.18-1`; run `golden-generate.ts` for the counts).
+  probes (916 in total for bundle `2026.10.18-2`; run `golden-generate.ts` for the counts).
   Expectations are declared intent, written independently of the Rego.
 * `platform/src/policy/golden.test.ts` evaluates every probe through the WASM engine and fails on
   any mismatch; a probe whose expectation is deny that now allows (or a wider field mask, or a

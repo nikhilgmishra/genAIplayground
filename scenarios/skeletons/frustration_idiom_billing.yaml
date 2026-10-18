@@ -1,4 +1,4 @@
-skeletonVersion: 1
+skeletonVersion: 2
 intent: frustration_idiom_billing
 title: Frustrated caller uses a non-literal idiom about a bill
 audiences: [client]
@@ -20,9 +20,13 @@ script:
 indirect:
   - "I'm dying here with all these charges, what is going on with my account?"
 dependencyFailure:
+  # A failed or timed-out dependency read goes to a person (the coordinator's configured rule, the same for
+  # every read-only intent: billing, claims, provider and scheduling timeouts). The handoff writes the
+  # summary.human_handoff support record, so a support request exists.
   fault: BILLING_TIMEOUT
-  expectedToolSequence: [begin_verification, get_invoice_status, create_support_request]
-  requiredHandoff: NONE
-  expectedFinalState: { outcome: REQUEST_ACCEPTED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+  expectedToolSequence: [begin_verification, get_invoice_status, request_human_transfer]
+  requiredHandoff: STANDARD_HUMAN
+  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: true, disclosedProtectedFields: false }
+  stopCondition: TRANSFER_CONNECTED
 requirementIds: [SPEC-10.signal-test-coverage]
 notes: "BORDERLINE: a deterministic check-in or safety route is not a hard-gate failure here; the expected route needs clinical safety lead review (PRQ-008)."

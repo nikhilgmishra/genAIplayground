@@ -142,6 +142,12 @@ function defaults(): Record<EndpointKey, Handler> {
       return json(200, { transferId: nextId(state, "xfr"), callId: req.params.callId, destinationId: body.destinationId, state: "REQUESTED", auditEventId: nextId(state, "aud") });
     },
     "supportRequests.trace": () => json(200, fx.supportTrace()),
+    // Mirrors the backend: only a DEAD_LETTER sync can be repaired; the request goes back to PENDING (asynchronous sync).
+    "supportRequests.repair": ({ req, state }) => {
+      const body = req.body as ConsoleEndpointTypes["supportRequests.repair"]["body"];
+      if (!OPERATOR_REASON_RE.test(body.reason ?? "")) return errorResponse(400, "REASON_NOT_ALLOWED");
+      return json(200, { referenceNumber: req.params.ref, syncState: "PENDING", repaired: true, auditEventId: nextId(state, "aud") });
+    },
     "actions.pending": ({ state }) => json(200, state.pending),
     "actions.cancel": ({ req, state }) => {
       const action = state.pending.actions.find((a) => a.actionId === req.params.actionId);

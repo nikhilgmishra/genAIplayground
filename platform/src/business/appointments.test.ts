@@ -240,3 +240,52 @@ describe("appointment options and reschedule", () => {
     expect(h.fixtures.scheduling.effects).toHaveLength(0);
   });
 });
+
+describe("provider's own schedule", () => {
+  async function verifiedProvider(person: typeof PEOPLE.morgan | typeof PEOPLE.newbie) {
+    const { sessionRef } = await h.startCall();
+    return h.verify(person, sessionRef, "provider");
+  }
+
+  it("[AUTH-02][AUTH-05][SPEC-4.audience] a verified provider sees their own open slots (caller_self_service, INTERNAL, own subject) and no client's appointment", async () => {
+    const morgan = await verifiedProvider(PEOPLE.morgan);
+    const r = expectDone(await h.invoke("get_appointment_options", morgan, { appointmentId: null, fromDate: "2026-10-20", toDate: "2026-10-31" }));
+    expect(r.decision).toMatchObject({ allow: true, reasonCodes: ["ALLOW_PROVIDER_OWN_SCHEDULE"] });
+    if (r.outcome.status !== "SUCCESS") throw new Error(`expected success, got ${r.outcome.status}`);
+    const masked = r.masked as { appointments: { appointmentId: string | null; slotId: string | null; status: string }[]; appointmentCount: number; optionCount: number };
+    expect(masked.appointmentCount).toBe(0);
+    expect(masked.appointments.map((a) => a.slotId).sort()).toEqual(SLOTS.filter((x) => x.providerActorId === PEOPLE.morgan.actorId).map((x) => x.slotId).sort());
+    expect(masked.appointments.every((a) => a.status === "OPEN" && a.appointmentId === null)).toBe(true);
+    // No client record (appointment id or client subject) in what the provider receives.
+    const text = JSON.stringify(r.outcome.data);
+    for (const a of APPOINTMENTS) expect(text).not.toContain(a.appointmentId);
+    for (const p of [PEOPLE.avery, PEOPLE.blake, PEOPLE.casey]) expect(text).not.toContain(p.subjectId);
+    expect(r.outcome.speech?.templateId).toBe("appointment.option_offer");
+  });
+
+  it("[AUTH-05] another provider's own schedule never includes Dr. Morgan's slots; an unrelated client's appointment stays denied; practice staff have no own schedule", async () => {
+    const newbie = await verifiedProvider(PEOPLE.newbie);
+    const own = expectDone(await h.invoke("get_appointment_options", newbie, { appointmentId: null, fromDate: "2026-10-20", toDate: "2026-10-31" }));
+    expect(own.decision.allow).toBe(true);
+    if (own.outcome.status !== "SUCCESS") throw new Error("expected success");
+    expect(own.masked).toMatchObject({ appointments: [], appointmentCount: 0, optionCount: 0 });
+    expect(own.outcome.speech?.templateId).toBe("appointment.no_options");
+
+    // Dr. Morgan knows Blake's appointment id but has no treating relationship with Blake.
+    const morgan = await verifiedProvider(PEOPLE.morgan);
+    const blake = APPOINTMENTS.find((a) => a.subjectId === PEOPLE.blake.subjectId);
+    const denied = await h.invoke("get_appointment_options", morgan, { appointmentId: blake?.appointmentId as string, fromDate: "2026-10-20", toDate: "2026-10-31" });
+    expect(denied.stage).toBe("policy");
+    if (denied.stage === "policy") expect(denied.decision.reasonCodes).toContain("RELATIONSHIP_NOT_ESTABLISHED");
+
+    // The own-schedule path is the provider's own service only: the purpose and classification are fixed server-side.
+    const tool = h.tool("get_appointment_options");
+    expect(tool.purpose(morgan, { appointmentId: null, fromDate: "2026-10-20", toDate: "2026-10-31" })).toBe("caller_self_service");
+    expect(tool.purpose(morgan, { appointmentId: APPOINTMENTS[0].appointmentId, fromDate: "2026-10-20", toDate: "2026-10-31" })).toBe("delegated_practice_administration");
+    expect((await tool.resolveResource(morgan, { appointmentId: null, fromDate: "2026-10-20", toDate: "2026-10-31" })).classification).toBe("INTERNAL");
+
+    const { sessionRef } = await h.startCall();
+    const riley = await h.verify(PEOPLE.riley, sessionRef);
+    expect((await h.invoke("get_appointment_options", riley, { appointmentId: null, fromDate: "2026-10-20", toDate: "2026-10-31" })).stage).toBe("policy");
+  });
+});

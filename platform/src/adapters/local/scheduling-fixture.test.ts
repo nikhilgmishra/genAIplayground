@@ -155,17 +155,35 @@ describe("SchedulingFixture (LOCAL FIXTURE, SYNTHETIC)", () => {
     expect(await sched.findByIdempotencyKey(key("r"))).toBeNull();
   });
 
-  it("[SPEC-14.faults] PARTIAL_WRITE holds the slot under the key; the same-key retry completes it, any other booking sees SLOT_UNAVAILABLE", async () => {
+  it("[ACT-03] [SPEC-14.faults] PARTIAL_WRITE (afterExternalCommit) commits the booking under the idempotency key before failing: reconciliation finds it and a same-key retry replays it", async () => {
     faults.inject({ integrationId: "scheduling", operation: "reschedule", kind: "PARTIAL_WRITE" });
     const input = { appointmentId: AVERY_APPT, beforeVersion: "v1", slotId: SLOT2, idempotencyKey: key("h") };
-    expect(await rejection(sched.reschedule(input))).toMatchObject({ reasonCode: "PARTIAL_WRITE", outcome: "UNKNOWN" });
-    expect(await sched.findByIdempotencyKey(input.idempotencyKey)).toBeNull();
-    expect((await sched.getAppointment(AVERY_APPT))?.version).toBe("v1");
+    expect(await rejection(sched.reschedule(input))).toMatchObject({ reasonCode: "PARTIAL_WRITE", outcome: "UNKNOWN", retryable: false });
+    // The external effect exists and is recorded under the provider idempotency key.
+    expect(sched.effects).toEqual([expect.objectContaining({ operation: "reschedule", idempotencyKey: input.idempotencyKey, appointmentId: AVERY_APPT, slotId: SLOT2, beforeVersion: "v1", afterVersion: "v2" })]);
+    const found = await sched.findByIdempotencyKey(input.idempotencyKey);
+    expect(found).toMatchObject({ appointment: { appointmentId: AVERY_APPT, startsAt: SLOTS[1].startsAt, version: "v2" }, reference: sched.effects[0]?.reference });
+    expect((await sched.getAppointment(AVERY_APPT))?.version).toBe("v2");
+    // The booked slot is really taken; the released slot is free again.
     expect(await rejection(sched.reschedule({ appointmentId: BLAKE_APPT, beforeVersion: "v1", slotId: SLOT2, idempotencyKey: key("i") }))).toMatchObject({ reasonCode: "SLOT_UNAVAILABLE" });
-    const done = await sched.reschedule(input);
-    expect(done.appointment.startsAt).toBe(SLOTS[1].startsAt);
+    expect(store.get("slots", SLOT2)?.heldBy).toEqual({ kind: "appointment", appointmentId: AVERY_APPT });
+    // A same-key retry (or reconciliation) never produces a second effect.
+    const replay = await sched.reschedule(input);
+    expect(replay.reference).toBe(found?.reference);
     expect(sched.effects).toHaveLength(1);
-    expect(sched.deliveries.map((d) => d.outcome)).toEqual(["PARTIAL", "REJECTED", "APPLIED"]);
+    expect(sched.deliveries.map((d) => d.outcome)).toEqual(["PARTIAL", "REJECTED", "REPLAYED"]);
+  });
+
+  it("[ACT-03] [SPEC-14.faults] PARTIAL_WRITE on create records the new appointment under the key before failing", async () => {
+    faults.inject({ integrationId: "scheduling", operation: "create", kind: "PARTIAL_WRITE" });
+    const input = { subjectId: PEOPLE.avery.subjectId, slotId: SLOT3, idempotencyKey: key("p") };
+    expect(await rejection(sched.create(input))).toMatchObject({ reasonCode: "PARTIAL_WRITE", outcome: "UNKNOWN" });
+    expect(sched.effects.map((e) => `${e.operation}:${e.idempotencyKey}`)).toEqual([`create:${input.idempotencyKey}`]);
+    const found = await sched.findByIdempotencyKey(input.idempotencyKey);
+    expect(found?.appointment).toMatchObject({ subjectId: PEOPLE.avery.subjectId, startsAt: SLOTS[2].startsAt, status: "SCHEDULED" });
+    expect((await sched.listAppointments(PEOPLE.avery.subjectId)).map((a) => a.appointmentId)).toContain(found?.appointment.appointmentId);
+    expect((await sched.create(input)).appointment.appointmentId).toBe(found?.appointment.appointmentId);
+    expect(sched.effects).toHaveLength(1);
   });
 
   it("[SPEC-14.faults] STALE_READ serves the pre-change appointment; the commit-time version check still rejects the stale version", async () => {

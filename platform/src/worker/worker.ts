@@ -21,12 +21,14 @@ import {
   ActionExpiryLoop,
   ActionReconcileLoop,
   AuditShipLoop,
+  DeferredAuditFlushLoop,
   LocalConsumerQueueFixture,
   LocalTelephonyDeliveryLoop,
   MeteredLoop,
   OutboxConsumeLoop,
   OutboxDispatchLoop,
   RetentionLoop,
+  SupportSyncRetryLoop,
   ToolIdempotencyPurgeLoop,
   TransferSweepLoop,
   WorkflowTickLoop,
@@ -140,6 +142,8 @@ export interface WorkerIntervals {
   transferSweepMs?: number;
   retentionMs?: number;
   telephonyDeliveryMs?: number;
+  supportSyncRetryMs?: number;
+  deferredAuditFlushMs?: number;
 }
 
 /** Builds the worker loops over a container (LOCAL FIXTURE queue and telephony delivery in local/ci). */
@@ -152,10 +156,14 @@ export function workerLoopsFor(c: Container, intervals: WorkerIntervals = {}): {
     new ActionReconcileLoop(c.actions, c.business.providers, c.tenantIds, c.logger, intervals.reconcileMs),
     new ActionExpiryLoop(c.actions, c.tenantIds, intervals.expireMs),
     new ToolIdempotencyPurgeLoop(c.toolIdempotency, c.tenantIds, intervals.purgeMs),
+    // Deferred route audit (handoffs during an audit outage) is appended once the store is writable again.
+    new DeferredAuditFlushLoop(c.deferredAudit, intervals.deferredAuditFlushMs),
     new AuditShipLoop(c.auditShipper, intervals.auditShipMs),
     new WorkflowTickLoop(c.workflows, c.clock, intervals.workflowTickMs),
     new TransferSweepLoop(c.transfers, intervals.transferSweepMs),
     new RetentionLoop(c.retention, c.clock, c.logger, intervals.retentionMs, c.metrics),
+    // Re-enqueues due RETRY_SCHEDULED / stale SYNCING support requests; the consumer dead-letters after the budget.
+    new SupportSyncRetryLoop(c.business.supportRequests, c.tenantIds, intervals.supportSyncRetryMs),
     telephony,
   ];
   // Every loop reports content-free run / error / processed / lag / duration metrics through the Metrics port.

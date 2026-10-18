@@ -174,7 +174,7 @@
           ]
         },
         "appointment:list_options": {
-          "description": "Upcoming appointments and open administrative times with opaque slot ids (no clinical matching): own records; representative or treating provider only with scope appointment:list_options.",
+          "description": "Upcoming appointments and open administrative times with opaque slot ids (no clinical matching): own records; representative or treating provider only with scope appointment:list_options; a provider's own open slots (INTERNAL, no client record) with enrollment scope appointment:list_options.",
           "class": "PROTECTED_READ",
           "intent": "appointment_lookup",
           "killSwitchClass": "STANDARD",
@@ -182,7 +182,7 @@
           "protected": true,
           "roles": ["client", "personal_representative", "provider"],
           "purposes": ["caller_self_service", "delegated_practice_administration", "durable_follow_up", "representative_access"],
-          "classifications": ["PHI"],
+          "classifications": ["INTERNAL", "PHI"],
           "resourceTypes": ["appointment", "appointment_options"],
           "integrations": ["scheduling"],
           "requiresActionDigest": false,
@@ -191,7 +191,8 @@
           "access": [
             {"id": "self", "grantReason": "ALLOW_SELF", "roles": ["client"], "factTypes": ["self"], "target": "subject", "requireAuthSubject": true, "scope": null, "minAssurance": "A2", "purposes": ["caller_self_service", "durable_follow_up"], "classifications": ["PHI"]},
             {"id": "representative", "grantReason": "ALLOW_REPRESENTATIVE", "roles": ["personal_representative"], "factTypes": ["legal_representative", "parental_authority"], "target": "subject", "requireAuthSubject": false, "scope": "appointment:list_options", "minAssurance": "A2", "purposes": ["durable_follow_up", "representative_access"], "classifications": ["PHI"]},
-            {"id": "treating_provider", "grantReason": "ALLOW_TREATING_PROVIDER", "roles": ["provider"], "factTypes": ["treating_provider"], "target": "subject", "requireAuthSubject": false, "scope": "appointment:list_options", "minAssurance": "A2", "purposes": ["caller_self_service", "delegated_practice_administration"], "classifications": ["PHI"]}
+            {"id": "treating_provider", "grantReason": "ALLOW_TREATING_PROVIDER", "roles": ["provider"], "factTypes": ["treating_provider"], "target": "subject", "requireAuthSubject": false, "scope": "appointment:list_options", "minAssurance": "A2", "purposes": ["caller_self_service", "delegated_practice_administration"], "classifications": ["PHI"]},
+            {"id": "provider_own_schedule", "grantReason": "ALLOW_PROVIDER_OWN_SCHEDULE", "roles": ["provider"], "factTypes": ["self"], "target": "subject", "requireAuthSubject": true, "scope": "appointment:list_options", "minAssurance": "A2", "purposes": ["caller_self_service"], "classifications": ["INTERNAL"]}
           ]
         },
         "appointment:prepare_change": {

@@ -272,13 +272,11 @@ describe("[SPEC-16.faults] injected faults on the local composition", () => {
     await hh.expectAuditChainIntact();
   }, 120_000);
 
-  // KNOWN FAILING (wiring defect outside this role's ownership, see report): no worker loop runs
-  // PgSupportRequestService.retryDue, so in the composition a request whose first sync failed stays
-  // RETRY_SCHEDULED forever: never retried, never dead-lettered, never synced. Fix: add a
-  // support-sync retry loop to src/worker/worker.ts workerLoopsFor (calling
-  // c.business.supportRequests.retryDue for each tenant; the port method now exists) and a
-  // WORKER_LOOP_NAMES entry in src/observability/metrics.ts.
-  it.fails("[SPEC-16.fault-salesforce-outage][SPEC-8.salesforce] with only the composed worker loops, a request whose sync failed during the outage syncs after Salesforce recovers", async () => {
+  // Formerly KNOWN FAILING: no worker loop ran PgSupportRequestService.retryDue, so a request whose
+  // first sync failed stayed RETRY_SCHEDULED forever. Fixed by the `support.sync_retry` loop in
+  // src/worker/worker.ts workerLoopsFor (SupportSyncRetryLoop, src/worker/loops.ts), which re-enqueues
+  // due requests per tenant; dispatch/consume then sync them (or dead-letter after the budget).
+  it("[SPEC-16.fault-salesforce-outage][SPEC-8.salesforce] with only the composed worker loops, a request whose sync failed during the outage syncs after Salesforce recovers", async () => {
     const hh = await start();
     const call = await verifiedClient(hh);
     const faultId = hh.c.fixtures.faults.inject({ integrationId: "salesforce", operation: "*", kind: "OUTAGE", mode: "persistent" });

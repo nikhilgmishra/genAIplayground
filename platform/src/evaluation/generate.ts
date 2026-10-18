@@ -210,7 +210,9 @@ function applyFamily(sk: IntentSkeleton, family: VariantFamily, d: Draft): Draft
         script,
         expectedToolSequence: seq,
         requiredHandoff: "STANDARD_HUMAN",
-        expectedFinalState: { ...d.expectedFinalState, outcome: "TRANSFERRED" },
+        // Every human handoff writes a summary.human_handoff support record for the receiver (business
+        // handoff service), so the added transfer always creates a support request.
+        expectedFinalState: { ...d.expectedFinalState, outcome: "TRANSFERRED", supportRequestCreated: true },
         stopCondition: "TRANSFER_CONNECTED",
         persona: withPersona(d.persona, "Repeat contact; asks for a person at the end."),
       };

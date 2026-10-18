@@ -31,6 +31,7 @@ const REQUEST: Readonly<Record<AuthenticatedEndpointKey, InjectOptions>> = {
   "calls.get": { params: { callId: "cal_synthCallMissing0001" } },
   "calls.transfer": { params: { callId: "cal_synthCallMissing0001" }, body: { destinationId: "dst_support_general", reason: "CALLER_REQUESTED_HUMAN" } },
   "supportRequests.trace": { params: { ref: "SR-7KQM-W4XP" } },
+  "supportRequests.repair": { params: { ref: "SR-7KQM-W4XP" }, body: { reason: "ROOT_CAUSE_FIXED" } },
   "actions.pending": {},
   "actions.cancel": { params: { actionId: "act_synthActionMissing01" }, body: { reason: "OPERATOR_ERROR_CORRECTION", expectedState: "PREPARED" } },
   "reconciliation.list": {},

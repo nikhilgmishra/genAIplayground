@@ -31,8 +31,10 @@ prepare/commit), 9 (support memory recap), 10 (handoff and safety route), 16 (jo
 | `commit.ts` | Maps ledger results to `COMMITTED / FAILED / UNKNOWN / STATE_CHANGED / RETRYABLE / REJECTED / DENIED`. |
 | `services/*.ts` | Appointments (options with opaque slot ids, prepare with optional slot id, commit, slot conflicts), billing (invoice facts, review prepare/commit with `onCommitted` follow-up), intake (general incl. representative-linked requests, complaint with policy-authorized subject link, partner), cases (status view, recap), knowledge (public FAQ search). |
 | `handoff.ts` | `BusinessHandoffService`: destination only from trusted configuration (a console-initiated `requestHuman` may name a staff-selected `destinationId`, which must be an allowlisted entry, and `initiatedBy {staffId}`, audited as the actor with sourceComponent `console`), deterministic handoff id per call and priority (a repeat never dials twice), strict `HandoffPackage` with a single-use receiver assertion, safety route that invalidates pending mutations and escalates the session; audit and support-record creation never block the safety transfer. |
-| `outcomes.ts` | `decideOutcome()` (pure) and `BusinessOutcomeService` (verifies claimed receipts against this call's `interaction_actions`). |
-| `consumers.ts` | Outbox consumers `support_request.sync` and `action.committed` (records the receipt; billing follow-up exactly once on the reconciled path). |
+| `outcomes.ts` | `decideOutcome()` (pure) and `BusinessOutcomeService` (verifies claimed receipts against this call's `interaction_actions`; a call action still unsettled in the ledger => `OUTCOME_UNKNOWN` / `COMMIT_OUTCOME_UNKNOWN`; `reviseAfterCommit()` appends a revision when the reconciler commits it). |
+| `recheck.ts` | `BusinessPreDisclosureRecheck` (the `PreDisclosureRecheck` wired into the container's `PgWorkflowEngine`): current consent, representation, account state, kill switches and the OPA decision for purpose `durable_follow_up` with the durable grant's actor/subject, per grant-action rule (`RECHECK_RULES`). Ports `AccountStateLookup`, `ConsentRegistry`. |
+| `fixtures/recheck.fixture.ts` | **LOCAL FIXTURE**: `LocalAccountStateFixture` (actor/subject -> account over the SYNTHETIC directory, current state from `LocalIdentityDirectoryFixture`), `LocalConsentRegistryFixture` (in-memory consent changes after acceptance; `revoke`, `record`). Live versions BLOCKED. |
+| `consumers.ts` | Outbox consumers `support_request.sync` and `action.committed` (records the receipt; billing follow-up exactly once on the reconciled path; append-only outcome revision for a call that ended with the commit unsettled). |
 | `../gateway/tools/*.ts` | 18 tool modules (below). |
 | `testing/harness.ts` | **LOCAL TEST HARNESS, SYNTHETIC DATA ONLY**. Composes the real modules with LOCAL fixtures and runs a local copy of the gateway order (strict input, resolveResource, relationships, kill switches, policy, execute, strict output, field mask). Not a production composition. |
 
@@ -85,6 +87,15 @@ person's id and a restricted record all resolve to the same denied resource.
   subject only when `support_request:create` (self path, subject-linked record) allows it at
   creation time (`decideNow`); otherwise, and for every unverified caller, it stays unlinked
   and is still accepted. The tool output says `linkedToAccount`.
+- **Organization-scoped support requests.** `create_support_request` with `linkToAccount` by an
+  organization role (practice staff, partner, payer representative) at A2 links the request to the
+  caller's server-established organization (`organization_ref`, never a subject). The link is
+  authorized at creation by the organization's `case:read` path (purpose
+  `delegated_practice_administration` / `partner_administration`, scope from the authoritative
+  delegation / partner-contract registry), the same path `get_authorized_case_status` reads it back
+  through; a refused link (expired delegation, no scope) denies the request instead of creating a
+  person-only request. Staff of another practice neither list it nor read it by reference
+  (`RELATIONSHIP_NOT_ESTABLISHED`).
 - **Representative support requests.** `create_support_request` with `linkToAccount` by a
   `personal_representative` at A2 targets the single represented subject the legal-authority
   registry names with scope `support_request:create` (purpose `representative_access`);
@@ -102,7 +113,41 @@ person's id and a restricted record all resolve to the same denied resource.
   the action id as the reconciliation reference.
 - **Outcomes.** `RESOLVED` only with a verified COMMITTED receipt of the contract's action kind
   for this call; acceptance, request or Case creation is `REQUEST_ACCEPTED`; `TRANSFERRED` only
-  after caller-confirmed connection; anything without evidence is `OUTCOME_UNKNOWN`.
+  after caller-confirmed connection; anything without evidence is `OUTCOME_UNKNOWN`. A call action
+  whose commit is unsettled at call end (ledger COMMITTING / UNKNOWN, or COMMITTED but not yet
+  recorded for the call; an unreadable ledger row counts as unsettled) makes the outcome
+  `OUTCOME_UNKNOWN` / `COMMIT_OUTCOME_UNKNOWN` (only TRANSFERRED or a verified RESOLVED outrank it),
+  never INFORMATION_PROVIDED. `interaction_outcomes` is append-only (migration 0300 trigger): the
+  `action.committed` consumer calls `reviseAfterCommit()` (idempotent, advisory lock per call),
+  which re-decides the call's latest outcome with the now-recorded receipt and, when the decision
+  differs, appends a revision row (`evidence.revision = { revises, previousOutcome, trigger:
+  ACTION_COMMITTED_AFTER_CALL_END, actionId }`, recorded strictly after the row it revises) and an
+  `interaction.outcome_revised` audit event. The revision is written with `app_runtime`, the only
+  role with INSERT on `interaction_outcomes` (a dedicated worker grant would need a 03xx migration).
+- **Pre-disclosure recheck** (`recheck.ts`, spec section 9). Called by `PgWorkflowEngine` inside
+  the guarded transition's transaction (`RecheckContext.tx`, added to the workflows port), after
+  the durable grant check. Per grant action (`RECHECK_RULES`, ENGINEERING DEFAULT pending the policy
+  owner: billing review commit / decision / outcome notices -> `invoice:read` on the authoritative
+  invoice; complaint response -> `case:read` on the linked subject; partner onboarding notice /
+  activation -> `case:read` on the partner organization; anything else `RECHECK_RULE_UNDEFINED`) it
+  re-reads the grant's actor/subject, the authoritative record (invoice subject / support request
+  link), reconstructs ONE role from the directory (self first; otherwise representative, whose
+  current registry facts policy evaluates), requires ACTIVE accounts (`ACCOUNT_CLOSED`, ...), current
+  consent (registry record first, `CONSENT_REVOKED`; else the consent captured with the accepted
+  work; UNKNOWN => `CONSENT_NOT_ESTABLISHED`), refuses a material change while writes are off, and
+  evaluates the CURRENT bundle (purpose `durable_follow_up`, A2 — grants naming an account or
+  organization are only issued for work accepted at A2; tool null). The policy version and decision
+  id are returned, so the engine records `POLICY_VERSION_CHANGED` for a newer bundle that allows and
+  `POLICY_CHANGED_PENDING_ACTION` (with the reason) for any deny; the pending action stays with a
+  human. An unverified complaint (grant names the request itself) => `RECHECK_SUBJECT_NOT_ESTABLISHED`;
+  restricted records are invisible to the runtime role and fail closed. Workflows started by the
+  business layer snapshot `policySnapshotVersion` (the pinned bundle version).
+- **Provider's own schedule.** `get_appointment_options` with no appointment id by a provider lists
+  that provider's own open slots only (`AppointmentService.ownScheduleOptions`; INTERNAL,
+  `caller_self_service`, policy path `provider_own_schedule`), never a client's appointment.
+- **Invoice line selector.** `get_invoice_status` `line: { chargeCode, amountMinor }` makes
+  `LINE_EXPLANATION` explain exactly the one matching line (`selectInvoiceLine`); none or several
+  matches explain no line (balance facts).
 - **Support references** are spoken as pending synchronization, never as a Case number.
 - **Recap** only at A2 for the same subject; risk flags suppress it.
 - **Knowledge excerpts** are returned as cited data; templated speech is used only for mapped
@@ -135,6 +180,7 @@ console restricted-reader flag. Still open (owned by other modules):
 ```bash
 cd platform
 npx vitest run src/business src/gateway/tools src/voice src/main/sessionless-routing.test.ts
+npx vitest run test/journeys/recheck.test.ts test/journeys/outcomes.test.ts test/journeys/j2-billing-dispute.test.ts
 npx tsx src/business/contracts/cli-generate-doc.ts --check
 npx tsc -p tsconfig.json --noEmit
 npx eslint src/business src/gateway/tools
@@ -159,3 +205,22 @@ npx eslint src/business src/gateway/tools
 * **Port additions** (additive, optional): `SupportRequestService.retryDue` and
   `repairDeadLetter` (the worker owner can now run the retry sweep; see the journeys README for the
   missing loop), `ToolDeps.grants`, `ToolDeps.handoffObserver`, `BusinessModule.confirmationSlots`.
+
+## Wave 5 business-correctness fixes
+
+* Pre-disclosure recheck implemented and wired (`recheck.ts`; container `recheck`): guarded workflow
+  transitions no longer fail closed `RECHECK_NOT_CONFIGURED`; denials record
+  `POLICY_CHANGED_PENDING_ACTION`. Interface changes outside this module (additive): workflows
+  `RecheckContext.tx` (engine passes the transition's transaction); container field `recheck`.
+* Outcomes: `COMMIT_OUTCOME_UNKNOWN` at call end and append-only revisions (`reviseAfterCommit`,
+  optional on the `InteractionOutcomeService` port).
+* Organization-scoped support requests for organization roles; provider own-schedule options;
+  invoice line selector (see Design decisions).
+* LOCAL FIXTURE data: provider self facts carry `appointment:list_options`; the scheduling fixture
+  lists a provider subject's own open slots.
+* Known limits: the consent and account-state registries are LOCAL FIXTURES (live BLOCKED: privacy
+  counsel PRQ-026, identity owner PRQ-005); recheck rules are engineering defaults pending the policy
+  owner; a billing review accepted by reconciliation carries no consent snapshot (the worker never
+  saw the call's consent), so its disclosures wait for a human until the consent registry records
+  current consent; the provider own-schedule offer reuses the client-oriented DRAFT template
+  `appointment.option_offer` (a provider-facing template is a voice-module request).

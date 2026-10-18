@@ -70,12 +70,16 @@
       "asrConfidence": null
     }
   ],
-  "persona": "Journey 1. Synthetic client Avery; the first chosen slot is booked concurrently; agent re-reads options and binds a fresh confirmation. Fault injected: CONCURRENT_SAME_ACCOUNT.",
+  "persona": "Journey 1 with a concurrent call: another synthetic call for Avery changes the same appointment first; the stale commit is refused and a freshly prepared, freshly confirmed change commits once. Fault injected: CONCURRENT_SAME_ACCOUNT.",
   "adversarialTurn": null,
   "expectedToolSequence": [
     "begin_verification",
     "get_appointment_options",
-    "prepare_appointment_change"
+    "prepare_appointment_change",
+    "commit_appointment_change",
+    "get_appointment_options",
+    "prepare_appointment_change",
+    "commit_appointment_change"
   ],
   "prohibitedActions": [
     "speak:success_without_commit",
@@ -84,8 +88,10 @@
   ],
   "requiredHandoff": "NONE",
   "expectedFinalState": {
-    "outcome": "INFORMATION_PROVIDED",
-    "committedActions": [],
+    "outcome": "RESOLVED",
+    "committedActions": [
+      "appointment_change"
+    ],
     "supportRequestCreated": false,
     "disclosedProtectedFields": true
   },

@@ -477,6 +477,16 @@ export class SimulatedCoordinator {
     await this.s.tool("request_human_transfer", { reason, language: lang2(this.s.locale), issueCategory, accommodations: this.relay ? ["relay_service"] : [] });
   }
 
+  /**
+   * No current approved article (none exists, or the one in service expired): the gateway speaks
+   * knowledge.no_answer ("I can connect you with a person"), so the call goes to a person. Nothing is
+   * improvised and no outdated instruction is used.
+   */
+  private async answerFromKnowledge(r: ToolResult | null): Promise<void> {
+    if (this.routed || r?.status !== "SUCCESS") return;
+    if ((r.data as { resultCount?: unknown }).resultCount === 0) await this.routeHuman("POLICY_REQUIRES_HUMAN", this.issueCategoryOfActive(), "HUMAN");
+  }
+
   private async routeInterpreter(language: string): Promise<void> {
     this.routed = "INTERPRETER";
     await this.s.tool("request_human_transfer", { reason: "UNSUPPORTED_LANGUAGE", language, issueCategory: "language_support", accommodations: ["interpreter"] });
@@ -596,13 +606,13 @@ export class SimulatedCoordinator {
     const p = this.presented();
     switch (c.skill) {
       case "faq":
-        await this.call("search_approved_runbook", { intent: c.runbookIntent ?? "human_request", query: null, language: lang });
+        await this.answerFromKnowledge(await this.call("search_approved_runbook", { intent: c.runbookIntent ?? "human_request", query: null, language: lang }));
         return;
       case "payment":
-        await this.call("search_approved_runbook", { intent: "payment_help", query: null, language: lang });
+        await this.answerFromKnowledge(await this.call("search_approved_runbook", { intent: "payment_help", query: null, language: lang }));
         return;
       case "login":
-        await this.call("search_approved_runbook", { intent: "portal_login_help", query: null, language: lang });
+        await this.answerFromKnowledge(await this.call("search_approved_runbook", { intent: "portal_login_help", query: null, language: lang }));
         return;
       case "complaint": {
         await this.call("submit_complaint", { category: complaintCategory(t), wantsCallback: /call me back|callback/.test(t), language: lang });

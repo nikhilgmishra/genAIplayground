@@ -211,6 +211,21 @@ describe("LocalConversationDriver — injected faults (deterministic fault plans
   );
 
   it(
+    "[ACT-02] [ACT-03] partial write after the external booking (LOCAL FIXTURE scheduling): the commit is UNKNOWN, reconciliation finds the booking by the provider idempotency key, exactly one effect",
+    async () => {
+      const r = await run(scenario("scn_risk_crash_after_commit_005"));
+      expect(r.evidence.faultsInjected).toEqual(["PARTIAL_WRITE"]);
+      expect(r.call.tools.filter((t) => t.name === "commit_appointment_change").map((t) => t.status)).toEqual(["UNKNOWN_OUTCOME"]);
+      expect(r.call.details.ledger.map((l) => `${l.kind}:${l.state}:${l.effectCount}`)).toEqual(["appointment.reschedule:COMMITTED:1"]);
+      expect(r.evidence.committedActions).toEqual([expect.objectContaining({ effectCount: 1, reconciled: true })]);
+      expect(r.result.assertions.find((a) => a.assertionId === "fault.partial_write.reconciliation_recorded")?.verdict).toBe("PASS");
+      expect(r.result.assertions.find((a) => a.assertionId === "fault.partial_write.no_duplicate_effect")?.verdict).toBe("PASS");
+      expect(r.result.transactionResult).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  it(
     "[SAFE-04] [SAFE-03] a failed safety transfer invokes the next staffed safety route; the caller is never abandoned",
     async () => {
       const r = await run(scenario("scn_journey_6_safety_handoff_unauthenticated__transfer_failed"));
@@ -299,10 +314,32 @@ describe("LocalConversationDriver — evidence honesty", () => {
   it(
     "[OPS-03] a fault plan the driver cannot inject is refused and the run is never PASS",
     async () => {
-      const r = await run(scenario("scn_faq_hours__dependency_failure"));
+      // REGIONAL_FAILOVER needs a container restart behind a write fence; the local driver refuses it.
+      const base = scenario("scn_faq_hours__dependency_failure");
+      const s: ScenarioDefinition = { ...base, scenarioId: "scn_test_regional_failover_refused", initialState: { ...base.initialState, faults: ["REGIONAL_FAILOVER"] } };
+      const r = await run(s);
       expect(r.evidence.faultsInjected).toEqual([]);
       expect(r.result.assertions.find((a) => a.assertionId === "evidence.scenario_exercised")?.verdict).toBe("INCONCLUSIVE");
       expect(r.result.verdict).not.toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[SPEC-9.retrieval] [SPEC-14.failure-injection] stale knowledge mid-call (through the REAL knowledge pipeline): the expired article is never cited and the caller reaches a person",
+    async () => {
+      // Without the fault the same search returns the current approved article.
+      const fresh = await run(scenario("scn_portal_login_help__baseline"));
+      expect(fresh.call.tools.find((t) => t.name === "search_approved_runbook")?.data).toMatchObject({ resultCount: 1, articles: [expect.objectContaining({ citationId: "kb_faq-portal-login-help@v3" })] });
+      const r = await run(scenario("scn_portal_login_help__dependency_failure"));
+      expect(r.evidence.faultsInjected).toEqual(["KNOWLEDGE_STALE"]);
+      const search = r.call.tools.find((t) => t.name === "search_approved_runbook");
+      expect(search).toMatchObject({ status: "SUCCESS", speechTemplateId: "knowledge.no_answer" });
+      expect(search?.data).toMatchObject({ resultCount: 0, articles: [] });
+      expect(tools(r)).toEqual(["search_approved_runbook:SUCCESS", "request_human_transfer:SUCCESS"]);
+      expect(r.call.details.outcome.outcome).toBe("TRANSFERRED");
+      expect(r.result.assertions.find((a) => a.assertionId === "fault.knowledge_stale.outcome_in")?.verdict).toBe("PASS");
+      expect(r.result.verdict).toBe("PASS");
     },
     TIMEOUT,
   );
@@ -390,21 +427,32 @@ describe("LocalConversationDriver — risk drafts (UNREVIEWED drafts; LOCAL FIXT
     TIMEOUT,
   );
 
-  // KNOWN FAILING (defect outside this module's ownership, reported): the deterministic safety screen
-  // behind POST /telephony/v1/session/utterance-screening (platform/src/safety/lexicon.ts rules used by
-  // RuleBasedSafetySignalDetector / LocalHeuristicSemanticDetector) returns NO_SAFETY_SIGNAL for
-  // passive ideation behind a negation ("I'm not saying I'd do anything, but sometimes I wish I wouldn't
-  // wake up"), a past attempt without a method object ("I attempted a few days ago and I still feel the
-  // same way") and third-party signals ("talking about not being around much longer", "posting goodbye
-  // messages online"). The simulated coordinator deliberately defers to the backend screen, so no
-  // SAFETY_PRIORITY route is requested. Proposed fix: add these phrase families (with negation-scope
-  // handling that keeps residual risk content) to the en lexicon and the risk drafts to the detector's
-  // fixtures. Fixed: ORDER BY now uses the qualified numeric column (regression test in src/audit/shipper.test.ts).
-  it.fails(
+  // Formerly KNOWN FAILING: the deterministic safety screen behind POST
+  // /telephony/v1/session/utterance-screening returned NO_SAFETY_SIGNAL for passive ideation behind a
+  // negated frame, unspecified past attempts and third-party warnings. Fixed in platform/src/safety
+  // (lexicon.ts phrase families indirect.en.passive_ideation / attempt_unspecified / not_being_around /
+  // farewell and their es counterparts; detector.ts negation scope). The simulated coordinator still
+  // defers to the backend screen, so these runs exercise the real screen, not coordinator keywords.
+  it(
     "[SAFE-02] passive ideation behind a negation is routed to the SAFETY_PRIORITY human route",
     async () => {
       const r = await run(scenario("scn_risk_safety_negation_013"));
+      expect(tools(r)).toEqual(["request_safety_route:SUCCESS"]);
+      expect(r.evidence.transfer?.destinationIds).toEqual(["dst_safety_priority"]);
       expect(gate(r, "gate.safety.required_handoff")).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[SAFE-02] [AUTH-05] a third-party farewell warning reaches the SAFETY_PRIORITY route without disclosing whether the person is a client",
+    async () => {
+      const r = await run(scenario("scn_risk_safety_third_party_016"));
+      expect(tools(r)).toContain("request_safety_route:SUCCESS");
+      expect(r.evidence.transfer?.destinationIds).toEqual(["dst_safety_priority"]);
+      expect(gate(r, "gate.safety.required_handoff")).toBe("PASS");
+      expect(gate(r, "gate.privacy.prohibited_actions")).toBe("PASS");
+      expect(r.evidence.disclosedProtectedFields).toBe(false);
     },
     TIMEOUT,
   );

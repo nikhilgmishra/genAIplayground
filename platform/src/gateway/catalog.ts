@@ -36,7 +36,7 @@ export const CATALOG_REPO_ROOT = resolve(here, "../../..");
 export const CATALOG_FILE = resolve(CATALOG_REPO_ROOT, "schemas/tools/catalog.json");
 
 /** Catalogue version label recorded in the manifest. Bump it with every reviewed catalogue change. */
-export const TOOL_CATALOG_VERSION = "2026-10-18.2";
+export const TOOL_CATALOG_VERSION = "2026-10-18.3";
 
 /** Field names a tool argument may never carry (server-established identity, AUTH-03). */
 export const FORBIDDEN_ARGUMENT_FIELDS: readonly string[] = Object.freeze([...SERVER_ESTABLISHED_FIELDS, "sessionRef", "bindingRef", "authContext"]);

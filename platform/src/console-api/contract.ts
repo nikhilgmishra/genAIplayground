@@ -292,6 +292,8 @@ export const CONSOLE_ENDPOINTS = {
   "calls.get": { method: "GET", path: "/console/api/v1/calls/:callId" },
   "calls.transfer": { method: "POST", path: "/console/api/v1/calls/:callId/transfer" },
   "supportRequests.trace": { method: "GET", path: "/console/api/v1/support-requests/:ref/trace" },
+  /** Operator repair of a support request whose Salesforce sync was dead-lettered (spec section 8 "operator repair flow"). */
+  "supportRequests.repair": { method: "POST", path: "/console/api/v1/support-requests/:ref/repair" },
   "actions.pending": { method: "GET", path: "/console/api/v1/actions/pending" },
   "actions.cancel": { method: "POST", path: "/console/api/v1/actions/:actionId/cancel" },
   "reconciliation.list": { method: "GET", path: "/console/api/v1/reconciliation" },
@@ -352,6 +354,11 @@ export const ENDPOINT_ROLES: Readonly<Record<AuthenticatedEndpointKey, readonly 
   /** Destination must be in the trusted allowlist (SAFE-05); success requires receiver acceptance (SAFE-04). */
   "calls.transfer": JOURNEY,
   "supportRequests.trace": JOURNEY,
+  /**
+   * Only a DEAD_LETTER sync (STATE_CONFLICT otherwise); restricted requests additionally need a valid
+   * break-glass grant (restricted_record:view). Re-queues the idempotent upsert by external id (ACT-02).
+   */
+  "supportRequests.repair": ["supervisor"],
   "actions.pending": ["support_agent", "supervisor"],
   /** support_agent: only actions on calls they currently own (server-enforced); supervisor: any. Only uncommitted actions. */
   "actions.cancel": ["support_agent", "supervisor"],
@@ -412,6 +419,7 @@ export const OPERATOR_REASON_CODES = {
   "actions.cancel": ["CALLER_CHANGED_REQUEST", "SAFETY_ESCALATION", "SUSPECTED_FRAUD", "INCIDENT_CONTAINMENT", "DUPLICATE_REQUEST", "OPERATOR_ERROR_CORRECTION"],
   "reconciliation.retry": ["RECONCILED_NOT_FOUND_RETRY", "INCIDENT_RECOVERY"],
   "outbox.requeue": ["ROOT_CAUSE_FIXED", "TRANSIENT_DEPENDENCY_FAILURE", "INCIDENT_RECOVERY"],
+  "supportRequests.repair": ["ROOT_CAUSE_FIXED", "TRANSIENT_DEPENDENCY_FAILURE", "INCIDENT_RECOVERY"],
   "workflows.decision.APPROVE": ["EVIDENCE_VERIFIED", "POLICY_CRITERIA_MET", "SPECIALIST_CONFIRMED"],
   "workflows.decision.REJECT": ["EVIDENCE_INSUFFICIENT", "OUT_OF_POLICY", "DUPLICATE_REQUEST", "NEEDS_SPECIALIST_REVIEW"],
   "releases.review": ["DIFF_REVIEWED", "TESTS_REVIEWED", "SCOPE_UNCLEAR", "MISSING_EVIDENCE", "POLICY_REGRESSION_SUSPECTED"],
@@ -899,6 +907,20 @@ export interface RequeueResponse {
   auditEventId: OpaqueId;
 }
 
+export interface SupportRepairRequest {
+  reason: OperatorReason;
+}
+
+export interface SupportRepairResponse {
+  referenceNumber: string;
+  /** The request is back in the sync queue; synchronization is asynchronous and never reported as done here. */
+  syncState: SyncState;
+  /** Salesforce upserts are idempotent by external id, so a repair cannot create a duplicate Case (ACT-02). */
+  repaired: boolean;
+  /** The business module's in-transaction `support_request.repair_requeued` event (else the console completion event). */
+  auditEventId: OpaqueId;
+}
+
 /* ------------------------------------------------------------------------ */
 /* Workflow human tasks                                                      */
 /* ------------------------------------------------------------------------ */
@@ -1212,6 +1234,7 @@ export interface ConsoleEndpointTypes {
   "calls.get": { query: NoQuery; body: NoBody; response: CallDetailResponse };
   "calls.transfer": { query: NoQuery; body: TransferRequest; response: TransferResponse };
   "supportRequests.trace": { query: NoQuery; body: NoBody; response: SupportTraceResponse };
+  "supportRequests.repair": { query: NoQuery; body: SupportRepairRequest; response: SupportRepairResponse };
   "actions.pending": { query: NoQuery; body: NoBody; response: PendingActionsResponse };
   "actions.cancel": { query: NoQuery; body: CancelActionRequest; response: CancelActionResponse };
   "reconciliation.list": { query: NoQuery; body: NoBody; response: ReconciliationResponse };

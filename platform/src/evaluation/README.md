@@ -8,7 +8,7 @@ PRQ-023).
 | File | Responsibility |
 |---|---|
 | `skeleton.ts`, `generate.ts`, `journeys.ts`, `split.ts` | Intent skeletons -> 8 deterministic variant families; the nine journeys and fault-injected journeys; stable hash split; `--check` drift mode |
-| `generate-risk.ts` | 528 templated risk-scenario DRAFTS (UNREVIEWED, labelled as not satisfying the 500 human-reviewed requirement) |
+| `generate-risk.ts` | 522 templated risk-scenario DRAFTS (UNREVIEWED, labelled as not satisfying the 500 human-reviewed requirement) |
 | `fault-plan.ts` | `FaultPlan` schema and loader for `scenarios/fixtures/failures` (deterministic, never LLM-generated) |
 | `corpus.ts` | Strict corpus loader, coverage statistics, `evaluationCorpusDigest` |
 | `runner.ts` | `ConversationDriver` port, `CallEvidence` schema, `runScenarios` |
@@ -82,10 +82,36 @@ but `executionMode: "local_fixture"`.
 | `driver/local-stack.ts` | One fresh `buildContainer({environment:"local"})` per call with the REAL business module, FakeClock, memory logger; REAL worker loops run on their own schedule as simulated time passes (`drain`); clients for the public surface only: telephony-control and portal via `fastify.inject`, tools via the HTTP tool route or the MCP SDK client on a 127.0.0.1 listener |
 | `driver/call-session.ts` | Per-call Studio steps (TC-01..TC-11), portal secure-link approval with the LOCAL FIXTURE OIDC provider, tool calls with speech rendered through the `TemplateResponseGate` |
 | `driver/coordinator.ts` | **LOCAL SIMULATED COORDINATOR**: a deterministic keyword-rule stand-in for the Talkdesk conversational layer. NOT a language model and NOT model evaluation. It defers to the backend safety screen and never decides authorization; turns it cannot interpret make the run INCONCLUSIVE |
-| `driver/local-driver.ts` | Fixture sets (open case, shared device, slot conflict, adversarial knowledge) established through the public surface; fault plans mapped to real faults (DB grants revoked, fixture faults, scripted transfers, policy-engine failure); faults it cannot inject are refused (`UNINJECTABLE_FAULTS`) and never simulated as success |
+| `driver/local-driver.ts` | Fixture sets (open case, shared device, slot conflict, adversarial knowledge) established through the public surface; fault plans mapped to real faults (DB grants revoked, fixture faults, scripted transfers, policy-engine failure); faults it cannot inject are refused (`UNINJECTABLE_FAULTS`: REGIONAL_FAILOVER, REDACTION_FAILURE) and never simulated as success. KNOWLEDGE_STALE is injected through the REAL knowledge service: each article version in service for the searched intent gets a successor version (same content and approval) expiring one second later, the pipeline lets it supersede the old version, simulated time passes the expiry, and the fault counts as injected only if no unexpired servable article remains. PARTIAL_WRITE / SCHEDULING_TIMEOUT_AFTER_COMMIT count as injected only if the scheduling effect exists |
 | `driver/evidence.ts` | `CallEvidence` from authoritative records: ledger rows and fixture effect logs, support requests and their Salesforce trace, transfer journeys, `interaction_outcomes`, egress scans of logs/audit/vendor fixtures, pinned versions; audit event ids count only for streams the platform `IntegrityVerifier` verifies (a numeric-order chain recomputation is kept for attribution only) |
 | `driver/run-corpus.ts` | `pnpm evidence run --group journeys|development|heldout_acceptance|risk [--shard k/n]` -> `evidence/runs/<runId>/`; `pnpm evidence combine --runs a,b --out <name>` -> `evidence/evaluation/<name>.summary.json` + `.report.md` (verdicts per group, split, risk class, variant family; failing hard gates; FAIL list) |
 | `driver/labels.ts`, `driver/personas.ts` | Badges and labels; synthetic personas (fictional 555-01xx caller ids) |
 
 Demo: `pnpm demo` (`platform/src/demo/run-demo.ts`). Load smoke: `platform/test/load` and
 `scripts/load/run-local-load.mts`. Results and numbers: [`docs/TEST_EVIDENCE.md`](../../../docs/TEST_EVIDENCE.md).
+
+## Corpus expectation decisions (2026-10-18)
+
+The local corpus run found expectations that disagreed with spec-correct backend behaviour. They were
+fixed in the generators (never by editing generated files) and are guarded by
+`corpus.test.ts` "corpus expectations agree with spec-correct behaviour":
+
+| Conflict | Decision |
+|---|---|
+| `repeat_contact_or_handoff` added a human transfer but kept `supportRequestCreated: false` | Every handoff writes a `summary.human_handoff` support record, so the added transfer expects one (`supportRequestCreated: true`) |
+| SALESFORCE_OUTAGE case-follow-up variants expected a transfer and no disclosure | `get_authorized_case_status` reads the internal support record (contract `case_follow_up@1`, source system `support_records`): the outage does not change the authorized answer (`INFORMATION_PROVIDED`). The SALESFORCE_OUTAGE plan (v2) admits `INFORMATION_PROVIDED` for those reads |
+| consent_declined drafts approved verification before the decline but expected no disclosure | The authorized read happens before the decline, so it is an expected disclosure; nothing protected follows the decline (`recording:started_after_decline` stays prohibited) |
+| concurrent_same_account expected no commit | Its script re-confirms a freshly re-prepared action and its fault plan allows RESOLVED for exactly that path: one fresh, bound commit is expected (no-duplicate and fresh-confirmation checks still apply) |
+| BILLING/CLAIMS timeouts expected `create_support_request` while every other read-only timeout expected a transfer | One configured rule for a failed dependency read: a person (the coordinator's documented rule) |
+| appointment_cancel expected a committed cancellation | Cancellation is not in the spec's initial workflow catalogue and no catalogued tool expresses it: verified honest handoff, no prepare or commit (`tool:commit_appointment_change` prohibited); crash-after-commit drafts no longer use cancel (522 drafts) |
+| PARTIAL_WRITE (afterExternalCommit) expected OUTCOME_UNKNOWN only | Once the fixture records the booking under the idempotency key, the reconciled commit can end RESOLVED like the other after-commit faults; the plan (v2) adds `no_duplicate_effect` and still excludes a silently dropped action (INFORMATION_PROVIDED / DECLINED_BY_POLICY) |
+
+Simulated-coordinator rule added with KNOWLEDGE_STALE: when `search_approved_runbook` returns no
+current approved article, the gateway speaks `knowledge.no_answer` ("I can connect you with a
+person") and the coordinator routes to a person. This also makes visible that the knowledge search
+returns nothing for `human_request`, `case_follow_up` and `notification_question` with the default
+query (the intent name does not occur in the article text) and for every Spanish FAQ; runs that used
+to end `INFORMATION_PROVIDED` with zero articles (for example "What are your hours?") now end
+TRANSFERRED and fail `task.outcome` honestly. The fix belongs to the knowledge corpus / business
+knowledge search owners.
+

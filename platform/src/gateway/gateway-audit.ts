@@ -7,7 +7,7 @@
  */
 import type { AuditWriter } from "../audit/ports.js";
 import { buildAuditInput } from "../audit/build-input.js";
-import { sessionBindingRefFor } from "../identity/keys.js";
+import { isSessionBindingRef, sessionBindingRefFor } from "../identity/keys.js";
 import type { Logger } from "../observability/ports.js";
 import type { AuditOutcome, AuditSourceComponent, AuthContext, VersionSet } from "../protocol/index.js";
 import { OpaqueId } from "../protocol/index.js";
@@ -24,6 +24,13 @@ export interface GatewayAuditEvent {
   /** Bearer reference when no AuthContext resolved; converted to the binding ref (never stored as is). */
   sessionRef?: string | null;
   callId?: string | null;
+  /**
+   * Added (additive): the NON-bearer session binding ref (`ses_bnd_...`) when no AuthContext or
+   * bearer ref is at hand (portal verification completion). Stored as is; anything else is dropped.
+   */
+  sessionBindingRef?: string | null;
+  /** Added (additive): session generation when no AuthContext resolved (portal verification completion). */
+  sessionGeneration?: number | null;
   reasonCode?: string | null;
   evidencePointers?: string[];
   correlationId?: string;
@@ -65,8 +72,8 @@ export class GatewayAudit {
           subjectRef: ctx?.subjectId ?? null,
           role: ctx?.selectedRole ?? null,
           callId: ctx?.callId ?? (e.callId && OpaqueId.safeParse(e.callId).success ? e.callId : null),
-          sessionRef: bindingRef(ctx?.sessionRef ?? e.sessionRef ?? null),
-          sessionGeneration: ctx?.sessionGeneration ?? null,
+          sessionRef: bindingRef(ctx?.sessionRef ?? e.sessionRef ?? null) ?? (e.sessionBindingRef && isSessionBindingRef(e.sessionBindingRef) ? e.sessionBindingRef : null),
+          sessionGeneration: ctx?.sessionGeneration ?? (typeof e.sessionGeneration === "number" && Number.isSafeInteger(e.sessionGeneration) && e.sessionGeneration >= 1 ? e.sessionGeneration : null),
           turnId: e.turnId ?? null,
           versions: this.versions,
           assurance: ctx?.assurance ?? null,

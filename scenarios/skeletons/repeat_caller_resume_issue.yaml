@@ -1,4 +1,4 @@
-skeletonVersion: 1
+skeletonVersion: 2
 intent: repeat_caller_resume_issue
 title: Verified repeat caller resumes an authorized open issue
 audiences: [client]
@@ -20,9 +20,11 @@ script:
 indirect:
   - "It's me again, about the thing from before."
 dependencyFailure:
+  # get_authorized_case_status reads the internal support record (resolution contract case_follow_up@1,
+  # source system support_records); Salesforce is not on that read path, so the outage must not change
+  # the answer: the authorized status is still given from the internal record.
   fault: SALESFORCE_OUTAGE
-  expectedToolSequence: [begin_verification, get_authorized_case_status, request_human_transfer]
-  requiredHandoff: STANDARD_HUMAN
-  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
-  stopCondition: TRANSFER_CONNECTED
+  expectedToolSequence: [begin_verification, get_authorized_case_status]
+  requiredHandoff: NONE
+  expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: true }
 requirementIds: [DATA-04, SPEC-9.memory, SPEC-16.journeys]

@@ -1,0 +1,5242 @@
+{
+  "label": "LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION",
+  "driver": "LocalConversationDriver (LOCAL FIXTURE): full local stack — buildContainer(local) + real buildBusiness + worker loops over PGlite, OPA WASM and labelled local adapter fixtures; Studio steps over the HTTP telephony-control API, tools over MCP or the HTTP tool route, portal approvals via the LOCAL FIXTURE OIDC provider",
+  "coordinator": "LOCAL SIMULATED COORDINATOR — deterministic rule-based stand-in for the Talkdesk conversational layer (keyword rules over synthetic utterances); NOT a language model and NOT model evaluation",
+  "runId": "run_demo_4tSfGzwe90rgZL-I1Cp8ZVbp",
+  "generatedAt": "2026-10-18T09:12:10.970Z",
+  "transport": "http",
+  "journeys": [
+    {
+      "scenarioId": "scn_journey_1_client_reschedule_conflict",
+      "intent": "appointment_reschedule",
+      "callId": "cal_synthEvalJJAszOPaG-T-Gdev",
+      "faults": [],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words thistle, emerald before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 5,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.option_offer",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 8,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "prepare_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_b6POLxPFpHq7dYG4Ln9E8bn3",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "system_event",
+          "event": "STEP_UP_APPROVED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_b6POLxPFpHq7dYG4Ln9E8bn3",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+            },
+            {
+              "source": "tool",
+              "templateId": "appointment.slot_unavailable_next_option",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "That time was just taken, so nothing was changed. The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time instead?"
+            }
+          ],
+          "tools": [
+            {
+              "name": "commit_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_b6POLxPFpHq7dYG4Ln9E8bn3",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 15,
+            "assurance": "A2",
+            "spokenCount": 5,
+            "toolCount": 4
+          }
+        },
+        {
+          "turnIndex": 5,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.option_offer",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time?"
+            },
+            {
+              "source": "tool",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            },
+            {
+              "name": "prepare_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_b6POLxPFpHq7dYG4Ln9E8bn3",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_uHGxkVviDrA-7W59UzvQR9pP",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 18,
+            "assurance": "A2",
+            "spokenCount": 7,
+            "toolCount": 6
+          }
+        },
+        {
+          "turnIndex": 6,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+            },
+            {
+              "source": "tool",
+              "templateId": "appointment.change_committed",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "Your appointment is now on October 26, 2026 at 11:00 AM, Central Time."
+            }
+          ],
+          "tools": [
+            {
+              "name": "commit_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_b6POLxPFpHq7dYG4Ln9E8bn3",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_uHGxkVviDrA-7W59UzvQR9pP",
+                "kind": "appointment.reschedule",
+                "state": "COMMITTED",
+                "receiptId": "rcp_mwPr-WEDuB4l-Rv2znn4i5ev",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 23,
+            "assurance": "A2",
+            "spokenCount": 9,
+            "toolCount": 7
+          }
+        },
+        {
+          "turnIndex": 7,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_b6POLxPFpHq7dYG4Ln9E8bn3",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_uHGxkVviDrA-7W59UzvQR9pP",
+                "kind": "appointment.reschedule",
+                "state": "COMMITTED",
+                "receiptId": "rcp_mwPr-WEDuB4l-Rv2znn4i5ev",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 25,
+            "assurance": "A2",
+            "spokenCount": 9,
+            "toolCount": 7
+          }
+        }
+      ],
+      "final": {
+        "outcome": "RESOLVED",
+        "outcomeReasonCode": "COMMITTED_RECEIPT_VERIFIED",
+        "committedActions": [
+          {
+            "actionKind": "appointment_change",
+            "receiptId": "rcp_mwPr-WEDuB4l-Rv2znn4i5ev",
+            "reconciled": false,
+            "effectCount": 1
+          }
+        ],
+        "supportRequests": [],
+        "transfer": {
+          "attempted": false,
+          "destinationIds": [],
+          "states": [],
+          "connectionVerified": false,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 2,
+          "events": 25,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 25,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_2_disputed_charge_review",
+      "intent": "billing_dispute",
+      "callId": "cal_synthEvalWb7J_SXk4-P6exfA",
+      "faults": [],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words laurel, winter before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 5,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "invoice.line_explanation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The charge for September 20, 2026 is $25.00, for a session fee."
+            },
+            {
+              "source": "tool",
+              "templateId": "billing.review_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_invoice_status",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            },
+            {
+              "name": "prepare_billing_review",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_F6Kz83H-8KZdwPZGadTqcBUI",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_F6Kz83H-8KZdwPZGadTqcBUI",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_F6Kz83H-8KZdwPZGadTqcBUI",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "system_event",
+          "event": "STEP_UP_APPROVED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_F6Kz83H-8KZdwPZGadTqcBUI",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 5,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "billing.review_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+            },
+            {
+              "source": "tool",
+              "templateId": "commitment.request_accepted_pending_sync",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "I've submitted your request. It isn't complete yet, and our team will follow up. Your support reference is S R, S X Z 9, U 9 B E. It is still being synchronized and is not a case number."
+            }
+          ],
+          "tools": [
+            {
+              "name": "submit_billing_review",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_F6Kz83H-8KZdwPZGadTqcBUI",
+                "kind": "billing.review.submit",
+                "state": "COMMITTED",
+                "receiptId": "rcp_Y-s_U6FzWg2JxJ1DNflyOI16",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-SXZ9-U9BE",
+                "disposition": "REQUEST_ACCEPTED",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNhK7QYKWxjifG"
+              }
+            ],
+            "workflows": [
+              {
+                "workflowId": "wf_OMZmXq14ikXgvG95TJaqmFjZ",
+                "type": "billing_dispute_review",
+                "state": "ACCEPTED"
+              }
+            ],
+            "transfers": [],
+            "auditEvents": 19,
+            "assurance": "A2",
+            "spokenCount": 5,
+            "toolCount": 4
+          }
+        },
+        {
+          "turnIndex": 6,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_F6Kz83H-8KZdwPZGadTqcBUI",
+                "kind": "billing.review.submit",
+                "state": "COMMITTED",
+                "receiptId": "rcp_Y-s_U6FzWg2JxJ1DNflyOI16",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-SXZ9-U9BE",
+                "disposition": "REQUEST_ACCEPTED",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNhK7QYKWxjifG"
+              }
+            ],
+            "workflows": [
+              {
+                "workflowId": "wf_OMZmXq14ikXgvG95TJaqmFjZ",
+                "type": "billing_dispute_review",
+                "state": "ACCEPTED"
+              }
+            ],
+            "transfers": [],
+            "auditEvents": 21,
+            "assurance": "A2",
+            "spokenCount": 5,
+            "toolCount": 4
+          }
+        }
+      ],
+      "final": {
+        "outcome": "REQUEST_ACCEPTED",
+        "outcomeReasonCode": "REQUEST_ACCEPTED_NOT_RESOLUTION",
+        "committedActions": [
+          {
+            "actionKind": "billing_review",
+            "receiptId": "rcp_Y-s_U6FzWg2JxJ1DNflyOI16",
+            "reconciled": false,
+            "effectCount": 1
+          }
+        ],
+        "supportRequests": [
+          {
+            "kind": "salesforce_case",
+            "referenceIssued": true
+          }
+        ],
+        "transfer": {
+          "attempted": false,
+          "destinationIds": [],
+          "states": [],
+          "connectionVerified": false,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 3,
+          "events": 21,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 21,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_3_delegated_practice_remittance",
+      "intent": "delegated_practice_remittance",
+      "callId": "cal_synthEvalUZL21HpcA4rYawZH",
+      "faults": [],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words lantern, ocean before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 5,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "remittance.status",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The remittance for September 1, 2026 through September 30, 2026 has a status of sent, with a total of $12,500.00."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_remittance_status",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 8,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "remittance.status",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The remittance for October 1, 2026 through October 15, 2026 has a status of scheduled, with a total of $6,100.00."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_remittance_status",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 9,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "coordinator",
+              "templateId": "policy.denied_generic",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "I can't help with that on this call. I can connect you with a person."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_remittance_status",
+              "status": "POLICY_DENIED",
+              "reasonCode": "RELATIONSHIP_NOT_ESTABLISHED",
+              "probe": "OTHER_ORGANIZATION_REMITTANCE",
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 4,
+            "toolCount": 4
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 12,
+            "assurance": "A2",
+            "spokenCount": 4,
+            "toolCount": 4
+          }
+        }
+      ],
+      "final": {
+        "outcome": "INFORMATION_PROVIDED",
+        "outcomeReasonCode": "INFORMATION_PROVIDED",
+        "committedActions": [],
+        "supportRequests": [],
+        "transfer": {
+          "attempted": false,
+          "destinationIds": [],
+          "states": [],
+          "connectionVerified": false,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 1,
+          "events": 12,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 12,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_4_partner_denied_unrelated_client",
+      "intent": "partner_employee_treatment_status",
+      "callId": "cal_synthEvalzUxeK1CDOuRlutcn",
+      "faults": [],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words cotton, feather before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 5,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "coordinator",
+              "templateId": "policy.denied_generic",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "I can't help with that on this call. I can connect you with a person."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "POLICY_DENIED",
+              "reasonCode": "PARTNER_NO_INDIVIDUAL_ACCESS",
+              "probe": "OTHER_SUBJECT_APPOINTMENTS",
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 8,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 8,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        }
+      ],
+      "final": {
+        "outcome": "DECLINED_BY_POLICY",
+        "outcomeReasonCode": "POLICY_DECLINED",
+        "committedActions": [],
+        "supportRequests": [],
+        "transfer": {
+          "attempted": false,
+          "destinationIds": [],
+          "states": [],
+          "connectionVerified": false,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 1,
+          "events": 10,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 10,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_5_unverified_human_request",
+      "intent": "human_request",
+      "callId": "cal_synthEvalobHieoblU8ppnq73",
+      "faults": [],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "transfer.in_progress",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person now. Please stay on the line."
+            }
+          ],
+          "tools": [
+            {
+              "name": "request_human_transfer",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-9M3M-WFMG",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYN3F2UUUFHlcRV"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_Zbt23LV6UpfLx4xSCn9_S6OKqyNt0fgY",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_support_general:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 13,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-9M3M-WFMG",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYN3F2UUUFHlcRV"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_Zbt23LV6UpfLx4xSCn9_S6OKqyNt0fgY",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_support_general:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 13,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        }
+      ],
+      "final": {
+        "outcome": "TRANSFERRED",
+        "outcomeReasonCode": "CALLER_CONFIRMED_CONNECTED",
+        "committedActions": [],
+        "supportRequests": [
+          {
+            "kind": "salesforce_case",
+            "referenceIssued": false
+          }
+        ],
+        "transfer": {
+          "attempted": true,
+          "destinationIds": [
+            "dst_support_general"
+          ],
+          "states": [
+            "REQUESTED",
+            "QUEUED",
+            "RECEIVER_ACCEPTED",
+            "BRIDGED",
+            "CALLER_CONFIRMED_CONNECTED"
+          ],
+          "connectionVerified": true,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 1,
+          "events": 15,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 15,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_6_safety_handoff_unauthenticated",
+      "intent": "safety_disclosure_self",
+      "callId": "cal_synthEvalmUpGw0MbQMuWQHjL",
+      "faults": [],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "studio",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            },
+            {
+              "source": "tool",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            }
+          ],
+          "tools": [
+            {
+              "name": "request_safety_route",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-56R9-X4QH",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYN8ajkYRE0VINe"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_3NOjdUQqX9MJsYxLgAuH0lKOiNYaWLgh",
+                "status": "CONNECTED",
+                "priority": "SAFETY",
+                "attempts": [
+                  "dst_safety_priority:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 19,
+            "assurance": "A0",
+            "spokenCount": 2,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "studio",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            }
+          ],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-56R9-X4QH",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYN8ajkYRE0VINe"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_3NOjdUQqX9MJsYxLgAuH0lKOiNYaWLgh",
+                "status": "CONNECTED",
+                "priority": "SAFETY",
+                "attempts": [
+                  "dst_safety_priority:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 22,
+            "assurance": "A0",
+            "spokenCount": 3,
+            "toolCount": 1
+          }
+        }
+      ],
+      "final": {
+        "outcome": "TRANSFERRED",
+        "outcomeReasonCode": "CALLER_CONFIRMED_CONNECTED",
+        "committedActions": [],
+        "supportRequests": [
+          {
+            "kind": "salesforce_case",
+            "referenceIssued": false
+          }
+        ],
+        "transfer": {
+          "attempted": true,
+          "destinationIds": [
+            "dst_safety_priority"
+          ],
+          "states": [
+            "REQUESTED",
+            "QUEUED",
+            "RECEIVER_ACCEPTED",
+            "BRIDGED",
+            "CALLER_CONFIRMED_CONNECTED"
+          ],
+          "connectionVerified": true,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 1,
+          "events": 24,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 24,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_7_recording_declined",
+      "intent": "recording_declined",
+      "callId": "cal_synthEval0r47DKaqL1h8hDqu",
+      "faults": [],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "system_event",
+          "event": "RECORDING_DECLINED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-83CU-NRLX",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNzIxzPYad4ARx"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_74LBMM0MDCtMR5ElLjt80jIjy3VZwwq5",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_support_general:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 12,
+            "assurance": "A0",
+            "spokenCount": 2,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-83CU-NRLX",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNzIxzPYad4ARx"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_74LBMM0MDCtMR5ElLjt80jIjy3VZwwq5",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_support_general:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 12,
+            "assurance": "A0",
+            "spokenCount": 2,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-83CU-NRLX",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNzIxzPYad4ARx"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_74LBMM0MDCtMR5ElLjt80jIjy3VZwwq5",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_support_general:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 12,
+            "assurance": "A0",
+            "spokenCount": 2,
+            "toolCount": 1
+          }
+        }
+      ],
+      "final": {
+        "outcome": "TRANSFERRED",
+        "outcomeReasonCode": "CALLER_CONFIRMED_CONNECTED",
+        "committedActions": [],
+        "supportRequests": [
+          {
+            "kind": "salesforce_case",
+            "referenceIssued": false
+          }
+        ],
+        "transfer": {
+          "attempted": true,
+          "destinationIds": [
+            "dst_support_general"
+          ],
+          "states": [
+            "REQUESTED",
+            "QUEUED",
+            "RECEIVER_ACCEPTED",
+            "BRIDGED",
+            "CALLER_CONFIRMED_CONNECTED"
+          ],
+          "connectionVerified": true,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 1,
+          "events": 14,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 14,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_8_interpreter_routing",
+      "intent": "unsupported_language",
+      "callId": "cal_synthEvalF3x3gpsjoXYXhtsZ",
+      "faults": [],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "language.interpreter_route",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "Un momento. Le estoy comunicando con un intérprete."
+            }
+          ],
+          "tools": [
+            {
+              "name": "request_human_transfer",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-Y4BW-V2TH",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYN6ASvByuT8TVz"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_Dy_ZEhKlaq_wpi7GDLITrg3K3G9m4BWJ",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_interpreter:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 13,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-Y4BW-V2TH",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYN6ASvByuT8TVz"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_Dy_ZEhKlaq_wpi7GDLITrg3K3G9m4BWJ",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_interpreter:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 13,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        }
+      ],
+      "final": {
+        "outcome": "TRANSFERRED",
+        "outcomeReasonCode": "CALLER_CONFIRMED_CONNECTED",
+        "committedActions": [],
+        "supportRequests": [
+          {
+            "kind": "salesforce_case",
+            "referenceIssued": false
+          }
+        ],
+        "transfer": {
+          "attempted": true,
+          "destinationIds": [
+            "dst_interpreter"
+          ],
+          "states": [
+            "REQUESTED",
+            "QUEUED",
+            "RECEIVER_ACCEPTED",
+            "BRIDGED",
+            "CALLER_CONFIRMED_CONNECTED"
+          ],
+          "connectionVerified": true,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 1,
+          "events": 15,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 15,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_9_repeat_caller_resume_issue",
+      "intent": "repeat_caller_resume_issue",
+      "callId": "cal_synthEvalbUOgoZam9xoJY9sX",
+      "faults": [],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "system_event",
+          "event": "CALLER_ID_PRESENTED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 23,
+            "assurance": "A0",
+            "spokenCount": 0,
+            "toolCount": 0
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words carpet, compass before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 25,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "case.recap_open_issue",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "I see an open request with reference S R, L 2 F 5, D G N G, about a billing review. Are you calling about that request?"
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_authorized_case_status",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 28,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 28,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 30,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        }
+      ],
+      "final": {
+        "outcome": "INFORMATION_PROVIDED",
+        "outcomeReasonCode": "INFORMATION_PROVIDED",
+        "committedActions": [],
+        "supportRequests": [],
+        "transfer": {
+          "attempted": false,
+          "destinationIds": [],
+          "states": [],
+          "connectionVerified": false,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 3,
+          "events": 30,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 30,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_1_client_reschedule_conflict__auth_expiry_mid_call",
+      "intent": "appointment_reschedule",
+      "callId": "cal_synthEvalNEJPbYs6YgdOSMHU",
+      "faults": [
+        "AUTH_EXPIRY_MID_CALL"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words bridge, window before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 5,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.option_offer",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 8,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "prepare_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_R9jbbxte8uxgX7ZURBZsf6Ul",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "system_event",
+          "event": "STEP_UP_APPROVED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_R9jbbxte8uxgX7ZURBZsf6Ul",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "commit_appointment_change",
+              "status": "POLICY_DENIED",
+              "reasonCode": "SESSION_EXPIRED",
+              "probe": null,
+              "via": "http"
+            },
+            {
+              "name": "request_human_transfer",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_R9jbbxte8uxgX7ZURBZsf6Ul",
+                "kind": "appointment.reschedule",
+                "state": "EXPIRED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-SATC-HDPC",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNxIMBRiXSbaja"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_gA81oEqJsQIqAyDCrfg6ht_gBSUwNfko",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_support_general:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 24,
+            "assurance": "A2",
+            "spokenCount": 4,
+            "toolCount": 5
+          }
+        },
+        {
+          "turnIndex": 5,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_R9jbbxte8uxgX7ZURBZsf6Ul",
+                "kind": "appointment.reschedule",
+                "state": "EXPIRED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-SATC-HDPC",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNxIMBRiXSbaja"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_gA81oEqJsQIqAyDCrfg6ht_gBSUwNfko",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_support_general:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 24,
+            "assurance": "A2",
+            "spokenCount": 4,
+            "toolCount": 5
+          }
+        },
+        {
+          "turnIndex": 6,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_R9jbbxte8uxgX7ZURBZsf6Ul",
+                "kind": "appointment.reschedule",
+                "state": "EXPIRED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-SATC-HDPC",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNxIMBRiXSbaja"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_gA81oEqJsQIqAyDCrfg6ht_gBSUwNfko",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_support_general:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 24,
+            "assurance": "A2",
+            "spokenCount": 4,
+            "toolCount": 5
+          }
+        },
+        {
+          "turnIndex": 7,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_R9jbbxte8uxgX7ZURBZsf6Ul",
+                "kind": "appointment.reschedule",
+                "state": "EXPIRED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-SATC-HDPC",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNxIMBRiXSbaja"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_gA81oEqJsQIqAyDCrfg6ht_gBSUwNfko",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_support_general:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 26,
+            "assurance": "A2",
+            "spokenCount": 4,
+            "toolCount": 5
+          }
+        }
+      ],
+      "final": {
+        "outcome": "TRANSFERRED",
+        "outcomeReasonCode": "CALLER_CONFIRMED_CONNECTED",
+        "committedActions": [],
+        "supportRequests": [
+          {
+            "kind": "salesforce_case",
+            "referenceIssued": false
+          }
+        ],
+        "transfer": {
+          "attempted": true,
+          "destinationIds": [
+            "dst_support_general"
+          ],
+          "states": [
+            "REQUESTED",
+            "QUEUED",
+            "RECEIVER_ACCEPTED",
+            "BRIDGED",
+            "CALLER_CONFIRMED_CONNECTED"
+          ],
+          "connectionVerified": true,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 2,
+          "events": 26,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 26,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "FAIL",
+      "failingAssertions": [
+        "task.outcome=FAIL"
+      ],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_1_client_reschedule_conflict__concurrent_same_account",
+      "intent": "appointment_reschedule",
+      "callId": "cal_synthEval6WGoNirg5szUQlqH",
+      "faults": [
+        "CONCURRENT_SAME_ACCOUNT"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words basil, dahlia before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 5,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.option_offer",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 8,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "prepare_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_Pdi8Z9kpa4U2nwBo-8WJNV6v",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "system_event",
+          "event": "STEP_UP_APPROVED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_Pdi8Z9kpa4U2nwBo-8WJNV6v",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "commit_appointment_change",
+              "status": "PERMANENT_FAILURE",
+              "reasonCode": "STATE_CHANGED",
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_Pdi8Z9kpa4U2nwBo-8WJNV6v",
+                "kind": "appointment.reschedule",
+                "state": "INVALIDATED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 29,
+            "assurance": "A2",
+            "spokenCount": 4,
+            "toolCount": 4
+          }
+        },
+        {
+          "turnIndex": 5,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.option_offer",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time?"
+            },
+            {
+              "source": "tool",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 27, 2026 at 1:30 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            },
+            {
+              "name": "prepare_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_Pdi8Z9kpa4U2nwBo-8WJNV6v",
+                "kind": "appointment.reschedule",
+                "state": "INVALIDATED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_wxWRGmLA6xhK3EYImZeY3Nbz",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 32,
+            "assurance": "A2",
+            "spokenCount": 6,
+            "toolCount": 6
+          }
+        },
+        {
+          "turnIndex": 6,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 27, 2026 at 1:30 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+            },
+            {
+              "source": "tool",
+              "templateId": "appointment.change_committed",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "Your appointment is now on October 26, 2026 at 11:00 AM, Central Time."
+            }
+          ],
+          "tools": [
+            {
+              "name": "commit_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_Pdi8Z9kpa4U2nwBo-8WJNV6v",
+                "kind": "appointment.reschedule",
+                "state": "INVALIDATED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_wxWRGmLA6xhK3EYImZeY3Nbz",
+                "kind": "appointment.reschedule",
+                "state": "COMMITTED",
+                "receiptId": "rcp_Uwpakf_Zz9BF3jOD4gF6jaMC",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 37,
+            "assurance": "A2",
+            "spokenCount": 8,
+            "toolCount": 7
+          }
+        },
+        {
+          "turnIndex": 7,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_Pdi8Z9kpa4U2nwBo-8WJNV6v",
+                "kind": "appointment.reschedule",
+                "state": "INVALIDATED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_wxWRGmLA6xhK3EYImZeY3Nbz",
+                "kind": "appointment.reschedule",
+                "state": "COMMITTED",
+                "receiptId": "rcp_Uwpakf_Zz9BF3jOD4gF6jaMC",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 39,
+            "assurance": "A2",
+            "spokenCount": 8,
+            "toolCount": 7
+          }
+        }
+      ],
+      "final": {
+        "outcome": "RESOLVED",
+        "outcomeReasonCode": "COMMITTED_RECEIPT_VERIFIED",
+        "committedActions": [
+          {
+            "actionKind": "appointment_change",
+            "receiptId": "rcp_Uwpakf_Zz9BF3jOD4gF6jaMC",
+            "reconciled": false,
+            "effectCount": 1
+          }
+        ],
+        "supportRequests": [],
+        "transfer": {
+          "attempted": false,
+          "destinationIds": [],
+          "states": [],
+          "connectionVerified": false,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 2,
+          "events": 39,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 39,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_1_client_reschedule_conflict__crash_after_commit",
+      "intent": "appointment_reschedule",
+      "callId": "cal_synthEvalJksx3St2HIzCZNQA",
+      "faults": [
+        "CRASH_AFTER_COMMIT"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words ruby, lemon before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 5,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.option_offer",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 8,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "prepare_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_qz7B6GHSPvPaqCmYHOjNPgFn",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "system_event",
+          "event": "STEP_UP_APPROVED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_qz7B6GHSPvPaqCmYHOjNPgFn",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+            },
+            {
+              "source": "tool",
+              "templateId": "appointment.slot_unavailable_next_option",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "That time was just taken, so nothing was changed. The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time instead?"
+            }
+          ],
+          "tools": [
+            {
+              "name": "commit_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_qz7B6GHSPvPaqCmYHOjNPgFn",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 15,
+            "assurance": "A2",
+            "spokenCount": 5,
+            "toolCount": 4
+          }
+        },
+        {
+          "turnIndex": 5,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.option_offer",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time?"
+            },
+            {
+              "source": "tool",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            },
+            {
+              "name": "prepare_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_qz7B6GHSPvPaqCmYHOjNPgFn",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_-bCzIYRm7_NWe7f6r5SFOB50",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 18,
+            "assurance": "A2",
+            "spokenCount": 7,
+            "toolCount": 6
+          }
+        },
+        {
+          "turnIndex": 6,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "commit_appointment_change",
+              "status": "UNKNOWN_OUTCOME",
+              "reasonCode": "COMMIT_OUTCOME_UNKNOWN",
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_qz7B6GHSPvPaqCmYHOjNPgFn",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_-bCzIYRm7_NWe7f6r5SFOB50",
+                "kind": "appointment.reschedule",
+                "state": "UNKNOWN",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 23,
+            "assurance": "A2",
+            "spokenCount": 8,
+            "toolCount": 7
+          }
+        },
+        {
+          "turnIndex": 7,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_qz7B6GHSPvPaqCmYHOjNPgFn",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_-bCzIYRm7_NWe7f6r5SFOB50",
+                "kind": "appointment.reschedule",
+                "state": "UNKNOWN",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 25,
+            "assurance": "A2",
+            "spokenCount": 8,
+            "toolCount": 7
+          }
+        }
+      ],
+      "final": {
+        "outcome": "RESOLVED",
+        "outcomeReasonCode": "COMMITTED_RECEIPT_VERIFIED",
+        "committedActions": [
+          {
+            "actionKind": "appointment_change",
+            "receiptId": "rcp_YSEGEi6h6RdY1FxCbwDKMHZ2",
+            "reconciled": true,
+            "effectCount": 1
+          }
+        ],
+        "supportRequests": [],
+        "transfer": {
+          "attempted": false,
+          "destinationIds": [],
+          "states": [],
+          "connectionVerified": false,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 2,
+          "events": 27,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 27,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_1_client_reschedule_conflict__interrupted_confirmation",
+      "intent": "appointment_reschedule",
+      "callId": "cal_synthEval2pbWd3KbqaAwdDw5",
+      "faults": [
+        "INTERRUPTED_CONFIRMATION"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words olive, ember before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 5,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.option_offer",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 8,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "prepare_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_1gWfyu6kzeiETpPOyZNxtehc",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "system_event",
+          "event": "BARGE_IN",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_1gWfyu6kzeiETpPOyZNxtehc",
+                "kind": "appointment.reschedule",
+                "state": "INVALIDATED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 13,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.option_offer",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time?"
+            },
+            {
+              "source": "tool",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            },
+            {
+              "name": "prepare_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_1gWfyu6kzeiETpPOyZNxtehc",
+                "kind": "appointment.reschedule",
+                "state": "INVALIDATED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_JrqRAppjkZ9DVEf3cqelvAc0",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 16,
+            "assurance": "A2",
+            "spokenCount": 5,
+            "toolCount": 5
+          }
+        },
+        {
+          "turnIndex": 5,
+          "speaker": "system_event",
+          "event": "STEP_UP_APPROVED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_1gWfyu6kzeiETpPOyZNxtehc",
+                "kind": "appointment.reschedule",
+                "state": "INVALIDATED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_JrqRAppjkZ9DVEf3cqelvAc0",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 16,
+            "assurance": "A2",
+            "spokenCount": 5,
+            "toolCount": 5
+          }
+        },
+        {
+          "turnIndex": 6,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+            },
+            {
+              "source": "tool",
+              "templateId": "appointment.change_committed",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "Your appointment is now on October 26, 2026 at 11:00 AM, Central Time."
+            }
+          ],
+          "tools": [
+            {
+              "name": "commit_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_1gWfyu6kzeiETpPOyZNxtehc",
+                "kind": "appointment.reschedule",
+                "state": "INVALIDATED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_JrqRAppjkZ9DVEf3cqelvAc0",
+                "kind": "appointment.reschedule",
+                "state": "COMMITTED",
+                "receiptId": "rcp_gtfUqdPAG4aymvVAKA0JqVeL",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 21,
+            "assurance": "A2",
+            "spokenCount": 7,
+            "toolCount": 6
+          }
+        },
+        {
+          "turnIndex": 7,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_1gWfyu6kzeiETpPOyZNxtehc",
+                "kind": "appointment.reschedule",
+                "state": "INVALIDATED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_JrqRAppjkZ9DVEf3cqelvAc0",
+                "kind": "appointment.reschedule",
+                "state": "COMMITTED",
+                "receiptId": "rcp_gtfUqdPAG4aymvVAKA0JqVeL",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 23,
+            "assurance": "A2",
+            "spokenCount": 7,
+            "toolCount": 6
+          }
+        }
+      ],
+      "final": {
+        "outcome": "RESOLVED",
+        "outcomeReasonCode": "COMMITTED_RECEIPT_VERIFIED",
+        "committedActions": [
+          {
+            "actionKind": "appointment_change",
+            "receiptId": "rcp_gtfUqdPAG4aymvVAKA0JqVeL",
+            "reconciled": false,
+            "effectCount": 1
+          }
+        ],
+        "supportRequests": [],
+        "transfer": {
+          "attempted": false,
+          "destinationIds": [],
+          "states": [],
+          "connectionVerified": false,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 2,
+          "events": 23,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 23,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_1_client_reschedule_conflict__scheduling_timeout_after_commit",
+      "intent": "appointment_reschedule",
+      "callId": "cal_synthEvalwE1LB0jjK-GaTvAf",
+      "faults": [
+        "SCHEDULING_TIMEOUT_AFTER_COMMIT"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words blossom, cobble before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 5,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.option_offer",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The next open time is October 23, 2026 at 12:00 PM, Central Time. Would you like that time?"
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 8,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 2
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "prepare_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_p0_tCz5Qr6SemkONg83KcHBS",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "system_event",
+          "event": "STEP_UP_APPROVED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_p0_tCz5Qr6SemkONg83KcHBS",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it."
+            },
+            {
+              "source": "tool",
+              "templateId": "appointment.slot_unavailable_next_option",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "That time was just taken, so nothing was changed. The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time instead?"
+            }
+          ],
+          "tools": [
+            {
+              "name": "commit_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_p0_tCz5Qr6SemkONg83KcHBS",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 15,
+            "assurance": "A2",
+            "spokenCount": 5,
+            "toolCount": 4
+          }
+        },
+        {
+          "turnIndex": 5,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "appointment.option_offer",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The next open time is October 26, 2026 at 11:00 AM, Central Time. Would you like that time?"
+            },
+            {
+              "source": "tool",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_appointment_options",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            },
+            {
+              "name": "prepare_appointment_change",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_p0_tCz5Qr6SemkONg83KcHBS",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_wdf-ead4eKamQeW3bBmnRC7r",
+                "kind": "appointment.reschedule",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 18,
+            "assurance": "A2",
+            "spokenCount": 7,
+            "toolCount": 6
+          }
+        },
+        {
+          "turnIndex": 6,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "appointment.change_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 26, 2026 at 11:00 AM, Central Time. Say yes to confirm, or no to keep it."
+            }
+          ],
+          "tools": [
+            {
+              "name": "commit_appointment_change",
+              "status": "UNKNOWN_OUTCOME",
+              "reasonCode": "COMMIT_OUTCOME_UNKNOWN",
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_p0_tCz5Qr6SemkONg83KcHBS",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_wdf-ead4eKamQeW3bBmnRC7r",
+                "kind": "appointment.reschedule",
+                "state": "UNKNOWN",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 23,
+            "assurance": "A2",
+            "spokenCount": 8,
+            "toolCount": 7
+          }
+        },
+        {
+          "turnIndex": 7,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_p0_tCz5Qr6SemkONg83KcHBS",
+                "kind": "appointment.reschedule",
+                "state": "FAILED",
+                "receiptId": null,
+                "reconciled": null
+              },
+              {
+                "actionId": "act_wdf-ead4eKamQeW3bBmnRC7r",
+                "kind": "appointment.reschedule",
+                "state": "UNKNOWN",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 25,
+            "assurance": "A2",
+            "spokenCount": 8,
+            "toolCount": 7
+          }
+        }
+      ],
+      "final": {
+        "outcome": "RESOLVED",
+        "outcomeReasonCode": "COMMITTED_RECEIPT_VERIFIED",
+        "committedActions": [
+          {
+            "actionKind": "appointment_change",
+            "receiptId": "rcp_yOuC-K-MnLKsDNkFe3VUxt6x",
+            "reconciled": true,
+            "effectCount": 1
+          }
+        ],
+        "supportRequests": [],
+        "transfer": {
+          "attempted": false,
+          "destinationIds": [],
+          "states": [],
+          "connectionVerified": false,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 2,
+          "events": 27,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 27,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_2_disputed_charge_review__audit_outage",
+      "intent": "billing_dispute",
+      "callId": "cal_synthEval594xojg15pzsFNZy",
+      "faults": [
+        "AUDIT_OUTAGE"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words ballad, paper before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 3,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "transfer.in_progress",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person now. Please stay on the line."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_invoice_status",
+              "status": "RETRYABLE_FAILURE",
+              "reasonCode": "AUDIT_UNAVAILABLE",
+              "probe": null,
+              "via": "http"
+            },
+            {
+              "name": "request_human_transfer",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_FMwh7YFd-xsDetcOh3YQqsMeZdZi84wm",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_billing_specialist:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 3,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_FMwh7YFd-xsDetcOh3YQqsMeZdZi84wm",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_billing_specialist:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 3,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_FMwh7YFd-xsDetcOh3YQqsMeZdZi84wm",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_billing_specialist:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 3,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "system_event",
+          "event": "STEP_UP_APPROVED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_FMwh7YFd-xsDetcOh3YQqsMeZdZi84wm",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_billing_specialist:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 3,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 5,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_FMwh7YFd-xsDetcOh3YQqsMeZdZi84wm",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_billing_specialist:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 3,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 6,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_FMwh7YFd-xsDetcOh3YQqsMeZdZi84wm",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_billing_specialist:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 7,
+            "assurance": "A2",
+            "spokenCount": 2,
+            "toolCount": 3
+          }
+        }
+      ],
+      "final": {
+        "outcome": "TRANSFERRED",
+        "outcomeReasonCode": "CALLER_CONFIRMED_CONNECTED",
+        "committedActions": [],
+        "supportRequests": [],
+        "transfer": {
+          "attempted": true,
+          "destinationIds": [
+            "dst_billing_specialist"
+          ],
+          "states": [
+            "REQUESTED",
+            "QUEUED",
+            "RECEIVER_ACCEPTED",
+            "BRIDGED",
+            "CALLER_CONFIRMED_CONNECTED"
+          ],
+          "connectionVerified": true,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 1,
+          "events": 7,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 7,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_2_disputed_charge_review__duplicate_webhook",
+      "intent": "billing_dispute",
+      "callId": "cal_synthEvalCFwtmJrK3J8E-GyZ",
+      "faults": [
+        "DUPLICATE_WEBHOOK"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words hazel, ferry before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 5,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "invoice.line_explanation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The charge for September 20, 2026 is $25.00, for a session fee."
+            },
+            {
+              "source": "tool",
+              "templateId": "billing.review_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_invoice_status",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            },
+            {
+              "name": "prepare_billing_review",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_ikQ9zypAbSiQxdeHIZJJ6bLu",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_ikQ9zypAbSiQxdeHIZJJ6bLu",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_ikQ9zypAbSiQxdeHIZJJ6bLu",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "system_event",
+          "event": "STEP_UP_APPROVED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_ikQ9zypAbSiQxdeHIZJJ6bLu",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 5,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "billing.review_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+            },
+            {
+              "source": "tool",
+              "templateId": "commitment.request_accepted_pending_sync",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "I've submitted your request. It isn't complete yet, and our team will follow up. Your support reference is S R, 5 K K L, T F R M. It is still being synchronized and is not a case number."
+            }
+          ],
+          "tools": [
+            {
+              "name": "submit_billing_review",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_ikQ9zypAbSiQxdeHIZJJ6bLu",
+                "kind": "billing.review.submit",
+                "state": "COMMITTED",
+                "receiptId": "rcp_c7XIPjuLDRqmFFORrfh59zIa",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-5KKL-TFRM",
+                "disposition": "REQUEST_ACCEPTED",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYN4lPqE6uy7FcO"
+              }
+            ],
+            "workflows": [
+              {
+                "workflowId": "wf_EdXWEqf6A-GcdovJwQcPMr8T",
+                "type": "billing_dispute_review",
+                "state": "ACCEPTED"
+              }
+            ],
+            "transfers": [],
+            "auditEvents": 19,
+            "assurance": "A2",
+            "spokenCount": 5,
+            "toolCount": 4
+          }
+        },
+        {
+          "turnIndex": 6,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_ikQ9zypAbSiQxdeHIZJJ6bLu",
+                "kind": "billing.review.submit",
+                "state": "COMMITTED",
+                "receiptId": "rcp_c7XIPjuLDRqmFFORrfh59zIa",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-5KKL-TFRM",
+                "disposition": "REQUEST_ACCEPTED",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYN4lPqE6uy7FcO"
+              }
+            ],
+            "workflows": [
+              {
+                "workflowId": "wf_EdXWEqf6A-GcdovJwQcPMr8T",
+                "type": "billing_dispute_review",
+                "state": "ACCEPTED"
+              }
+            ],
+            "transfers": [],
+            "auditEvents": 21,
+            "assurance": "A2",
+            "spokenCount": 5,
+            "toolCount": 4
+          }
+        }
+      ],
+      "final": {
+        "outcome": "REQUEST_ACCEPTED",
+        "outcomeReasonCode": "REQUEST_ACCEPTED_NOT_RESOLUTION",
+        "committedActions": [
+          {
+            "actionKind": "billing_review",
+            "receiptId": "rcp_c7XIPjuLDRqmFFORrfh59zIa",
+            "reconciled": false,
+            "effectCount": 1
+          }
+        ],
+        "supportRequests": [
+          {
+            "kind": "salesforce_case",
+            "referenceIssued": true
+          }
+        ],
+        "transfer": {
+          "attempted": false,
+          "destinationIds": [],
+          "states": [],
+          "connectionVerified": false,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 3,
+          "events": 21,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 21,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_2_disputed_charge_review__salesforce_outage",
+      "intent": "billing_dispute",
+      "callId": "cal_synthEvalsZreaaK4SUlCKeMu",
+      "faults": [
+        "SALESFORCE_OUTAGE"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "verification.secure_link_match_code",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words anchor, oasis before you approve."
+            }
+          ],
+          "tools": [
+            {
+              "name": "begin_verification",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 5,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "system_event",
+          "event": "VERIFICATION_SECURE_LINK_APPROVED",
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "invoice.line_explanation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "The charge for September 20, 2026 is $25.00, for a session fee."
+            },
+            {
+              "source": "tool",
+              "templateId": "billing.review_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+            }
+          ],
+          "tools": [
+            {
+              "name": "get_invoice_status",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            },
+            {
+              "name": "prepare_billing_review",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_A2JcUpdbuc3DEnDMnOoeDiyM",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 2,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_A2JcUpdbuc3DEnDMnOoeDiyM",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 3,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_A2JcUpdbuc3DEnDMnOoeDiyM",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 4,
+          "speaker": "system_event",
+          "event": "STEP_UP_APPROVED",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_A2JcUpdbuc3DEnDMnOoeDiyM",
+                "kind": "billing.review.submit",
+                "state": "PREPARED",
+                "receiptId": null,
+                "reconciled": null
+              }
+            ],
+            "supportRequests": [],
+            "workflows": [],
+            "transfers": [],
+            "auditEvents": 10,
+            "assurance": "A2",
+            "spokenCount": 3,
+            "toolCount": 3
+          }
+        },
+        {
+          "turnIndex": 5,
+          "speaker": "system_event",
+          "event": "CONFIRMATION_CAPTURED",
+          "spoken": [
+            {
+              "source": "confirmation_prompt",
+              "templateId": "billing.review_confirmation",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "To confirm, I'll submit a billing review for the invoice issued on October 1, 2026. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel."
+            },
+            {
+              "source": "tool",
+              "templateId": "commitment.request_accepted_pending_sync",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "I've submitted your request. It isn't complete yet, and our team will follow up. Your support reference is S R, 4 5 5 N, H U V B. It is still being synchronized and is not a case number."
+            }
+          ],
+          "tools": [
+            {
+              "name": "submit_billing_review",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_A2JcUpdbuc3DEnDMnOoeDiyM",
+                "kind": "billing.review.submit",
+                "state": "COMMITTED",
+                "receiptId": "rcp_GrGtHWbSDqiA6iKQBc0hZZp-",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-455N-HUVB",
+                "disposition": "REQUEST_ACCEPTED",
+                "syncState": "RETRY_SCHEDULED",
+                "salesforceCaseId": null
+              }
+            ],
+            "workflows": [
+              {
+                "workflowId": "wf_65GUClm6ueYSOmEaMB60bbNh",
+                "type": "billing_dispute_review",
+                "state": "ACCEPTED"
+              }
+            ],
+            "transfers": [],
+            "auditEvents": 19,
+            "assurance": "A2",
+            "spokenCount": 5,
+            "toolCount": 4
+          }
+        },
+        {
+          "turnIndex": 6,
+          "speaker": "system_event",
+          "event": "CALL_END",
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [
+              {
+                "actionId": "act_A2JcUpdbuc3DEnDMnOoeDiyM",
+                "kind": "billing.review.submit",
+                "state": "COMMITTED",
+                "receiptId": "rcp_GrGtHWbSDqiA6iKQBc0hZZp-",
+                "reconciled": false
+              }
+            ],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-455N-HUVB",
+                "disposition": "REQUEST_ACCEPTED",
+                "syncState": "RETRY_SCHEDULED",
+                "salesforceCaseId": null
+              }
+            ],
+            "workflows": [
+              {
+                "workflowId": "wf_65GUClm6ueYSOmEaMB60bbNh",
+                "type": "billing_dispute_review",
+                "state": "ACCEPTED"
+              }
+            ],
+            "transfers": [],
+            "auditEvents": 21,
+            "assurance": "A2",
+            "spokenCount": 5,
+            "toolCount": 4
+          }
+        }
+      ],
+      "final": {
+        "outcome": "REQUEST_ACCEPTED",
+        "outcomeReasonCode": "REQUEST_ACCEPTED_NOT_RESOLUTION",
+        "committedActions": [
+          {
+            "actionKind": "billing_review",
+            "receiptId": "rcp_GrGtHWbSDqiA6iKQBc0hZZp-",
+            "reconciled": false,
+            "effectCount": 1
+          }
+        ],
+        "supportRequests": [
+          {
+            "kind": "internal_pending_sync",
+            "referenceIssued": true
+          }
+        ],
+        "transfer": {
+          "attempted": false,
+          "destinationIds": [],
+          "states": [],
+          "connectionVerified": false,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 3,
+          "events": 23,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 23,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_5_unverified_human_request__receiver_unavailable",
+      "intent": "human_request",
+      "callId": "cal_synthEvalZy0NuE3UFMTZW6zk",
+      "faults": [
+        "RECEIVER_UNAVAILABLE"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "tool",
+              "templateId": "transfer.in_progress",
+              "approvalStatus": "DRAFT",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person now. Please stay on the line."
+            }
+          ],
+          "tools": [
+            {
+              "name": "request_human_transfer",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-TXC5-QGC9",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNxVsg2DuqgmI4"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_M_pnlX4Pp5tJOWUEq8oiWAaHibQ7kzbb",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_support_general:RECEIVER_UNAVAILABLE",
+                  "dst_outage_continuity:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 18,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-TXC5-QGC9",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNxVsg2DuqgmI4"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_M_pnlX4Pp5tJOWUEq8oiWAaHibQ7kzbb",
+                "status": "CONNECTED",
+                "priority": "STANDARD",
+                "attempts": [
+                  "dst_support_general:RECEIVER_UNAVAILABLE",
+                  "dst_outage_continuity:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 18,
+            "assurance": "A0",
+            "spokenCount": 1,
+            "toolCount": 1
+          }
+        }
+      ],
+      "final": {
+        "outcome": "TRANSFERRED",
+        "outcomeReasonCode": "CALLER_CONFIRMED_CONNECTED",
+        "committedActions": [],
+        "supportRequests": [
+          {
+            "kind": "salesforce_case",
+            "referenceIssued": false
+          }
+        ],
+        "transfer": {
+          "attempted": true,
+          "destinationIds": [
+            "dst_support_general",
+            "dst_outage_continuity"
+          ],
+          "states": [
+            "REQUESTED",
+            "QUEUED",
+            "FAILED",
+            "REQUESTED",
+            "QUEUED",
+            "RECEIVER_ACCEPTED",
+            "BRIDGED",
+            "CALLER_CONFIRMED_CONNECTED"
+          ],
+          "connectionVerified": true,
+          "fallbackInvoked": true
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 1,
+          "events": 20,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 20,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_6_safety_handoff_unauthenticated__bridge_dropped",
+      "intent": "safety_disclosure_self",
+      "callId": "cal_synthEvalwFTS8viSleiqpatV",
+      "faults": [
+        "BRIDGE_DROPPED"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "studio",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            },
+            {
+              "source": "tool",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            }
+          ],
+          "tools": [
+            {
+              "name": "request_safety_route",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-NH42-KAUV",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNJxAkcZ8301Gz"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_Qxq6U7jcWCe_qlqc5_fH_cdAo7fqFsOb",
+                "status": "CONNECTED",
+                "priority": "SAFETY",
+                "attempts": [
+                  "dst_safety_priority:BRIDGE_DROPPED",
+                  "dst_safety_backup:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 25,
+            "assurance": "A0",
+            "spokenCount": 2,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "studio",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            }
+          ],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-NH42-KAUV",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNJxAkcZ8301Gz"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_Qxq6U7jcWCe_qlqc5_fH_cdAo7fqFsOb",
+                "status": "CONNECTED",
+                "priority": "SAFETY",
+                "attempts": [
+                  "dst_safety_priority:BRIDGE_DROPPED",
+                  "dst_safety_backup:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 28,
+            "assurance": "A0",
+            "spokenCount": 3,
+            "toolCount": 1
+          }
+        }
+      ],
+      "final": {
+        "outcome": "TRANSFERRED",
+        "outcomeReasonCode": "CALLER_CONFIRMED_CONNECTED",
+        "committedActions": [],
+        "supportRequests": [
+          {
+            "kind": "salesforce_case",
+            "referenceIssued": false
+          }
+        ],
+        "transfer": {
+          "attempted": true,
+          "destinationIds": [
+            "dst_safety_priority",
+            "dst_safety_backup"
+          ],
+          "states": [
+            "REQUESTED",
+            "QUEUED",
+            "RECEIVER_ACCEPTED",
+            "FAILED",
+            "REQUESTED",
+            "QUEUED",
+            "RECEIVER_ACCEPTED",
+            "BRIDGED",
+            "CALLER_CONFIRMED_CONNECTED"
+          ],
+          "connectionVerified": true,
+          "fallbackInvoked": true
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 1,
+          "events": 30,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 30,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_6_safety_handoff_unauthenticated__quota_exhausted",
+      "intent": "safety_disclosure_self",
+      "callId": "cal_synthEval79ImTP3LmJ6pO8eW",
+      "faults": [
+        "QUOTA_EXHAUSTED"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "studio",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            },
+            {
+              "source": "tool",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            }
+          ],
+          "tools": [
+            {
+              "name": "request_safety_route",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-T6S5-9XRM",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNv7PcZzeajdNl"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_liRkYpnFse2fuGPYwYE3XaG-Ffte26lh",
+                "status": "CONNECTED",
+                "priority": "SAFETY",
+                "attempts": [
+                  "dst_safety_priority:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 19,
+            "assurance": "A0",
+            "spokenCount": 2,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "studio",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            }
+          ],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-T6S5-9XRM",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYNv7PcZzeajdNl"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_liRkYpnFse2fuGPYwYE3XaG-Ffte26lh",
+                "status": "CONNECTED",
+                "priority": "SAFETY",
+                "attempts": [
+                  "dst_safety_priority:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 22,
+            "assurance": "A0",
+            "spokenCount": 3,
+            "toolCount": 1
+          }
+        }
+      ],
+      "final": {
+        "outcome": "TRANSFERRED",
+        "outcomeReasonCode": "CALLER_CONFIRMED_CONNECTED",
+        "committedActions": [],
+        "supportRequests": [
+          {
+            "kind": "salesforce_case",
+            "referenceIssued": false
+          }
+        ],
+        "transfer": {
+          "attempted": true,
+          "destinationIds": [
+            "dst_safety_priority"
+          ],
+          "states": [
+            "REQUESTED",
+            "QUEUED",
+            "RECEIVER_ACCEPTED",
+            "BRIDGED",
+            "CALLER_CONFIRMED_CONNECTED"
+          ],
+          "connectionVerified": true,
+          "fallbackInvoked": false
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 1,
+          "events": 24,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 24,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    },
+    {
+      "scenarioId": "scn_journey_6_safety_handoff_unauthenticated__transfer_failed",
+      "intent": "safety_disclosure_self",
+      "callId": "cal_synthEval3CR5IyzEr3ZBYgrL",
+      "faults": [
+        "TRANSFER_FAILED"
+      ],
+      "steps": [
+        {
+          "turnIndex": 0,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "studio",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            },
+            {
+              "source": "tool",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            }
+          ],
+          "tools": [
+            {
+              "name": "request_safety_route",
+              "status": "SUCCESS",
+              "reasonCode": null,
+              "probe": null,
+              "via": "http"
+            }
+          ],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-ZGHV-EURU",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYN5BmKZq8oWzo1"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_eaiM0nfypK4_9gK4LeimOlaNa5TLCCGl",
+                "status": "CONNECTED",
+                "priority": "SAFETY",
+                "attempts": [
+                  "dst_safety_priority:TIMED_OUT",
+                  "dst_safety_backup:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 24,
+            "assurance": "A0",
+            "spokenCount": 2,
+            "toolCount": 1
+          }
+        },
+        {
+          "turnIndex": 1,
+          "speaker": "caller",
+          "event": null,
+          "spoken": [
+            {
+              "source": "studio",
+              "templateId": "safety.acknowledgment",
+              "approvalStatus": "PENDING_CLINICAL_APPROVAL",
+              "gate": "RENDERED",
+              "text": "I'm connecting you with a person right now. Please stay on the line."
+            }
+          ],
+          "tools": [],
+          "backend": {
+            "ledger": [],
+            "supportRequests": [
+              {
+                "referenceNumber": "SR-ZGHV-EURU",
+                "disposition": "OUTCOME_UNKNOWN",
+                "syncState": "SYNCED",
+                "salesforceCaseId": "500SYN5BmKZq8oWzo1"
+              }
+            ],
+            "workflows": [],
+            "transfers": [
+              {
+                "handoffId": "hnd_eaiM0nfypK4_9gK4LeimOlaNa5TLCCGl",
+                "status": "CONNECTED",
+                "priority": "SAFETY",
+                "attempts": [
+                  "dst_safety_priority:TIMED_OUT",
+                  "dst_safety_backup:CALLER_CONFIRMED_CONNECTED"
+                ]
+              }
+            ],
+            "auditEvents": 27,
+            "assurance": "A0",
+            "spokenCount": 3,
+            "toolCount": 1
+          }
+        }
+      ],
+      "final": {
+        "outcome": "TRANSFERRED",
+        "outcomeReasonCode": "CALLER_CONFIRMED_CONNECTED",
+        "committedActions": [],
+        "supportRequests": [
+          {
+            "kind": "salesforce_case",
+            "referenceIssued": false
+          }
+        ],
+        "transfer": {
+          "attempted": true,
+          "destinationIds": [
+            "dst_safety_priority",
+            "dst_safety_backup"
+          ],
+          "states": [
+            "REQUESTED",
+            "QUEUED",
+            "TIMEOUT",
+            "REQUESTED",
+            "QUEUED",
+            "RECEIVER_ACCEPTED",
+            "BRIDGED",
+            "CALLER_CONFIRMED_CONNECTED"
+          ],
+          "connectionVerified": true,
+          "fallbackInvoked": true
+        },
+        "auditIntegrity": {
+          "verifier": "IntegrityVerifier",
+          "streams": 1,
+          "events": 29,
+          "localOk": true,
+          "shippedOk": true,
+          "findings": 0,
+          "findingCodes": [],
+          "failedStreams": [],
+          "numericOrderChainOk": true
+        },
+        "auditEventCount": 29,
+        "pinned": {
+          "toolCatalogDigest": "a4d479dd6f15e3c01590f9fd23ead5c2b2a80df92b13ae0cc708b1dd3d671cc4",
+          "toolCatalogVersion": "2026-10-18.3",
+          "policyBundleVersion": "2026.10.18-2",
+          "policyBundleDigest": "e492d4939e13a609adf8620fe050fb52f1f2d795105b9e68809d94b534873bf3",
+          "templateDigest": "fb3717dbbc7b8f9819f0ef91ad1424a713d964f269d88d36ba1e33e66f627f95",
+          "migrationsDigest": "39dcd149c7247bdfb5751402ce8f2baafb83582b8b9aa55da1cf2d8906d64f01",
+          "knowledgeSnapshot": "kb.1.e3e0c695ecb3"
+        }
+      },
+      "verdict": "PASS",
+      "failingAssertions": [],
+      "backendEvidenceComplete": true,
+      "missingEvidence": []
+    }
+  ],
+  "allBackendEvidencePresent": true
+}

@@ -58,6 +58,33 @@ describe("invoice explanation and payment page", () => {
     if (r.outcome.status !== "SUCCESS") throw new Error("expected success");
     expect(r.outcome.speech).toMatchObject({ templateId: "invoice.line_explanation", slots: { serviceDate: "2026-09-27", amount: 7500, lineType: "LATE_CANCELLATION" } });
   });
+
+  it("[SPEC-4.invoice][SPEC-8.tool-schema] the caller names the charge (line selector): the explanation targets exactly that line, never the first explainable one", async () => {
+    const auth = await verified();
+    const explain = async (line: unknown) => {
+      const r = expectDone(await h.invoke("get_invoice_status", auth, { invoiceId: inv.invoiceId, detail: "LINE_EXPLANATION", serviceDate: null, line }));
+      if (r.outcome.status !== "SUCCESS") throw new Error("expected success");
+      return r.outcome.speech;
+    };
+    // Without a selector the first explainable line (the $25 session fee) is explained.
+    expect(await explain(undefined)).toMatchObject({ templateId: "invoice.line_explanation", slots: { amount: 2500, lineType: "SESSION_FEE" } });
+    // "the seventy-five dollar charge": by amount, by charge code, or both.
+    for (const line of [{ chargeCode: null, amountMinor: 7500 }, { chargeCode: "LATE_CANCELLATION", amountMinor: null }, { chargeCode: "LATE_CANCELLATION", amountMinor: 7500 }]) {
+      expect(await explain(line), JSON.stringify(line)).toMatchObject({ templateId: "invoice.line_explanation", slots: { serviceDate: "2026-09-27", amount: 7500, lineType: "LATE_CANCELLATION" } });
+    }
+    // A charge the invoice does not have (or a mismatched code and amount) explains no line: balance facts only.
+    for (const line of [{ chargeCode: null, amountMinor: 4200 }, { chargeCode: "SESSION_FEE", amountMinor: 7500 }, { chargeCode: "NO_SHOW", amountMinor: null }]) {
+      expect(await explain(line), JSON.stringify(line)).toMatchObject({ templateId: "invoice.balance", slots: { amount: 10000 } });
+    }
+    // Strict, typed selector: unknown fields, an empty selector, free text and a selector without LINE_EXPLANATION are rejected.
+    const input = h.tool("get_invoice_status").input;
+    expect(input.safeParse({ invoiceId: inv.invoiceId, detail: "LINE_EXPLANATION", serviceDate: null, line: { chargeCode: "LATE_CANCELLATION", amountMinor: 7500 } }).success).toBe(true);
+    expect(input.safeParse({ invoiceId: inv.invoiceId, detail: "LINE_EXPLANATION", serviceDate: null, line: null }).success).toBe(true);
+    for (const line of [{ chargeCode: null, amountMinor: null }, { chargeCode: "LATE_CANCELLATION", amountMinor: 7500, lineId: "lin_synthAveryLine00002" }, { chargeCode: "the late fee", amountMinor: null }, { chargeCode: null, amountMinor: 75.5 }, { chargeCode: null, amountMinor: -1 }]) {
+      expect(input.safeParse({ invoiceId: inv.invoiceId, detail: "LINE_EXPLANATION", serviceDate: null, line }).success, JSON.stringify(line)).toBe(false);
+    }
+    expect(input.safeParse({ invoiceId: inv.invoiceId, detail: "BALANCE", serviceDate: null, line: { chargeCode: "LATE_CANCELLATION", amountMinor: null } }).success).toBe(false);
+  });
 });
 
 describe("billing review", () => {

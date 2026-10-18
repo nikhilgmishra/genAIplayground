@@ -65,8 +65,19 @@ The worker entry point is `platform/src/worker/main.ts`.
   the authoritative prepared action / system of record).
 * **Metrics** reach the response gates (`vsp_voice_gate_*`) and support memory
   (`vsp_memory_recap_withheld_total`); knowledge ingestion/search counters are emitted by
-  `KnowledgeServicePg` with the container's metrics. The privacy `EgressGuard` and
-  `RedactionService` emit their counters when given `metrics`, but neither is composed here yet.
+  `KnowledgeServicePg` with the container's metrics.
+* **Egress and redaction** (`platform/src/privacy/egress-startup.ts`): before anything is constructed,
+  every configured adapter endpoint, the inbound-auth JWKS URI, the audit sink and every composed
+  telemetry / export destination (`ContainerOptions.telemetryExports`) is checked against the egress
+  policy (`ContainerOptions.egressPolicy`; local/ci default `LOCAL_FIXTURE_EGRESS_POLICY`, which
+  approves nothing). Any violation refuses startup (`<REASON>@<path>`); outside local/ci the
+  violations (at least `EGRESS_POLICY_NOT_CONFIGURED@egress`) join the refusal reasons. The container
+  exposes `privacy.egress`, `privacy.redaction` (QA / transcript artifact handling; no transcript
+  storage exists) and `privacy.egressReport`.
+* **Deferred route audit** (`platform/src/audit/deferred.ts`): `deferredAudit` is passed to the business
+  layer as `ToolDeps.deferredAudit`; handoff audit events that cannot be written during an audit
+  outage are appended in order by the worker loop `audit.deferred_flush` (process-local, bounded;
+  never for mutations).
 * **Console**: `ConsoleApiDeps.reconciledRetry` = `LedgerReconciledRetry(c.actions, c.business.providers)`.
 
 ## End-to-end journeys

@@ -1,7 +1,7 @@
 {
   "faultPlanVersion": "fault-plan.v1",
   "faultId": "SALESFORCE_OUTAGE",
-  "version": 1,
+  "version": 2,
   "title": "Salesforce unavailable during case creation",
   "description": "Every Salesforce call fails (connection refused) for the duration of the call.",
   "category": "dependency",
@@ -37,7 +37,8 @@
       "gate": "transaction",
       "outcomes": [
         "REQUEST_ACCEPTED",
-        "TRANSFERRED"
+        "TRANSFERRED",
+        "INFORMATION_PROVIDED"
       ]
     }
   ],
@@ -60,5 +61,5 @@
     "partner_intake",
     "new_client_intake"
   ],
-  "notes": null
+  "notes": "INFORMATION_PROVIDED is acceptable only for reads served by the internal support record (case follow-up: resolution contract source system support_records), which do not depend on Salesforce; intake flows still expect REQUEST_ACCEPTED in their own scenario expectations. Version 2 added it (the case-read variants previously could only fail this check)."
 }

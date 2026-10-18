@@ -38,12 +38,15 @@ import { NotificationFixture } from "../adapters/local/notification-fixture.js";
 import { LocalOidcProviderFixture, LocalOidcVerifierFixture } from "../adapters/local/oidc-fixture.js";
 import { createBlockedLiveRegistry } from "../adapters/live/blocked-set.js";
 import type { AdapterRegistry } from "../adapters/registry.js";
+import { DeferredAuditQueue } from "../audit/deferred.js";
 import { PgAuditHealth } from "../audit/health.js";
 import { PgAuditQuery } from "../audit/query.js";
 import { AuditShipper } from "../audit/shipper.js";
 import { LocalFsAuditSinkFixture } from "../audit/sinks/local-fs.js";
 import { PgAuditWriter } from "../audit/writer.js";
 import type { BuildBusiness, BusinessModule, ToolDeps } from "../business/contract.js";
+import { LocalAccountStateFixture, LocalConsentRegistryFixture } from "../business/fixtures/recheck.fixture.js";
+import { BusinessPreDisclosureRecheck } from "../business/recheck.js";
 import { loadInfrastructureEnv } from "../config/loader.js";
 import type { PlatformConfig } from "../config/ports.js";
 import { gatewayConfigOf } from "../config/schema.js";
@@ -89,6 +92,11 @@ import { MemoryPublisherFixture } from "../outbox/memory-publisher.fixture.js";
 import { PgOutbox } from "../outbox/outbox.js";
 import { OpaWasmPolicyEngine } from "../policy/engine.js";
 import { ensurePolicyBundle } from "../policy/ensure-bundle.js";
+import { EgressGuard } from "../privacy/egress.js";
+import type { EgressPolicyConfig } from "../privacy/egress.js";
+import { LOCAL_FIXTURE_EGRESS_POLICY, assertStartupEgress, checkStartupEgress, egressTargetsFor } from "../privacy/egress-startup.js";
+import type { EgressStartupReport, TelemetryExportTarget } from "../privacy/egress-startup.js";
+import { InMemoryQuarantineStoreFixture, RedactionService } from "../privacy/redaction-service.js";
 import type { Environment, VersionSet } from "../protocol/index.js";
 import { PROTOCOL_VERSION } from "../protocol/index.js";
 import { CircuitBreakerRegistry } from "../resilience/circuit-breaker.js";
@@ -145,6 +153,14 @@ export interface ContainerOptions {
    * chain head. Defaults to VSP_INSTANCE_ID, else "local-1".
    */
   instanceId?: string;
+  /**
+   * Egress allowlist (DATA-01). PlatformConfig has no egress section yet (config module), so the
+   * entry point passes it. Default: LOCAL_FIXTURE_EGRESS_POLICY in local/ci (approves nothing); none
+   * elsewhere (EGRESS_POLICY_NOT_CONFIGURED refuses startup).
+   */
+  egressPolicy?: EgressPolicyConfig;
+  /** Telemetry / export destinations the entry point composes (none in the local composition); each must pass the egress policy. */
+  telemetryExports?: readonly TelemetryExportTarget[];
 }
 
 export interface Container {
@@ -173,6 +189,10 @@ export interface Container {
   auditQuery: PgAuditQuery;
   auditSink: LocalFsAuditSinkFixture;
   auditShipper: AuditShipper;
+  /** Bounded, process-local deferral for handoff (route) audit events during an audit outage; never for mutations. */
+  deferredAudit: DeferredAuditQueue;
+  /** Egress guard checked at startup against every configured destination, and the redaction service (QA / transcript artifacts). */
+  privacy: { egress: EgressGuard; redaction: RedactionService; egressReport: EgressStartupReport };
   outbox: PgOutbox;
   publisher: MemoryPublisherFixture;
   dispatcher: PgOutboxDispatcher;
@@ -183,6 +203,8 @@ export interface Container {
   workflows: PgWorkflowEngine;
   /** Durable action grants checked by the workflow engine and issued by the business layer (spec section 7). */
   grants: PgDurableGrantStore;
+  /** Pre-disclosure / material-change recheck wired into the workflow engine (spec section 9) and its LOCAL FIXTURE consent registry. */
+  recheck: { service: BusinessPreDisclosureRecheck; consent: LocalConsentRegistryFixture };
   transferStore: MemoryTransferStore;
   transfers: TransferCoordinator;
   knowledge: KnowledgeServicePg;
@@ -275,9 +297,12 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
   });
   const config = deployable.config;
   const gatewayConfig = gatewayConfigOf(config);
+  // Egress (DATA-01, fail closed): every configured live adapter endpoint and telemetry/export destination
+  // is checked against the egress allowlist before anything is constructed.
+  const egressReport = checkStartupEgress({ environment, policy: opts.egressPolicy ?? null, targets: egressTargetsFor(config, opts.telemetryExports ?? []) });
 
   if (!offline || !policy) {
-    const reasons = ["LIVE_COMPOSITION_NOT_IMPLEMENTED@runtime"];
+    const reasons = ["LIVE_COMPOSITION_NOT_IMPLEMENTED@runtime", ...egressReport.violations];
     if (!policy) reasons.push("POLICY_BUNDLE_NOT_LOADED@policy.bundlePath");
     if (!gatewayConfig?.inboundAuth) reasons.push("GATEWAY_INBOUND_AUTH_NOT_CONFIGURED@gateway.inboundAuth");
     bootLogger.error("container.refused", { environment, reasonCode: "LIVE_COMPOSITION_NOT_IMPLEMENTED" });
@@ -286,6 +311,7 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
   if (config.toolCatalog.expectedDigest && pinnedDigest !== config.toolCatalog.expectedDigest) {
     throw new ConfigurationRejectedError(["TOOL_CATALOG_DIGEST_MISMATCH@toolCatalog.expectedDigest"]);
   }
+  assertStartupEgress(egressReport);
 
   // ------------------------------------------------------------------ offline composition
   const logger = bootLogger.child({ component: "container" });
@@ -331,6 +357,13 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
     const auditQuery = new PgAuditQuery(db, "app_auditor");
     const auditSink = new LocalFsAuditSinkFixture(sinkDir);
     const auditShipper = new AuditShipper({ db, sink: auditSink, clock, logger });
+    // Route evidence only (handoffs): deferred while the audit store is unwritable, appended in order on recovery.
+    const deferredAudit = new DeferredAuditQueue({ writer: audit, clock, logger, metrics, health: auditHealth });
+    // Privacy: the runtime egress guard (same policy as the startup check) and the redaction service for
+    // QA / transcript artifact handling. The LOCAL FIXTURE quarantine store is not approved by the local
+    // policy, so a quarantined artifact is never sent anywhere (it stays in its restricted origin).
+    const egress = new EgressGuard(opts.egressPolicy ?? LOCAL_FIXTURE_EGRESS_POLICY, { environment, logger, metrics });
+    const redaction = new RedactionService({ quarantine: new InMemoryQuarantineStoreFixture("egr_local_quarantine_fixture"), egress, logger, clock, metrics });
     const outbox = new PgOutbox({ clock });
     const publisher = new MemoryPublisherFixture();
     const instanceId = opts.instanceId ?? env.VSP_INSTANCE_ID ?? "local-1";
@@ -351,7 +384,20 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
     // Durable action grants (spec section 7): issued by the business layer inside the accepting
     // transaction; every guarded workflow transition requires a valid grant for its declared action.
     const grants = new PgDurableGrantStore({ db, clock, audit, logger });
-    const workflows = new PgWorkflowEngine({ db, registry: createDefaultRegistry(), audit, clock, logger, metrics, grantStore: grants });
+    // Pre-disclosure / material-change recheck (spec section 9): current consent, representation, account
+    // state and policy for the grant's actor and subject (LOCAL FIXTURE account and consent registries).
+    const consentRegistry = new LocalConsentRegistryFixture(clock);
+    const recheck = new BusinessPreDisclosureRecheck({
+      policy,
+      directory,
+      relationships: fixtureSet.relationships,
+      billing: fixtureSet.billing,
+      accounts: new LocalAccountStateFixture(directory),
+      consent: consentRegistry,
+      environment,
+      logger,
+    });
+    const workflows = new PgWorkflowEngine({ db, registry: createDefaultRegistry(), audit, clock, logger, metrics, grantStore: grants, recheck });
     const transferStore = new MemoryTransferStore();
     const transfers = new TransferCoordinator({
       store: transferStore,
@@ -439,6 +485,7 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       localFixture: true,
       grants,
       handoffObserver: (callId, result, priority) => handoffs.record(callId, result, priority),
+      deferredAudit,
     };
 
     // Business module and the pinned catalogue (must match the committed, reviewed file).
@@ -561,6 +608,8 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       auditQuery,
       auditSink,
       auditShipper,
+      deferredAudit,
+      privacy: { egress, redaction, egressReport },
       outbox,
       publisher,
       dispatcher,
@@ -570,6 +619,7 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       adapters: fixtureSet.registry,
       workflows,
       grants,
+      recheck: { service: recheck, consent: consentRegistry },
       transferStore,
       transfers,
       knowledge,

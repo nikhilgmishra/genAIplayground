@@ -13,6 +13,7 @@
  * the contract and fails closed when none is wired.
  */
 import { z } from "zod";
+import type { Queryable } from "../db/types.js";
 import type { WorkflowEvent, WorkflowStateName, WorkflowType } from "../protocol/index.js";
 import { OpaqueId, ReasonCode, VersionLabel } from "../protocol/index.js";
 import { AccessDeniedError } from "../shared/errors.js";
@@ -36,6 +37,14 @@ export interface RecheckContext {
   policySnapshotVersion: string | null;
   actor: WorkflowEvent["actor"];
   now: string;
+  /**
+   * Added (additive, optional): the transition's own transaction, already scoped to `tenantId`
+   * under row-level security and holding the instance row lock. A recheck that reads database
+   * state (the durable grant, kill switches, the accepted record) MUST use it: opening another
+   * transaction while this one is open deadlocks a single-connection engine (PGlite) and would
+   * read outside the transition's snapshot on pg.
+   */
+  tx?: Queryable;
 }
 
 export type RecheckResult =

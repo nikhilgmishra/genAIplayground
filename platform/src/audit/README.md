@@ -24,6 +24,7 @@ OPS-01, DATA-01, AUTH-06 (plus AUTH-02/AUTH-05 for reads and OPS-03 for "hashing
 | Sinks | `sinks/local-fs.ts`, `sinks/s3-object-lock.ts` | See LOCAL FIXTURE / BLOCKED below. Both refuse inconsistent batches (digest, key, range, line count). |
 | Integrity verifier | `verifier.ts` (`IntegrityVerifier`) | `verifyStream` (schema, recomputed hashes, links, gaps, column/document consistency, chain head for tail truncation, purge watermark), `verifyShipped` (per-manifest digest and content, continuity across manifests from sequence 1, overlap, local SHIPPED manifests missing from the sink, local rows diverging from the shipped copy; `markVerified` sets `verified_at` only when the whole shipped stream is clean), `detectIngestionGaps` (STREAM_SILENT, COUNT_SHORTFALL, COUNT_EXCESS, UNKNOWN_STREAM, SINK_INGESTION_LAG against source-reported counts), `observedActionKeys`. Pure `reconcileCounts(expectedBySourceAction, observed)` (keyed or counted) and `assessCompleteness` (PASS only if integrity, ingestion monitoring AND reconciliation all ran clean; otherwise FAIL or INCONCLUSIVE). |
 | Query | `query.ts` (`PgAuditQuery`, `auditedSearch`) | Metadata-only search (tenant, correlationId, callId, action, half-open time range, `limit` 1..200) via `audit_event_metadata` as `app_auditor` or `app_console`. `auditedSearch` records the access as an `audit.query.executed` event and returns nothing if that record cannot be written. |
+| Deferred route audit | `deferred.ts` (`DeferredAuditQueue`, port `DeferredAuditSink` in `ports.ts`) | ROUTE evidence only (human / safety handoff events whose route must proceed during an audit outage, OPS-02/SAFE-03). `appendOrDefer` appends now; when the store is unwritable the event is kept in a bounded, process-local FIFO (default 1000, `maxEntries` 1..10000) and appended later, in deferral order, by `flush` (worker loop `audit.deferred_flush`; skipped while `AuditHealth` reports `AUDIT_STORE_UNWRITABLE`) or by the next `appendOrDefer`, which first drains up to 16 older entries. Each late event keeps its original `occurredAt` and is followed by an `audit.deferred.recorded` marker (`parentId` = the late event, `reasonCode` = why it was deferred). Overflow drops the NEW event, counted and logged at error level; an event the writer refuses as invalid is dropped loudly. Metrics `vsp_audit_deferred_total{result,reason}`, `vsp_audit_deferred_depth`, `vsp_audit_deferred_age_ms`; error-level `audit.deferred.queued` / `audit.deferred.dropped` logs (action codes, opaque ids, reason codes only). **Crash-loss limit:** the queue is in process memory, so a crash or restart loses queued events; the `safety_events` row (audit_status `AUDIT_UNAVAILABLE`) remains the durable incident record for a safety route. **Never for consequential mutations** (they stay blocked by `assertCanAcceptConsequential` and the in-transaction `append`). |
 | Helpers | `build-input.ts` | `buildAuditInput(fields, clock?)` fills defaults (`dataClass: SECURITY_AUDIT`, nulls, `[]`) and validates strictly. `auditFieldsFromAuth(authContext)` copies the server-established identity fields. |
 | Fixtures | `fixtures.ts`, `testing.ts` | See LOCAL FIXTURE below. |
 
@@ -72,6 +73,10 @@ independent sink exist to detect; tests simulate exactly that.
 7. For reconciliation, put the source action's idempotency key in `idempotencyKey`.
 8. Unit tests without a database: `InMemoryAuditWriterFixture`, `AuditWriterOutageFixture`,
    `StaticAuditHealthFixture`. They are not durable and cannot demonstrate atomicity.
+9. Route evidence that must not block a human or safety route (handoffs) goes through
+   `DeferredAuditSink.appendOrDefer` (`ToolDeps.deferredAudit`), never a mutation's audit event.
+   The process that holds the queue must run `DeferredAuditQueue.flush` (worker loop
+   `audit.deferred_flush`).
 
 Operations wiring (not in this module): schedule `AuditShipper.runOnce()` (e.g. on the
 `audit.ship` outbox topic or a timer), `IntegrityVerifier.verifyShipped(stream, { markVerified: true })`
@@ -123,6 +128,7 @@ temp directories and stub clients only. No network.
 | Requirement | Enforcement | Tests (file) |
 |---|---|---|
 | OPS-01 durable independent evidence for accepted consequential actions | in-tx `append`; `AuditUnavailableError` on any failure; health gate; append-only triggers/grants; shipper + verifier; purge only after verification | `writer.test.ts`, `migration.test.ts`, `health.test.ts`, `shipper.test.ts`, `evidence-flow.test.ts`, `fixtures.test.ts` |
+| OPS-01 / SAFE-03 route evidence during an audit outage (handoffs proceed; their events are appended later, in order, bounded) | `DeferredAuditQueue` | `deferred.test.ts`, `platform/src/worker/deferred-audit.test.ts` |
 | DATA-01 no PHI to unapproved sinks/logs | strict schema + PHI-shape heuristics; content-free logs; driver errors dropped; metadata-only query | `schema.test.ts`, `writer.test.ts`, `query.test.ts` |
 | AUTH-06 verification secrets never in ordinary logs/evidence | unknown keys rejected, no digit-run codes, session-ref pseudonymization | `schema.test.ts`, `writer.test.ts` |
 | AUTH-02 / AUTH-05 audit reads authorized and tenant isolated | RLS on base table, tenant-filtered security-barrier view, no base-table grants to auditor/console | `migration.test.ts`, `query.test.ts` |
@@ -143,3 +149,7 @@ temp directories and stub clients only. No network.
 - Two shippers running concurrently on one stream are safe (unique planned start, idempotent
   re-put and mark) but may waste work; no advisory lock is taken.
 - Access auditing is provided by `auditedSearch`; whether the console uses it is up to `console-api`.
+- The deferred route-audit queue is process-local (see crash-loss limit above); a durable deferral
+  store would need its own migration and an approved storage location. Only the business handoff
+  uses it: gateway session/screening events (`GatewayAudit`) and `TransferCoordinator` transfer events
+  written during an outage are still only logged (the coordinator counts them as `auditGaps`).

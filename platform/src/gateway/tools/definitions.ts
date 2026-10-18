@@ -112,7 +112,8 @@ export const TOOL_DEFINITIONS = {
   get_invoice_status: def({
     name: "get_invoice_status",
     version: TOOL_VERSION,
-    description: "Invoice status, balance and line explanation from authoritative billing fields, plus the approved hosted payment path. Never decides coverage, waives fees or promises a refund.",
+    description:
+      "Invoice status, balance and line explanation from authoritative billing fields, plus the approved hosted payment path. LINE_EXPLANATION may name the charge (line: chargeCode and/or amountMinor); only a single matching line is explained. Never decides coverage, waives fees or promises a refund.",
     safetyClass: "PROTECTED_READ",
     dataClassification: "FINANCIAL",
     minAssurance: "A2",

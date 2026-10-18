@@ -94,7 +94,11 @@ export interface Slot {
 export interface SchedulingSystem extends Adapter {
   listAppointments(subjectId: string): Promise<Appointment[]>;
   getAppointment(appointmentId: string): Promise<Appointment | null>;
-  /** Administrative availability only; no clinical suitability matching. */
+  /**
+   * Administrative availability only; no clinical suitability matching. `subjectId` is a client
+   * (slots that client may book; with `appointmentId`, that appointment's provider only) or a
+   * provider's own subject with `appointmentId` null (that provider's own open slots).
+   */
   listSlots(input: { subjectId: string; appointmentId: string | null; fromDate: string; toDate: string }): Promise<Slot[]>;
   reschedule(input: { appointmentId: string; beforeVersion: string; slotId: string; idempotencyKey: string }): Promise<{ appointment: Appointment; reference: string }>;
   create(input: { subjectId: string; slotId: string; idempotencyKey: string }): Promise<{ appointment: Appointment; reference: string }>;

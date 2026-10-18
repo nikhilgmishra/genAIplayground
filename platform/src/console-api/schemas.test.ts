@@ -64,6 +64,8 @@ describe("console-api schemas mirror the contract", () => {
     expectTypeOf<Out<typeof S.RetryResponseS>>().toEqualTypeOf<C.RetryResponse>();
     expectTypeOf<Out<typeof S.RequeueRequestS>>().toEqualTypeOf<C.RequeueRequest>();
     expectTypeOf<Out<typeof S.RequeueResponseS>>().toEqualTypeOf<C.RequeueResponse>();
+    expectTypeOf<Out<typeof S.SupportRepairRequestS>>().toEqualTypeOf<C.SupportRepairRequest>();
+    expectTypeOf<Out<typeof S.SupportRepairResponseS>>().toEqualTypeOf<C.SupportRepairResponse>();
     expectTypeOf<Out<typeof S.HumanTaskViewS>>().toEqualTypeOf<C.HumanTaskView>();
     expectTypeOf<Out<typeof S.WorkflowTasksResponseS>>().toEqualTypeOf<C.WorkflowTasksResponse>();
     expectTypeOf<Out<typeof S.WorkflowDecisionRequestS>>().toEqualTypeOf<C.WorkflowDecisionRequest>();

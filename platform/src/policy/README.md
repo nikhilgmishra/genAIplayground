@@ -55,6 +55,16 @@ Status: **IMPLEMENTED_OFFLINE**. No policy release is approved (PRQ-031).
   console endpoint roles). Golden probes: 889 (positive base, perturbation and explicit
   negative probes for each); `--gate` against the previous committed `probes.json` reports
   0 expansions.
+* Bundle `2026.10.18-2` adds ONE access path to the existing `appointment:list_options` (no mask
+  widened, no golden deny flipped: the 889 previous probes all still match and `--gate` against the
+  previous committed `probes.json` reports 0 expansions; `approved-expansions.json` stays `[]`):
+  `provider_own_schedule` (role provider, `self` fact from `identity_provider` with scope
+  `appointment:list_options`, target the provider's own subject, A2, purpose `caller_self_service`,
+  classification INTERNAL; the action's classifications gain INTERNAL). It lets a provider list
+  their OWN open slots; PHI appointment records still need a treating relationship. 27 new probes
+  (base + perturbations + explicit denies: another provider, an unrelated client, PHI records, no
+  scope, delegated purpose, practice staff) and 2 `opa test` cases. Like every bundle it needs a
+  `POLICY_RELEASE` approval before use outside local/ci.
 * Relationships come from `RelationshipDirectory.relationshipsFor(actorId, selectedRole)`,
   including the `self` fact (source `identity_provider`); self paths do not require a scope,
   delegated/representative/treating paths require the action name as scope.

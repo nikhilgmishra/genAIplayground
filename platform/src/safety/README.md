@@ -25,8 +25,15 @@ clinical procedures it routes into.
   - Both rule languages run on every supported-locale utterance, because callers code-switch.
   - Detection is never claimed complete. Deterministic policy, not a model, picks the route.
 - **Negation is never ignored.** "I don't want to kill myself" gives an UNRESOLVED, `negated: true` signal that still routes to a human.
+  - **Negation scope.** A negation cue covers risk content within 5 tokens in the same clause. Its scope ends at a clause breaker ("but", "pero", commas) and at a coordinator that opens a new clause with its own subject ("I don't sleep anymore **and I** want to die" is not negated). A disjunction carries the scope ("not going to hurt myself **or** kill myself": both negated).
+  - **Residual risk content.** A negated frame never cancels later risk content: "I'm not saying I'd do anything, but sometimes I wish I wouldn't wake up" raises `indirect.en.passive_ideation` (UNRESOLVED, not negated). "I don't think I'm suicidal, but I've been looking up ways to die" raises the negated `explicit.en.suicide_term` and a CREDIBLE `indirect.en.method_research`. Negations that are part of the risk content ("wouldn't wake up", "if I wasn't here", "no le veo sentido a seguir viviendo") sit inside the pattern and never mark the signal negated.
 - **Historical references** give UNRESOLVED HISTORICAL signals. A recency cue in the same clause ("again tonight") overrides them.
 - **Third-party concerns** come from reflexive forms or a backward clause scan, and are labelled `THIRD_PARTY`. Threats to the caller ("he is going to kill me") are separate rules.
+  - Warning-sign families (UNRESOLVED): `indirect.en.not_being_around` ("talking about not being around much longer"), `indirect.en.farewell` ("posting goodbye messages", "saying goodbye to people"), giving possessions away, and the es counterparts `indirect.es.farewell` ("mensajes de despedida", "se está despidiendo de todos", "regalando sus cosas").
+- **Unspecified past attempts** (`indirect.en.attempt_unspecified`, `indirect.es.attempt_unspecified`): intransitive "I attempted a few days ago", "made an attempt", "hospitalized after an attempt", "tuve un intento", "sobreviví a un intento". An object ("attempted to log in", "the payment", "intento de pago") never matches, and the rule is suppressed when the sentence is about an administrative object.
+- **Passive ideation and ambivalence** (`indirect.en.passive_ideation`, `indirect.en.ambivalence_living`, `indirect.es.passive_ideation`, `indirect.es.no_point_living`): "I wish I wouldn't wake up", "it'd be easier if I wasn't here", "I'm not sure I want to live anymore", "ojalá no despertara", "sería más fácil si yo no estuviera", "no le veo sentido a seguir viviendo". Benign completions ("wake up late", "if I wasn't here at eight") are excluded by whole-word lookaheads.
+- **Recurrence** (`indirect.en.recurrence`, `indirect.es.recurrence`): "those thoughts are back", "after what happened ... thinking about it again", "volvieron esos pensamientos". Ambiguous: suppressed with an administrative object and never upgraded by a recency cue. A bare "thinking about it again" is deliberately not a rule.
+- **Whole-word lookarounds.** Every lookahead exclusion list ends at a word boundary (a structural test enforces this). Before 2026-10-18 the lists matched word prefixes, so "I'm going to jump tonight" was excluded by "to" and "jump at midnight" by "a"; the `wanna`/`gonna` alternatives were also written as "wanna to", which never matched.
 - **Idioms** ("this bill is killing me", "I could die of embarrassment", "dead tired", "me muero de vergüenza") are masked before rules run.
   - Masking is restricted to thing or "you" subjects. "My husband is killing me" stays a signal.
   - Ambiguous distress about an administrative object (hold music, bill, portal) is treated as frustration: no signal.
@@ -63,7 +70,7 @@ clinical procedures it routes into.
 
 - `LocalHeuristicSemanticDetector` (`kind: "local_fixture"`, badge "LOCAL HEURISTIC — NOT AN APPROVED SEMANTIC CLASSIFIER").
 - `InMemorySafetyModeStoreFixture`, and the in-memory state map of `ConversationGuard` (`kind: "local_fixture"`). In a deployment the latch is the session risk flag and the guard counters live with the session.
-- `__fixtures__/utterances.json`: 181 SYNTHETIC cases (en-US and es-US, including 6 unsupported-locale cases), written by the coding agent. They are **not** clinician-reviewed or native-speaker-reviewed.
+- `__fixtures__/utterances.json`: 231 SYNTHETIC cases (en-US and es-US, including 6 unsupported-locale cases), written by the coding agent. They are **not** clinician-reviewed or native-speaker-reviewed. Version `2026-10-18.draft.2` added 50 cases: the phrasings the local corpus run missed (risk drafts and routine indirect variants) and precision probes that reuse the same words administratively ("attempted to log in", "wake up late for my appointment", "intento de pago", "no le veo sentido a pagar dos veces").
 - `__fixtures__/audit-writer.fixture.ts`: `RecordingAuditWriterFixture`. In-test only; not durable or independent evidence. The real `PgAuditWriter` is also exercised in one integration test.
 
 ## BLOCKED (needs a human or external prerequisite)
@@ -83,6 +90,16 @@ clinical procedures it routes into.
 
 ## Known limitations (honest)
 
+- **The lexicon is not complete and still requires clinical review (PRQ-008) and a reviewed, native-speaker-checked corpus (PRQ-012).** Every phrase family is a developer draft. The 2026-10-18 widening came from failures in the local corpus run (`run_local_20261018c_risk_*`), so the corpus that now passes was partly written from the misses; it is not held-out evidence.
+- Precision / recall of the safety route, measured locally on 2026-10-18 (positive = expected `SAFETY_PRIORITY_HUMAN`):
+
+  | Set | Before (lexicon draft.2) | After (draft.3) |
+  |---|---|---|
+  | Utterance corpus, 231 cases | precision 100.0 %, recall 78.8 % (28 FN, 0 FP) | precision 100.0 %, recall 100.0 % (0 FN, 0 FP) |
+  | Scenario corpus, 1077 scenarios (any caller turn screened to the safety route) | precision 87.3 %, recall 78.6 % (28 FN, 15 FP) | precision 87.9 %, recall 100.0 % (0 FN, 18 FP) |
+
+  The scenario-corpus false positives are deliberate conservative routing: 15 borderline risk drafts with a negated-only or remote historical reference (the drafts expect no route; whether a check-in is required is a clinical decision, PRQ-008), 2 "crisis team" mentions and 1 low-confidence ASR idiom. The 3 new ones are "hospitalized after an attempt" (remote historical, UNRESOLVED HISTORICAL by design, like "years ago I tried to kill myself").
+- Known over-escalation risks of the new families: someone "saying goodbye to people" because they are moving, a provider who "won't be here much longer", "I attempted yesterday but it didn't go through" without an administrative word. All route to a human; none is silent.
 - Regex phrase detection is not complete or infallible. A developer held-out probe of 25 phrasings (17 risk, 8 benign), run before they were added to the corpus, missed 11 of the 17 risk phrasings. The lexicon was widened, and those phrasings are now regression cases, but other phrasings will still be missed. Independent held-out evaluation is still required.
 - The corpus confusion matrix (printed by `detector.test.ts`) shows 0 errors because rules and labels were written together. It is not evidence of population performance.
 - Conservative choices over-escalate in some cases, for example:

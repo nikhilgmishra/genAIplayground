@@ -5,7 +5,7 @@
  * composition root (platform/src/main/container.ts) supplies implementations.
  */
 import type { Db, Queryable } from "../db/types.js";
-import type { AuditHealth, AuditWriter, AuditQuery } from "../audit/ports.js";
+import type { AuditHealth, AuditWriter, AuditQuery, DeferredAuditSink } from "../audit/ports.js";
 import type { ActionService, ProviderCommitPort } from "../actions/ports.js";
 import type { Outbox } from "../outbox/ports.js";
 import type { PolicyEngine } from "../policy/ports.js";
@@ -103,6 +103,14 @@ export interface ToolDeps {
    * failures are ignored and never affect the route.
    */
   handoffObserver?: (callId: string, result: Pick<HandoffResult, "handoffId" | "transferId" | "destinationId" | "supportReference">, priority: "SAFETY" | "STANDARD") => void;
+  /**
+   * Added (additive, optional): bounded deferral for ROUTE evidence only (audit/deferred.ts). The
+   * HandoffService writes its handoff audit events through it, so a human or safety route that
+   * proceeds during an audit outage still gets its audit event appended, in order, once the store
+   * recovers. Never for consequential mutations (they stay blocked by AuditHealth, OPS-01).
+   * Absent => the handoff audit failure is only logged (previous behaviour).
+   */
+  deferredAudit?: DeferredAuditSink;
 }
 
 export interface HandoffResult {
@@ -246,6 +254,11 @@ export interface InteractionOutcomeService {
       failed: boolean;
     };
   }): Promise<{ outcome: Outcome; reasonCode: string }>;
+  /**
+   * Added (additive, optional): append-only revision of a call's recorded outcome after the
+   * reconciler records one of its actions COMMITTED (never an overwrite; see business/outcomes.ts).
+   */
+  reviseAfterCommit?(tenantId: string, actionId: string): Promise<{ revised: boolean; outcome: Outcome | null; reasonCode: string }>;
 }
 
 export interface BusinessModule {

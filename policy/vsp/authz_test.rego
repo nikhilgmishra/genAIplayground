@@ -642,6 +642,30 @@ test_auth05_appointment_list_options_unrelated_denied if {
 	denied(expired_session(avery_options), ["SESSION_INVALID"])
 }
 
+# A provider's own open slots: INTERNAL schedule data (no client record), self fact with the
+# enrollment scope appointment:list_options, caller_self_service only.
+morgan_own_schedule := fx.req(
+	"appointment:list_options", "caller_self_service",
+	fx.auth(fx.morgan.actor, "provider", fx.morgan.subject, fx.north, "A2"),
+	fx.resource("appointment_options", fx.morgan.subject, null, "INTERNAL"),
+	[fx.fact("self", fx.morgan.actor, fx.morgan.subject, null, ["appointment:list_options"], "identity_provider")],
+)
+
+test_appointment_list_options_provider_own_schedule if {
+	allowed(morgan_own_schedule, ["ALLOW_PROVIDER_OWN_SCHEDULE"])
+	decide(morgan_own_schedule).fieldMask == ["appointmentId", "modality", "providerDisplayName", "slotId", "startsAt", "status", "timeZone"]
+}
+
+test_auth05_provider_own_schedule_never_reaches_client_records_or_another_provider if {
+	# The own-schedule path is INTERNAL only: PHI appointment records still need a treating relationship.
+	denied(fx.with_resource(morgan_own_schedule, {"classification": "PHI"}), ["CLASSIFICATION_NOT_PERMITTED"])
+	denied(fx.with_resource(morgan_own_schedule, {"subjectId": fx.newbie.subject}), ["RELATIONSHIP_NOT_ESTABLISHED"])
+	denied(fx.with_resource(morgan_own_schedule, {"subjectId": fx.avery.subject}), ["RELATIONSHIP_NOT_ESTABLISHED"])
+	denied(object.union(morgan_own_schedule, {"relationships": [fx.self_fact(fx.morgan)]}), ["SCOPE_NOT_GRANTED"])
+	denied(object.union(morgan_own_schedule, {"purpose": "delegated_practice_administration"}), ["PURPOSE_NOT_PERMITTED"])
+	denied(fx.with_auth(morgan_own_schedule, {"assurance": "A1"}), ["ASSURANCE_INSUFFICIENT"])
+}
+
 # ----------------------------------------------------------------- claim ----
 
 test_claim_self_allowed if allowed(fx.avery_claim, ["ALLOW_SELF"])

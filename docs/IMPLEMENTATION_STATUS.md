@@ -78,7 +78,7 @@ For each module: status, evidence (test command and result reference), blockers,
 *To be completed by coordinator after integration test run.* Workforce SSO: BLOCKED (PRQ-036).
 
 ### Evaluation, demo and local start (`platform/src/evaluation`, `platform/src/demo`, `platform/src/main`, `scenarios/`)
-*To be completed by coordinator after integration test run.* PSTN tests: BLOCKED (PRQ-043).
+Evaluation (scorer, corpus, generators, local driver), journeys, demo and load smoke: **IMPLEMENTED_OFFLINE**, evidence of 2026-10-18 in the four subsections below (scenario generators up to date: 549 scenarios, 522 risk drafts, all UNREVIEWED). Local start (`platform/src/main`): *to be completed by coordinator after integration test run.* PSTN tests: BLOCKED (PRQ-043).
 
 ### Evaluation — local conversation driver (`platform/src/evaluation/driver`)
 **IMPLEMENTED_OFFLINE** (LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION). `LocalConversationDriver`
@@ -88,24 +88,57 @@ surfaces only. The conversational layer is the **LOCAL SIMULATED COORDINATOR** (
 keyword rules; not a language model, not model evaluation). Evidence comes from authoritative
 records (ledger rows, fixture effect logs, support requests and their Salesforce trace, transfer
 journeys, `interaction_outcomes`, egress scans, IntegrityVerifier). Faults it cannot inject
-(`KNOWLEDGE_STALE`, `REGIONAL_FAILOVER`, `REDACTION_FAILURE`) are refused, never simulated.
-Corpus results, counts per split / risk class / variant family and the defects they exposed:
-[`TEST_EVIDENCE.md`](TEST_EVIDENCE.md#evaluation-local-conversation-driver). Vendor sandbox and
-PSTN drivers: BLOCKED (PRQ-004, PRQ-034, PRQ-043); local results never satisfy sandbox, staging
-or production gates.
+(`REGIONAL_FAILOVER`, `REDACTION_FAILURE`) are refused, never simulated; `KNOWLEDGE_STALE` is
+injected through the real knowledge service.
+
+Evidence (2026-10-18, after the wave-3 fixes): driver tests 27 passed, 0 expected-fail. Full corpus
+run `run_local_20261018w3_*` (ten shards): **2 711 runs, PASS 2 386, FAIL 305, INCONCLUSIVE 20**
+(previous record before the fixes: 2 717 runs, PASS 835, FAIL 1 857, INCONCLUSIVE 25). Held-out
+acceptance 533 runs (480 / 52 / 1). 7 CRITICAL FAIL runs: 6 after-commit fault gates on
+slot_conflict drafts whose single confirmation hits a taken slot, so the fault point is never
+reached, and 1 `gate.safety.required_handoff` on
+`scn_appointment_cancel__indirect_or_ambiguous`, where the simulated coordinator could not interpret
+the turns. No audit-gate failure (IntegrityVerifier findings in 0 of 2 711 runs). The other 298 FAIL
+runs are task-level only (MAJOR): no approved hours / services article (143), borderline safety
+over-routing awaiting PRQ-008 (75), coordinator limitations, corpus expectation decisions, and one
+newly visible backend finding (out-of-order `CALLER_CONFIRMED_CONNECTED` dropped by
+`platform/src/workflows/transfer.ts`). Local gate status: FAIL. Aggregate, root-cause attribution and
+commands: [`TEST_EVIDENCE.md`](TEST_EVIDENCE.md#evaluation-local-conversation-driver),
+`evidence/evaluation/corpus-local-20261018w3.{summary.json,report.md,root-causes.md}`. Vendor
+sandbox and PSTN drivers: BLOCKED (PRQ-004, PRQ-034, PRQ-043); local results never satisfy sandbox,
+staging or production gates.
+
+### End-to-end journeys (`platform/test/journeys`)
+**IMPLEMENTED_OFFLINE** (LOCAL FIXTURE composition, SYNTHETIC data). Ten test files drive the full
+local container, console composition and worker loops over the real HTTP / MCP surfaces (J1 to J9,
+injected faults, console retry, pre-disclosure recheck, outcomes without a live session). Evidence
+(2026-10-18): `cd platform && npx vitest run test/journeys` inside the full platform run, 41 passed,
+0 failed, 0 expected-fail (faults 9, outcomes 4, recheck 6, J2 5, J3/J4 4, J5/J7/J8 6, J6 2, J1 3,
+J9 1, console retry 1). In the corpus run the 17 journey runs PASS 17 and the 28 faulted-journey runs
+PASS 27 / FAIL 1 (`scn_journey_1_client_reschedule_conflict__auth_expiry_mid_call`, task outcome
+TRANSFERRED vs expected DECLINED_BY_POLICY: an expectation conflict with the coordinator's
+re-verification rule). Nothing here ran against Talkdesk, Salesforce, an IdP, AWS or a telephone
+network.
 
 ### Demo (`platform/src/demo`)
 **IMPLEMENTED_OFFLINE**. `pnpm demo` drives the nine journeys through the local driver and prints,
 per step, the tool calls, every caller-heard line with its template id and approval status, and a
 backend snapshot (assurance, ledger, support requests, workflows, transfer, audit count), framed by
 the LOCAL FIXTURE badge. It writes `evidence/demo/<runId>.json` and exits non-zero if any journey
-lacks backend evidence. Results: [`TEST_EVIDENCE.md`](TEST_EVIDENCE.md#demo).
+lacks backend evidence. Evidence (2026-10-18): exit 0, 9 of 9 journeys with backend evidence, scorer
+PASS 9 (`evidence/demo/run_demo_iUkfzr-ZvIwdKkmY7uiGWqFJ.json`); `--faulted` exit 0, 21 of 21 with
+backend evidence, PASS 20, FAIL 1 (the auth-expiry journey above;
+`evidence/demo/run_demo_4tSfGzwe90rgZL-I1Cp8ZVbp.json`). Results: [`TEST_EVIDENCE.md`](TEST_EVIDENCE.md#demo).
 
 ### Load smoke (`platform/test/load`, `scripts/load`)
 **IMPLEMENTED_OFFLINE** as a LOCAL LOOPBACK smoke only (PGlite single connection, NOT the
 vendor/telephone path, NOT capacity evidence). autocannon drives a PUBLIC_READ and a PROTECTED_READ
 tool on a 127.0.0.1 gateway listener; every response body is checked and the final audit state is
-verified. The 400 req/s sustained target is **not met** locally (numbers in
+verified. Evidence (2026-10-18): smoke test 7 passed, 0 expected-fail; long run
+`evidence/load/run_load_pIpldOT9sAHduHcGYIgLNJ3-.json` sustained 42.83 req/s (PUBLIC_READ) and
+49.18 req/s (PROTECTED_READ) with zero errors, every success audited, shipper backlog 0 and the
+IntegrityVerifier clean; repeat `evidence/load/run_load_LSJ9LDQB_eifhLTLXAqU1917.json` 46.70 and
+47.94 req/s. The 400 req/s sustained target is **not met** locally (numbers in
 [`TEST_EVIDENCE.md`](TEST_EVIDENCE.md#load-local-loopback-smoke)); quota and vendor-path load tests
 remain BLOCKED (PRQ-022, PRQ-037).
 

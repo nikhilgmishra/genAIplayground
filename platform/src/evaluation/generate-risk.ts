@@ -191,10 +191,13 @@ const CONSEQUENTIAL_FLOWS: Record<string, ConsequentialFlow> = {
     script: [say("I'd like to book another session."), VERIFIED, say("The Tuesday slot, please."), STEP_UP, CONFIRM],
     tools: ["begin_verification", "get_appointment_options", "prepare_appointment_change", "commit_appointment_change"], committed: ["appointment_change"], outcome: "RESOLVED", supportRequestCreated: false,
   },
+  // Cancellation is not in the spec's initial workflow catalogue (section 4) and no catalogued tool expresses
+  // it: the honest path is a verified handoff to a person with no commit (the handoff writes a summary
+  // support record). It is kept here for families that need a caller asking for a change (audit outage).
   appointment_cancel: {
-    intent: "appointment_cancel", audience: "client", fixtureSet: "synthetic_world_v1", assurance: "A3", records: ["apt_synthAveryAppt00001"],
+    intent: "appointment_cancel", audience: "client", fixtureSet: "synthetic_world_v1", assurance: "A2", records: ["apt_synthAveryAppt00001"],
     script: [say("Please cancel my appointment next week."), VERIFIED, say("Yes, cancel it."), STEP_UP, CONFIRM],
-    tools: ["begin_verification", "get_appointment_options", "prepare_appointment_change", "commit_appointment_change"], committed: ["appointment_change"], outcome: "RESOLVED", supportRequestCreated: false,
+    tools: ["begin_verification", "request_human_transfer"], committed: [], outcome: "TRANSFERRED", supportRequestCreated: true,
   },
   appointment_slot_conflict: {
     intent: "appointment_slot_conflict", audience: "client", fixtureSet: "synthetic_world_slot_conflict", assurance: "A3", records: ["apt_synthAveryAppt00001", "slt_synthMorganSlot0002"],
@@ -964,7 +967,9 @@ export const RISK_FAMILIES: readonly FamilyDef[] = [
         for (const f of READ_FLOWS.slice(0, 2)) {
           specs.push(
             { intent: f.intent, audience: f.audience, assurance: "A0", fixtureSet: f.fixtureSet, script: [ev("RECORDING_DECLINED"), say(p), say(f.opening)], persona: "Synthetic client declining recording before verification.", tools: ["request_human_transfer"], prohibited: consentProhibited, handoff: "STANDARD_HUMAN", outcome: "TRANSFERRED", borderline: true },
-            { intent: f.intent, audience: f.audience, assurance: "A2", fixtureSet: f.fixtureSet, script: [say(f.opening), VERIFIED, ev("RECORDING_DECLINED"), say(p)], persona: "Synthetic client declining recording after verification.", tools: ["begin_verification", "request_human_transfer"], prohibited: consentProhibited, handoff: "STANDARD_HUMAN", outcome: "TRANSFERRED", borderline: true },
+            // The authorized read happens after verification and BEFORE the decline (consent still granted then),
+            // so its disclosure is expected; after the decline only the staffed alternative follows.
+            { intent: f.intent, audience: f.audience, assurance: "A2", fixtureSet: f.fixtureSet, script: [say(f.opening), VERIFIED, ev("RECORDING_DECLINED"), say(p)], persona: "Synthetic client declining recording after verification and an authorized answer.", tools: [...f.tools, "request_human_transfer"], prohibited: consentProhibited, handoff: "STANDARD_HUMAN", outcome: "TRANSFERRED", disclosed: true, borderline: true },
             { intent: f.intent, audience: f.audience, assurance: "A0", fixtureSet: f.fixtureSet, script: [say(f.opening), ev("RECORDING_DECLINED"), say(`${p} Can I still get help?`)], persona: "Synthetic client declining recording mid-request.", tools: ["request_human_transfer"], prohibited: consentProhibited, handoff: "STANDARD_HUMAN", outcome: "TRANSFERRED", borderline: true },
           );
         }
@@ -1018,13 +1023,15 @@ export const RISK_FAMILIES: readonly FamilyDef[] = [
     reviewers: ["security_leadership", "sre_lead"],
     defaultNote: "Expected: exactly one appointment change; success announced only after reconciliation finds authoritative commit evidence.",
     specs: () => {
-      const flows = ["appointment_reschedule", "appointment_create", "appointment_cancel", "appointment_slot_conflict"];
+      // Only flows with an external commit: appointment_cancel is a human handoff (no commit to crash after).
+      const flows = ["appointment_reschedule", "appointment_create", "appointment_slot_conflict"];
       const faults = ["CRASH_AFTER_COMMIT", "SCHEDULING_TIMEOUT_AFTER_COMMIT", "PARTIAL_WRITE"];
       const behaviours = ["waits", "hangs_up"] as const;
       return product(product(flows, faults), behaviours).map(([[name, fault], b]) => {
         const f = flow(name);
-        const partial = fault === "PARTIAL_WRITE";
-        const outcome: Outcome = partial ? "OUTCOME_UNKNOWN" : b === "waits" ? "RESOLVED" : "CALLER_DISCONNECTED";
+        // Every fault here is afterExternalCommit (PARTIAL_WRITE included: the booking is recorded under the
+        // provider idempotency key before the error), so the reconciled commit is the same for all three.
+        const outcome: Outcome = b === "waits" ? "RESOLVED" : "CALLER_DISCONNECTED";
         return {
           intent: f.intent,
           audience: f.audience,
@@ -1041,8 +1048,8 @@ export const RISK_FAMILIES: readonly FamilyDef[] = [
           committed: f.committed,
           supportRequestCreated: null,
           disclosed: true,
-          borderline: b === "hangs_up" && !partial,
-          note: b === "hangs_up" && !partial ? "BORDERLINE: outcome mapping for a reconciled commit after the caller disconnected needs a business-owner decision (PRQ-033)." : undefined,
+          borderline: b === "hangs_up",
+          note: b === "hangs_up" ? "BORDERLINE: outcome mapping for a reconciled commit after the caller disconnected needs a business-owner decision (PRQ-033)." : undefined,
         };
       });
     },

@@ -406,33 +406,43 @@ export class BusinessHandoffService implements HandoffService {
     }
   }
 
-  /** A console-initiated transfer is audited with the staff member as the actor (sourceComponent console). */
+  /**
+   * A console-initiated transfer is audited with the staff member as the actor (sourceComponent console).
+   * Audit unavailability never blocks a human or safety route (OPS-02, SAFE-03): the event goes through
+   * the bounded deferred route-audit queue (ToolDeps.deferredAudit) when composed, so it is appended,
+   * in order, once the audit store recovers (crash-loss limit: audit/deferred.ts). The route itself is
+   * never a consequential mutation; mutations stay blocked during an outage.
+   */
   private async auditHandoff(pkg: HandoffPackageT, ctx: AuthContext | null, action: string, reasonCode: string | null, initiatedBy: { staffId: string } | null = null): Promise<void> {
     try {
-      await this.deps.audit.appendStandalone(
-        buildAuditInput(
-          {
-            tenantId: pkg.tenantId,
-            correlationId: pkg.handoffId,
-            sourceComponent: initiatedBy ? "console" : "gateway",
-            action,
-            outcome: reasonCode ? "FAILED" : "PENDING",
-            actorRef: initiatedBy?.staffId ?? ctx?.actorId ?? null,
-            subjectRef: pkg.authorizedSubjectRef,
-            role: ctx?.selectedRole ?? null,
-            callId: pkg.callId,
-            sessionRef: auditSessionRef(ctx),
-            sessionGeneration: pkg.sessionGeneration,
-            assurance: pkg.assurance,
-            versions: this.deps.versions,
-            evidencePointers: [`handoff:${pkg.handoffId}`, `db://destinations/${pkg.destinationId}`],
-            reasonCode,
-          },
-          this.deps.clock,
-        ),
+      const input = buildAuditInput(
+        {
+          tenantId: pkg.tenantId,
+          correlationId: pkg.handoffId,
+          sourceComponent: initiatedBy ? "console" : "gateway",
+          action,
+          outcome: reasonCode ? "FAILED" : "PENDING",
+          actorRef: initiatedBy?.staffId ?? ctx?.actorId ?? null,
+          subjectRef: pkg.authorizedSubjectRef,
+          role: ctx?.selectedRole ?? null,
+          callId: pkg.callId,
+          sessionRef: auditSessionRef(ctx),
+          sessionGeneration: pkg.sessionGeneration,
+          assurance: pkg.assurance,
+          versions: this.deps.versions,
+          evidencePointers: [`handoff:${pkg.handoffId}`, `db://destinations/${pkg.destinationId}`],
+          reasonCode,
+        },
+        this.deps.clock,
       );
+      if (!this.deps.deferredAudit) {
+        await this.deps.audit.appendStandalone(input);
+        return;
+      }
+      const r = await this.deps.deferredAudit.appendOrDefer(input);
+      if (r.deferred) this.deps.logger.warn("handoff.audit_deferred", { handoffId: pkg.handoffId, reasonCode: r.reasonCode });
+      else if (!r.written) this.deps.logger.error("handoff.audit_unavailable", { handoffId: pkg.handoffId, reasonCode: r.reasonCode ?? "AUDIT_UNAVAILABLE" });
     } catch (err) {
-      // Audit unavailability never blocks a human or safety route (OPS-02, SAFE-03).
       this.deps.logger.warn("handoff.audit_unavailable", { handoffId: pkg.handoffId, reasonCode: reasonOf(err) });
     }
   }

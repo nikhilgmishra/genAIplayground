@@ -116,6 +116,18 @@ a fresh IdP authentication (`auth_time` within 120 s), the same actor, the same 
 assurance. `effectiveAssuranceFor(ctx, digest, now)` returns A3 only for that digest while unexpired;
 `resolve` drops an expired step-up.
 
+**Completion result and audit binding (additive).** `completeSecureLink` / `completeStepUp` return
+`VerificationCompletion = { bound, reasonCode, binding? }`. `binding` = `{ callId, sessionBindingRef,
+sessionGeneration }` of the transaction's own call: the vendor interaction id, the NON-bearer
+`ses_bnd_<base64url(sha256)>` binding ref and the generation (after the binding, or the transaction's
+generation when nothing was bound). It is present only when the transaction was OPENED (nonce
+matched, not reused, not expired), on success and on later refusals (match code not confirmed,
+OIDC/actor/account problems, session-fixation aborts); an unknown, reused or expired link is never
+attributed to a call. It is audit evidence only: the portal route puts it on the
+`verification.bound` / `verification.failed` audit event (so the call's audit timeline and the
+console investigation show the binding) and never returns it to the portal. The bearer session
+reference is never returned.
+
 ## Assertions
 
 `SignedAssertionService.mint/verify/jwks` (port) plus helpers `mintTransferResult` /
@@ -161,7 +173,8 @@ SYNTHETIC.
    isolated DTMF path.
 3. Portal backend (portal channel): `describeTransaction` then `completeSecureLink` /
    `completeStepUp`. The portal must authenticate its own integration identity before calling
-   (the port signatures of the completion methods carry no integration parameter).
+   (the port signatures of the completion methods carry no integration parameter). Record the
+   result's `binding` (call id, binding ref, generation) on the audit event; never echo it.
 4. Policy: use `effectiveAssuranceFor(ctx, actionDigest, now)` for A3 checks; delegated authority
    comes from the relationship directory, not from the session.
 5. Safety / participant detection: `applyChange` drops privileges; safety routing does not depend on

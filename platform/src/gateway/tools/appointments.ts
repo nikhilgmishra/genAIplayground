@@ -25,8 +25,20 @@ import { toolPolicyRef } from "../../policy/input.js";
 const Modality = z.enum(["video", "in_person", "phone"]);
 const MAX_WINDOW_DAYS = 31;
 
-const purposeFor = (auth: AuthContext): PolicyPurpose =>
-  auth.selectedRole === "personal_representative" ? "representative_access" : auth.selectedRole === "provider" ? "delegated_practice_administration" : "caller_self_service";
+/**
+ * A provider asking with no appointment id asks for their OWN schedule (open administrative slots):
+ * the provider's own service on their own subject (policy path provider_own_schedule, INTERNAL,
+ * self fact with scope appointment:list_options). A provider naming an appointment acts for the
+ * practice on a client's record (treating relationship, PHI).
+ */
+const isOwnSchedule = (auth: AuthContext, input: { appointmentId: string | null }): boolean => auth.selectedRole === "provider" && input.appointmentId === null;
+
+const purposeFor = (auth: AuthContext, input: { appointmentId: string | null }): PolicyPurpose =>
+  auth.selectedRole === "personal_representative"
+    ? "representative_access"
+    : auth.selectedRole === "provider" && !isOwnSchedule(auth, input)
+      ? "delegated_practice_administration"
+      : "caller_self_service";
 
 const AppointmentRecord = z.strictObject({
   appointmentId: Id.nullable(),
@@ -79,20 +91,22 @@ export function getAppointmentOptionsTool(s: BusinessServices): ToolModule<z.inf
     maskTarget: { collectionKey: "appointments", envelopeKeys: ["appointmentCount", "optionCount"] },
     input: OptionsInput,
     output: OptionsOutput,
-    purpose: (auth) => purposeFor(auth),
+    purpose: (auth, input) => purposeFor(auth, input),
     async resolveResource(auth, input) {
       if (input.appointmentId !== null) {
         const subject = await s.appointments.subjectOf(input.appointmentId);
         return subject ? subjectResource(auth, "appointment", subject, "PHI") : unresolvableResource(auth, "appointment", "PHI");
       }
-      return auth.subjectId ? subjectResource(auth, "appointment_options", auth.subjectId, "PHI") : unresolvableResource(auth, "appointment_options", "PHI");
+      // The provider's own schedule carries no client record (INTERNAL); anything else is the caller's own PHI options.
+      const classification = isOwnSchedule(auth, input) ? "INTERNAL" : "PHI";
+      return auth.subjectId ? subjectResource(auth, "appointment_options", auth.subjectId, classification) : unresolvableResource(auth, "appointment_options", classification);
     },
     async execute(ctx, input) {
       const subject = input.appointmentId !== null ? await s.appointments.subjectOf(input.appointmentId) : ctx.auth.subjectId;
       if (!subject) return denied("RESOURCE_NOT_AUTHORIZED");
       let result: Awaited<ReturnType<typeof s.appointments.options>>;
       try {
-        result = await s.appointments.options(subject, input);
+        result = isOwnSchedule(ctx.auth, input) ? await s.appointments.ownScheduleOptions(subject, input) : await s.appointments.options(subject, input);
       } catch (err) {
         return fromError(err, "SCHEDULING_LOOKUP_FAILED");
       }

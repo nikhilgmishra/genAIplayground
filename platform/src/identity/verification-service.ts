@@ -18,7 +18,7 @@ import { newId } from "../shared/ids.js";
 import type { Logger, Metrics } from "../observability/ports.js";
 import { silentLogger } from "../observability/logger.js";
 import { noopMetrics } from "../observability/metrics.js";
-import type { BeginVerificationInput, GenericVerificationResponse, KvStore, VerificationService } from "./ports.js";
+import type { BeginVerificationInput, GenericVerificationResponse, KvStore, VerificationCompletion, VerificationService } from "./ports.js";
 import type { VerificationConfig } from "./config.js";
 import { bindingRefFromHash, epochSeconds, hourWindow, kvKeys, sessionRefHash } from "./keys.js";
 import { MATCH_CODE_PATTERN, newMatchCode } from "./match-code.js";
@@ -242,20 +242,20 @@ export class SecureVerificationService implements VerificationService {
     return { kind: tx.data.kind, matchCode: tx.data.matchCode, expiresAt: tx.data.expiresAt };
   }
 
-  async completeSecureLink(input: { transactionId: string; nonce: string; idToken: string; matchCodeConfirmed: boolean }): Promise<{ bound: boolean; reasonCode: string }> {
+  async completeSecureLink(input: { transactionId: string; nonce: string; idToken: string; matchCodeConfirmed: boolean }): Promise<VerificationCompletion> {
     const p = CompleteSecureLinkInput.safeParse(input);
     if (!p.success) return this.completion("secure_link_oidc", null, "VERIFICATION_INPUT_INVALID");
     const { transactionId, nonce, idToken, matchCodeConfirmed } = p.data;
     const opened = await this.openTransaction(transactionId, nonce, "secure_link");
     if ("reason" in opened) return this.completion("secure_link_oidc", null, opened.reason);
     const tx = opened.tx;
-    if (!matchCodeConfirmed) return this.completion("secure_link_oidc", tx.sessionRefHash, "MATCH_CODE_NOT_CONFIRMED");
-    if (!tx.eligible || !tx.candidateActorId || !tx.candidateAccountId) return this.completion("secure_link_oidc", tx.sessionRefHash, "VERIFICATION_TRANSACTION_UNAVAILABLE");
+    if (!matchCodeConfirmed) return this.completion("secure_link_oidc", tx, "MATCH_CODE_NOT_CONFIRMED");
+    if (!tx.eligible || !tx.candidateActorId || !tx.candidateAccountId) return this.completion("secure_link_oidc", tx, "VERIFICATION_TRANSACTION_UNAVAILABLE");
 
     const claims = await this.verifyToken(idToken, nonce, this.cfg.maxAuthAgeSeconds);
-    if ("reason" in claims) return this.completion("secure_link_oidc", tx.sessionRefHash, claims.reason);
+    if ("reason" in claims) return this.completion("secure_link_oidc", tx, claims.reason);
     const actorCheck = await this.checkActor(claims.claims, tx.candidateActorId, tx.candidateAccountId);
-    if (actorCheck) return this.completion("secure_link_oidc", tx.sessionRefHash, actorCheck);
+    if (actorCheck) return this.completion("secure_link_oidc", tx, actorCheck);
 
     let subjectId: string | null;
     let organizationId: string | null;
@@ -263,7 +263,7 @@ export class SecureVerificationService implements VerificationService {
       subjectId = await this.deps.directory.selfSubjectId(tx.candidateActorId, tx.role);
       organizationId = await this.deps.directory.organizationFor(tx.candidateActorId, tx.role);
     } catch {
-      return this.completion("secure_link_oidc", tx.sessionRefHash, "DIRECTORY_UNAVAILABLE");
+      return this.completion("secure_link_oidc", tx, "DIRECTORY_UNAVAILABLE");
     }
     const actorId = tx.candidateActorId;
     const accountId = tx.candidateAccountId;
@@ -288,8 +288,8 @@ export class SecureVerificationService implements VerificationService {
         lastChange: "VERIFIED_SECURE_LINK",
       };
     });
-    if ("aborted" in bound) return this.completion("secure_link_oidc", tx.sessionRefHash, bound.aborted);
-    return this.completion("secure_link_oidc", tx.sessionRefHash, "VERIFIED", bound.rec.generation);
+    if ("aborted" in bound) return this.completion("secure_link_oidc", tx, bound.aborted);
+    return this.completion("secure_link_oidc", tx, "VERIFIED", bound.rec.generation);
   }
 
   // =========================== OTP fallback ===========================
@@ -493,17 +493,17 @@ export class SecureVerificationService implements VerificationService {
     return { transactionId, response: "IF_ELIGIBLE_A_LINK_WAS_SENT" };
   }
 
-  async completeStepUp(input: { transactionId: string; nonce: string; idToken: string }): Promise<{ bound: boolean; reasonCode: string }> {
+  async completeStepUp(input: { transactionId: string; nonce: string; idToken: string }): Promise<VerificationCompletion> {
     const p = CompleteStepUpInput.safeParse(input);
     if (!p.success) return this.completion("secure_link_oidc", null, "VERIFICATION_INPUT_INVALID");
     const opened = await this.openTransaction(p.data.transactionId, p.data.nonce, "step_up");
     if ("reason" in opened) return this.completion("secure_link_oidc", null, opened.reason);
     const tx = opened.tx;
-    if (!tx.candidateActorId || !tx.candidateAccountId || !tx.actionDigest) return this.completion("secure_link_oidc", tx.sessionRefHash, "VERIFICATION_TRANSACTION_UNAVAILABLE");
+    if (!tx.candidateActorId || !tx.candidateAccountId || !tx.actionDigest) return this.completion("secure_link_oidc", tx, "VERIFICATION_TRANSACTION_UNAVAILABLE");
     const claims = await this.verifyToken(p.data.idToken, p.data.nonce, this.cfg.stepUpMaxAuthAgeSeconds);
-    if ("reason" in claims) return this.completion("secure_link_oidc", tx.sessionRefHash, claims.reason);
+    if ("reason" in claims) return this.completion("secure_link_oidc", tx, claims.reason);
     const actorCheck = await this.checkActor(claims.claims, tx.candidateActorId, tx.candidateAccountId);
-    if (actorCheck) return this.completion("secure_link_oidc", tx.sessionRefHash, actorCheck);
+    if (actorCheck) return this.completion("secure_link_oidc", tx, actorCheck);
     const actionDigest = tx.actionDigest;
     const actorId = tx.candidateActorId;
     const bound = await this.deps.sessions.store.mutate(tx.sessionRefHash, (rec, now) => {
@@ -516,8 +516,8 @@ export class SecureVerificationService implements VerificationService {
         lastChange: "STEP_UP_VERIFIED",
       };
     });
-    if ("aborted" in bound) return this.completion("secure_link_oidc", tx.sessionRefHash, bound.aborted);
-    return this.completion("secure_link_oidc", tx.sessionRefHash, "STEP_UP_VERIFIED", bound.rec.generation);
+    if ("aborted" in bound) return this.completion("secure_link_oidc", tx, bound.aborted);
+    return this.completion("secure_link_oidc", tx, "STEP_UP_VERIFIED", bound.rec.generation);
   }
 
   // =========================== internals ===========================
@@ -699,16 +699,25 @@ export class SecureVerificationService implements VerificationService {
     throw new ConflictError("VERIFICATION_UPDATE_CONFLICT", "VERIFICATION_UPDATE_CONFLICT", true);
   }
 
-  private completion(method: VerificationMethod, hash: string | null, reasonCode: string, generation?: number): { bound: boolean; reasonCode: string } {
+  /**
+   * Completion result. When the transaction was opened (its nonce matched), the result also
+   * carries the server-side binding of that transaction (call id, NON-bearer session binding ref,
+   * session generation) for audit evidence only; unopened transactions carry none, so an unknown,
+   * reused or expired link is never attributed to a call. The bearer session reference is never
+   * returned.
+   */
+  private completion(method: VerificationMethod, tx: VerificationTx | null, reasonCode: string, generation?: number): VerificationCompletion {
     const bound = reasonCode === "VERIFIED" || reasonCode === "STEP_UP_VERIFIED";
     this.verificationMetric(method, bound ? "success" : reasonCode === "VERIFICATION_TRANSACTION_EXPIRED" ? "expired" : "failure");
+    const sessionBindingRef = tx ? bindingRefFromHash(tx.sessionRefHash) : null;
     this.logger.info("identity.verification.completed", {
       reasonCode,
-      sessionBindingRef: hash ? bindingRefFromHash(hash) : null,
+      sessionBindingRef,
       sessionGeneration: generation ?? null,
       method,
     });
-    return { bound, reasonCode };
+    if (!tx || !sessionBindingRef) return { bound, reasonCode };
+    return { bound, reasonCode, binding: { callId: tx.callId, sessionBindingRef, sessionGeneration: generation ?? tx.generation } };
   }
 
   private otpResult(verified: boolean, reasonCode: string, hash: string): { verified: boolean; reasonCode: string } {

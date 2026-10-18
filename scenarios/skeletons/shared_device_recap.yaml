@@ -1,4 +1,4 @@
-skeletonVersion: 1
+skeletonVersion: 2
 intent: shared_device_recap
 title: Caller on a shared household phone asks for a recap before verification
 audiences: [client]
@@ -21,10 +21,12 @@ script:
 indirect:
   - "Can you remind me what we talked about last time?"
 dependencyFailure:
+  # get_authorized_case_status reads the internal support record (resolution contract case_follow_up@1,
+  # source system support_records); Salesforce is not on that read path, so the outage must not change
+  # the answer: the authorized status is still given from the internal record.
   fault: SALESFORCE_OUTAGE
-  expectedToolSequence: [begin_verification, get_authorized_case_status, request_human_transfer]
-  requiredHandoff: STANDARD_HUMAN
-  expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
-  stopCondition: TRANSFER_CONNECTED
+  expectedToolSequence: [begin_verification, get_authorized_case_status]
+  requiredHandoff: NONE
+  expectedFinalState: { outcome: INFORMATION_PROVIDED, committedActions: [], supportRequestCreated: false, disclosedProtectedFields: true }
 requirementIds: [AUTH-01, DATA-04, SPEC-9.memory, SPEC-14.edge-populations]
 edgePopulations: [shared_device]

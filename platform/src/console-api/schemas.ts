@@ -545,6 +545,15 @@ export const RequeueRequestS = z.strictObject({ reason: OperatorReasonS });
 
 export const RequeueResponseS = z.strictObject({ messageId: OpaqueIdS, requeued: z.boolean(), auditEventId: OpaqueIdS });
 
+export const SupportRepairRequestS = z.strictObject({ reason: OperatorReasonS });
+
+export const SupportRepairResponseS = z.strictObject({
+  referenceNumber: z.string().regex(new RegExp(PATH_PARAM_PATTERNS.ref)),
+  syncState: SyncStateS,
+  repaired: z.boolean(),
+  auditEventId: OpaqueIdS,
+});
+
 /* ------------------------------------------------------------------------ */
 /* Workflow human tasks                                                      */
 /* ------------------------------------------------------------------------ */
@@ -835,6 +844,7 @@ export const ENDPOINT_SCHEMAS: Readonly<Record<EndpointKey, EndpointSchemas>> = 
   "calls.get": { query: null, body: null, response: CallDetailResponseS },
   "calls.transfer": { query: null, body: TransferRequestS, response: TransferResponseS },
   "supportRequests.trace": { query: null, body: null, response: SupportTraceResponseS },
+  "supportRequests.repair": { query: null, body: SupportRepairRequestS, response: SupportRepairResponseS },
   "actions.pending": { query: null, body: null, response: PendingActionsResponseS },
   "actions.cancel": { query: null, body: CancelActionRequestS, response: CancelActionResponseS },
   "reconciliation.list": { query: null, body: null, response: ReconciliationResponseS },

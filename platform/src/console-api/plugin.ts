@@ -734,6 +734,38 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
     },
   });
 
+  /*
+   * Operator repair of a dead-lettered Salesforce sync (spec section 8 "dead-letter queue and operator
+   * repair flow"): the request goes back to PENDING with a fresh sync message. Upserts are idempotent by
+   * external id, so a repair cannot create a duplicate Case (ACT-02). The business module audits the
+   * repair in its own transaction (`support_request.repair_requeued`, actor = staff member); the console
+   * writes a write-ahead intent event first and refuses (503 AUDIT_UNAVAILABLE) when it cannot.
+   */
+  register("supportRequests.repair", {
+    handle: async (ctx): Promise<C.SupportRepairResponse> => {
+      const { tenantId, staffId } = ctx.identity;
+      const ref = ctx.params.ref as string;
+      const body = ctx.body as C.SupportRepairRequest;
+      const code = requireAllowedReason(body.reason, OPERATOR_REASON_CODES["supportRequests.repair"]);
+      const repair = deps.supportRequests.repairDeadLetter?.bind(deps.supportRequests);
+      if (!repair) throw unavailable("REPAIR_PATH_UNAVAILABLE", false);
+      // Worker-view metadata decides existence, the restricted gate and the state; nothing from it is returned.
+      const meta = await deps.supportRequests.trace(tenantId, ref);
+      if (!meta || meta.supportRequest.tenantId !== tenantId) throw notFound();
+      const sr = meta.supportRequest;
+      // Restricted privacy/safety records need the same valid, time-bound break-glass as reading them.
+      if (sr.restricted) await authorizeOrDeny(ctx, [{ action: "restricted_record:view", resource: { type: "restricted_record", tenantId } }]);
+      if (meta.salesforce.syncState !== "DEAD_LETTER") throw conflict("STATE_CONFLICT");
+      await auditRequired(ctx, { outcome: "PENDING", reasonCode: code, evidencePointers: [`support_request:${sr.supportRequestId}`] });
+      const repaired = await repair(tenantId, sr.supportRequestId, { actorRef: staffId, reasonCode: code });
+      const moduleEvent = await reader.findEventId(tenantId, staffId, { action: "support_request.repair_requeued", correlationId: sr.supportRequestId });
+      const doneId = await auditBestEffort(ctx, { outcome: "SUCCEEDED", reasonCode: code, policyDecision: ctx.decision, evidencePointers: [`support_request:${sr.supportRequestId}`] });
+      const auditEventId = moduleEvent ?? doneId;
+      if (!auditEventId) throw new ConsoleHttpError(503, "AUDIT_UNAVAILABLE", true);
+      return { referenceNumber: repaired.referenceNumber, syncState: repaired.syncState, repaired: true, auditEventId };
+    },
+  });
+
   /* ---------------- pending actions ---------------- */
 
   register("actions.pending", {

@@ -15,6 +15,7 @@ import type { ToolRequestIdempotency } from "../actions/tool-idempotency.js";
 import type { ProviderCommitPort } from "../actions/ports.js";
 import type { TelephonyEvent, TelephonyFixture } from "../adapters/local/telephony-fixture.js";
 import { TRANSFER_EVENT_FOR_STATE } from "../adapters/local/telephony-fixture.js";
+import type { DeferredAuditQueue } from "../audit/deferred.js";
 import type { AuditShipper } from "../audit/shipper.js";
 import type { BusinessModule } from "../business/contract.js";
 import type { Db } from "../db/types.js";
@@ -380,6 +381,30 @@ export class AuditShipLoop implements WorkerLoop {
   }
 }
 
+/**
+ * Deferred route-audit flush (audit/deferred.ts): appends the human / safety handoff audit events
+ * that were deferred during an audit outage, FIFO, once the audit store is writable again (the
+ * queue skips the attempt while AuditHealth reports AUDIT_STORE_UNWRITABLE). Bounded per run.
+ * The queue is process-local, so this loop must run in the process that holds it (the local
+ * composition runs gateway and worker in one process). A store that is still unavailable is
+ * reported as the run's reason code, not as a loop failure (the outage is already signalled by
+ * audit health, vsp_audit_deferred_depth and the error logs).
+ */
+export class DeferredAuditFlushLoop implements WorkerLoop {
+  readonly name = "audit.deferred_flush";
+  constructor(
+    private readonly queue: Pick<DeferredAuditQueue, "flush">,
+    readonly intervalMs = 5_000,
+    private readonly limit = 100,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      const r = await this.queue.flush(this.limit);
+      return { ok: true, processed: r.written, reasonCode: r.reasonCode, details: { remaining: r.remaining, dropped: r.dropped } };
+    });
+  }
+}
+
 export class WorkflowTickLoop implements WorkerLoop {
   readonly name = "workflows.tick";
   constructor(
@@ -391,6 +416,47 @@ export class WorkflowTickLoop implements WorkerLoop {
     return guarded(async () => {
       const r = await this.workflows.tickDetailed(this.clock.now());
       return { ok: r.failures.length === 0, processed: r.events.length, reasonCode: r.failures[0]?.reasonCode ?? null, details: { failures: r.failures.length } };
+    });
+  }
+}
+
+/**
+ * Support-request Salesforce sync retry sweep (spec section 8 "Salesforce behavior"; ACT-02).
+ * Calls `SupportRequestService.retryDue(tenantId, limit)` per tenant: due RETRY_SCHEDULED
+ * requests and stale SYNCING claims are re-enqueued as `support_request.sync` outbox messages
+ * (dedupe key per attempt, so a repeated sweep before delivery enqueues nothing new); the
+ * outbox dispatch / consume loops deliver them and the business consumer settles each attempt
+ * as SYNCED, RETRY_SCHEDULED (bounded exponential backoff) or DEAD_LETTER once the attempt
+ * budget is exhausted (operator repair: console `supportRequests.repair`). Bounded: at most
+ * `limit` requests per tenant per run. A business module without the sweep fails this loop
+ * closed (`SUPPORT_SYNC_RETRY_UNAVAILABLE`), so worker readiness reports it instead of a request
+ * silently staying RETRY_SCHEDULED forever.
+ */
+export class SupportSyncRetryLoop implements WorkerLoop {
+  readonly name = "support.sync_retry";
+  constructor(
+    private readonly supportRequests: { retryDue?: (tenantId: string, limit?: number) => Promise<number> },
+    private readonly tenantIds: readonly string[],
+    readonly intervalMs = 30_000,
+    private readonly limit = 100,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      const retryDue = this.supportRequests.retryDue?.bind(this.supportRequests);
+      if (!retryDue) return { ok: false, processed: 0, reasonCode: "SUPPORT_SYNC_RETRY_UNAVAILABLE", details: {} };
+      let requeued = 0;
+      let failedTenants = 0;
+      let firstFailure: string | null = null;
+      for (const tenantId of this.tenantIds) {
+        try {
+          requeued += await retryDue(tenantId, this.limit);
+        } catch (err) {
+          failedTenants += 1;
+          firstFailure ??= reasonOf(err);
+        }
+      }
+      if (failedTenants > 0) return { ok: false, processed: requeued, reasonCode: firstFailure, details: { failedTenants } };
+      return ok(requeued, { tenants: this.tenantIds.length });
     });
   }
 }

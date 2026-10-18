@@ -21,7 +21,7 @@ import { BILLING_REVIEW } from "../contracts/index.js";
 import { commitAction, type CommitResult } from "../commit.js";
 import type { InteractionIndex } from "../interactions.js";
 import type { ReauthorizeSpec } from "../policy.js";
-import { issueWorkflowGrant } from "../grants.js";
+import { issueWorkflowGrant, type WorkflowStartWithSnapshot } from "../grants.js";
 import { decideNow } from "../policy.js";
 import { BillingReviewCommitPort } from "../providers.js";
 import { UNKNOWN_CONSENT } from "../shared.js";
@@ -152,16 +152,16 @@ export class BillingService {
       actorId: action.actorId,
       sourceRef: action.actionId,
     });
-    const workflow = await this.deps.workflows.start(
-      {
-        tenantId: action.tenantId,
-        type: "billing_dispute_review",
-        correlationId: action.actionId,
-        sourceRecordRefs: grantRef ? [action.actionId, action.target.recordRef, grantRef] : [action.actionId, action.target.recordRef],
-        grantRef,
-      },
-      tx,
-    );
+    const start: WorkflowStartWithSnapshot = {
+      tenantId: action.tenantId,
+      type: "billing_dispute_review",
+      correlationId: action.actionId,
+      sourceRecordRefs: grantRef ? [action.actionId, action.target.recordRef, grantRef] : [action.actionId, action.target.recordRef],
+      grantRef,
+      // Policy snapshot for reproducibility; the pre-disclosure recheck evaluates the CURRENT policy (spec section 9).
+      policySnapshotVersion: this.deps.versions.policyBundle,
+    };
+    const workflow = await this.deps.workflows.start(start, tx);
     const supportRequest = await this.support.createRecord(
       {
         tenantId: action.tenantId,

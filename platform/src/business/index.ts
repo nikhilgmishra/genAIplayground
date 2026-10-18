@@ -32,6 +32,10 @@ export { InteractionIndex } from "./interactions.js";
 export { ACTION_COMMITTED_CONSUMER } from "./consumers.js";
 export { confirmationSlotsFor } from "./confirmation.js";
 export { grantActionsFor, grantTtlMsFor, issueWorkflowGrant } from "./grants.js";
+export type { WorkflowStartWithSnapshot } from "./grants.js";
+export { BusinessPreDisclosureRecheck, RECHECK_REASONS, RECHECK_RULES } from "./recheck.js";
+export type { AccountStateLookup, AccountStateValue, BusinessPreDisclosureRecheckOptions, ConsentRegistry, RecheckReason } from "./recheck.js";
+export { LocalAccountStateFixture, LocalConsentRegistryFixture, RECHECK_FIXTURE_LABEL } from "./fixtures/recheck.fixture.js";
 export type { BusinessServices } from "./services/types.js";
 export { BUSINESS_TOOL_NAMES, TOOL_DEFINITIONS } from "../gateway/tools/index.js";
 
@@ -83,7 +87,7 @@ export function buildBusinessServices(deps: ToolDeps, opts: BuildBusinessOptions
     handoff,
     supportRequests: support,
     outcomes,
-    consumers: buildConsumers(deps, { support, billing, interactions }),
+    consumers: buildConsumers(deps, { support, billing, interactions, outcomes }),
     confirmationSlots: (action) => confirmationSlotsFor(deps, action),
   };
   return { module, services };

@@ -2283,7 +2283,7 @@
     "/telephony/v1/session/end": {
       "post": {
         "operationId": "telephony.endCall",
-        "summary": "Call end: releases the AI capacity lease, ends the session (privileges dropped), invalidates pending actions and records the interaction outcome from server-side evidence (ACT-04). The gateway enforces expiry even if this is never sent (AUTH-04).",
+        "summary": "Call end: releases the AI capacity lease, ends the session (privileges dropped), invalidates pending actions and records the interaction outcome from server-side evidence (ACT-04). An expired or revoked session still gets its outcome, keyed by the trusted call id the start-call binding established for this integration. The gateway enforces expiry even if this is never sent (AUTH-04).",
         "tags": [
           "telephony-control"
         ],

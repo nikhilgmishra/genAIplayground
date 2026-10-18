@@ -7,7 +7,9 @@
  *   action.committed      -> follow-up of a commit completed by reconciliation (the
  *                            ledger's per-call onCommitted hook did not run): billing
  *                            review workflow + support request, created at most once per
- *                            action; commit receipts recorded in the per-call index.
+ *                            action; commit receipts recorded in the per-call index; a call
+ *                            that already ended with the commit unsettled gets an
+ *                            append-only outcome revision (outcomes.reviseAfterCommit).
  *
  * The action.committed payload carries no tenant; the tenant is resolved from the
  * business layer's own action index (narrow SECURITY DEFINER lookup, opaque ids only).
@@ -18,6 +20,7 @@ import { OpaqueId } from "../protocol/index.js";
 import { ValidationError } from "../shared/errors.js";
 import type { BusinessModule, ToolDeps } from "./contract.js";
 import type { InteractionIndex } from "./interactions.js";
+import type { BusinessOutcomeService } from "./outcomes.js";
 import type { BillingService } from "./services/billing.js";
 import type { PgSupportRequestService } from "./support/support-request-service.js";
 
@@ -29,7 +32,10 @@ const ActionCommittedPayload = z.object({
   receiptId: OpaqueId,
 });
 
-export function buildConsumers(deps: ToolDeps, svc: { support: PgSupportRequestService; billing: BillingService; interactions: InteractionIndex }): BusinessModule["consumers"] {
+export function buildConsumers(
+  deps: ToolDeps,
+  svc: { support: PgSupportRequestService; billing: BillingService; interactions: InteractionIndex; outcomes: Pick<BusinessOutcomeService, "reviseAfterCommit"> },
+): BusinessModule["consumers"] {
   const dedup = new PgConsumerDedup({ db: deps.db, clock: deps.clock, role: "app_worker" });
 
   async function actionCommitted(messageId: string, payload: Record<string, unknown>): Promise<void> {
@@ -48,6 +54,9 @@ export function buildConsumers(deps: ToolDeps, svc: { support: PgSupportRequestS
       }
       return null;
     });
+    // A call that ended before the commit was settled recorded OUTCOME_UNKNOWN: append the revision now
+    // (idempotent, so it also runs on a redelivery whose dedup row already exists).
+    await svc.outcomes.reviseAfterCommit(tenantId, actionId);
   }
 
   return {

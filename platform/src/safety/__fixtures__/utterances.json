@@ -1,6 +1,6 @@
 {
  "label": "SYNTHETIC SAFETY UTTERANCE CORPUS - LOCAL FIXTURE. Written by the coding agent for regression tests only. Not real caller speech, not clinician-reviewed, not native-speaker reviewed. Expected outcomes are design intent pending clinical safety lead and language-lead review. Passing this corpus does not establish detection completeness.",
- "version": "2026-10-17.draft.1",
+ "version": "2026-10-18.draft.2",
  "cases": [
   {
    "id": "en-exp-01",
@@ -2602,6 +2602,767 @@
    "text": "Should I take the earlier slot?",
    "expect": {
     "route": "NONE"
+   }
+  },
+  {
+   "id": "en-neg-07",
+   "category": "negation",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I'm not saying I'd do anything, but sometimes I wish I wouldn't wake up.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "en-neg-08",
+   "category": "negation",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I wouldn't actually do it. I've just been giving my things away.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "en-neg-09",
+   "category": "negation",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I don't think I'm suicidal, but I've been looking up ways to die.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "CREDIBLE",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": true,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "en-neg-10",
+   "category": "negation",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "It's not like I want to die, I just want everything to stop permanently.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE",
+     "SEMANTIC_SIGNAL"
+    ],
+    "negated": true
+   }
+  },
+  {
+   "id": "en-neg-11",
+   "category": "negation",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I don't sleep anymore and I want to die.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "CREDIBLE",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "es-neg-04",
+   "category": "negation",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "No es que vaya a hacer nada, pero a veces quisiera no despertar.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "en-ind-18",
+   "category": "indirect",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "Maybe it'd be easier if I wasn't here.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "en-ind-19",
+   "category": "indirect",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "Sometimes I wish I could just go to sleep forever.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "en-ind-20",
+   "category": "indirect",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I'm not sure I want to live anymore.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "CREDIBLE",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ],
+    "temporals": [
+     "CURRENT"
+    ]
+   }
+  },
+  {
+   "id": "en-ind-21",
+   "category": "indirect",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I've started having those thoughts again.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "en-ind-22",
+   "category": "indirect",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "After what happened last month I've started thinking about it again.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "es-ind-06",
+   "category": "indirect",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "No le veo sentido a seguir viviendo.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "es-ind-07",
+   "category": "indirect",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Ojalá no despertara mañana.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "es-ind-08",
+   "category": "indirect",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Sería más fácil para todos si yo no estuviera.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "es-ind-09",
+   "category": "indirect",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Volvieron esos pensamientos.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "es-sem-03",
+   "category": "semantic",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Ya no le veo sentido a nada, estoy muy cansada de todo.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "SEMANTIC_SIGNAL"
+    ],
+    "negated": false
+   }
+  },
+  {
+   "id": "en-his-06",
+   "category": "historical",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I attempted a few days ago and I still feel the same way.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "CREDIBLE",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ],
+    "temporals": [
+     "CURRENT"
+    ]
+   }
+  },
+  {
+   "id": "en-his-07",
+   "category": "historical",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "Years ago I was hospitalized after an attempt, but I'm doing well now.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ],
+    "temporals": [
+     "HISTORICAL"
+    ]
+   }
+  },
+  {
+   "id": "es-his-04",
+   "category": "historical",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Tuve un intento hace unos meses y todavía me siento igual.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "CREDIBLE",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ],
+    "temporals": [
+     "CURRENT"
+    ]
+   }
+  },
+  {
+   "id": "es-exp-09",
+   "category": "explicit",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Tomé demasiadas pastillas.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "CREDIBLE",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "en-3p-07",
+   "category": "third_party",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "My brother has been talking about not being around much longer.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "THIRD_PARTY"
+    ]
+   }
+  },
+  {
+   "id": "en-3p-08",
+   "category": "third_party",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "My daughter is posting goodbye messages online.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "THIRD_PARTY"
+    ]
+   }
+  },
+  {
+   "id": "en-3p-09",
+   "category": "third_party",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I'm really worried about my brother, he's been saying goodbye to people.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "THIRD_PARTY"
+    ]
+   }
+  },
+  {
+   "id": "en-3p-10",
+   "category": "third_party",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "My mom has been giving her things away.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "THIRD_PARTY"
+    ]
+   }
+  },
+  {
+   "id": "en-3p-11",
+   "category": "third_party",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "My brother made an attempt on his life last year.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "THIRD_PARTY"
+    ],
+    "temporals": [
+     "HISTORICAL"
+    ]
+   }
+  },
+  {
+   "id": "es-3p-05",
+   "category": "third_party",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Mi hermano está publicando mensajes de despedida.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "THIRD_PARTY"
+    ]
+   }
+  },
+  {
+   "id": "es-3p-06",
+   "category": "third_party",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Mi hija se está despidiendo de todos.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "THIRD_PARTY"
+    ]
+   }
+  },
+  {
+   "id": "es-3p-07",
+   "category": "third_party",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Help, mi mamá se tomó demasiadas pastillas.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "CREDIBLE",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "THIRD_PARTY"
+    ]
+   }
+  },
+  {
+   "id": "en-adm-16",
+   "category": "administrative",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I attempted to log in three times and got locked out.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-adm-17",
+   "category": "administrative",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I already attempted the payment twice yesterday.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-adm-18",
+   "category": "administrative",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I attempted twice on the portal and it keeps failing.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-adm-19",
+   "category": "administrative",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "Can I leave a message for my therapist to say goodbye before she retires?",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-adm-20",
+   "category": "administrative",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "My therapist won't be here next week, can I see someone else?",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-adm-21",
+   "category": "administrative",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I hope I don't wake up late for my seven a.m. appointment.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-adm-22",
+   "category": "administrative",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "It'd be easier if I wasn't here at eight, can we move my appointment?",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-adm-23",
+   "category": "administrative",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I made an attempt to call yesterday but nobody picked up.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-fru-11",
+   "category": "frustration",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I've been thinking about it again and I'd rather just cancel my plan.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-fru-12",
+   "category": "frustration",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I'm dying to say goodbye to this hold music.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-fru-13",
+   "category": "frustration",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "After what happened with my bill last month I'm thinking about it again.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "es-adm-06",
+   "category": "administrative",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "No le veo sentido a pagar dos veces la misma factura.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "es-adm-07",
+   "category": "administrative",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Lo intenté dos veces en el portal y no funcionó.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "es-adm-08",
+   "category": "administrative",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Tomé demasiadas fotos de la factura, ¿cuál necesitan?",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "es-adm-09",
+   "category": "administrative",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Prefiero no despertar tan temprano, ¿hay citas en la tarde?",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "es-adm-10",
+   "category": "administrative",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Tuve un intento de pago fallido ayer.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "es-fru-06",
+   "category": "frustration",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Estoy cansada de todo este papeleo.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "es-fru-07",
+   "category": "frustration",
+   "locale": "es-US",
+   "asrConfidence": null,
+   "text": "Ya no le veo sentido a nada de esto, llevo una hora esperando.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-ind-23",
+   "category": "indirect",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I'm going to jump tonight.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "CREDIBLE",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ],
+    "temporals": [
+     "CURRENT"
+    ]
+   }
+  },
+  {
+   "id": "en-ind-24",
+   "category": "indirect",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I'm gonna jump at midnight.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
+   }
+  },
+  {
+   "id": "en-adm-24",
+   "category": "administrative",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I'm going to jump at the chance to get an earlier slot.",
+   "expect": {
+    "route": "NONE"
+   }
+  },
+  {
+   "id": "en-ind-25",
+   "category": "indirect",
+   "locale": "en-US",
+   "asrConfidence": null,
+   "text": "I wanna disappear.",
+   "expect": {
+    "route": "SAFETY_PRIORITY_HUMAN",
+    "strength": "UNRESOLVED",
+    "sources": [
+     "EXPLICIT_PHRASE"
+    ],
+    "negated": false,
+    "subjects": [
+     "SELF"
+    ]
    }
   }
  ]

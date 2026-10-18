@@ -7,7 +7,10 @@
  * business layer); unverified complaints stay unlinked. A support request asked to be linked
  * is authorized against the AUTHORITATIVE target: the caller's own subject, or for a personal
  * representative the represented subject with scope support_request:create (purpose
- * representative_access); an unresolvable target is denied by policy.
+ * representative_access), or for an organization role (practice staff, partner, payer
+ * representative) the caller's server-established organization, authorized at creation by the
+ * organization's case:read path so get_authorized_case_status finds it again; an unresolvable
+ * target is denied by policy and a refused organization link denies the request.
  *
  * Intake takes categories and flags only (no free text, never echoed). The caller is
  * told the SR reference is a support reference pending synchronization, never a
@@ -18,7 +21,7 @@
  */
 import { z } from "zod";
 import { CASE_STATUSES, type CaseView } from "../../business/services/cases.js";
-import { COMPLAINT_CATEGORIES, GENERAL_INTAKE_CATEGORIES, URGENCY } from "../../business/services/intake.js";
+import { COMPLAINT_CATEGORIES, GENERAL_INTAKE_CATEGORIES, ORGANIZATION_ROLES, URGENCY, organizationPurpose } from "../../business/services/intake.js";
 import type { BusinessServices } from "../../business/services/types.js";
 import { atLeast, openResource, organizationResource, subjectResource, unresolvableResource } from "../../business/shared.js";
 import { toolPolicyRef } from "../../policy/input.js";
@@ -84,13 +87,16 @@ export function createSupportRequestTool(s: BusinessServices): ToolModule<z.infe
     async resolveResource(auth, input) {
       const target = await s.intake.linkTarget(auth, input.linkToAccount);
       if (target.kind === "subject") return subjectResource(auth, "support_request", target.subjectId, "PHI");
+      // Creating the request is the open intake path; the organization link itself is authorized by the
+      // organization's case:read path in the business layer (IntakeService.general), or the call is denied.
       return target.kind === "unresolved" ? unresolvableResource(auth, "support_request", "PHI") : openResource(auth, "support_request", "INTERNAL");
     },
     async execute(ctx, input) {
       try {
-        const sr = await s.intake.general({ auth: ctx.auth, turnId: ctx.request.turnId, tool: definition.name, argsDigest: argsDigest(input), language: input.language }, input);
+        const r = await s.intake.general({ auth: ctx.auth, turnId: ctx.request.turnId, tool: definition.name, argsDigest: argsDigest(input), language: input.language }, input, toolPolicyRef(definition));
+        const sr = r.supportRequest;
         return ok(
-          { request: { status: "REQUEST_ACCEPTED", supportReference: sr.referenceNumber }, synchronization: "PENDING_SYNC", linkedToAccount: sr.subjectRef !== null },
+          { request: { status: "REQUEST_ACCEPTED", supportReference: sr.referenceNumber }, synchronization: "PENDING_SYNC", linkedToAccount: r.linkedTo !== null },
           speechFor(s.deps.templates, "support_reference.pending_sync", { supportReference: sr.referenceNumber }, [sourceRef("sr", sr.supportRequestId)]),
         );
       } catch (err) {
@@ -110,14 +116,9 @@ const CaseRecord = z.strictObject({
 export const CaseInput = z.strictObject({ supportReference: SupportRefArg.nullable() });
 export const CaseOutput = z.strictObject({ cases: z.array(CaseRecord).max(5), recapAvailable: z.boolean() });
 
-const casePurpose = (auth: AuthContext): PolicyPurpose =>
-  auth.selectedRole === "partner" || auth.selectedRole === "payer_representative"
-    ? "partner_administration"
-    : auth.selectedRole === "practice_staff"
-      ? "delegated_practice_administration"
-      : "caller_self_service";
+const casePurpose = (auth: AuthContext): PolicyPurpose => (auth.selectedRole !== null && ORGANIZATION_ROLES.has(auth.selectedRole) ? organizationPurpose(auth.selectedRole) : "caller_self_service");
 
-const ORG_ROLES = new Set(["partner", "payer_representative", "practice_staff"]);
+const ORG_ROLES = ORGANIZATION_ROLES;
 
 export function getAuthorizedCaseStatusTool(s: BusinessServices): ToolModule<z.infer<typeof CaseInput>, z.infer<typeof CaseOutput>> {
   async function scope(auth: AuthContext, input: z.infer<typeof CaseInput>): Promise<{ kind: "subject"; id: string } | { kind: "organization"; id: string } | null> {

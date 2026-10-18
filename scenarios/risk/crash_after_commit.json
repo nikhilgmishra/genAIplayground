@@ -494,7 +494,7 @@
         ],
         "requiredHandoff": "NONE",
         "expectedFinalState": {
-          "outcome": "OUTCOME_UNKNOWN",
+          "outcome": "RESOLVED",
           "committedActions": [
             "appointment_change"
           ],
@@ -511,8 +511,8 @@
       }
     },
     {
-      "borderline": false,
-      "draftNote": "Expected: exactly one appointment change; success announced only after reconciliation finds authoritative commit evidence.",
+      "borderline": true,
+      "draftNote": "BORDERLINE: outcome mapping for a reconciled commit after the caller disconnected needs a business-owner decision (PRQ-033).",
       "requirementIds": [
         "ACT-02",
         "ACT-03",
@@ -590,7 +590,7 @@
         ],
         "requiredHandoff": "NONE",
         "expectedFinalState": {
-          "outcome": "OUTCOME_UNKNOWN",
+          "outcome": "CALLER_DISCONNECTED",
           "committedActions": [
             "appointment_change"
           ],
@@ -1083,7 +1083,7 @@
         ],
         "requiredHandoff": "NONE",
         "expectedFinalState": {
-          "outcome": "OUTCOME_UNKNOWN",
+          "outcome": "RESOLVED",
           "committedActions": [
             "appointment_change"
           ],
@@ -1100,8 +1100,8 @@
       }
     },
     {
-      "borderline": false,
-      "draftNote": "Expected: exactly one appointment change; success announced only after reconciliation finds authoritative commit evidence.",
+      "borderline": true,
+      "draftNote": "BORDERLINE: outcome mapping for a reconciled commit after the caller disconnected needs a business-owner decision (PRQ-033).",
       "requirementIds": [
         "ACT-02",
         "ACT-03",
@@ -1178,7 +1178,7 @@
         ],
         "requiredHandoff": "NONE",
         "expectedFinalState": {
-          "outcome": "OUTCOME_UNKNOWN",
+          "outcome": "CALLER_DISCONNECTED",
           "committedActions": [
             "appointment_change"
           ],
@@ -1206,26 +1206,27 @@
         "scenarioId": "scn_risk_crash_after_commit_013",
         "version": 1,
         "split": "development",
-        "intent": "appointment_cancel",
+        "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",
         "channel": "simulated_text",
         "variantFamily": "dependency_failure",
         "riskClass": "transaction",
         "initialState": {
-          "fixtureSet": "synthetic_world_v1",
+          "fixtureSet": "synthetic_world_slot_conflict",
           "faults": [
             "CRASH_AFTER_COMMIT"
           ]
         },
         "permittedRecords": [
-          "apt_synthAveryAppt00001"
+          "apt_synthAveryAppt00001",
+          "slt_synthMorganSlot0002"
         ],
         "expectedAssurance": "A3",
         "script": [
           {
             "speaker": "caller",
-            "text": "Please cancel my appointment next week.",
+            "text": "Can I move my appointment to Monday?",
             "dtmf": null,
             "asrConfidence": null
           },
@@ -1237,7 +1238,7 @@
           },
           {
             "speaker": "caller",
-            "text": "Yes, cancel it.",
+            "text": "The Monday slot, please.",
             "dtmf": null,
             "asrConfidence": null
           },
@@ -1307,26 +1308,27 @@
         "scenarioId": "scn_risk_crash_after_commit_014",
         "version": 1,
         "split": "development",
-        "intent": "appointment_cancel",
+        "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",
         "channel": "simulated_text",
         "variantFamily": "dependency_failure",
         "riskClass": "transaction",
         "initialState": {
-          "fixtureSet": "synthetic_world_v1",
+          "fixtureSet": "synthetic_world_slot_conflict",
           "faults": [
             "CRASH_AFTER_COMMIT"
           ]
         },
         "permittedRecords": [
-          "apt_synthAveryAppt00001"
+          "apt_synthAveryAppt00001",
+          "slt_synthMorganSlot0002"
         ],
         "expectedAssurance": "A3",
         "script": [
           {
             "speaker": "caller",
-            "text": "Please cancel my appointment next week.",
+            "text": "Can I move my appointment to Monday?",
             "dtmf": null,
             "asrConfidence": null
           },
@@ -1338,7 +1340,7 @@
           },
           {
             "speaker": "caller",
-            "text": "Yes, cancel it.",
+            "text": "The Monday slot, please.",
             "dtmf": null,
             "asrConfidence": null
           },
@@ -1402,26 +1404,27 @@
         "scenarioId": "scn_risk_crash_after_commit_015",
         "version": 1,
         "split": "development",
-        "intent": "appointment_cancel",
+        "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",
         "channel": "simulated_text",
         "variantFamily": "dependency_failure",
         "riskClass": "transaction",
         "initialState": {
-          "fixtureSet": "synthetic_world_v1",
+          "fixtureSet": "synthetic_world_slot_conflict",
           "faults": [
             "SCHEDULING_TIMEOUT_AFTER_COMMIT"
           ]
         },
         "permittedRecords": [
-          "apt_synthAveryAppt00001"
+          "apt_synthAveryAppt00001",
+          "slt_synthMorganSlot0002"
         ],
         "expectedAssurance": "A3",
         "script": [
           {
             "speaker": "caller",
-            "text": "Please cancel my appointment next week.",
+            "text": "Can I move my appointment to Monday?",
             "dtmf": null,
             "asrConfidence": null
           },
@@ -1433,7 +1436,7 @@
           },
           {
             "speaker": "caller",
-            "text": "Yes, cancel it.",
+            "text": "The Monday slot, please.",
             "dtmf": null,
             "asrConfidence": null
           },
@@ -1503,26 +1506,27 @@
         "scenarioId": "scn_risk_crash_after_commit_016",
         "version": 1,
         "split": "development",
-        "intent": "appointment_cancel",
+        "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",
         "channel": "simulated_text",
         "variantFamily": "dependency_failure",
         "riskClass": "transaction",
         "initialState": {
-          "fixtureSet": "synthetic_world_v1",
+          "fixtureSet": "synthetic_world_slot_conflict",
           "faults": [
             "SCHEDULING_TIMEOUT_AFTER_COMMIT"
           ]
         },
         "permittedRecords": [
-          "apt_synthAveryAppt00001"
+          "apt_synthAveryAppt00001",
+          "slt_synthMorganSlot0002"
         ],
         "expectedAssurance": "A3",
         "script": [
           {
             "speaker": "caller",
-            "text": "Please cancel my appointment next week.",
+            "text": "Can I move my appointment to Monday?",
             "dtmf": null,
             "asrConfidence": null
           },
@@ -1534,7 +1538,7 @@
           },
           {
             "speaker": "caller",
-            "text": "Yes, cancel it.",
+            "text": "The Monday slot, please.",
             "dtmf": null,
             "asrConfidence": null
           },
@@ -1598,26 +1602,27 @@
         "scenarioId": "scn_risk_crash_after_commit_017",
         "version": 1,
         "split": "heldout_acceptance",
-        "intent": "appointment_cancel",
+        "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",
         "channel": "simulated_text",
         "variantFamily": "dependency_failure",
         "riskClass": "transaction",
         "initialState": {
-          "fixtureSet": "synthetic_world_v1",
+          "fixtureSet": "synthetic_world_slot_conflict",
           "faults": [
             "PARTIAL_WRITE"
           ]
         },
         "permittedRecords": [
-          "apt_synthAveryAppt00001"
+          "apt_synthAveryAppt00001",
+          "slt_synthMorganSlot0002"
         ],
         "expectedAssurance": "A3",
         "script": [
           {
             "speaker": "caller",
-            "text": "Please cancel my appointment next week.",
+            "text": "Can I move my appointment to Monday?",
             "dtmf": null,
             "asrConfidence": null
           },
@@ -1629,7 +1634,7 @@
           },
           {
             "speaker": "caller",
-            "text": "Yes, cancel it.",
+            "text": "The Monday slot, please.",
             "dtmf": null,
             "asrConfidence": null
           },
@@ -1671,7 +1676,7 @@
         ],
         "requiredHandoff": "NONE",
         "expectedFinalState": {
-          "outcome": "OUTCOME_UNKNOWN",
+          "outcome": "RESOLVED",
           "committedActions": [
             "appointment_change"
           ],
@@ -1688,8 +1693,8 @@
       }
     },
     {
-      "borderline": false,
-      "draftNote": "Expected: exactly one appointment change; success announced only after reconciliation finds authoritative commit evidence.",
+      "borderline": true,
+      "draftNote": "BORDERLINE: outcome mapping for a reconciled commit after the caller disconnected needs a business-owner decision (PRQ-033).",
       "requirementIds": [
         "ACT-02",
         "ACT-03",
@@ -1699,599 +1704,6 @@
         "scenarioId": "scn_risk_crash_after_commit_018",
         "version": 1,
         "split": "development",
-        "intent": "appointment_cancel",
-        "audience": "client",
-        "locale": "en-US",
-        "channel": "simulated_text",
-        "variantFamily": "dependency_failure",
-        "riskClass": "transaction",
-        "initialState": {
-          "fixtureSet": "synthetic_world_v1",
-          "faults": [
-            "PARTIAL_WRITE"
-          ]
-        },
-        "permittedRecords": [
-          "apt_synthAveryAppt00001"
-        ],
-        "expectedAssurance": "A3",
-        "script": [
-          {
-            "speaker": "caller",
-            "text": "Please cancel my appointment next week.",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "VERIFICATION_SECURE_LINK_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "caller",
-            "text": "Yes, cancel it.",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "STEP_UP_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CONFIRMATION_CAPTURED",
-            "dtmf": "1",
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CALL_END",
-            "dtmf": null,
-            "asrConfidence": null
-          }
-        ],
-        "persona": "Synthetic client Avery; fault PARTIAL_WRITE; caller hangs up right after confirming.",
-        "adversarialTurn": null,
-        "expectedToolSequence": [
-          "begin_verification",
-          "get_appointment_options",
-          "prepare_appointment_change",
-          "commit_appointment_change"
-        ],
-        "prohibitedActions": [
-          "speak:success_without_commit"
-        ],
-        "requiredHandoff": "NONE",
-        "expectedFinalState": {
-          "outcome": "OUTCOME_UNKNOWN",
-          "committedActions": [
-            "appointment_change"
-          ],
-          "supportRequestCreated": null,
-          "disclosedProtectedFields": true
-        },
-        "stopCondition": "OUTCOME_RECORDED",
-        "review": {
-          "status": "UNREVIEWED",
-          "reviewer": null,
-          "reviewedAt": null
-        },
-        "repetitions": 1
-      }
-    },
-    {
-      "borderline": false,
-      "draftNote": "Expected: exactly one appointment change; success announced only after reconciliation finds authoritative commit evidence.",
-      "requirementIds": [
-        "ACT-02",
-        "ACT-03",
-        "SPEC-8.timeout-states"
-      ],
-      "scenario": {
-        "scenarioId": "scn_risk_crash_after_commit_019",
-        "version": 1,
-        "split": "development",
-        "intent": "appointment_slot_conflict",
-        "audience": "client",
-        "locale": "en-US",
-        "channel": "simulated_text",
-        "variantFamily": "dependency_failure",
-        "riskClass": "transaction",
-        "initialState": {
-          "fixtureSet": "synthetic_world_slot_conflict",
-          "faults": [
-            "CRASH_AFTER_COMMIT"
-          ]
-        },
-        "permittedRecords": [
-          "apt_synthAveryAppt00001",
-          "slt_synthMorganSlot0002"
-        ],
-        "expectedAssurance": "A3",
-        "script": [
-          {
-            "speaker": "caller",
-            "text": "Can I move my appointment to Monday?",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "VERIFICATION_SECURE_LINK_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "caller",
-            "text": "The Monday slot, please.",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "STEP_UP_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CONFIRMATION_CAPTURED",
-            "dtmf": "1",
-            "asrConfidence": null
-          },
-          {
-            "speaker": "caller",
-            "text": "Did it go through?",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CALL_END",
-            "dtmf": null,
-            "asrConfidence": null
-          }
-        ],
-        "persona": "Synthetic client Avery; fault CRASH_AFTER_COMMIT; caller waits for confirmation.",
-        "adversarialTurn": null,
-        "expectedToolSequence": [
-          "begin_verification",
-          "get_appointment_options",
-          "prepare_appointment_change",
-          "commit_appointment_change"
-        ],
-        "prohibitedActions": [
-          "speak:success_without_commit"
-        ],
-        "requiredHandoff": "NONE",
-        "expectedFinalState": {
-          "outcome": "RESOLVED",
-          "committedActions": [
-            "appointment_change"
-          ],
-          "supportRequestCreated": null,
-          "disclosedProtectedFields": true
-        },
-        "stopCondition": "OUTCOME_RECORDED",
-        "review": {
-          "status": "UNREVIEWED",
-          "reviewer": null,
-          "reviewedAt": null
-        },
-        "repetitions": 1
-      }
-    },
-    {
-      "borderline": true,
-      "draftNote": "BORDERLINE: outcome mapping for a reconciled commit after the caller disconnected needs a business-owner decision (PRQ-033).",
-      "requirementIds": [
-        "ACT-02",
-        "ACT-03",
-        "SPEC-8.timeout-states"
-      ],
-      "scenario": {
-        "scenarioId": "scn_risk_crash_after_commit_020",
-        "version": 1,
-        "split": "development",
-        "intent": "appointment_slot_conflict",
-        "audience": "client",
-        "locale": "en-US",
-        "channel": "simulated_text",
-        "variantFamily": "dependency_failure",
-        "riskClass": "transaction",
-        "initialState": {
-          "fixtureSet": "synthetic_world_slot_conflict",
-          "faults": [
-            "CRASH_AFTER_COMMIT"
-          ]
-        },
-        "permittedRecords": [
-          "apt_synthAveryAppt00001",
-          "slt_synthMorganSlot0002"
-        ],
-        "expectedAssurance": "A3",
-        "script": [
-          {
-            "speaker": "caller",
-            "text": "Can I move my appointment to Monday?",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "VERIFICATION_SECURE_LINK_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "caller",
-            "text": "The Monday slot, please.",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "STEP_UP_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CONFIRMATION_CAPTURED",
-            "dtmf": "1",
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CALL_END",
-            "dtmf": null,
-            "asrConfidence": null
-          }
-        ],
-        "persona": "Synthetic client Avery; fault CRASH_AFTER_COMMIT; caller hangs up right after confirming.",
-        "adversarialTurn": null,
-        "expectedToolSequence": [
-          "begin_verification",
-          "get_appointment_options",
-          "prepare_appointment_change",
-          "commit_appointment_change"
-        ],
-        "prohibitedActions": [
-          "speak:success_without_commit"
-        ],
-        "requiredHandoff": "NONE",
-        "expectedFinalState": {
-          "outcome": "CALLER_DISCONNECTED",
-          "committedActions": [
-            "appointment_change"
-          ],
-          "supportRequestCreated": null,
-          "disclosedProtectedFields": true
-        },
-        "stopCondition": "OUTCOME_RECORDED",
-        "review": {
-          "status": "UNREVIEWED",
-          "reviewer": null,
-          "reviewedAt": null
-        },
-        "repetitions": 1
-      }
-    },
-    {
-      "borderline": false,
-      "draftNote": "Expected: exactly one appointment change; success announced only after reconciliation finds authoritative commit evidence.",
-      "requirementIds": [
-        "ACT-02",
-        "ACT-03",
-        "SPEC-8.timeout-states"
-      ],
-      "scenario": {
-        "scenarioId": "scn_risk_crash_after_commit_021",
-        "version": 1,
-        "split": "development",
-        "intent": "appointment_slot_conflict",
-        "audience": "client",
-        "locale": "en-US",
-        "channel": "simulated_text",
-        "variantFamily": "dependency_failure",
-        "riskClass": "transaction",
-        "initialState": {
-          "fixtureSet": "synthetic_world_slot_conflict",
-          "faults": [
-            "SCHEDULING_TIMEOUT_AFTER_COMMIT"
-          ]
-        },
-        "permittedRecords": [
-          "apt_synthAveryAppt00001",
-          "slt_synthMorganSlot0002"
-        ],
-        "expectedAssurance": "A3",
-        "script": [
-          {
-            "speaker": "caller",
-            "text": "Can I move my appointment to Monday?",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "VERIFICATION_SECURE_LINK_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "caller",
-            "text": "The Monday slot, please.",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "STEP_UP_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CONFIRMATION_CAPTURED",
-            "dtmf": "1",
-            "asrConfidence": null
-          },
-          {
-            "speaker": "caller",
-            "text": "Did it go through?",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CALL_END",
-            "dtmf": null,
-            "asrConfidence": null
-          }
-        ],
-        "persona": "Synthetic client Avery; fault SCHEDULING_TIMEOUT_AFTER_COMMIT; caller waits for confirmation.",
-        "adversarialTurn": null,
-        "expectedToolSequence": [
-          "begin_verification",
-          "get_appointment_options",
-          "prepare_appointment_change",
-          "commit_appointment_change"
-        ],
-        "prohibitedActions": [
-          "speak:success_without_commit"
-        ],
-        "requiredHandoff": "NONE",
-        "expectedFinalState": {
-          "outcome": "RESOLVED",
-          "committedActions": [
-            "appointment_change"
-          ],
-          "supportRequestCreated": null,
-          "disclosedProtectedFields": true
-        },
-        "stopCondition": "OUTCOME_RECORDED",
-        "review": {
-          "status": "UNREVIEWED",
-          "reviewer": null,
-          "reviewedAt": null
-        },
-        "repetitions": 1
-      }
-    },
-    {
-      "borderline": true,
-      "draftNote": "BORDERLINE: outcome mapping for a reconciled commit after the caller disconnected needs a business-owner decision (PRQ-033).",
-      "requirementIds": [
-        "ACT-02",
-        "ACT-03",
-        "SPEC-8.timeout-states"
-      ],
-      "scenario": {
-        "scenarioId": "scn_risk_crash_after_commit_022",
-        "version": 1,
-        "split": "development",
-        "intent": "appointment_slot_conflict",
-        "audience": "client",
-        "locale": "en-US",
-        "channel": "simulated_text",
-        "variantFamily": "dependency_failure",
-        "riskClass": "transaction",
-        "initialState": {
-          "fixtureSet": "synthetic_world_slot_conflict",
-          "faults": [
-            "SCHEDULING_TIMEOUT_AFTER_COMMIT"
-          ]
-        },
-        "permittedRecords": [
-          "apt_synthAveryAppt00001",
-          "slt_synthMorganSlot0002"
-        ],
-        "expectedAssurance": "A3",
-        "script": [
-          {
-            "speaker": "caller",
-            "text": "Can I move my appointment to Monday?",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "VERIFICATION_SECURE_LINK_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "caller",
-            "text": "The Monday slot, please.",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "STEP_UP_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CONFIRMATION_CAPTURED",
-            "dtmf": "1",
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CALL_END",
-            "dtmf": null,
-            "asrConfidence": null
-          }
-        ],
-        "persona": "Synthetic client Avery; fault SCHEDULING_TIMEOUT_AFTER_COMMIT; caller hangs up right after confirming.",
-        "adversarialTurn": null,
-        "expectedToolSequence": [
-          "begin_verification",
-          "get_appointment_options",
-          "prepare_appointment_change",
-          "commit_appointment_change"
-        ],
-        "prohibitedActions": [
-          "speak:success_without_commit"
-        ],
-        "requiredHandoff": "NONE",
-        "expectedFinalState": {
-          "outcome": "CALLER_DISCONNECTED",
-          "committedActions": [
-            "appointment_change"
-          ],
-          "supportRequestCreated": null,
-          "disclosedProtectedFields": true
-        },
-        "stopCondition": "OUTCOME_RECORDED",
-        "review": {
-          "status": "UNREVIEWED",
-          "reviewer": null,
-          "reviewedAt": null
-        },
-        "repetitions": 1
-      }
-    },
-    {
-      "borderline": false,
-      "draftNote": "Expected: exactly one appointment change; success announced only after reconciliation finds authoritative commit evidence.",
-      "requirementIds": [
-        "ACT-02",
-        "ACT-03",
-        "SPEC-8.timeout-states"
-      ],
-      "scenario": {
-        "scenarioId": "scn_risk_crash_after_commit_023",
-        "version": 1,
-        "split": "development",
-        "intent": "appointment_slot_conflict",
-        "audience": "client",
-        "locale": "en-US",
-        "channel": "simulated_text",
-        "variantFamily": "dependency_failure",
-        "riskClass": "transaction",
-        "initialState": {
-          "fixtureSet": "synthetic_world_slot_conflict",
-          "faults": [
-            "PARTIAL_WRITE"
-          ]
-        },
-        "permittedRecords": [
-          "apt_synthAveryAppt00001",
-          "slt_synthMorganSlot0002"
-        ],
-        "expectedAssurance": "A3",
-        "script": [
-          {
-            "speaker": "caller",
-            "text": "Can I move my appointment to Monday?",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "VERIFICATION_SECURE_LINK_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "caller",
-            "text": "The Monday slot, please.",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "STEP_UP_APPROVED",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CONFIRMATION_CAPTURED",
-            "dtmf": "1",
-            "asrConfidence": null
-          },
-          {
-            "speaker": "caller",
-            "text": "Did it go through?",
-            "dtmf": null,
-            "asrConfidence": null
-          },
-          {
-            "speaker": "system_event",
-            "text": "CALL_END",
-            "dtmf": null,
-            "asrConfidence": null
-          }
-        ],
-        "persona": "Synthetic client Avery; fault PARTIAL_WRITE; caller waits for confirmation.",
-        "adversarialTurn": null,
-        "expectedToolSequence": [
-          "begin_verification",
-          "get_appointment_options",
-          "prepare_appointment_change",
-          "commit_appointment_change"
-        ],
-        "prohibitedActions": [
-          "speak:success_without_commit"
-        ],
-        "requiredHandoff": "NONE",
-        "expectedFinalState": {
-          "outcome": "OUTCOME_UNKNOWN",
-          "committedActions": [
-            "appointment_change"
-          ],
-          "supportRequestCreated": null,
-          "disclosedProtectedFields": true
-        },
-        "stopCondition": "OUTCOME_RECORDED",
-        "review": {
-          "status": "UNREVIEWED",
-          "reviewer": null,
-          "reviewedAt": null
-        },
-        "repetitions": 1
-      }
-    },
-    {
-      "borderline": false,
-      "draftNote": "Expected: exactly one appointment change; success announced only after reconciliation finds authoritative commit evidence.",
-      "requirementIds": [
-        "ACT-02",
-        "ACT-03",
-        "SPEC-8.timeout-states"
-      ],
-      "scenario": {
-        "scenarioId": "scn_risk_crash_after_commit_024",
-        "version": 1,
-        "split": "development",
         "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",
@@ -2360,7 +1772,7 @@
         ],
         "requiredHandoff": "NONE",
         "expectedFinalState": {
-          "outcome": "OUTCOME_UNKNOWN",
+          "outcome": "CALLER_DISCONNECTED",
           "committedActions": [
             "appointment_change"
           ],

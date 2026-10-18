@@ -298,6 +298,8 @@ export const WORKER_LOOP_NAMES = [
   "transfers.sweep",
   "retention.run",
   "telephony.local_fixture_delivery",
+  "support.sync_retry",
+  "audit.deferred_flush",
 ] as const;
 
 /** Durable action grant check results (platform/src/workflows/grants.ts reason codes, lower-cased) plus engine-side gaps. */
@@ -462,6 +464,13 @@ export function createMetricCatalogue(ext: CatalogueExtensions = {}): MetricCata
     def("vsp_audit_export_completeness_ratio", "gauge", "ratio", "audit", "Shipped audit events divided by source event count", { source_component: AuditSourceComponent.options }),
     def("vsp_audit_backlog_events", "gauge", "1", "audit", "Audit events awaiting shipment"),
     def("vsp_audit_ingestion_gaps_total", "counter", "1", "audit", "Sequence gaps detected during audit ingestion", { source_component: AuditSourceComponent.options }),
+    // Deferred audit (platform/src/audit/deferred.ts): route evidence (human / safety handoff) written late after an audit outage.
+    def("vsp_audit_deferred_total", "counter", "1", "audit", "Route audit events deferred during an audit outage, flushed later, or dropped", {
+      result: ["queued", "flushed", "dropped"],
+      reason: ["store_unavailable", "queue_full", "invalid", "none"],
+    }),
+    def("vsp_audit_deferred_depth", "gauge", "1", "audit", "Route audit events waiting in the process-local deferred queue (lost on a crash)"),
+    def("vsp_audit_deferred_age_ms", "histogram", "ms", "audit", "Time from deferral to the durable append of a deferred route audit event"),
     def("vsp_protected_actions_total", "counter", "1", "service_objectives", "Protected actions by authorization and audit evidence", {
       authorization: ["valid_decision", "missing_decision"],
       audit: ["recorded_before_ack", "not_recorded"],

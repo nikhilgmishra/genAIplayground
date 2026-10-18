@@ -278,9 +278,14 @@ const FAULTED: readonly FaultedJourney[] = [
   {
     journeyId: J1,
     fault: "CONCURRENT_SAME_ACCOUNT",
+    // The other call commits first, so this call's first commit sees STATE_CHANGED (no effect). The script
+    // then re-reads options and confirms a freshly prepared action; the fault plan allows RESOLVED for
+    // exactly that path (fresh confirmation, one effect), and its transaction checks still apply.
     override: {
-      expectedToolSequence: ["begin_verification", "get_appointment_options", "prepare_appointment_change"],
-      expectedFinalState: { outcome: "INFORMATION_PROVIDED", committedActions: [], supportRequestCreated: false, disclosedProtectedFields: true },
+      expectedToolSequence: ["begin_verification", "get_appointment_options", "prepare_appointment_change", "commit_appointment_change", "get_appointment_options", "prepare_appointment_change", "commit_appointment_change"],
+      expectedFinalState: { outcome: "RESOLVED", committedActions: ["appointment_change"], supportRequestCreated: false, disclosedProtectedFields: true },
+      persona:
+        "Journey 1 with a concurrent call: another synthetic call for Avery changes the same appointment first; the stale commit is refused and a freshly prepared, freshly confirmed change commits once. Fault injected: CONCURRENT_SAME_ACCOUNT.",
     },
   },
   {

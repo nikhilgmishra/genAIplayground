@@ -143,9 +143,8 @@ both fields and each route `Choice` rule requires the event **and** one of its d
 (`And` of `StringEquals` plus an `Or` over the kinds). A missing field, an undeclared event or a
 non-permitted actor escalates; `POLICY_CHANGED_PENDING_ACTION` is not routable from a worker
 answer (only from a recheck decision); escalation `Pass` states carry `actorKind: "system"`.
-Recheck task messages carry the transition's `grantAction`. (The worker-contract paragraph in
-`infra/stepfunctions/README.md`, which is outside this module's editable paths, still shows the
-previous `{"event"}` answer and needs the same update by its owner.)
+Recheck task messages carry the transition's `grantAction`. The worker-contract paragraph in
+`infra/stepfunctions/README.md` documents the same `{"event", "actorKind"}` answer.
 
 See `infra/stepfunctions/README.md` for the document shape, the Terraform placeholders
 (`${system_task_queue_url}`, `${human_task_queue_url}`, `${notify_queue_url}`,

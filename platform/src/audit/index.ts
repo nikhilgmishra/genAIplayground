@@ -59,6 +59,8 @@ export type {
 export { PgAuditQuery, AuditSearchFilter, MAX_AUDIT_QUERY_LIMIT, auditedSearch } from "./query.js";
 export type { AuditAccessor } from "./query.js";
 export { buildAuditInput, auditFieldsFromAuth } from "./build-input.js";
+export { DEFERRED_AUDIT_BADGE, DEFERRED_AUDIT_MARKER_ACTION, DeferredAuditQueue } from "./deferred.js";
+export type { DeferredAuditQueueOptions, DeferredFlushResult } from "./deferred.js";
 export type { AuditInputFields } from "./build-input.js";
 export { AuditSinkError } from "./sinks/common.js";
 export { LocalFsAuditSinkFixture, LOCAL_SINK_BADGE } from "./sinks/local-fs.js";

@@ -254,3 +254,105 @@ describe("scenario corpus (synthetic, UNREVIEWED)", () => {
     for (const id of new Set(ids)) expect(catalog.resolve(id), id).toBeDefined();
   });
 });
+
+/**
+ * Regression for the corpus expectation conflicts found by the local corpus run (2026-10-18): each
+ * expectation must match spec-correct backend behaviour, without weakening a safety, privacy,
+ * authorization or audit expectation.
+ */
+describe("corpus expectations agree with spec-correct behaviour", () => {
+  const all = corpus.entries.map((e) => e.scenario);
+  const isEvent = (t: { speaker: string; text: string }, name: string) => t.speaker === "system_event" && (t.text === name || t.text.startsWith(`${name} `));
+
+  it("[ACT-04] [SPEC-10.transfer] a scenario that expects a human transfer never expects 'no support request' (every handoff writes summary.human_handoff)", () => {
+    const bad = all.filter(
+      (s) => (s.expectedToolSequence.includes("request_human_transfer") || s.requiredHandoff === "STANDARD_HUMAN") && s.expectedFinalState.supportRequestCreated === false,
+    );
+    expect(bad.map((s) => s.scenarioId)).toEqual([]);
+    const rep = all.filter((s) => s.variantFamily === "repeat_contact_or_handoff" && s.script.some((t) => t.text === "Actually, can I talk to a person now?"));
+    expect(rep.length).toBeGreaterThan(20);
+    for (const s of rep) expect(s.expectedFinalState.supportRequestCreated, s.scenarioId).toBe(true);
+  });
+
+  it("[SPEC-4.workflow-catalogue] [ACT-01] appointment cancellation is not an automated workflow: honest handoff, no prepare or commit, and no crash-after-commit draft depends on it", () => {
+    const cancel = all.filter((s) => s.intent === "appointment_cancel");
+    expect(cancel.length).toBeGreaterThanOrEqual(8);
+    for (const s of cancel) {
+      expect(s.expectedFinalState.committedActions, s.scenarioId).toEqual([]);
+      expect(s.expectedToolSequence.filter((t) => t === "prepare_appointment_change" || t === "commit_appointment_change"), s.scenarioId).toEqual([]);
+      expect(s.expectedFinalState.outcome, s.scenarioId).not.toBe("RESOLVED");
+    }
+    for (const s of routine.filter((x) => x.intent === "appointment_cancel")) {
+      expect(s.prohibitedActions, s.scenarioId).toContain("tool:commit_appointment_change");
+      expect(s.expectedToolSequence, s.scenarioId).toContain("request_human_transfer");
+    }
+    const crash = risk.filter((e) => e.riskFamily === "crash_after_commit").map((e) => e.scenario);
+    expect(crash.length).toBeGreaterThan(0);
+    expect(crash.filter((s) => s.intent === "appointment_cancel").map((s) => s.scenarioId)).toEqual([]);
+  });
+
+  it("[SPEC-8.salesforce-outage] a Salesforce outage does not change a case-status read served from the internal support record", () => {
+    const reads = routine.filter((s) => s.initialState.faults.includes("SALESFORCE_OUTAGE") && s.expectedToolSequence.includes("get_authorized_case_status"));
+    expect(reads.length).toBeGreaterThanOrEqual(6);
+    for (const s of reads) {
+      expect(s.expectedFinalState, s.scenarioId).toMatchObject({ outcome: "INFORMATION_PROVIDED", disclosedProtectedFields: true });
+      expect(s.requiredHandoff, s.scenarioId).toBe("NONE");
+    }
+    // The case-read skeletons that used to expect a transfer under the outage now read the internal record.
+    for (const intent of ["case_follow_up", "relay_service_caller", "shared_device_recap"]) {
+      expect(reads.some((s) => s.intent === intent), intent).toBe(true);
+    }
+  });
+
+  it("[SPEC-16.fault-injection] every faulted scenario's expected outcome is one its fault plans allow", () => {
+    const bad: string[] = [];
+    for (const s of all) {
+      for (const f of s.initialState.faults) {
+        for (const x of corpus.faultPlans.get(f)?.expectations ?? []) {
+          if (x.check === "outcome_in" && !x.outcomes.includes(s.expectedFinalState.outcome)) bad.push(`${s.scenarioId}:${f}:${s.expectedFinalState.outcome}`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it("[DATA-03] [SPEC-6.consent-before-recording] a recording decline after verification expects the earlier authorized read; a decline before verification expects no disclosure", () => {
+    const consent = risk.filter((e) => e.riskFamily === "consent_declined").map((e) => e.scenario);
+    let after = 0;
+    for (const s of consent) {
+      const verified = s.script.findIndex((t) => isEvent(t, "VERIFICATION_SECURE_LINK_APPROVED"));
+      const declined = s.script.findIndex((t) => isEvent(t, "RECORDING_DECLINED"));
+      expect(s.prohibitedActions, s.scenarioId).toContain("recording:started_after_decline");
+      if (verified >= 0 && verified < declined) {
+        after++;
+        expect(s.expectedFinalState.disclosedProtectedFields, s.scenarioId).toBe(true);
+        expect(s.expectedToolSequence.at(-1), s.scenarioId).toBe("request_human_transfer");
+        expect(s.expectedToolSequence.length, s.scenarioId).toBeGreaterThanOrEqual(3);
+      } else {
+        expect(s.expectedFinalState.disclosedProtectedFields, s.scenarioId).toBe(false);
+      }
+    }
+    expect(after).toBe(4);
+  });
+
+  it("[ACT-01] [ACT-02] the concurrent-call journey expects one freshly re-prepared and re-confirmed commit, as its script and fault plan describe", () => {
+    const s = all.find((j) => j.initialState.faults.includes("CONCURRENT_SAME_ACCOUNT"));
+    expect(s?.scenarioId).toBe("scn_journey_1_client_reschedule_conflict__concurrent_same_account");
+    if (!s) return;
+    expect(s.script.filter((t) => isEvent(t, "CONFIRMATION_CAPTURED"))).toHaveLength(2);
+    expect(s.expectedToolSequence.filter((t) => t === "prepare_appointment_change")).toHaveLength(2);
+    expect(s.expectedFinalState).toMatchObject({ outcome: "RESOLVED", committedActions: ["appointment_change"] });
+    expect(corpus.faultPlans.get("CONCURRENT_SAME_ACCOUNT")?.expectations.map((x) => x.check)).toEqual(expect.arrayContaining(["no_duplicate_effect", "confirmation_fresh"]));
+  });
+
+  it("[SPEC-14.failure-injection] read-only dependency timeouts share one configured handling (a human transfer), whatever the dependency", () => {
+    const TIMEOUTS = new Set(["BILLING_TIMEOUT", "CLAIMS_TIMEOUT", "PROVIDER_API_TIMEOUT", "SCHEDULING_UNAVAILABLE"]);
+    const reads = routine.filter((s) => s.variantFamily === "dependency_failure" && s.initialState.faults.some((f) => TIMEOUTS.has(f)) && s.expectedFinalState.committedActions.length === 0);
+    expect(reads.length).toBeGreaterThanOrEqual(10);
+    for (const s of reads) {
+      expect(s.expectedToolSequence.at(-1), s.scenarioId).toBe("request_human_transfer");
+      expect(s.requiredHandoff, s.scenarioId).toBe("STANDARD_HUMAN");
+      expect(s.expectedToolSequence, s.scenarioId).not.toContain("create_support_request");
+    }
+  });
+});

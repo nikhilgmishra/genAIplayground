@@ -1135,6 +1135,7 @@ export class PgWorkflowEngine implements WorkflowEngine {
         policySnapshotVersion: row.policy_snapshot_version,
         actor,
         now: iso(now),
+        tx,
       });
     } catch (err) {
       // Fail closed: no transition, nothing recorded as a policy change (it was not one).

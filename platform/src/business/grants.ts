@@ -24,7 +24,15 @@ import type { WorkflowType } from "../protocol/index.js";
 import { addMs } from "../shared/clock.js";
 import { durationSeconds } from "../workflows/duration.js";
 import { createDefaultRegistry } from "../workflows/registry.js";
+import type { WorkflowEngine } from "../workflows/ports.js";
 import type { ToolDeps } from "./contract.js";
+
+/**
+ * WorkflowEngine.start input plus the policy version snapshotted at acceptance (accepted by
+ * PgWorkflowEngine, workflows/engine.ts WorkflowStartInput). The engine compares it with the
+ * version the pre-disclosure recheck reports and records a newer policy (spec section 9).
+ */
+export type WorkflowStartWithSnapshot = Parameters<WorkflowEngine["start"]>[0] & { policySnapshotVersion: string };
 
 const MIN_GRANT_MS = 3_600_000;
 const MAX_GRANT_MS = 30 * 86_400_000;

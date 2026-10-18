@@ -6,7 +6,12 @@
  *   a personal representative at A2+, linked to the single represented subject the
  *   authoritative legal-authority registry names with scope support_request:create (policy
  *   support_request:create, representative path, still authorizes it; an ambiguous or
- *   missing authority resolves to a resource policy denies);
+ *   missing authority resolves to a resource policy denies); or, for an organization role
+ *   (practice staff, partner, payer representative) at A2+, linked to the caller's
+ *   server-established ORGANIZATION, authorized at creation by the organization's case:read
+ *   path (the path get_authorized_case_status reads it back through), so the request is
+ *   organization-scoped exactly as policy intends; a refused link is a denial, never a
+ *   silently person-only request;
  * - complaint: the intake itself is open (complaint:create). A verified A2+ caller's
  *   complaint is linked to the caller's own subject only when policy support_request:create
  *   (self path, subject-linked record) allows it at creation time; unverified callers'
@@ -21,9 +26,9 @@
 import type { AuthContext, IssueCategory, SupportRequest, ToolDefinition, WorkflowType } from "../../protocol/index.js";
 import { AccessDeniedError } from "../../shared/errors.js";
 import type { ToolDeps } from "../contract.js";
-import { issueWorkflowGrant } from "../grants.js";
+import { issueWorkflowGrant, type WorkflowStartWithSnapshot } from "../grants.js";
 import { decideNow } from "../policy.js";
-import { atLeast, auditSessionRef, reasonOf, subjectResource } from "../shared.js";
+import { atLeast, auditSessionRef, organizationResource, reasonOf, subjectResource } from "../shared.js";
 import { PgSupportRequestService } from "../support/support-request-service.js";
 import type { SupportRequestRecordInput } from "../support/support-request-service.js";
 
@@ -64,8 +69,15 @@ export interface IntakeContext {
   language: string;
 }
 
-/** Subject a support request may be linked to; policy still authorizes the link. */
-export type LinkTarget = { kind: "none" } | { kind: "subject"; subjectId: string } | { kind: "unresolved" };
+/** Subject or organization a support request may be linked to; policy still authorizes the link. */
+export type LinkTarget = { kind: "none" } | { kind: "subject"; subjectId: string } | { kind: "organization"; organizationId: string } | { kind: "unresolved" };
+
+/** Roles that act for an organization: their requests are organization-scoped (case:read organization paths). */
+export const ORGANIZATION_ROLES: ReadonlySet<string> = new Set(["practice_staff", "partner", "payer_representative"]);
+
+/** Policy purpose of an organization role's organization-scoped work (matches get_authorized_case_status). */
+export const organizationPurpose = (role: AuthContext["selectedRole"]): "delegated_practice_administration" | "partner_administration" =>
+  role === "practice_staff" ? "delegated_practice_administration" : "partner_administration";
 
 const REPRESENTATIVE_FACTS: ReadonlySet<string> = new Set(["legal_representative", "parental_authority"]);
 /** Scope a representative's authority must carry to link a support request to the represented subject. */
@@ -98,12 +110,16 @@ export class IntakeService {
   /**
    * The subject a requested link points at, from server-established state only: the A2+
    * caller's own subject, or for a personal representative at A2+ the single subject the
-   * authoritative registry names with scope support_request:create. No request to link, or
-   * below A2 => none (unlinked, as before). A representative without exactly one such
-   * subject => unresolved (policy denies; the model can retry without linking).
+   * authoritative registry names with scope support_request:create; for an organization role the
+   * caller's server-established organization. No request to link, or below A2 => none (unlinked,
+   * as before). A representative without exactly one such subject, or an organization role
+   * without an organization => unresolved (policy denies; the model can retry without linking).
    */
   async linkTarget(auth: AuthContext, linkToAccount: boolean): Promise<LinkTarget> {
     if (!linkToAccount || !atLeast(auth.assurance, "A2")) return { kind: "none" };
+    if (auth.selectedRole !== null && ORGANIZATION_ROLES.has(auth.selectedRole)) {
+      return auth.organizationId !== null ? { kind: "organization", organizationId: auth.organizationId } : { kind: "unresolved" };
+    }
     if (auth.selectedRole === "personal_representative") {
       if (!auth.actorId) return { kind: "unresolved" };
       const facts = await this.deps.adapters.relationships.relationshipsFor(auth.actorId, "personal_representative");
@@ -134,19 +150,47 @@ export class IntakeService {
     }
   }
 
-  async general(c: IntakeContext, input: { issueCategory: (typeof GENERAL_INTAKE_CATEGORIES)[number]; linkToAccount: boolean; urgency: (typeof URGENCY)[number] }): Promise<SupportRequest> {
+  /**
+   * An organization role's link to its organization is authorized NOW by the organization's
+   * case:read path (relationship fact from the authoritative delegation / partner-contract
+   * registry, with scope, A2): the caller must be able to follow the request up through
+   * get_authorized_case_status. Any refusal or evaluation error denies the request.
+   */
+  private async authorizeOrganizationLink(auth: AuthContext, organizationId: string, tool: Pick<ToolDefinition, "name" | "version" | "minAssurance" | "consequential">): Promise<void> {
+    let allowed = false;
+    let reason = "RESOURCE_NOT_AUTHORIZED";
+    try {
+      const d = await decideNow(this.deps, auth, { action: "case:read", purpose: organizationPurpose(auth.selectedRole), tool, resource: organizationResource(auth, "support_case", organizationId, "INTERNAL") });
+      allowed = d.allow;
+      if (!d.allow) reason = d.reasonCodes[0] ?? reason;
+    } catch (err) {
+      reason = reasonOf(err, "ORGANIZATION_LINK_UNAVAILABLE");
+    }
+    if (!allowed) {
+      this.deps.logger.warn("intake.organization_link_not_authorized", { reasonCode: reason });
+      throw new AccessDeniedError(/^[A-Z][A-Z0-9_]{2,63}$/.test(reason) ? reason : "RESOURCE_NOT_AUTHORIZED");
+    }
+  }
+
+  async general(
+    c: IntakeContext,
+    input: { issueCategory: (typeof GENERAL_INTAKE_CATEGORIES)[number]; linkToAccount: boolean; urgency: (typeof URGENCY)[number] },
+    tool: Pick<ToolDefinition, "name" | "version" | "minAssurance" | "consequential">,
+  ): Promise<{ supportRequest: SupportRequest; linkedTo: "subject" | "organization" | null }> {
     const target = await this.linkTarget(c.auth, input.linkToAccount);
     // Policy already denied an unresolved link; this is defence in depth (never link to a guessed subject).
     if (target.kind === "unresolved") throw new AccessDeniedError("RESOURCE_NOT_AUTHORIZED");
+    if (target.kind === "organization") await this.authorizeOrganizationLink(c.auth, target.organizationId, tool);
     const subjectRef = target.kind === "subject" ? target.subjectId : null;
+    const organizationRef = target.kind === "organization" ? target.organizationId : null;
     const sr = await this.support.createRecord({
       ...this.base(c),
       subjectRef,
-      organizationRef: null,
+      organizationRef,
       issueCategory: input.issueCategory,
       disposition: "REQUEST_ACCEPTED",
       summaryTemplateId: "summary.general_intake",
-      summarySlots: { issueCategory: input.issueCategory, linked: subjectRef ? "yes" : "no" },
+      summarySlots: { issueCategory: input.issueCategory, linked: subjectRef || organizationRef ? "yes" : "no" },
       attempted: ["support_request.create"],
       commitReceiptIds: [],
       nextStep: "TEAM_FOLLOW_UP",
@@ -155,7 +199,7 @@ export class IntakeService {
       ownerQueue: OWNER_QUEUE_BY_CATEGORY[input.issueCategory] ?? "q_support_general",
     });
     if (subjectRef) await this.support.rememberOpenIssue(c.auth, sr);
-    return sr;
+    return { supportRequest: sr, linkedTo: subjectRef ? "subject" : organizationRef ? "organization" : null };
   }
 
   async complaint(
@@ -237,10 +281,16 @@ export class IntakeService {
           actorId: record.actorRef ?? null,
           sourceRef: supportRequest.supportRequestId,
         });
-        const workflow = await this.deps.workflows.start(
-          { tenantId, type, correlationId: supportRequest.supportRequestId, sourceRecordRefs: grantRef ? [supportRequest.supportRequestId, grantRef] : [supportRequest.supportRequestId], grantRef },
-          tx,
-        );
+        const start: WorkflowStartWithSnapshot = {
+          tenantId,
+          type,
+          correlationId: supportRequest.supportRequestId,
+          sourceRecordRefs: grantRef ? [supportRequest.supportRequestId, grantRef] : [supportRequest.supportRequestId],
+          grantRef,
+          // Policy snapshot for reproducibility; the pre-disclosure recheck evaluates the CURRENT policy (spec section 9).
+          policySnapshotVersion: this.deps.versions.policyBundle,
+        };
+        const workflow = await this.deps.workflows.start(start, tx);
         await this.support.linkInTx(tx, supportRequest, "workflow", workflow.workflowId);
         return { supportRequest, workflowId: workflow.workflowId };
       },

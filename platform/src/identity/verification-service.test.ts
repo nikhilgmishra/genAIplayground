@@ -7,7 +7,7 @@ import type { DirectoryPersonFixture } from "../adapters/local/identity-director
 import { APPROVED_NOTIFICATION_TEMPLATES, NON_NEUTRAL_TERMS } from "../adapters/local/notification-fixture.js";
 import { LOCAL_FIXTURE_OTP_PEPPER, createIdentityHarness, mcp, portal, telephony } from "./identity-harness.fixture.js";
 import type { IdentityHarness } from "./identity-harness.fixture.js";
-import { kvKeys } from "./keys.js";
+import { kvKeys, sessionBindingRefFor } from "./keys.js";
 import { MATCH_CODE_PATTERN, MATCH_CODE_WORDS } from "./match-code.js";
 import { effectiveAssuranceFor } from "./verification-service.js";
 import type { BeginVerificationInput } from "./ports.js";
@@ -49,6 +49,9 @@ const shape = (o: Record<string, unknown>) =>
       .map(([k, v]) => [k, typeof v === "string" ? (/^vtx_|^otc_/.test(v) ? "<opaque-id>" : MATCH_CODE_PATTERN.test(v) ? "<match-code>" : v) : v]),
   );
 
+/** The audit-only binding an opened transaction reports: call id, NON-bearer binding ref, generation (never the bearer ref). */
+const bindingOf = (sessionRef: string, callId: string, sessionGeneration = 1) => ({ callId, sessionBindingRef: sessionBindingRefFor(sessionRef), sessionGeneration });
+
 async function newCall(h: IdentityHarness) {
   return h.startCall(newId("cal"));
 }
@@ -60,7 +63,8 @@ describe("secure link (preferred verification journey)", () => {
     const { begun, result } = await h.verifyWithSecureLink(PEOPLE.avery, sessionRef);
     expect(begun.response).toBe("IF_ELIGIBLE_A_LINK_WAS_SENT");
     expect(begun.matchCode).toMatch(MATCH_CODE_PATTERN);
-    expect(result).toEqual({ bound: true, reasonCode: "VERIFIED" });
+    expect(result).toEqual({ bound: true, reasonCode: "VERIFIED", binding: bindingOf(sessionRef, CALLS.primary.callId) });
+    expect(JSON.stringify(result)).not.toContain(sessionRef);
     const ctx = await h.sessions.resolve(sessionRef, mcp());
     expect(ctx).toMatchObject({
       actorId: PEOPLE.avery.actorId,
@@ -224,7 +228,8 @@ describe("secure link (preferred verification journey)", () => {
     if (!link) throw new Error("FIXTURE_NO_LINK");
     await h.sessions.applyChange(sessionRef, telephony(), { kind: "PARTICIPANT_CHANGED" });
     const idToken = await h.idp.issueFor(PEOPLE.avery, { nonce: link.nonce });
-    expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "SESSION_GENERATION_CHANGED" });
+    // The binding names the transaction's own call and generation (1), not the changed session.
+    expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "SESSION_GENERATION_CHANGED", binding: bindingOf(sessionRef, ctx.callId, 1) });
     const after = await h.sessions.resolve(sessionRef, mcp());
     expect(after.assurance).toBe("A0");
     expect(after.actorId).toBeNull();
@@ -250,7 +255,7 @@ describe("secure link (preferred verification journey)", () => {
     if (!linkC) throw new Error("FIXTURE_NO_LINK");
     await h.sessions.endCall(c.sessionRef, telephony());
     const tokenC = await h.idp.issueFor(PEOPLE.avery, { nonce: linkC.nonce });
-    expect(await h.verification.completeSecureLink({ ...linkC, idToken: tokenC, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "SESSION_ENDED" });
+    expect(await h.verification.completeSecureLink({ ...linkC, idToken: tokenC, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "SESSION_ENDED", binding: bindingOf(c.sessionRef, CALLS.repeat.callId) });
   });
 
   it("[SPEC-14.FIXATION] the person must confirm the match code heard on this call; a refusal burns the transaction", async () => {
@@ -262,7 +267,8 @@ describe("secure link (preferred verification journey)", () => {
     const shown = await h.verification.describeTransaction(link, portal());
     expect(shown.matchCode).toBe(begun.matchCode);
     const idToken = await h.idp.issueFor(PEOPLE.avery, { nonce: link.nonce });
-    expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: false })).toEqual({ bound: false, reasonCode: "MATCH_CODE_NOT_CONFIRMED" });
+    expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: false })).toEqual({ bound: false, reasonCode: "MATCH_CODE_NOT_CONFIRMED", binding: bindingOf(sessionRef, ctx.callId) });
+    // A reused (unopened) transaction is never attributed to a call.
     expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "VERIFICATION_TRANSACTION_ALREADY_USED" });
     expect((await h.sessions.resolve(sessionRef, mcp())).assurance).toBe("A0");
   });
@@ -330,7 +336,7 @@ describe("secure link (preferred verification journey)", () => {
     const code = h.otpFor(AVERY_SMS) ?? "";
     h.clock.advanceSeconds(61);
     const idToken = await h.idp.issueFor(PEOPLE.avery, { nonce: link.nonce });
-    expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "SESSION_EXPIRED" });
+    expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "SESSION_EXPIRED", binding: bindingOf(sessionRef, ctx.callId) });
     expect(await reasonOf(h.verification.submitOtp({ sessionRef, challengeId: otp.challengeId, code }, telephony()))).toBe("SESSION_EXPIRED");
     expect(await h.sessions.store.load(sha256Hex(sessionRef))).not.toBeNull();
     expect((await h.sessions.authGate(sessionRef, telephony())).isAuthenticated).toBe(false);
@@ -338,13 +344,13 @@ describe("secure link (preferred verification journey)", () => {
 
   it("[SPEC-7.VERIFY] an account locked after the link was sent cannot be bound", async () => {
     const h = await createIdentityHarness();
-    const { ctx } = await h.startCall();
+    const { ctx, sessionRef } = await h.startCall();
     await h.verification.beginSecureLink(ctx, { role: "client", locator: averyLocator });
     const link = h.linkFor(AVERY_SMS);
     if (!link) throw new Error("FIXTURE_NO_LINK");
     h.directory.setAccountState(PEOPLE.avery.accountId, "RECOVERY_IN_PROGRESS");
     const idToken = await h.idp.issueFor(PEOPLE.avery, { nonce: link.nonce });
-    expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "ACCOUNT_NOT_ACTIVE" });
+    expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "ACCOUNT_NOT_ACTIVE", binding: bindingOf(sessionRef, ctx.callId) });
   });
 
   it("[AUTH-03] verification cannot silently switch accounts: a second account on the same generation is refused", async () => {
@@ -357,7 +363,7 @@ describe("secure link (preferred verification journey)", () => {
     const link = h.linkFor(BLAKE_SMS);
     if (!link) throw new Error("FIXTURE_NO_LINK");
     const idToken = await h.idp.issueFor(PEOPLE.blake, { nonce: link.nonce });
-    expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "ACCOUNT_ALREADY_BOUND" });
+    expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "ACCOUNT_ALREADY_BOUND", binding: bindingOf(sessionRef, CALLS.primary.callId) });
     expect((await h.sessions.resolve(sessionRef, mcp())).actorId).toBe(PEOPLE.avery.actorId);
   });
 
@@ -603,7 +609,7 @@ describe("step-up (A3 bound to one prepared action)", () => {
     const link = h.linkFor(AVERY_SMS);
     if (!link) throw new Error("FIXTURE_NO_LINK");
     const idToken = await h.idp.issueFor(PEOPLE.avery, { nonce: link.nonce, amr: ["hwk"] });
-    expect(await h.verification.completeStepUp({ ...link, idToken })).toEqual({ bound: true, reasonCode: "STEP_UP_VERIFIED" });
+    expect(await h.verification.completeStepUp({ ...link, idToken })).toEqual({ bound: true, reasonCode: "STEP_UP_VERIFIED", binding: bindingOf(sessionRef, ctx.callId) });
     const after = await h.sessions.resolve(sessionRef, mcp());
     expect(after.assurance).toBe("A2");
     expect(after.stepUp).toEqual({ actionDigest: DIGEST, verifiedAt: "2026-10-17T15:00:00.000Z", expiresAt: "2026-10-17T15:05:00.000Z" });
@@ -618,21 +624,21 @@ describe("step-up (A3 bound to one prepared action)", () => {
   it("[SPEC-7.STEP_UP] an authentication older than 120 s, another person, or a changed generation is refused", async () => {
     {
       const h = await createIdentityHarness();
-      const { ctx } = await a2(h);
+      const { ctx, sessionRef } = await a2(h);
       await h.verification.beginStepUp(ctx, DIGEST);
       const link = h.linkFor(AVERY_SMS);
       if (!link) throw new Error("FIXTURE_NO_LINK");
       const stale = await h.idp.issueFor(PEOPLE.avery, { nonce: link.nonce, authTime: Math.floor(h.clock.now().getTime() / 1000) - 121 - 5 });
-      expect(await h.verification.completeStepUp({ ...link, idToken: stale })).toEqual({ bound: false, reasonCode: "OIDC_AUTH_TOO_OLD" });
+      expect(await h.verification.completeStepUp({ ...link, idToken: stale })).toEqual({ bound: false, reasonCode: "OIDC_AUTH_TOO_OLD", binding: bindingOf(sessionRef, ctx.callId) });
     }
     {
       const h = await createIdentityHarness();
-      const { ctx } = await a2(h);
+      const { ctx, sessionRef } = await a2(h);
       await h.verification.beginStepUp(ctx, DIGEST);
       const link = h.linkFor(AVERY_SMS);
       if (!link) throw new Error("FIXTURE_NO_LINK");
       const other = await h.idp.issueFor(PEOPLE.blake, { nonce: link.nonce });
-      expect(await h.verification.completeStepUp({ ...link, idToken: other })).toEqual({ bound: false, reasonCode: "ACTOR_MISMATCH" });
+      expect(await h.verification.completeStepUp({ ...link, idToken: other })).toEqual({ bound: false, reasonCode: "ACTOR_MISMATCH", binding: bindingOf(sessionRef, ctx.callId) });
     }
     {
       const h = await createIdentityHarness();
@@ -642,7 +648,7 @@ describe("step-up (A3 bound to one prepared action)", () => {
       if (!link) throw new Error("FIXTURE_NO_LINK");
       await h.sessions.applyChange(sessionRef, telephony(), { kind: "RISK_ESCALATION", flag: "FRAUD_REVIEW" });
       const idToken = await h.idp.issueFor(PEOPLE.avery, { nonce: link.nonce });
-      expect(await h.verification.completeStepUp({ ...link, idToken })).toEqual({ bound: false, reasonCode: "SESSION_GENERATION_CHANGED" });
+      expect(await h.verification.completeStepUp({ ...link, idToken })).toEqual({ bound: false, reasonCode: "SESSION_GENERATION_CHANGED", binding: bindingOf(sessionRef, ctx.callId, 1) });
     }
   });
 

@@ -14,7 +14,7 @@
  *   prove the console never returns them.
  */
 import type { HandoffResult, HandoffService, SupportRequestService, SupportRequestTrace, SupportRequestTraceOptions } from "../../business/contract.js";
-import { AccessDeniedError } from "../../shared/errors.js";
+import { AccessDeniedError, ConflictError } from "../../shared/errors.js";
 import type { DestinationConfig } from "../../config/ports.js";
 import { CALLS, PEOPLE, TENANT_ID } from "../../fixtures/synthetic-world.js";
 import type { SupportRequest, TransferReason } from "../../protocol/index.js";
@@ -219,5 +219,20 @@ export class SupportRequestServiceFixture implements SupportRequestService {
 
   async listUnsynced(tenantId: string, limit: number): Promise<SupportRequest[]> {
     return [...this.byRef.values()].filter((v) => v.sr.tenantId === tenantId && v.sr.syncState !== "SYNCED").slice(0, limit).map((v) => structuredClone(v.sr));
+  }
+
+  /** Every operator repair (opaque ids and reason codes only). */
+  readonly repairs: { supportRequestId: string; actorRef: string; reasonCode: string }[] = [];
+
+  /** Mirrors PgSupportRequestService.repairDeadLetter: DEAD_LETTER only, back to PENDING with the attempt budget reset. */
+  async repairDeadLetter(tenantId: string, supportRequestId: string, operator: { actorRef: string; reasonCode: string }): Promise<SupportRequest> {
+    const v = [...this.byRef.values()].find((x) => x.sr.tenantId === tenantId && x.sr.supportRequestId === supportRequestId);
+    if (!v) throw new AccessDeniedError("SUPPORT_REQUEST_NOT_FOUND");
+    if (v.sr.syncState !== "DEAD_LETTER") throw new ConflictError("SUPPORT_REQUEST_NOT_DEAD_LETTERED");
+    v.sr.syncState = "PENDING";
+    v.attempts = 0;
+    v.lastReasonCode = operator.reasonCode;
+    this.repairs.push({ supportRequestId, actorRef: operator.actorRef, reasonCode: operator.reasonCode });
+    return structuredClone(v.sr);
   }
 }

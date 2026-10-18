@@ -66,7 +66,7 @@ export interface StepSnapshot {
 interface ToolTrigger {
   phase: "before" | "after";
   tool: string | null;
-  fire: (name: string, result: ToolResult | null, s: CallSession) => Promise<void>;
+  fire: (name: string, result: ToolResult | null, s: CallSession, args: Readonly<Record<string, unknown>>) => Promise<void>;
   fired: boolean;
 }
 
@@ -182,7 +182,6 @@ function driverKbArticle(set: string): KnowledgeItemInput | null {
 
 /** Fault plans the driver refuses (and why): never simulated as success. */
 export const UNINJECTABLE_FAULTS: Readonly<Record<string, string>> = {
-  KNOWLEDGE_STALE: "KNOWLEDGE_STALE_NOT_INJECTABLE_BY_LOCAL_DRIVER",
   REGIONAL_FAILOVER: "WRITE_FENCE_NEEDS_CONTAINER_RESTART",
   REDACTION_FAILURE: "NO_REDACTION_STAGE_IN_LOCAL_CALL_PATH",
 };
@@ -387,6 +386,14 @@ export class LocalConversationDriver implements ConversationDriver {
         onTool("before", "get_claim_status", async () => {
           faults.inject({ integrationId: "claims", operation: "*", kind: "TIMEOUT_BEFORE_SEND", mode: "persistent" });
           mark();
+        });
+        return { accepted: true };
+      case "KNOWLEDGE_STALE":
+        // The approved article(s) answering the searched intent expire during the call (see expireKnowledge).
+        onTool("before", "search_approved_runbook", async (_n, _r, s, args) => {
+          const intent = typeof args.intent === "string" ? args.intent : null;
+          if (intent === null) call.notes.push("KNOWLEDGE_STALE_INTENT_NOT_SENT");
+          else if (await this.expireKnowledge(call, s, intent)) mark();
         });
         return { accepted: true };
       case "SCHEDULING_UNAVAILABLE":
@@ -632,21 +639,21 @@ export class LocalConversationDriver implements ConversationDriver {
   private hooksFor(call: DriverCall): ToolHooks {
     const matches = (t: ToolTrigger, name: string) => (t.tool === null ? isConsequentialToolName(name) : t.tool === name);
     return {
-      beforeTool: async (name, s) => {
+      beforeTool: async (name, s, args) => {
         for (const a of call.around) if (!a.manifested && a.tool === name) await a.before(s);
         for (const t of call.triggers) {
           if (t.phase !== "before" || t.fired || !matches(t, name)) continue;
           t.fired = true;
-          await t.fire(name, null, s);
+          await t.fire(name, null, s, args);
         }
       },
-      afterTool: async (name, result, s) => {
+      afterTool: async (name, result, s, args) => {
         for (const a of call.around) if (!a.manifested && a.tool === name) a.manifested = await a.after(result, s);
         for (const t of call.triggers) {
           if (t.phase !== "after" || t.fired || !matches(t, name)) continue;
           if (t.tool === null && !(result?.status === "SUCCESS" || result?.status === "PENDING")) continue;
           t.fired = true;
-          await t.fire(name, result, s);
+          await t.fire(name, result, s, args);
         }
       },
     };
@@ -699,6 +706,57 @@ export class LocalConversationDriver implements ConversationDriver {
         return true;
       }
     }
+  }
+
+  /**
+   * KNOWLEDGE_STALE through the REAL knowledge service: every article version in service for `intent`
+   * gets a successor version (same content, owner and approval) that expires one second from now; the
+   * ingestion pipeline lets it supersede the version in service, then simulated time passes the expiry.
+   * Nothing is edited in place (a stored version is immutable). The fault counts as injected only if
+   * no unexpired servable article for the intent remains; otherwise the reason is noted.
+   */
+  private async expireKnowledge(call: DriverCall, s: CallSession, intent: string): Promise<boolean> {
+    const { container: c, tenantId } = call.stack;
+    const inService = async (at: Date) =>
+      c.db.tx(
+        async (tx) =>
+          (
+            await tx.query<{ source_id: string; version: number }>(
+              "select source_id, version from knowledge_items where tenant_id = $1 and servable and $2 = any(permitted_intents) and (expires_at is null or expires_at > $3::timestamptz) order by source_id",
+              [tenantId, intent, at.toISOString()],
+            )
+          ).rows,
+        { role: "owner" },
+      );
+    const live = await inService(call.stack.clock.now());
+    if (live.length === 0) {
+      call.notes.push("KNOWLEDGE_STALE_NO_ARTICLE_IN_SERVICE");
+      return false;
+    }
+    const known = [
+      ...loadLocalCorpus({ set: "approved", environment: "local" }).map((f) => f.item as KnowledgeItemInput),
+      ...loadLocalCorpus({ set: "adversarial", environment: "local" }).map((f) => f.item as KnowledgeItemInput),
+      ...Object.keys(DRIVER_KB_ARTICLES).flatMap((set) => driverKbArticle(set) ?? []),
+    ];
+    const expiresAt = new Date(call.stack.clock.now().getTime() + 1_000).toISOString();
+    const successors: KnowledgeItemInput[] = [];
+    for (const row of live) {
+      const base = known.find((i) => i.sourceId === row.source_id && i.version === row.version);
+      if (!base) {
+        call.notes.push("KNOWLEDGE_STALE_SOURCE_NOT_REPRODUCIBLE");
+        return false;
+      }
+      successors.push({ ...base, version: row.version + 1, expiresAt });
+    }
+    const report = await c.knowledge.ingestDetailed(tenantId, successors);
+    if (report.accepted.length !== successors.length) call.notes.push(`KNOWLEDGE_STALE_SUCCESSORS_NOT_LIVE_${successors.length - report.accepted.length}`);
+    s.tick(2_000);
+    const remaining = await inService(call.stack.clock.now());
+    if (remaining.length > 0) {
+      call.notes.push("KNOWLEDGE_STALE_ARTICLE_STILL_CURRENT");
+      return false;
+    }
+    return true;
   }
 
   /** One open authorized support case for the caller, created by an earlier SYNTHETIC call through the public surface. */

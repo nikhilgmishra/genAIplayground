@@ -191,6 +191,21 @@ describe("[ACT-04] interaction outcome rules", () => {
     expect(decideOutcome("unknown_contract@1", { ...none, informationProvided: true }, []).outcome).toBe("OUTCOME_UNKNOWN");
   });
 
+  it("[ACT-03][ACT-04] a commit unsettled at call end (COMMITTING / UNKNOWN) is OUTCOME_UNKNOWN, never INFORMATION_PROVIDED, REQUEST_ACCEPTED or a lesser outcome; only a transfer or verified resolution outranks it", () => {
+    fc.assert(
+      fc.property(arbEvidence, fc.constantFrom(...CONTRACT_IDS, null), fc.subarray(["appointment.reschedule", "appointment.create", "billing.review.submit"] as const), fc.integer({ min: 1, max: 3 }), (ev, contractId, kinds, unsettled) => {
+        const d = decideOutcome(contractId, ev, kinds, unsettled);
+        const settled = decideOutcome(contractId, ev, kinds, 0);
+        if (settled.outcome === "TRANSFERRED" || settled.outcome === "RESOLVED" || settled.reasonCode === "CONTRACT_UNKNOWN") expect(d).toEqual(settled);
+        else expect(d).toEqual({ outcome: "OUTCOME_UNKNOWN", reasonCode: "COMMIT_OUTCOME_UNKNOWN" });
+      }),
+      { seed: 20261018, numRuns: 400 },
+    );
+    const informationOnly = { commitReceiptIds: [], informationProvided: true, requestAccepted: false, transferConnected: false, callerDisconnected: false, policyDeclined: false, failed: false };
+    expect(decideOutcome(null, informationOnly, [], 1)).toEqual({ outcome: "OUTCOME_UNKNOWN", reasonCode: "COMMIT_OUTCOME_UNKNOWN" });
+    expect(decideOutcome(null, informationOnly, [], 0)).toEqual({ outcome: "INFORMATION_PROVIDED", reasonCode: "INFORMATION_PROVIDED" });
+  });
+
   it("[ACT-04] a claimed receipt that is not this call's COMMITTED receipt does not resolve (verified against the action index)", async () => {
     const { ctx } = await h.startCall("cal_synthCallOutcome00001");
     const r = await h.business.outcomes.record({

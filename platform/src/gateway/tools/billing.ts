@@ -25,6 +25,8 @@ const readPurpose = (auth: AuthContext): PolicyPurpose => (auth.selectedRole ===
 
 // ---------------------------------------------------------------------------- invoice
 
+const LineCode = z.enum(["SESSION_FEE", "LATE_CANCELLATION", "NO_SHOW", "ADJUSTMENT", "PAYMENT"]);
+
 const InvoiceRecord = z.strictObject({
   invoiceId: Id,
   issuedOn: DateArg,
@@ -32,14 +34,29 @@ const InvoiceRecord = z.strictObject({
   status: z.enum(["OPEN", "PAID", "IN_REVIEW", "VOID"]),
   balanceMinor: z.number().int(),
   currency: z.literal("USD"),
-  lines: z.array(z.strictObject({ code: z.enum(["SESSION_FEE", "LATE_CANCELLATION", "NO_SHOW", "ADJUSTMENT", "PAYMENT"]), serviceDate: DateArg, amountMinor: z.number().int() })).max(32),
+  lines: z.array(z.strictObject({ code: LineCode, serviceDate: DateArg, amountMinor: z.number().int() })).max(32),
 });
 
-export const InvoiceInput = z.strictObject({
-  invoiceId: Id.nullable(),
-  detail: z.enum(["BALANCE", "LINE_EXPLANATION", "PAYMENT_PAGE"]),
-  serviceDate: DateArg.nullable(),
-});
+/**
+ * Optional LINE_EXPLANATION selector: the charge the caller names, by its authoritative charge
+ * code and/or amount in integer minor units (at least one). The explanation then targets exactly
+ * that line; a selector matching no line, or several, explains no line (balance facts instead).
+ * Line ids are not offered: they are outside the invoice:read field mask, so the conversational
+ * layer never sees one.
+ */
+export const ChargeSelector = z
+  .strictObject({ chargeCode: LineCode.nullable(), amountMinor: z.number().int().min(0).max(100_000_000).nullable() })
+  .refine((v) => v.chargeCode !== null || v.amountMinor !== null, { message: "CHARGE_SELECTOR_EMPTY" });
+export type ChargeSelectorT = z.infer<typeof ChargeSelector>;
+
+export const InvoiceInput = z
+  .strictObject({
+    invoiceId: Id.nullable(),
+    detail: z.enum(["BALANCE", "LINE_EXPLANATION", "PAYMENT_PAGE"]),
+    serviceDate: DateArg.nullable(),
+    line: ChargeSelector.nullable().optional(),
+  })
+  .refine((v) => v.line === undefined || v.line === null || v.detail === "LINE_EXPLANATION", { message: "CHARGE_SELECTOR_REQUIRES_LINE_EXPLANATION" });
 export const InvoiceOutput = z.strictObject({
   invoices: z.array(InvoiceRecord).max(10),
   paymentAvailable: z.boolean(),
@@ -59,13 +76,25 @@ const invoiceRecord = (i: Invoice): z.infer<typeof InvoiceRecord> => ({
 /** Line codes the approved explanation template can name. */
 const EXPLAINABLE_LINES: Record<string, string> = { SESSION_FEE: "SESSION_FEE", LATE_CANCELLATION: "LATE_CANCELLATION" };
 
-function invoiceSpeech(s: BusinessServices, detail: z.infer<typeof InvoiceInput>["detail"], inv: Invoice | undefined, serviceDate: string | null, payable: boolean): ToolSpeech {
+/**
+ * The line a LINE_EXPLANATION explains. With a selector the caller named one charge: exactly one
+ * line must match it (never a different or a guessed line). Without one, the first explainable
+ * line (on the service date when given), as before.
+ */
+export function selectInvoiceLine(inv: Pick<Invoice, "lines">, serviceDate: string | null, selector: ChargeSelectorT | null | undefined): Invoice["lines"][number] | undefined {
+  const onDate = inv.lines.filter((l) => serviceDate === null || l.serviceDate === serviceDate);
+  if (!selector) return onDate.find((l) => EXPLAINABLE_LINES[l.code]);
+  const matches = onDate.filter((l) => (selector.chargeCode === null || l.code === selector.chargeCode) && (selector.amountMinor === null || l.amountMinor === selector.amountMinor));
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function invoiceSpeech(s: BusinessServices, input: Pick<z.infer<typeof InvoiceInput>, "detail" | "serviceDate" | "line">, inv: Invoice | undefined, payable: boolean): ToolSpeech {
   if (!inv) return speechFor(s.deps.templates, "lookup.none_found");
   const refs = [sourceRef("billing", inv.invoiceId)];
-  if (detail === "PAYMENT_PAGE") return speechFor(s.deps.templates, payable ? "billing.payment_page" : "billing.not_payable");
-  if (detail === "LINE_EXPLANATION") {
-    const line = inv.lines.find((l) => (serviceDate === null || l.serviceDate === serviceDate) && EXPLAINABLE_LINES[l.code]);
-    if (line && line.amountMinor >= 0) {
+  if (input.detail === "PAYMENT_PAGE") return speechFor(s.deps.templates, payable ? "billing.payment_page" : "billing.not_payable");
+  if (input.detail === "LINE_EXPLANATION") {
+    const line = selectInvoiceLine(inv, input.serviceDate, input.line);
+    if (line && EXPLAINABLE_LINES[line.code] && line.amountMinor >= 0) {
       return speechFor(s.deps.templates, "invoice.line_explanation", { serviceDate: line.serviceDate, amount: line.amountMinor, lineType: EXPLAINABLE_LINES[line.code] as string }, refs);
     }
   }
@@ -99,7 +128,7 @@ export function getInvoiceStatusTool(s: BusinessServices): ToolModule<z.infer<ty
         }
         const focus = invoices.find((i) => i.status === "OPEN") ?? invoices[0];
         const path = focus ? await s.billing.paymentPath(focus) : null;
-        return ok({ invoices: invoices.map(invoiceRecord), paymentAvailable: path !== null, paymentPortalPath: path }, invoiceSpeech(s, input.detail, focus, input.serviceDate, path !== null));
+        return ok({ invoices: invoices.map(invoiceRecord), paymentAvailable: path !== null, paymentPortalPath: path }, invoiceSpeech(s, input, focus, path !== null));
       } catch (err) {
         return fromError(err, "BILLING_LOOKUP_FAILED");
       }

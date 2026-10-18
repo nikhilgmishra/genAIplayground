@@ -709,7 +709,7 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
       method: "POST",
       path: "/telephony/v1/session/end",
       channel: tc,
-      summary: "Call end: releases the AI capacity lease, ends the session (privileges dropped), invalidates pending actions and records the interaction outcome from server-side evidence (ACT-04). The gateway enforces expiry even if this is never sent (AUTH-04).",
+      summary: "Call end: releases the AI capacity lease, ends the session (privileges dropped), invalidates pending actions and records the interaction outcome from server-side evidence (ACT-04). An expired or revoked session still gets its outcome, keyed by the trusted call id the start-call binding established for this integration. The gateway enforces expiry even if this is never sent (AUTH-04).",
       tags: ["telephony-control"],
       headers: OPTIONAL_SESSION_HEADERS,
       body: EndBody,
@@ -722,7 +722,8 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
         try {
           s = await session(ctx);
         } catch (err) {
-          return { status: 200, body: { ended: false, outcome: null, reasonCode: err instanceof PlatformError && /^[A-Z][A-Z0-9_]{2,63}$/.test(err.reasonCode) ? err.reasonCode : "SESSION_INVALID" } };
+          const sessionReason = err instanceof PlatformError && /^[A-Z][A-Z0-9_]{2,63}$/.test(err.reasonCode) ? err.reasonCode : "SESSION_INVALID";
+          return { status: 200, body: await endWithoutLiveSession(d, ctx, ref, sessionReason) };
         }
         await d.sessions.endCall(s.sessionRef, s.integration);
         await d.actions.invalidatePending(s.sessionRef, "CALL_ENDED").catch(() => 0);
@@ -742,6 +743,48 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
     }),
   ];
   return routes as RouteDef<unknown, unknown>[];
+}
+
+/**
+ * TC-11 when the session no longer resolves (expired, revoked, ended elsewhere, wrong generation):
+ * every call still gets an interaction outcome (ACT-04). The call is identified ONLY by the trusted
+ * transport (the authenticated Studio identity's X-VSP-Interaction-Id) AND the start-call binding
+ * TC-01 recorded for this tenant and integration; a bearer reference, when sent, must be exactly that
+ * call's session. Anything else (unknown call, a session of another call, an unavailable lookup)
+ * records nothing. Privileges stay dropped: the session is marked ended, pending actions are
+ * invalidated and the outcome evidence is gathered server-side only (gatherOutcomeEvidence).
+ */
+async function endWithoutLiveSession(
+  d: TelephonyRouteDeps,
+  ctx: RouteContext<z.infer<typeof EndBody>, unknown>,
+  bearerRef: string | null,
+  sessionReason: string,
+): Promise<z.infer<typeof EndResponse>> {
+  const notRecorded = { ended: false, outcome: null, reasonCode: sessionReason };
+  const integration = ctx.integration;
+  const header = ctx.header(INTERACTION_ID_HEADER)?.trim() ?? null;
+  if (!integration || !header || !OpaqueId.safeParse(header).success || !d.interactionLookup) return notRecorded;
+  const key = { tenantId: d.tenantId, integrationId: integration.integrationId, interactionId: header };
+  const bound = await d.interactionLookup.lookup(key).catch(() => null);
+  if (!bound || (bearerRef !== null && bearerRef !== bound)) return notRecorded;
+  if (bearerRef === null) {
+    const lease = d.leases.take(bound);
+    if (lease?.leaseId) d.admission.releaseSession?.(lease.leaseId);
+  }
+  await d.sessions.endCall(bound, integration).catch(() => undefined);
+  await d.actions.invalidatePending(bound, "CALL_ENDED", d.tenantId).catch(() => 0);
+  d.interactionLookup.unbind(key);
+  let outcome: { outcome: z.infer<typeof Outcome>; reasonCode: string } | null = null;
+  try {
+    const evidence = await gatherOutcomeEvidence(d, bound, header, ctx.body.reason === "CALLER_HANGUP");
+    outcome = await d.outcomes.record({ tenantId: d.tenantId, callId: header, contractId: null, evidence });
+  } catch (err) {
+    d.logger.warn("gateway.outcome.record_failed", { reasonCode: err instanceof PlatformError ? err.reasonCode : "UNCLASSIFIED_ERROR" });
+  }
+  // The session-failure reason is the evidence here (the session was no longer valid at call end).
+  await d.audit.record({ tenantId: d.tenantId, action: SESSION_AUDIT_ACTIONS.ended, outcome: "SUCCEEDED", sourceComponent: "telephony_control", sessionRef: bound, callId: header, reasonCode: sessionReason, correlationId: ctx.requestId });
+  const reasonCode = outcome && /^[A-Z][A-Z0-9_]{2,63}$/.test(outcome.reasonCode) ? outcome.reasonCode : "OUTCOME_NOT_RECORDED";
+  return { ended: true, outcome: outcome?.outcome ?? null, reasonCode };
 }
 
 /** Validated-signal instant of a safety incident (no I/O; null when no recorder is wired or input is unusable). */

@@ -67,6 +67,8 @@ export const ENDPOINT_POLICY_ACTIONS: Readonly<Record<AuthenticatedEndpointKey, 
   "calls.transfer": ["call:transfer"],
   /** Restricted support requests additionally need `restricted_record:view` (valid break-glass). */
   "supportRequests.trace": ["journey:inspect"],
+  /** Same operator repair action as outbox.requeue; restricted requests additionally need `restricted_record:view`. */
+  "supportRequests.repair": ["dlq:repair"],
   "actions.pending": ["pending_action:review"],
   /** support_agent only via assignedRoles when the call is assigned to them; supervisor via roles. */
   "actions.cancel": ["pending_action:cancel"],
@@ -98,6 +100,7 @@ export const ENDPOINT_RESOURCE_TYPES: Readonly<Record<AuthenticatedEndpointKey, 
   "calls.get": "support_journey",
   "calls.transfer": "support_journey",
   "supportRequests.trace": "support_request",
+  "supportRequests.repair": "support_request",
   "actions.pending": "pending_action",
   "actions.cancel": "pending_action",
   "reconciliation.list": "reconciliation_queue",

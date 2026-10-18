@@ -67,8 +67,9 @@ export interface ScreeningOutcome {
 }
 
 export interface ToolHooks {
-  beforeTool?: (name: string, session: CallSession) => Promise<void>;
-  afterTool?: (name: string, result: ToolResult | null, session: CallSession) => Promise<void>;
+  /** `args` are the tool arguments as sent (driver fault hooks read them, e.g. the searched intent). */
+  beforeTool?: (name: string, session: CallSession, args: Readonly<Record<string, unknown>>) => Promise<void>;
+  afterTool?: (name: string, result: ToolResult | null, session: CallSession, args: Readonly<Record<string, unknown>>) => Promise<void>;
 }
 
 export interface CallSessionOptions {
@@ -377,7 +378,7 @@ export class CallSession {
   // ------------------------------------------------------------------ tools (identity: mcp_tools)
 
   async tool(name: string, args: Record<string, unknown>, opts: { probe?: string; sessionRef?: string | null } = {}): Promise<ToolResult | null> {
-    await this.hooks.beforeTool?.(name, this);
+    await this.hooks.beforeTool?.(name, this, args);
     const presented = opts.sessionRef !== undefined ? opts.sessionRef : (this.presentedSessionRef ?? this.sessionRef);
     if (name === "begin_verification") this.verificationBegunAtMs.push(this.nowMs);
     const reply = await this.stack.callTool(name, args, { sessionRef: presented, callId: this.callId }, { locale: this.locale });
@@ -405,7 +406,7 @@ export class CallSession {
     }
     if (r?.speech) this.speakDirective("tool", r.speech, r.policyDecisionId);
     this.tick(800);
-    await this.hooks.afterTool?.(name, r, this);
+    await this.hooks.afterTool?.(name, r, this, args);
     return r;
   }
 

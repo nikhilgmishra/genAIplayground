@@ -119,3 +119,32 @@ change request.)
   priority route was requested (route first, then evidence); the `safety.signal` audit event is
   now written after the route request as well.
 * `PgPendingActionLookup` was removed (replaced by `listForSession`).
+
+## Changes in wave 5 (business-correctness fixes)
+
+* **TC-11 without a live session.** When the session no longer resolves (expired, revoked, ended
+  elsewhere), the call still gets an interaction outcome (ACT-04): the call is identified only by the
+  authenticated Studio identity's `X-VSP-Interaction-Id` AND the start-call binding TC-01 recorded for
+  this tenant and integration (`InteractionLookup`); a bearer reference, when sent, must be exactly
+  that call's session. The session is marked ended, pending actions are invalidated, the outcome is
+  recorded from server-side evidence (`gatherOutcomeEvidence`) and `session.ended` is audited with
+  the session-failure reason. An unknown call, another call's session, a repeated end or an
+  unavailable lookup (live: `BlockedInteractionLookup`) records nothing (`ended: false`).
+* **Commit unsettled at call end.** The outcome service (business/outcomes.ts) returns
+  `OUTCOME_UNKNOWN` / `COMMIT_OUTCOME_UNKNOWN` for a call action still COMMITTING / UNKNOWN in the
+  ledger (or committed but not yet recorded for the call) and appends a revision when the reconciler
+  commits it (see business README).
+* **`get_appointment_options`** with `appointmentId: null` by a **provider** is the provider's own
+  schedule: purpose `caller_self_service`, resource `appointment_options` on the provider's own
+  subject, classification INTERNAL (policy path `provider_own_schedule`, self fact with enrollment
+  scope `appointment:list_options`); only that provider's open slots are returned, never a client's
+  appointment. With an appointment id a provider still needs a treating relationship (PHI).
+* **`get_invoice_status`** takes an optional typed selector `line: { chargeCode, amountMinor } | null`
+  (strict; at least one non-null; only with `LINE_EXPLANATION`): the explanation targets exactly the
+  one matching line, otherwise no line is explained (balance facts). Line ids are not offered (outside
+  the `invoice:read` field mask).
+* **`create_support_request`** by an organization role with `linkToAccount` links the request to
+  the caller's organization (authorized by the organization's `case:read` path at creation), so
+  `get_authorized_case_status` finds it; a refused link denies the request.
+* Tool catalogue regenerated: `TOOL_CATALOG_VERSION` `2026-10-18.3`; OpenAPI regenerated (TC-11
+  summary).

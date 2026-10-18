@@ -54,7 +54,8 @@ const KNOWN_CONSTRAINTS: ReadonlySet<string> = new Set(RelationshipFact.shape.co
 /** LOCAL FIXTURE self-access scopes per role (subject records only exist for clients and providers). */
 export const FIXTURE_SELF_SCOPES: Partial<Record<Role, readonly string[]>> = {
   client: ["appointment:read", "appointment:write", "invoice:read", "billing_review:create", "claim:read", "case:read", "case:create"],
-  provider: ["onboarding:read", "case:read", "case:create"],
+  /** appointment:list_options: the provider's own open administrative slots (policy path provider_own_schedule). */
+  provider: ["onboarding:read", "case:read", "case:create", "appointment:list_options"],
 };
 /**
  * LOCAL FIXTURE scopes a treating relationship contributes (administrative appointment facts

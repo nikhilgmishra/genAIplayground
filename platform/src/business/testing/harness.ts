@@ -16,6 +16,7 @@
  */
 import { LedgerActionService } from "../../actions/action-service.js";
 import { createLocalFixtureSet, type LocalFixtureSet } from "../../adapters/local/fixture-set.js";
+import type { DirectoryPersonFixture } from "../../adapters/local/identity-directory.js";
 import { PgAuditHealth } from "../../audit/health.js";
 import { PgAuditQuery } from "../../audit/query.js";
 import { PgAuditWriter } from "../../audit/writer.js";
@@ -95,10 +96,12 @@ export type InvokeResult =
 
 export interface BusinessHarnessOptions extends BuildBusinessOptions {
   destinations?: DestinationConfig[];
+  /** Additional SYNTHETIC directory people (e.g. staff of another practice) for the identity harness. */
+  extraPeople?: DirectoryPersonFixture[];
 }
 
 export async function createBusinessHarness(opts: BusinessHarnessOptions = {}): Promise<BusinessHarness> {
-  const identity = await createIdentityHarness();
+  const identity = await createIdentityHarness(opts.extraPeople ? { extraPeople: opts.extraPeople } : {});
   const clock = identity.clock;
   const db = await createTestDb();
   const logger = silentLogger;

@@ -33,6 +33,7 @@ is necessary, not sufficient: the finer rules below also apply.
 | `calls.get` | GET | `/calls/:callId` | `support_agent`, `supervisor`, `safety_responder` |
 | `calls.transfer` | POST | `/calls/:callId/transfer` | `support_agent`, `supervisor`, `safety_responder` |
 | `supportRequests.trace` | GET | `/support-requests/:ref/trace` | `support_agent`, `supervisor`, `safety_responder` |
+| `supportRequests.repair` | POST | `/support-requests/:ref/repair` | `supervisor` |
 | `actions.pending` | GET | `/actions/pending` | `support_agent`, `supervisor` |
 | `actions.cancel` | POST | `/actions/:actionId/cancel` | `support_agent`, `supervisor` |
 | `reconciliation.list` | GET | `/reconciliation` | `supervisor` |
@@ -66,6 +67,11 @@ Finer rules the server enforces:
   `reconciliationId` names that reconciliation (`RECONCILE_REQUIRED` otherwise) (ACT-03).
 * `calls.transfer`: `destinationId` must be in the trusted allowlist (`DESTINATION_NOT_ALLOWLISTED`,
   SAFE-05); the response state is `REQUESTED`/`QUEUED`, never success (SAFE-04).
+* `supportRequests.repair`: only a `DEAD_LETTER` Salesforce sync (`409 STATE_CONFLICT` otherwise);
+  restricted (privacy / safety) requests additionally need `restricted_record:view` (valid break-glass
+  approved by someone else), exactly as reading them; reason codes from
+  `OPERATOR_REASON_CODES["supportRequests.repair"]`; the response is `syncState: PENDING` (the sync is
+  asynchronous, never reported done here).
 
 ## Authentication
 
@@ -126,6 +132,7 @@ Finer rules the server enforces:
 | `budgets.list` | `BudgetService.statusFor` (`platform/src/ops`) |
 | `reconciliation.list`, `reconcile`, `retry` | `ActionService.listNeedingReconciliation`, `reconcile`, commit protocol (`platform/src/actions`) |
 | `reconciliation.list` (dead letters), `outbox.requeue` | `PgOutboxDispatcher.listDead`, `requeueDead` (`platform/src/outbox/dispatcher.ts`) |
+| `supportRequests.repair` | `SupportRequestService.trace` (worker view: existence, restricted flag, sync state) + `repairDeadLetter` (`PgSupportRequestService`: back to `PENDING` with a fresh sync message and a reset attempt budget, audited in its transaction as `support_request.repair_requeued`, actor = the staff member); `503 REPAIR_PATH_UNAVAILABLE` when the business module has no repair |
 | `actions.pending`, `actions.cancel` | Pending list: console column-allowlisted read of `action_ledger` (migration 0900). Cancel: `LedgerActionService.cancelPending` (not on the `ActionService` port; interface change requested) |
 | `workflows.tasks`, `workflows.decision` | `WorkflowEngine.openTasks`; for a decision the backend calls `PgWorkflowEngine.issueTaskToken` and then `completeHumanTask` for the same authenticated staff member inside the one request, so the plaintext token never leaves the server. `completeHumanTask` takes no reason code yet (interface change requested); until then the reason is recorded in the console audit event |
 | `safetyEvents.list` | `safety_events` rows written by `SafetyEventRecorder` (`platform/src/safety/safety-events.ts`) |
@@ -191,6 +198,7 @@ their mutating actions (auditor read-only taint applies).
 | `actions.cancel` | `pending_action:cancel` (supervisor; support_agent only when the call is assigned to them) |
 | `reconciliation.reconcile`, `reconciliation.retry` | `operation:retry_reconciled` |
 | `outbox.requeue` | `dlq:repair` |
+| `supportRequests.repair` | `dlq:repair` (same operator repair action); restricted requests additionally `restricted_record:view` (break-glass) |
 | `workflows.tasks` | `human_task:view` |
 | `workflows.decision` | `human_task:decide` |
 | `safetyEvents.list` | `safety_event:view` |
@@ -230,7 +238,8 @@ fallback) is still reported as `TRANSFER_DESTINATION_SUBSTITUTED`.
 * Effects owned by other modules are audited in-transaction by that module: kill switches
   (`killswitch.set`, sourceComponent console), ledger cancel (`action.cancel`), ledger
   reconcile (`action.reconciled` / `action.reconcile.inconclusive`), outbox requeue
-  (`outbox.requeue`), human task completion (`workflow.human_task.complete`). Their module APIs
+  (`outbox.requeue`), support-request repair (`support_request.repair_requeued`), human task
+  completion (`workflow.human_task.complete`). Their module APIs
   take no transaction, so the console first writes a write-ahead intent event (`PENDING`) that
   must succeed (`503 AUDIT_UNAVAILABLE` otherwise, nothing attempted), then a best-effort
   completion event. Responses return the effect's own in-transaction audit event id.

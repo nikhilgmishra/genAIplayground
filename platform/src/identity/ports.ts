@@ -86,18 +86,43 @@ export interface BeginVerificationInput {
   locator: { fullName: string; dateOfBirth: string } | { portalUsernameHint: string };
 }
 
+/**
+ * Added (additive): the server-side binding of an opened verification transaction, for audit
+ * evidence only (the portal audit event, the call's investigation timeline). Never returned to
+ * the portal or any caller-facing surface. `sessionBindingRef` is the NON-bearer
+ * `ses_bnd_<base64url(sha256)>` reference (keys.ts), never the bearer session reference.
+ */
+export interface VerificationBinding {
+  /** Vendor interaction id of the call the transaction was issued for (an identifier, never authority). */
+  callId: string;
+  sessionBindingRef: string;
+  /** Session generation after the binding (or the transaction's generation when nothing was bound). */
+  sessionGeneration: number;
+}
+
+/**
+ * Result of completeSecureLink / completeStepUp. `binding` is present only when the transaction
+ * was opened (nonce matched, not reused, not expired); unknown, reused or expired links are never
+ * attributed to a call.
+ */
+export interface VerificationCompletion {
+  bound: boolean;
+  reasonCode: string;
+  binding?: VerificationBinding;
+}
+
 export interface VerificationService {
   /** Preferred: short-lived secure link to the pre-registered channel, approved inside an MFA portal session. */
   beginSecureLink(ctx: AuthContext, input: BeginVerificationInput): Promise<{ transactionId: string; matchCode: string; response: GenericVerificationResponse }>;
   /** Portal callback after OIDC authentication; binds the account to exactly this call session + generation. */
-  completeSecureLink(input: { transactionId: string; nonce: string; idToken: string; matchCodeConfirmed: boolean }): Promise<{ bound: boolean; reasonCode: string }>;
+  completeSecureLink(input: { transactionId: string; nonce: string; idToken: string; matchCodeConfirmed: boolean }): Promise<VerificationCompletion>;
   /** Fallback OTP to the existing verified channel only (never a number supplied during the call). */
   beginOtp(ctx: AuthContext, input: BeginVerificationInput): Promise<{ challengeId: string; response: GenericVerificationResponse }>;
   /** Called only by the isolated DTMF capture path (telephony_control identity); digits never reach the model. */
   submitOtp(input: { sessionRef: string; challengeId: string; code: string }, integration: IntegrationIdentity): Promise<{ verified: boolean; reasonCode: string }>;
   /** A3: fresh, transaction-bound verification for one prepared-action digest. */
   beginStepUp(ctx: AuthContext, actionDigest: string): Promise<{ transactionId: string; response: GenericVerificationResponse }>;
-  completeStepUp(input: { transactionId: string; nonce: string; idToken: string }): Promise<{ bound: boolean; reasonCode: string }>;
+  completeStepUp(input: { transactionId: string; nonce: string; idToken: string }): Promise<VerificationCompletion>;
 }
 
 export interface AssertionService {

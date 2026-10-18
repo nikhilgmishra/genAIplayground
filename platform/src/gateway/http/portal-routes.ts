@@ -12,10 +12,16 @@
  * Unknown, consumed, expired, ineligible and nonce-mismatched transactions are
  * indistinguishable (404 VERIFICATION_TRANSACTION_UNAVAILABLE). ID tokens and
  * nonces are never logged, audited or echoed.
+ *
+ * The verification.bound / verification.failed audit event carries the server-side binding the
+ * identity service reports for an opened transaction (call id, NON-bearer `ses_bnd_` session
+ * binding ref, session generation), so the call's audit timeline and the console investigation
+ * include the binding. The binding is never returned to the portal (BindResponse is strict), and
+ * the bearer session reference never reaches this route.
  */
 import { z } from "zod";
 import { SESSION_AUDIT_ACTIONS } from "../../business/contract.js";
-import type { VerificationService } from "../../identity/ports.js";
+import type { VerificationCompletion, VerificationService } from "../../identity/ports.js";
 import type { IntegrationIdentity } from "../../protocol/index.js";
 import { IsoDateTime } from "../../protocol/index.js";
 import { AccessDeniedError } from "../../shared/errors.js";
@@ -42,14 +48,18 @@ export interface PortalRouteDeps {
 }
 
 export function portalRoutes(d: PortalRouteDeps): RouteDef<unknown, unknown>[] {
-  const bindAudit = async (bound: boolean, reasonCode: string, requestId: string, kind: "secure_link" | "step_up") =>
+  const bindAudit = async (r: VerificationCompletion, reasonCode: string, requestId: string, kind: "secure_link" | "step_up") =>
     d.audit.record({
       tenantId: d.tenantId,
-      action: bound ? SESSION_AUDIT_ACTIONS.verificationBound : SESSION_AUDIT_ACTIONS.verificationFailed,
-      outcome: bound ? "SUCCEEDED" : "DENIED",
+      action: r.bound ? SESSION_AUDIT_ACTIONS.verificationBound : SESSION_AUDIT_ACTIONS.verificationFailed,
+      outcome: r.bound ? "SUCCEEDED" : "DENIED",
       sourceComponent: "identity",
-      reasonCode: bound ? (kind === "step_up" ? "STEP_UP_BOUND" : "SECURE_LINK_BOUND") : reasonCode,
+      reasonCode: r.bound ? (kind === "step_up" ? "STEP_UP_BOUND" : "SECURE_LINK_BOUND") : reasonCode,
       correlationId: requestId,
+      // Opened transactions only (identity decides); GatewayAudit drops anything that is not an opaque id / binding ref.
+      callId: r.binding?.callId ?? null,
+      sessionBindingRef: r.binding?.sessionBindingRef ?? null,
+      sessionGeneration: r.binding?.sessionGeneration ?? null,
     });
   const safeCode = (c: string) => (/^[A-Z][A-Z0-9_]{2,63}$/.test(c) ? c : "VERIFICATION_NOT_BOUND");
 
@@ -85,7 +95,7 @@ export function portalRoutes(d: PortalRouteDeps): RouteDef<unknown, unknown>[] {
       handler: async (ctx) => {
         const r = await d.verification.completeSecureLink({ transactionId: ctx.body.transactionId, nonce: ctx.body.nonce, idToken: ctx.body.idToken, matchCodeConfirmed: ctx.body.matchCodeConfirmed === true });
         const reasonCode = safeCode(r.reasonCode);
-        await bindAudit(r.bound, reasonCode, ctx.requestId, "secure_link");
+        await bindAudit(r, reasonCode, ctx.requestId, "secure_link");
         return { status: 200, body: { bound: r.bound, reasonCode } };
       },
     }),
@@ -101,7 +111,7 @@ export function portalRoutes(d: PortalRouteDeps): RouteDef<unknown, unknown>[] {
       handler: async (ctx) => {
         const r = await d.verification.completeStepUp({ transactionId: ctx.body.transactionId, nonce: ctx.body.nonce, idToken: ctx.body.idToken });
         const reasonCode = safeCode(r.reasonCode);
-        await bindAudit(r.bound, reasonCode, ctx.requestId, "step_up");
+        await bindAudit(r, reasonCode, ctx.requestId, "step_up");
         return { status: 200, body: { bound: r.bound, reasonCode } };
       },
     }),

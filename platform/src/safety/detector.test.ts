@@ -14,7 +14,7 @@ import {
   safetyDetectorDeploymentViolations,
 } from "./detector.js";
 import type { SemanticSignalDetector } from "./detector.js";
-import { ALL_RULE_IDS, DETECTOR_RULE_IDS, LEXICON_APPROVAL_STATUS } from "./lexicon.js";
+import { ALL_RULE_IDS, DETECTOR_RULE_IDS, LEXICON_APPROVAL_STATUS, PHRASE_RULES } from "./lexicon.js";
 import { SafetyPipeline } from "./pipeline.js";
 import type { SafetySignal } from "./ports.js";
 
@@ -139,6 +139,83 @@ describe("RuleBasedSafetySignalDetector", () => {
     const signals = detector.detect({ text: "I am not going to kill myself.", locale: "en-US", asrConfidence: null });
     expect(signals).toHaveLength(1);
     expect(signals[0]).toMatchObject({ source: "EXPLICIT_PHRASE", strength: "UNRESOLVED", negated: true });
+  });
+
+  it("[SAFE-02] [SPEC-10.negation] a negated frame does not cancel residual risk content in a later clause", () => {
+    // Local corpus run defect: this returned NO_SAFETY_SIGNAL (scn_risk_safety_negation_012..014).
+    const passive = detector.detect({ text: "I'm not saying I'd do anything, but sometimes I wish I wouldn't wake up.", locale: "en-US", asrConfidence: null });
+    expect(passive).toEqual([expect.objectContaining({ ruleId: "indirect.en.passive_ideation", strength: "UNRESOLVED", negated: false, subject: "SELF" })]);
+    // The negated clause stays an UNRESOLVED negated signal; the residual method research keeps its own CREDIBLE strength.
+    const both = detector.detect({ text: "I don't think I'm suicidal, but I've been looking up ways to die.", locale: "en-US", asrConfidence: null });
+    expect(both).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ruleId: "explicit.en.suicide_term", strength: "UNRESOLVED", negated: true }),
+        expect.objectContaining({ ruleId: "indirect.en.method_research", strength: "CREDIBLE", negated: false }),
+      ]),
+    );
+    const es = detector.detect({ text: "No es que vaya a hacer nada, pero a veces quisiera no despertar.", locale: "es-US", asrConfidence: null });
+    expect(es).toEqual([expect.objectContaining({ ruleId: "indirect.es.passive_ideation", negated: false })]);
+  });
+
+  it("[SPEC-10.negation] negation scope ends at a coordinator that opens a new clause with its own subject, but not at 'or'", () => {
+    const [s] = detector.detect({ text: "I don't sleep anymore and I want to die.", locale: "en-US", asrConfidence: null });
+    expect(s).toMatchObject({ ruleId: "explicit.en.want_die", strength: "CREDIBLE", negated: false });
+    const disjunction = detector.detect({ text: "I'm not going to hurt myself or kill myself.", locale: "en-US", asrConfidence: null });
+    expect(disjunction.length).toBeGreaterThanOrEqual(2);
+    expect(disjunction.every((x) => x.negated && x.strength === "UNRESOLVED")).toBe(true);
+  });
+
+  it("[SPEC-10.indirect] unspecified past attempts, third-party farewell / 'not being around' warnings and their es counterparts raise signals", () => {
+    const cases: [string, string, string, SafetySignal["subject"]][] = [
+      ["I attempted a few days ago and I still feel the same way.", "en-US", "indirect.en.attempt_unspecified", "SELF"],
+      ["My brother has been talking about not being around much longer.", "en-US", "indirect.en.not_being_around", "THIRD_PARTY"],
+      ["My daughter is posting goodbye messages online.", "en-US", "indirect.en.farewell", "THIRD_PARTY"],
+      ["I'm really worried about my brother, he's been saying goodbye to people.", "en-US", "indirect.en.farewell", "THIRD_PARTY"],
+      ["Maybe it'd be easier if I wasn't here.", "en-US", "indirect.en.passive_ideation", "SELF"],
+      ["No le veo sentido a seguir viviendo.", "es-US", "indirect.es.no_point_living", "SELF"],
+      ["Help, tomé demasiadas pastillas.", "es-US", "explicit.es.overdose", "SELF"],
+      ["Mi hermano está publicando mensajes de despedida.", "es-US", "indirect.es.farewell", "THIRD_PARTY"],
+      ["Tuve un intento hace unos meses y todavía me siento igual.", "es-US", "indirect.es.attempt_unspecified", "SELF"],
+    ];
+    for (const [text, locale, ruleId, subject] of cases) {
+      expect(detector.detect({ text, locale, asrConfidence: null }), text).toEqual(expect.arrayContaining([expect.objectContaining({ ruleId, subject })]));
+    }
+    // ... while the administrative uses of the same words stay silent.
+    for (const [text, locale] of [
+      ["I attempted to log in three times and got locked out.", "en-US"],
+      ["I attempted twice on the portal and it keeps failing.", "en-US"],
+      ["I hope I don't wake up late for my seven a.m. appointment.", "en-US"],
+      ["I've been thinking about it again and I'd rather just cancel my plan.", "en-US"],
+      ["No le veo sentido a pagar dos veces la misma factura.", "es-US"],
+      ["Tuve un intento de pago fallido ayer.", "es-US"],
+    ] as const) {
+      expect(detector.detect({ text, locale, asrConfidence: null }), text).toEqual([]);
+    }
+  });
+
+  it("[SPEC-10.detection] lookaround exclusion lists match whole words only ('jump tonight' is not excluded by 'to')", () => {
+    expect(detector.detect({ text: "I'm going to jump tonight.", locale: "en-US", asrConfidence: null }).map((s) => s.ruleId)).toEqual(["indirect.en.ambiguous_end"]);
+    expect(detector.detect({ text: "I'm gonna jump at midnight.", locale: "en-US", asrConfidence: null }).map((s) => s.ruleId)).toEqual(["indirect.en.ambiguous_end"]);
+    expect(detector.detect({ text: "I wanna disappear.", locale: "en-US", asrConfidence: null }).map((s) => s.ruleId)).toEqual(["indirect.en.ambiguous_end"]);
+    expect(detector.detect({ text: "I'm going to jump at the chance to get an earlier slot.", locale: "en-US", asrConfidence: null })).toEqual([]);
+    // Structural guard for future edits: every lookahead alternative list ends at a word boundary.
+    const unbounded: string[] = [];
+    for (const r of PHRASE_RULES) {
+      for (const p of r.patterns) {
+        for (let i = p.indexOf("(?"); i >= 0; i = p.indexOf("(?", i + 2)) {
+          if (p[i + 2] !== "!" && p[i + 2] !== "=") continue;
+          let depth = 0;
+          let j = i;
+          for (; j < p.length; j++) {
+            if (p[j] === "(") depth++;
+            else if (p[j] === ")" && --depth === 0) break;
+          }
+          const inner = p.slice(i + 3, j);
+          if (!inner.endsWith(" ") && !inner.startsWith("[a-z0-9]") && !inner.endsWith("(?![a-z0-9])")) unbounded.push(`${r.ruleId}: ${inner}`);
+        }
+      }
+    }
+    expect(unbounded).toEqual([]);
   });
 
   it("[SPEC-10.historical] a historical reference is UNRESOLVED and HISTORICAL, never dropped", () => {

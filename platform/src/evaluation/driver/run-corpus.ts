@@ -146,6 +146,7 @@ function renderDriverSection(s: ReturnType<typeof driverSummary>, extra: string[
     "## Local driver verdicts",
     "",
     ...table("By corpus group", s.byGroup),
+    ...table("By corpus split", s.byCorpusSplit),
     ...table("By risk class", s.byRiskClass),
     ...table("By variant family", s.byVariantFamily),
     "### Failing hard assertions (count of runs)",

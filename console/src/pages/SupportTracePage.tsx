@@ -1,18 +1,22 @@
 /**
  * Support request trace: support request -> sync state -> Salesforce Case id
  * -> actions -> workflows -> audit event ids. Metadata only; the minimized
- * summary and any caller content are not shown.
+ * summary and any caller content are not shown. A dead-lettered sync can be
+ * repaired by a supervisor (audited; the server re-checks role, state and, for
+ * restricted records, break-glass).
  */
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../api/ApiContext";
+import { OPERATOR_REASON_CODES } from "../api/contract";
 import type { SupportTraceResponse } from "../api/contract";
 import { consoleRoutes, isOpaqueId, isSupportReference } from "../api/paths";
 import { useApiQuery } from "../api/useApiQuery";
 import { useRoles } from "../auth/AuthProvider";
 import { canUse } from "../auth/roles";
 import { QueryView } from "../components/QueryView";
+import { ReasonActionDialog } from "../components/ReasonActionDialog";
 import { StatusText } from "../components/StatusText";
 import { Timestamp } from "../components/Timestamp";
 import { enumLabel, yesNo } from "../lib/format";
@@ -64,10 +68,13 @@ function LookupForm() {
   );
 }
 
-function TraceBody({ data }: { data: SupportTraceResponse }) {
+function TraceBody({ data, onRepaired }: { data: SupportTraceResponse; onRepaired: () => void }) {
+  const api = useApi();
   const roles = useRoles();
   const sr = data.supportRequest;
   const canInspectCall = canUse("calls.get", roles);
+  const canRepair = canUse("supportRequests.repair", roles);
+  const [repairing, setRepairing] = useState(false);
   return (
     <>
       <p className="notice">
@@ -174,7 +181,38 @@ function TraceBody({ data }: { data: SupportTraceResponse }) {
             <dd>{data.sync.outboxMessageIds.length === 0 ? "None" : data.sync.outboxMessageIds.map((m) => <code key={m} className="inline-ref">{m}</code>)}</dd>
           </div>
         </dl>
+        {data.sync.state === "DEAD_LETTER" ? (
+          canRepair ? (
+            <button type="button" onClick={() => setRepairing(true)}>
+              Repair synchronization of {sr.referenceNumber}
+            </button>
+          ) : (
+            <p>Synchronization is dead-lettered. A supervisor can repair it once the root cause is fixed.</p>
+          )
+        ) : null}
       </section>
+      {repairing ? (
+        <ReasonActionDialog
+          title={`Repair synchronization of ${sr.referenceNumber}`}
+          description={
+            <p>
+              Returns the dead-lettered support request to the synchronization queue with a fresh attempt budget. Salesforce upserts are idempotent
+              by external id, so a repair cannot create a duplicate Case. Synchronization happens asynchronously; fix the root cause first.
+            </p>
+          }
+          codes={OPERATOR_REASON_CODES["supportRequests.repair"]}
+          submitLabel="Confirm repair"
+          onClose={() => setRepairing(false)}
+          onSubmit={async (reason, idempotencyKey) => {
+            const res = await api.request("supportRequests.repair", { params: { ref: sr.referenceNumber }, body: { reason }, idempotencyKey });
+            return `Support request ${res.referenceNumber} ${res.repaired ? "returned to the synchronization queue" : "was not repaired"} (sync state ${res.syncState}). Audit event ${res.auditEventId}.`;
+          }}
+          onDone={() => {
+            setRepairing(false);
+            onRepaired();
+          }}
+        />
+      ) : null}
 
       <section aria-labelledby="trace-actions">
         <h2 id="trace-actions">Actions</h2>
@@ -294,7 +332,7 @@ export function SupportTracePage() {
       ) : null}
       {valid ? (
         <QueryView query={query} label="support request trace">
-          {(data) => <TraceBody data={data} />}
+          {(data) => <TraceBody data={data} onRepaired={() => query.reload()} />}
         </QueryView>
       ) : null}
     </>

@@ -28,6 +28,7 @@ import { silentLogger } from "../observability/logger.js";
 import type { Environment } from "../protocol/index.js";
 import {
   ADMIN_CONTEXT_TOKENS,
+  CLAUSE_SUBJECT_TOKENS,
   DETECTOR_RULE_IDS,
   DISTRESS_PATTERNS,
   FIRST_PERSON_TOKENS,
@@ -36,7 +37,9 @@ import {
   LEXICON_APPROVAL_STATUS,
   LEXICON_VERSION,
   MULTILINGUAL_LEXEMES,
+  NEGATION_DISJUNCTIONS,
   NEGATION_NO_EXCEPTIONS,
+  NEGATION_SCOPE_BREAKERS,
   NEGATION_TOKENS,
   NEGATION_WINDOW,
   PARTIAL_RISK_PATTERNS,
@@ -146,11 +149,21 @@ const DetectionInputSchema = z.strictObject({
 // Context scans (negation, subject, temporal, administrative context)
 // ---------------------------------------------------------------------------
 
+/**
+ * Negation scope: a negation cue within NEGATION_WINDOW tokens before the match, in the same clause,
+ * and not separated from it by a coordinator that opens a new clause with its own subject. A negated
+ * match is never dropped (it becomes UNRESOLVED); the scope only decides which risk content a
+ * negation covers, so residual risk content after a negated frame keeps its own strength.
+ */
 function isNegated(tokens: readonly string[], startToken: number, clauseFrom: number): boolean {
-  const stop = Math.max(clauseFrom, startToken - NEGATION_WINDOW);
+  let stop = Math.max(clauseFrom, startToken - NEGATION_WINDOW);
   for (let i = startToken - 1; i >= stop; i--) {
     const t = tokens[i];
-    if (t === undefined || !NEGATION_TOKENS.has(t)) continue;
+    if (t === undefined) continue;
+    if (NEGATION_SCOPE_BREAKERS.has(t) && CLAUSE_SUBJECT_TOKENS.has(tokens[i + 1] ?? "")) return false;
+    // A disjunction continues the scope of a negation over its first conjunct ("not ... X or Y").
+    if (NEGATION_DISJUNCTIONS.has(t)) stop = Math.max(clauseFrom, i - NEGATION_WINDOW);
+    if (!NEGATION_TOKENS.has(t)) continue;
     if (t === "no" && NEGATION_NO_EXCEPTIONS.has(tokens[i + 1] ?? "")) continue;
     return true;
   }
