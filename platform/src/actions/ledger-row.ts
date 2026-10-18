@@ -41,6 +41,9 @@ export interface LedgerRow {
   reconcile_attempts: number;
   last_reconciled_at: Date | string | null;
   receipt: unknown;
+  /** Durable invalidation request recorded while the action was in doubt (migration 0102; ACT-01). */
+  invalidation_requested_at: Date | string | null;
+  invalidation_reason: string | null;
   row_version: number;
   created_at: Date | string;
   updated_at: Date | string;
@@ -50,7 +53,7 @@ export const LEDGER_COLUMNS = `action_id, tenant_id, session_ref_hash, session_g
   subject_id, kind, target, change, impact, digest, state, state_reason, policy_decision_id, policy_version,
   policy_obligations, requires_step_up, confirmation_template_id, prepared_assurance, prepared_at, expires_at,
   confirmation, confirmed_at, provider_idempotency_key, commit_attempt_id, commit_attempts, committing_since,
-  reconcile_attempts, last_reconciled_at, receipt, row_version, created_at, updated_at`;
+  reconcile_attempts, last_reconciled_at, receipt, invalidation_requested_at, invalidation_reason, row_version, created_at, updated_at`;
 
 /** Trusted confirmation evidence as stored (the session bearer value is replaced by its binding ref). */
 export const StoredConfirmation = z.strictObject({

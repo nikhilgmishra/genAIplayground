@@ -19,6 +19,14 @@
  *    approval trust, and every required approval present, signed, unexpired and
  *    issued for this environment.
  *
+ * Every approval is additionally bound (OPS-APPR-01): its approver role must be
+ * allowed for its scope, and a subject-bound scope (MODEL_VOICE_SELECTION,
+ * POLICY_RELEASE, KNOWLEDGE_RELEASE, CLINICAL_SCRIPTS, PRODUCTION_DEPLOYMENT,
+ * PILOT_EXPOSURE) only counts when its signed `subject` equals the active
+ * model/voice/agentConfig, the loaded policy bundle, and the knowledge snapshot,
+ * template catalogue and image digests the composition supplies. A record that
+ * names another artifact, or one the composition cannot state, never counts.
+ *
  * Violation strings are `<CODE>@<config path>`: reason codes and configuration keys
  * only, never configuration values, credential references or approver names.
  */
@@ -26,7 +34,7 @@ import type { KeyObject } from "node:crypto";
 import type { ApprovalRecord, ApprovalScope, Environment } from "../protocol/index.js";
 import { ConfigurationRejectedError } from "../shared/errors.js";
 import { evaluateApproval, parseTrustedPublicKey } from "./approvals.js";
-import type { ApprovalEvaluation } from "./approvals.js";
+import type { ApprovalEvaluation, ApprovalSubjectExpectations } from "./approvals.js";
 import type { PlatformConfig } from "./ports.js";
 import { PlatformConfigSchema } from "./schema.js";
 
@@ -72,6 +80,18 @@ export interface GuardContext {
   loadedPolicy: { version: string; digest: string } | null;
   /** Digest of the tool catalogue actually loaded. */
   toolCatalogDigest: string | null;
+  /**
+   * OPS-APPR-01: digests of the artifacts this process will actually serve, used to
+   * prove that subject-bound approvals (approvals.ts SUBJECT_KIND_BY_SCOPE) name them.
+   * Absent/null: a required KNOWLEDGE_RELEASE / CLINICAL_SCRIPTS / PRODUCTION_DEPLOYMENT
+   * record is SUBJECT_UNVERIFIABLE (fail closed). The model/voice subject is compared
+   * with `models.active` and the policy subject with `loadedPolicy`.
+   */
+  knowledgeSnapshotDigest?: string | null;
+  /** Digest of the caller-facing template catalogue loaded (voice registry digest()). */
+  templateCatalogDigest?: string | null;
+  /** Digest (`sha256:<hex>`) of the container image this process runs. */
+  releaseImageDigest?: string | null;
   now: Date;
   /** Approval files that failed strict parsing (from loadApprovalRecords). */
   rejectedApprovalFiles?: readonly { file: string; reasonCode: string }[];
@@ -150,7 +170,15 @@ export function evaluateDeployability(config: PlatformConfig, ctx: GuardContext)
   const key = resolveKey(ctx.trustedApprovalKey);
   if (key === "INVALID") v.add("APPROVAL_TRUST_KEY_INVALID", "approvals.trustedSigningKeyRef");
   const trustedKey = key === "INVALID" ? null : key;
-  const evaluations = ctx.approvals.map((r) => evaluateApproval(r, { environment, now: ctx.now, trustedKey }));
+  // OPS-APPR-01: a record only counts when its signed subject names what is configured/loaded.
+  const expected: ApprovalSubjectExpectations = {
+    modelVoice: config.models.active,
+    policyBundle: ctx.loadedPolicy ? { version: ctx.loadedPolicy.version, digest: ctx.loadedPolicy.digest } : null,
+    knowledgeSnapshotDigest: ctx.knowledgeSnapshotDigest ?? null,
+    templateCatalogDigest: ctx.templateCatalogDigest ?? null,
+    releaseImageDigest: ctx.releaseImageDigest ?? null,
+  };
+  const evaluations = ctx.approvals.map((r) => evaluateApproval(r, { environment, now: ctx.now, trustedKey, expected }));
   const byId = new Map(evaluations.map((e) => [e.approvalId, e]));
   const validFor = (scope: ApprovalScope) => evaluations.filter((e) => e.scope === scope && e.status === "VALID");
   /** A specific referenced approval must exist, have the expected scope and be VALID. */

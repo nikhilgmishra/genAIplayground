@@ -221,7 +221,8 @@ describe("gateway HTTP — telephony control", () => {
       {
         kind: "appointment.reschedule",
         target: { system: "scheduling", recordType: "appointment", recordRef: "apt_synthAveryAppt00001", beforeVersion: "v1" },
-        change: { slotId: SLOTS[0].slotId, fromDate: "2026-10-22", fromTime: "12:00", fromTimeZone: "America/Chicago", toDate: "2026-10-23", toTime: "12:00", toTimeZone: "America/Chicago" },
+        // The change carries every slot the confirmation template reads back, incl. the visit type (ACT-F5).
+        change: { slotId: SLOTS[0].slotId, fromModality: "video", fromDate: "2026-10-22", fromTime: "12:00", fromTimeZone: "America/Chicago", toDate: "2026-10-23", toTime: "12:00", toTimeZone: "America/Chicago", toModality: "video" },
         impact: { summaryTemplateId: "appointment.change_confirmation", fees: null, reversible: true },
         confirmationTemplateId: "appointment.change_confirmation",
         ttlSeconds: 300,
@@ -411,6 +412,49 @@ describe("gateway HTTP — portal and webhook", () => {
     const refused = await h.app.inject({ method: "POST", url: "/v1/webhooks/transfer-events", headers: headers(fixtureWebhookSignature(ts, body)), payload: body });
     expect(refused.statusCode).toBe(403);
     expect(refused.json()).toMatchObject({ error: { reasonCode: "WEBHOOK_AUTH_UNVERIFIED" } });
+  });
+
+  it("[SAFE-02][SAFE-03][SAFE-HANDOFF-03][VSP-GW-01] with the tool budget spent by other calls, SAFETY_AND_HUMAN_ROUTE tools still run over POST /v1/tools; other tools get 429", async () => {
+    h = await createAppHarness({ rateLimit: { max: 3, timeWindowMs: 60_000 } });
+    // Three routine tool calls from two OTHER calls spend the integration's tool budget (start-call is limited separately).
+    const others = [CALLS.primary.callId, CALLS.primary.callId, CALLS.concurrent.callId];
+    const refs = new Map<string, string>();
+    for (const callId of others) {
+      const sessionRef = refs.get(callId) ?? (await startCall(callId)).sessionRef;
+      refs.set(callId, sessionRef);
+      const r = await h.app.inject({ method: "POST", url: "/v1/tools/fixture_public_faq/1.0.0", headers: { ...auth("mcp_tools"), "x-vsp-session-ref": sessionRef, "x-vsp-interaction-id": callId }, payload: { arguments: { topic: "portal_login" } } });
+      expect(r.statusCode).toBe(200);
+      expect(r.headers["x-ratelimit-limit"]).toBeDefined();
+    }
+    const crisis = "cal_synthCrisisCall000001";
+    const { sessionRef } = await startCall(crisis);
+    const routine = await h.app.inject({ method: "POST", url: "/v1/tools/fixture_public_faq/1.0.0", headers: { ...auth("mcp_tools"), "x-vsp-session-ref": sessionRef, "x-vsp-interaction-id": crisis }, payload: { arguments: { topic: "portal_login" } } });
+    expect(routine.statusCode).toBe(429);
+    expect(routine.json()).toMatchObject({ error: { reasonCode: "RATE_LIMITED" } });
+    expect(routine.headers["retry-after"]).toBeDefined();
+    // Classified before any limit: the safety and human routes are never throttled (with or without a session).
+    for (let i = 0; i < 5; i++) {
+      const safety = await h.app.inject({ method: "POST", url: "/v1/tools/fixture_safety_route/1.0.0", headers: { ...auth("mcp_tools"), "x-vsp-session-ref": sessionRef, "x-vsp-interaction-id": crisis }, payload: { arguments: { signal: "EXPLICIT_PHRASE" } } });
+      expect(safety.statusCode).toBe(200);
+      expect(safety.headers["x-ratelimit-remaining"]).toBeUndefined();
+      const human = await h.app.inject({ method: "POST", url: "/v1/tools/fixture_request_human/1.0.0", headers: { ...auth("mcp_tools"), "x-vsp-interaction-id": crisis }, payload: { arguments: { reason: "CALLER_REQUESTED_HUMAN", language: "en" } } });
+      expect(human.statusCode).toBe(200);
+      expect((human.json() as { status: string }).status).toBe("PENDING");
+    }
+    expect(h.faults.effects.filter((e) => e === "human_requested").length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("[SPEC-12.rate-limit][VSP-GW-01] one call cannot exhaust the integration: its own bucket refuses first while other calls keep working", async () => {
+    h = await createAppHarness({ rateLimit: { max: 10, timeWindowMs: 60_000 }, perCallRateLimit: { max: 3, timeWindowMs: 60_000 } });
+    const { sessionRef: a } = await startCall(CALLS.primary.callId);
+    const { sessionRef: b } = await startCall(CALLS.concurrent.callId);
+    const call = (ref: string, callId: string) =>
+      h.app.inject({ method: "POST", url: "/v1/tools/fixture_public_faq/1.0.0", headers: { ...auth("mcp_tools"), "x-vsp-session-ref": ref, "x-vsp-interaction-id": callId }, payload: { arguments: { topic: "portal_login" } } });
+    const codes: number[] = [];
+    for (let i = 0; i < 5; i++) codes.push((await call(a, CALLS.primary.callId)).statusCode);
+    expect(codes).toEqual([200, 200, 200, 429, 429]);
+    // The looping call spent only its own share; another caller of the same integration is unaffected.
+    expect((await call(b, CALLS.concurrent.callId)).statusCode).toBe(200);
   });
 
   it("[SPEC-12.rate-limit] per-integration rate limiting applies after authentication; safety and human routes are exempt", async () => {

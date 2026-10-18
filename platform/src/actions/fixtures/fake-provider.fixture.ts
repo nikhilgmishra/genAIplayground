@@ -12,8 +12,8 @@
  * plus a concurrent version change before the ledger's optimistic-concurrency check, and
  * lookup faults (UNKNOWN / throw).
  */
-import type { PreparedAction } from "../../protocol/index.js";
-import { DependencyError } from "../../shared/errors.js";
+import type { PolicyDecision, PreparedAction } from "../../protocol/index.js";
+import { AccessDeniedError, DependencyError } from "../../shared/errors.js";
 import type { ProviderCommitPort, ProviderCommitResult, ProviderLookupResult } from "../ports.js";
 
 export const FAKE_PROVIDER_FIXTURE_BADGE = "LOCAL FIXTURE — fake system of record, synthetic data only";
@@ -53,6 +53,14 @@ export class FakeProviderFixture implements ProviderCommitPort {
   onCrash: (() => void) | undefined;
   /** When set, commit() awaits it before applying (to hold a commit in flight). */
   gate: Promise<void> | undefined;
+  /**
+   * LOCAL FIXTURE operator-retry authority behind `authorizeOperatorRetry` (staff retry re-authorization,
+   * ACT-01). Unset => refused with REAUTHORIZATION_UNAVAILABLE, like a port that cannot re-establish the
+   * caller's current authority. Tests set it to an allow or deny decision source.
+   */
+  operatorRetryAuthority: ((action: PreparedAction) => Promise<PolicyDecision>) | undefined;
+  /** authorizeOperatorRetry() calls received. */
+  operatorRetryAuthorizations = 0;
 
   private readonly byKey = new Map<string, FakeEffect>();
   private readonly versions = new Map<string, number>();
@@ -107,6 +115,12 @@ export class FakeProviderFixture implements ProviderCommitPort {
 
   effectsFor(actionId: string): number {
     return this.effects.filter((e) => e.actionId === actionId).length;
+  }
+
+  async authorizeOperatorRetry(action: PreparedAction): Promise<PolicyDecision> {
+    this.operatorRetryAuthorizations += 1;
+    if (!this.operatorRetryAuthority) throw new AccessDeniedError("REAUTHORIZATION_UNAVAILABLE");
+    return this.operatorRetryAuthority(action);
   }
 
   async currentVersion(action: PreparedAction): Promise<string> {

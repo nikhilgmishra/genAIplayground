@@ -18,12 +18,29 @@
  *   the independent Studio route remains the backstop.
  * - The handoff id is deterministic per call and priority, so a repeated request returns
  *   the active journey instead of dialling twice.
+ * - The safety route supersedes standard journeys (SAFE-03; finding SAFE-HANDOFF-02): a human
+ *   request takes the safety route (SAFETY_ROUTE MAINTAIN, or a new safety route) when the
+ *   session is in safety mode, a SAFETY journey of the call is routing or connected, the reason
+ *   is SAFETY_PRIORITY, the staff-selected destination is a safety destination, or the stated
+ *   category is safety_concern. It never dials a STANDARD destination then (the coordinator
+ *   enforces the same invariant and supersedes STANDARD journeys when a safety route starts).
+ * - A staff-raised safety concern (console, SAFE-HANDOFF-05) is the full safety path: the call's
+ *   live session is resolved server-side (ToolDeps.callSessions, trusted call binding) so pending
+ *   mutations are revoked and SAFETY_ESCALATION is applied, the restricted P1 safety record is
+ *   written and the per-call index records SAFETY priority.
+ * - Every safety route this service initiates writes content-free safety evidence (safety_events,
+ *   time-to-routing metric) through ToolDeps.safetyEvents after the route started (SAFE-HANDOFF-07).
+ * - Handoff records for clinical questions, privacy concerns and safety concerns are restricted,
+ *   owned by the restricted queue and synchronized only as minimal RESTRICTED Cases (DATA-01, spec
+ *   section 8; finding DP-01); a clinical redirect is never linked to the caller's subject.
  */
 import { HandoffPackage, OpaqueId, meetsAssurance } from "../protocol/index.js";
 import { AccessDeniedError, ValidationError } from "../shared/errors.js";
 import type { AuthContext, HandoffPackage as HandoffPackageT, IssueCategory, TransferReason } from "../protocol/index.js";
 import type { DestinationConfig } from "../config/ports.js";
 import type { SafetySignal } from "../safety/ports.js";
+import { humanInterventionSignal } from "../safety/detector.js";
+import type { SafetyIncident } from "../safety/safety-events.js";
 import { buildAuditInput } from "../audit/build-input.js";
 import { sha256Hex } from "../shared/canonical.js";
 import { iso } from "../shared/clock.js";
@@ -104,6 +121,39 @@ function assuranceLimits(ctx: AuthContext | null): string[] {
   return limits.slice(0, 8);
 }
 
+/**
+ * Stated categories whose handoff records are restricted (DATA-01, spec section 8: "A privacy or
+ * safety event may require a restricted record rather than a broadly visible Case"; DP-01).
+ */
+export const RESTRICTED_HANDOFF_CATEGORIES: ReadonlySet<IssueCategory> = new Set<IssueCategory>(["privacy_concern", "safety_concern", "clinical_question_redirected"]);
+
+/**
+ * Record placement for a human handoff (DP-01). Owner queues are placeholders pending the
+ * operations queue configuration (q_clinical_route mirrors the CLINICAL_ROUTE destination).
+ */
+export function handoffRecordPlacement(
+  reason: TransferReason,
+  issueCategory: IssueCategory | null,
+): { restricted: boolean; ownerQueue: string; priority: "P1_SAFETY" | "P3_STANDARD"; linkSubject: boolean; issueCategory: IssueCategory } {
+  const category = issueCategory ?? "other";
+  if (reason === "SAFETY_PRIORITY" || category === "safety_concern") {
+    return { restricted: true, ownerQueue: "q_safety_responders", priority: "P1_SAFETY", linkSubject: true, issueCategory: "safety_concern" };
+  }
+  if (reason === "CLINICAL_QUESTION" || category === "clinical_question_redirected") {
+    // Minimized: a clinical redirect is never linked to the caller's subject.
+    return { restricted: true, ownerQueue: "q_clinical_route", priority: "P3_STANDARD", linkSubject: false, issueCategory: "clinical_question_redirected" };
+  }
+  if (category === "privacy_concern") return { restricted: true, ownerQueue: "q_privacy_office", priority: "P3_STANDARD", linkSubject: true, issueCategory: category };
+  return { restricted: false, ownerQueue: "q_support_general", priority: "P3_STANDARD", linkSubject: true, issueCategory: category };
+}
+
+/** A caller asking for a person while a safety route is active is itself an (unresolved) safety signal. */
+function callerRequestSignal(language: string): SafetySignal {
+  return { source: "CALLER_REQUEST", ruleId: "handoff.human_request_safety_route", strength: "UNRESOLVED", subject: "UNKNOWN", temporal: "UNKNOWN", negated: false, locale: language };
+}
+
+const REASON_CODE = /^[A-Z][A-Z0-9_]{2,63}$/;
+
 const SAFETY_CONTEXT_TIMEOUT_MS = 250;
 const STANDARD_CONTEXT_TIMEOUT_MS = 2000;
 
@@ -139,6 +189,22 @@ export class BusinessHandoffService implements HandoffService {
       this.deps.logger.warn("handoff.destination_refused", { reasonCode: "DESTINATION_NOT_ALLOWLISTED" });
       throw new AccessDeniedError("DESTINATION_NOT_ALLOWLISTED");
     }
+    // SAFE-03 (SAFE-HANDOFF-02): the safety route supersedes standard journeys; never dial STANDARD then.
+    const safety = await this.safetyRouteFor(input, ctx, chosen ?? null);
+    if (safety) {
+      this.deps.logger.warn("handoff.human_request_safety_route", { reasonCode: safety.reasonCode });
+      return this.requestSafetyRoute({
+        tenantId: input.tenantId,
+        callId: input.callId,
+        ctx: input.ctx,
+        signals: [initiatedBy ? humanInterventionSignal(language) : callerRequestSignal(language)],
+        locale: language,
+        validatedAt: this.deps.clock.now(),
+        initiatedBy,
+        decisionReasonCode: safety.reasonCode,
+        recordSafetyEvent: safety.reasonCode !== "SAFETY_JOURNEY_ACTIVE",
+      });
+    }
     const resolved = chosen ? { destination: chosen, interpreter: !supports(chosen, language) } : resolveDestination(this.deps.destinations, purpose, language);
     const accommodations = new Set<Accommodation>(input.accommodations ?? []);
     if (!resolved) {
@@ -169,6 +235,10 @@ export class BusinessHandoffService implements HandoffService {
     try {
       const journey = await this.deps.transfers.requestTransfer(pkg);
       await this.auditHandoff(pkg, ctx, "handoff.requested", null, initiatedBy);
+      if (journey.priority === "SAFETY") {
+        // The coordinator kept the caller on the call's active safety route (SAFE-03); nothing STANDARD was dialled.
+        return this.observed(input.callId, "SAFETY", { handoffId: journey.handoffId, transferId: journey.currentTransferId, destinationId: journey.routePlan[journey.routeIndex] ?? pkg.destinationId, journey, speechTemplateId: "safety.acknowledgment" });
+      }
       return this.observed(input.callId, "STANDARD", { handoffId, transferId: journey.currentTransferId, destinationId: pkg.destinationId, journey, speechTemplateId, supportReference: pkg.supportReference });
     } catch (err) {
       this.deps.logger.error("handoff.transfer_request_failed", { handoffId, reasonCode: reasonOf(err) });
@@ -181,10 +251,18 @@ export class BusinessHandoffService implements HandoffService {
   async requestSafetyRoute(input: Parameters<HandoffService["requestSafetyRoute"]>[0]): Promise<HandoffResult> {
     const ctx = this.usableContext(input.ctx, input.tenantId, input.callId);
     const language = normalizeLanguage(input.locale);
+    // A malformed initiator never blocks the safety route; it is ignored (and logged).
+    let initiatedBy = input.initiatedBy ?? null;
+    if (initiatedBy !== null && !OpaqueId.safeParse(initiatedBy.staffId).success) {
+      this.deps.logger.warn("handoff.safety_initiator_ignored", { reasonCode: "HANDOFF_INITIATOR_INVALID" });
+      initiatedBy = null;
+    }
     const resolved = resolveDestination(this.deps.destinations, "SAFETY_PRIORITY", language);
     // The coordinator substitutes its configured safety destination if this is ever invalid.
     const destinationId = resolved?.destination.destinationId ?? "dst_safety_priority";
     const accommodations: Accommodation[] = resolved?.interpreter ? ["interpreter"] : [];
+    // Validated-signal instant for the safety evidence: synchronous, no I/O (SAFE-HANDOFF-07).
+    const incident = input.recordSafetyEvent === false ? null : this.beginIncident(input, ctx, destinationId);
     const context = await within(this.callContext(input.tenantId, input.callId), SAFETY_CONTEXT_TIMEOUT_MS, { receipts: [], pending: [], unresolved: [] });
     const handoffId = await within(this.handoffIdFor(input.tenantId, input.callId, "SAFETY"), SAFETY_CONTEXT_TIMEOUT_MS, this.deterministicHandoffId(input.tenantId, input.callId, "SAFETY", 0));
     const pkg = await this.buildPackage(
@@ -206,19 +284,34 @@ export class BusinessHandoffService implements HandoffService {
     );
 
     // Stop administrative work and flag the session concurrently; never awaited before dialling.
-    const escalation = this.escalate(ctx);
+    // Without a usable context (session-less tool, console) the call's live session is resolved server-side.
+    const escalation = this.escalate(ctx, input.tenantId, input.callId);
     let journey: HandoffResult["journey"] = null;
     try {
       journey = await this.deps.transfers.requestTransfer(pkg, { validatedSafetyEventAt: iso(input.validatedAt) });
     } catch (err) {
       this.deps.logger.error("handoff.safety_transfer_request_failed", { handoffId, reasonCode: reasonOf(err) });
     }
+    // Route initiation instant is taken synchronously, right after the route was requested.
+    const evidence = incident ? this.recordIncident(incident, journey?.currentTransferId ?? null) : Promise.resolve();
     await escalation;
     // Evidence and the restricted record for the safety owner queue come after the route was
     // initiated, bounded in time, and never fail the route.
-    await within(this.auditHandoff(pkg, ctx, journey ? "handoff.safety_requested" : "handoff.safety_transfer_failed", journey ? null : "TRANSFER_REQUEST_FAILED"), STANDARD_CONTEXT_TIMEOUT_MS, undefined);
+    await within(evidence, STANDARD_CONTEXT_TIMEOUT_MS, undefined);
+    await within(
+      this.auditHandoff(pkg, ctx, journey ? "handoff.safety_requested" : "handoff.safety_transfer_failed", journey ? null : "TRANSFER_REQUEST_FAILED", initiatedBy),
+      STANDARD_CONTEXT_TIMEOUT_MS,
+      undefined,
+    );
     await within(this.safetyRecord(ctx, input.tenantId, input.callId, pkg.safetyRoutingReason ?? "HUMAN_INTERVENTION", language), STANDARD_CONTEXT_TIMEOUT_MS, undefined);
-    return this.observed(input.callId, "SAFETY", { handoffId, transferId: journey?.currentTransferId ?? null, destinationId: journey?.routePlan[journey.routeIndex] ?? destinationId, journey, speechTemplateId: "safety.acknowledgment" });
+    return this.observed(input.callId, "SAFETY", {
+      handoffId,
+      transferId: journey?.currentTransferId ?? null,
+      destinationId: journey?.routePlan[journey.routeIndex] ?? destinationId,
+      journey,
+      speechTemplateId: "safety.acknowledgment",
+      safetyEventRecorded: incident !== null,
+    });
   }
 
   // ------------------------------------------------------------------ helpers
@@ -230,7 +323,68 @@ export class BusinessHandoffService implements HandoffService {
     } catch (err) {
       this.deps.logger.warn("handoff.observer_failed", { handoffId: result.handoffId, reasonCode: reasonOf(err) });
     }
-    return result;
+    return { ...result, priority };
+  }
+
+  /**
+   * Why a human request must take the safety route instead (SAFE-03), or null. The active-journey
+   * lookup is bounded; a lookup failure falls through to the other (context-only) reasons.
+   */
+  private async safetyRouteFor(
+    input: Parameters<HandoffService["requestHuman"]>[0],
+    ctx: AuthContext | null,
+    chosen: DestinationConfig | null,
+  ): Promise<{ reasonCode: string } | null> {
+    if (input.reason === "SAFETY_PRIORITY") return { reasonCode: "SAFETY_PRIORITY_REQUESTED" };
+    if (chosen?.purpose === "SAFETY_PRIORITY") return { reasonCode: "SAFETY_DESTINATION_SELECTED" };
+    if (input.issueCategory === "safety_concern") return { reasonCode: "SAFETY_CONCERN_HUMAN_REQUEST" };
+    const active = await within(
+      this.deps.transfers.activeSafetyJourney(input.tenantId, input.callId).catch(() => null),
+      SAFETY_CONTEXT_TIMEOUT_MS,
+      null,
+    );
+    if (active) return { reasonCode: "SAFETY_JOURNEY_ACTIVE" };
+    if (ctx?.riskFlags.includes("SAFETY_ESCALATION_ACTIVE")) return { reasonCode: "SAFETY_MODE_ACTIVE" };
+    return null;
+  }
+
+  /** Validated-signal instant of the safety incident (no I/O); null when no recorder is composed or input is unusable. */
+  private beginIncident(input: Parameters<HandoffService["requestSafetyRoute"]>[0], ctx: AuthContext | null, destinationId: string): SafetyIncident | null {
+    const recorder = this.deps.safetyEvents;
+    if (!recorder) return null;
+    try {
+      let reasonCode = input.decisionReasonCode && REASON_CODE.test(input.decisionReasonCode) ? input.decisionReasonCode : null;
+      if (reasonCode === null) {
+        // Deterministic policy selects the response and route after a signal (spec section 10).
+        const decided = this.deps.safety.router.decide(input.signals, { locale: input.locale, afterHours: false, safetyModeActive: true }).reasonCode;
+        reasonCode = REASON_CODE.test(decided) ? decided : "SAFETY_ROUTE_REQUESTED";
+      }
+      return recorder.begin({
+        tenantId: input.tenantId,
+        callId: input.callId,
+        sessionGeneration: ctx?.sessionGeneration ?? 0,
+        correlationId: input.correlationId ?? null,
+        signals: input.signals,
+        decision: { route: "SAFETY_PRIORITY_HUMAN", destinationId, reasonCode },
+        locale: input.locale,
+        afterHours: false,
+      });
+    } catch (err) {
+      this.deps.logger.warn("handoff.safety_event_not_started", { reasonCode: reasonOf(err) });
+      return null;
+    }
+  }
+
+  /** Route initiation (time to route) then the validated signal; never throws into the route. */
+  private async recordIncident(incident: SafetyIncident, transferId: string | null): Promise<void> {
+    const recorder = this.deps.safetyEvents;
+    if (!recorder) return;
+    try {
+      await recorder.recordRouteInitiated(incident, { transferId });
+      await recorder.recordValidated(incident);
+    } catch (err) {
+      this.deps.logger.warn("handoff.safety_event_not_recorded", { reasonCode: reasonOf(err) });
+    }
   }
 
   /** A context from another call or tenant is ignored (treated as unauthenticated). */
@@ -240,7 +394,14 @@ export class BusinessHandoffService implements HandoffService {
     return ctx;
   }
 
-  private async escalate(ctx: AuthContext | null): Promise<void> {
+  private async escalate(usable: AuthContext | null, tenantId: string, callId: string): Promise<void> {
+    let ctx = usable;
+    if (!ctx && this.deps.callSessions) {
+      // Trusted server-side binding of the call (never a caller/model value); only used to revoke and flag.
+      const resolved = await within(this.deps.callSessions.resolveForCall(tenantId, callId), 2000, null);
+      ctx = resolved ? this.usableContext(resolved, tenantId, callId) : null;
+      if (!ctx) this.deps.logger.warn("handoff.safety_session_unresolved", { reasonCode: "CALL_SESSION_UNRESOLVED" });
+    }
     if (!ctx) return;
     await Promise.allSettled([
       within(this.deps.actions.invalidatePending(ctx.sessionRef, "SAFETY_ESCALATION"), 2000, 0),
@@ -351,25 +512,27 @@ export class BusinessHandoffService implements HandoffService {
   }
 
   private async handoffRecord(ctx: AuthContext | null, tenantId: string, callId: string, reason: TransferReason, issueCategory: IssueCategory | null, language: string) {
+    // DP-01: clinical-question, privacy-concern and safety-concern records are restricted and minimized.
+    const placement = handoffRecordPlacement(reason, issueCategory);
     return this.support.createRecord({
       tenantId,
       callId,
       audience: ctx?.selectedRole ?? null,
-      subjectRef: ctx && ctx.subjectId && meetsAssurance(ctx.assurance, "A2") ? ctx.subjectId : null,
+      subjectRef: placement.linkSubject && ctx && ctx.subjectId && meetsAssurance(ctx.assurance, "A2") ? ctx.subjectId : null,
       organizationRef: null,
       actorRef: ctx?.actorId ?? null,
       sessionRef: auditSessionRef(ctx),
       sessionGeneration: ctx?.sessionGeneration ?? null,
-      issueCategory: issueCategory ?? "other",
+      issueCategory: placement.issueCategory,
       disposition: "OUTCOME_UNKNOWN",
       summaryTemplateId: "summary.human_handoff",
-      summarySlots: { reason, issueCategory: issueCategory ?? "other" },
+      summarySlots: { reason, issueCategory: placement.issueCategory },
       attempted: ["human.request"],
       commitReceiptIds: [],
       nextStep: "HUMAN_RECEIVER_FOLLOW_UP",
-      restricted: false,
-      priority: "P3_STANDARD",
-      ownerQueue: "q_support_general",
+      restricted: placement.restricted,
+      priority: placement.priority,
+      ownerQueue: placement.ownerQueue,
       language,
       consent: ctx?.consent ?? UNKNOWN_CONSENT,
       creationKey: sha256Hex(`vsp.handoff.record.v1:${tenantId}:${callId}:${reason}`),

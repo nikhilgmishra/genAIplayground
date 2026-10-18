@@ -23,27 +23,59 @@ export const ApprovalScope = z.enum([
 ]);
 export type ApprovalScope = z.infer<typeof ApprovalScope>;
 
+export const ApproverRole = z.enum([
+  "privacy_counsel",
+  "security_leadership",
+  "clinical_safety_lead",
+  "finance",
+  "operations",
+  "executive_sponsor",
+  "identity_owner",
+  "salesforce_admin",
+  "talkdesk_admin",
+  "sre_lead",
+  "qa_language_lead",
+]);
+export type ApproverRole = z.infer<typeof ApproverRole>;
+
+/**
+ * Machine-checkable subject of an approval (OPS-APPR-01; OPS-04, OPS-06; threat model
+ * T-15 approval replay). It is part of the signed payload (the signature covers the
+ * whole record except `signature`), so it cannot be edited after signing. The
+ * deployment guard and the release-manifest gate require the member for the record's
+ * scope to EQUAL the configured / loaded artifact; free-text `scopeDetail` is never
+ * read by software. Which member a scope needs is defined in
+ * platform/src/config/approvals.ts (SUBJECT_KIND_BY_SCOPE).
+ */
+export const ApprovalSubject = z.strictObject({
+  /** MODEL_VOICE_SELECTION: the exact vendor model, voice and agent configuration approved. */
+  modelVoice: z.strictObject({ model: VersionLabel, voice: VersionLabel, agentConfig: VersionLabel }).optional(),
+  /** POLICY_RELEASE: the released OPA bundle (version label and sha256 of the bundle). */
+  policyBundle: z.strictObject({ version: VersionLabel, digest: Sha256Hex }).optional(),
+  /** KNOWLEDGE_RELEASE: the approved knowledge snapshot digest (knowledge/snapshot.ts). */
+  knowledgeSnapshotDigest: Sha256Hex.optional(),
+  /** CLINICAL_SCRIPTS: digest of the approved caller-facing template catalogue (voice registry digest()). */
+  templateCatalogDigest: Sha256Hex.optional(),
+  /** PRODUCTION_DEPLOYMENT / PILOT_EXPOSURE: the exact container image released. */
+  release: z.strictObject({ imageDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/) }).optional(),
+});
+export type ApprovalSubject = z.infer<typeof ApprovalSubject>;
+
 export const ApprovalRecord = z.strictObject({
   approvalId: z.string().regex(/^apr_[A-Za-z0-9_-]{8,64}$/),
   approver: z.strictObject({
     name: z.string().min(2).max(120),
-    role: z.enum([
-      "privacy_counsel",
-      "security_leadership",
-      "clinical_safety_lead",
-      "finance",
-      "operations",
-      "executive_sponsor",
-      "identity_owner",
-      "salesforce_admin",
-      "talkdesk_admin",
-      "sre_lead",
-      "qa_language_lead",
-    ]),
+    role: ApproverRole,
   }),
   scope: ApprovalScope,
-  /** Precise scope statement: tenant, SKU, region, feature, model, budget ceiling, etc. */
+  /** Precise scope statement: tenant, SKU, region, feature, model, budget ceiling, etc. Human-readable only. */
   scopeDetail: z.string().min(10).max(2000),
+  /**
+   * Signed machine-checkable subject (additive; optional in the schema so records for
+   * scopes without a versioned artifact stay valid). Scopes listed in
+   * SUBJECT_KIND_BY_SCOPE are never satisfied without it.
+   */
+  subject: ApprovalSubject.optional(),
   environment: Environment,
   grantedAt: IsoDateTime,
   expiresAt: IsoDateTime,

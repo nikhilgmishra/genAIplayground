@@ -40,6 +40,8 @@ export type { AuditBufferPolicy, PgAuditHealthOptions } from "./health.js";
 export { AuditShipper, AuditShipBlockedError } from "./shipper.js";
 export type { AuditShipperOptions, ShipRunResult, StreamShipResult } from "./shipper.js";
 export { IntegrityVerifier, assessCompleteness, reconcileCounts } from "./verifier.js";
+export { AuditCompletenessMonitor, COMMIT_EVIDENCE_ACTIONS, sourceComponentForStream } from "./monitor.js";
+export type { AuditCompletenessMonitorOptions, AuditMonitorReport } from "./monitor.js";
 export type {
   ActionTally,
   CompletenessAssessment,

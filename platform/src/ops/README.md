@@ -28,6 +28,27 @@ approved budgets.
   reach other instances (this instance invalidates on its own writes). Staleness
   can delay containment; it can never block a safety or human route because those
   routes ignore switches.
+- **Enforcement points beyond the gateway pipeline and admission** (composed in
+  `platform/src/main/container.ts`):
+  - `notification-gate.ts` — `KillSwitchGatedNotificationSender` wraps the
+    NotificationSender port: every send (secure link, step-up link, OTP code) reads the
+    snapshot and is refused before the provider is called when `OUTBOUND_NOTIFICATIONS` or
+    `INTEGRATION notifications` is engaged, or the state is unreadable
+    (`NotificationBlockedError`, DependencyError NOT_STARTED, reason
+    `KILL_SWITCH_OUTBOUND_NOTIFICATIONS` / `KILL_SWITCH_INTEGRATION`). Only a sender composed
+    with purpose `SAFETY_ESCALATION` (staff paging) is exempt; the purpose is fixed at
+    composition, never per call (OPS-KS-01). The verification service keeps its neutral,
+    anti-enumeration caller response; it does not yet tell the caller that no message was
+    sent (identity/gateway follow-up, see BLOCKED below).
+  - `integration-gate.ts` — `KillSwitchGatedSupportRecords` wraps the Salesforce
+    SupportRecordSystem port: upserts are held while `INTEGRATION salesforce` or `WRITES` is
+    engaged, lookups while `INTEGRATION salesforce` is engaged, everything while the state is
+    unreadable (`IntegrationHeldError`, NOT_STARTED). `holdReason()` lets the
+    `support_request.sync` consumer check BEFORE claiming, so a held sync spends no attempt,
+    makes no state transition and is never dead-lettered (the row records
+    `last_sync_reason = KILL_SWITCH_*`, audited as `support_request.sync_held`); the worker's
+    `support.sync_retry` sweep enqueues nothing while held and re-enqueues held rows after
+    release (OPS-KS-02).
 - Engaging a switch during a full audit outage is refused (fail closed). The
   containment path that remains in that case is the independent Talkdesk Studio
   human route, which does not depend on this service.
@@ -98,6 +119,8 @@ fixture, synthetic staff), `InMemorySessionCapacity` is per process.
 | Automatic degradation thresholds | Load-test evidence (spec section 12); `ManualLoadSignal` is operator-controlled today |
 | Metrics/traces export | Approved CloudWatch / Datadog configuration and PHI-aware export policy |
 | SLO measurement | Real telephone-path measurements; all targets remain PROPOSED |
+| Caller-facing routing while notifications are switched off (OPS-KS-01 follow-up) | Identity/gateway owners: the verification service still answers with the neutral "if eligible, a link was sent" response and the policy catalogue does not map `begin_verification` to the `notifications` integration; a `VERIFICATION_UNAVAILABLE_USE_HUMAN` response (switch state is global, so it leaks nothing about the account) needs those modules |
+| Kill-switch gates for other background provider calls and the console reconciled retry under WRITES (OPS-KS-02 follow-up) | Business / console-api owners; only the Salesforce support-record sync is gated here (the only background call into a switchable integration found by the review) |
 
 ## How to test
 
@@ -105,6 +128,10 @@ fixture, synthetic staff), `InMemorySessionCapacity` is per process.
 cd platform
 npx vitest run src/ops src/observability/metrics.test.ts src/observability/tracing.test.ts src/observability/slo.test.ts
 ```
+
+`notification-gate.test.ts` and `integration-gate.test.ts` include end-to-end cases over the
+LOCAL FIXTURE composition (journey harness: real console API, MCP and telephony-control routes,
+worker loops, Salesforce and notification fixtures).
 
 ## Requirements enforced
 

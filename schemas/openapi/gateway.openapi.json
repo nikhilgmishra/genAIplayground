@@ -366,7 +366,7 @@
     "/mcp": {
       "post": {
         "operationId": "mcp.post",
-        "summary": "MCP Streamable HTTP endpoint (stateless, JSON responses): initialize, tools/list (pinned catalogue), tools/call (trusted tool pipeline).",
+        "summary": "MCP Streamable HTTP endpoint (stateless, JSON responses): initialize, tools/list (pinned catalogue), tools/call (trusted tool pipeline). Rate limited per JSON-RPC message, per call and per integration, except SAFETY_AND_HUMAN_ROUTE tool calls, which are never throttled; batches hold at most 10 messages.",
         "tags": [
           "mcp"
         ],
@@ -435,7 +435,7 @@
             "description": "Notification accepted"
           },
           "400": {
-            "description": "Malformed JSON-RPC"
+            "description": "Malformed JSON-RPC, empty batch or batch larger than 10 messages"
           },
           "401": {
             "description": "Missing or invalid integration credential"
@@ -4111,7 +4111,7 @@
     "/v1/tools/{name}/{version}": {
       "post": {
         "operationId": "tools.invoke",
-        "summary": "Invoke one pinned tool version through the trusted tool pipeline (deterministic alternative to MCP tools/call).",
+        "summary": "Invoke one pinned tool version through the trusted tool pipeline (deterministic alternative to MCP tools/call). Rate limited per call and per integration, except the SAFETY_AND_HUMAN_ROUTE tools, which are never throttled.",
         "tags": [
           "tools"
         ],

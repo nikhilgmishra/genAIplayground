@@ -11,7 +11,12 @@
  *     VERIFIED against the trusted public key, for this environment and unexpired
  *     (REQUIRED_APPROVALS_BY_ENVIRONMENT from platform/src/config/guard.ts, plus
  *     BILLABLE_TEST_EXECUTION for sandbox/staging because deploying creates billable
- *     resources);
+ *     resources), signed by a role allowed for the scope, and — for subject-bound scopes
+ *     (OPS-APPR-01) — whose signed subject EQUALS what this manifest releases: model /
+ *     voice / agentConfig = versions.*, policy digest = policyBundleDigest, knowledge
+ *     snapshot = knowledgeSnapshotDigest, template catalogue = versions.promptTemplates
+ *     (a sha256 digest), image = build.imageDigest. An approval for another artifact,
+ *     or a manifest that does not state the artifact, never counts;
  *   - production: every test/quota evidence entry PASS (missing evidence is never PASS),
  *     the reviewed infrastructure plan digest bound in the manifest, a rollback target,
  *     and a manifest signature.
@@ -30,7 +35,7 @@ import { pathToFileURL } from "node:url";
 import { ReleaseManifest } from "../../platform/src/protocol/release.js";
 import type { ApprovalScope, ReleaseStatus } from "../../platform/src/protocol/release.js";
 import { REQUIRED_APPROVALS_BY_ENVIRONMENT } from "../../platform/src/config/guard.js";
-import { evaluateApproval, parseTrustedPublicKey } from "../../platform/src/config/approvals.js";
+import { evaluateApproval, parseTrustedPublicKey, releaseSubjectExpectations } from "../../platform/src/config/approvals.js";
 
 export type DeployEnvironment = "sandbox" | "staging" | "production";
 
@@ -90,13 +95,14 @@ export function evaluateReleaseGate(input: GateInput): GateDecision {
 
   if (m.missingApprovals.length > 0) reasons.push(`MISSING_APPROVALS_DECLARED:${[...m.missingApprovals].sort().join(",")}`);
 
+  const expected = releaseSubjectExpectations(m);
   for (const scope of required) {
     const candidates = m.approvals.filter((a) => a.scope === scope);
     if (candidates.length === 0) {
       reasons.push(`APPROVAL_MISSING:${scope}`);
       continue;
     }
-    const evaluations = candidates.map((a) => evaluateApproval(a, { environment: input.environment, now: input.now, trustedKey: input.trustedKey }));
+    const evaluations = candidates.map((a) => evaluateApproval(a, { environment: input.environment, now: input.now, trustedKey: input.trustedKey, expected }));
     if (!evaluations.some((e) => e.status === "VALID")) {
       reasons.push(`APPROVAL_INVALID:${scope}:${[...new Set(evaluations.flatMap((e) => e.failures))].join("+")}`);
     }

@@ -16,8 +16,11 @@
  * told the SR reference is a support reference pending synchronization, never a
  * Salesforce Case number. Case status resolves the reference to its AUTHORITATIVE scope
  * (subject or organization); unknown or restricted references resolve to a resource
- * policy denies (no existence disclosure). The recap uses SupportMemory only, at A2+
- * for the same subject, with the session's risk flags (DATA-04).
+ * policy denies (no existence disclosure). The recap uses SupportMemory only as a
+ * pointer, at A2+ for the same subject, with the session's risk flags: the referenced
+ * request is re-read from the system of record and recapped only while it is still open
+ * (DATA-04, DP-03; CaseService.recap). Creation keys derive from the transport idempotency
+ * key (ACT-F2; IntakeService).
  */
 import { z } from "zod";
 import { CASE_STATUSES, type CaseView } from "../../business/services/cases.js";
@@ -51,7 +54,7 @@ export function submitComplaintTool(s: BusinessServices): ToolModule<z.infer<typ
     async execute(ctx, input) {
       try {
         const subjectRef = await s.intake.complaintSubject(ctx.auth, toolPolicyRef(definition));
-        const r = await s.intake.complaint({ auth: ctx.auth, turnId: ctx.request.turnId, tool: definition.name, argsDigest: argsDigest(input), language: input.language }, input, subjectRef);
+        const r = await s.intake.complaint({ auth: ctx.auth, turnId: ctx.request.turnId, idempotencyKey: ctx.request.idempotencyKey, tool: definition.name, argsDigest: argsDigest(input), language: input.language }, input, subjectRef);
         const ref = r.supportRequest.referenceNumber;
         return ok(
           { complaint: { status: "REQUEST_ACCEPTED", supportReference: ref }, synchronization: "PENDING_SYNC", linkedToAccount: r.supportRequest.subjectRef !== null },
@@ -93,7 +96,7 @@ export function createSupportRequestTool(s: BusinessServices): ToolModule<z.infe
     },
     async execute(ctx, input) {
       try {
-        const r = await s.intake.general({ auth: ctx.auth, turnId: ctx.request.turnId, tool: definition.name, argsDigest: argsDigest(input), language: input.language }, input, toolPolicyRef(definition));
+        const r = await s.intake.general({ auth: ctx.auth, turnId: ctx.request.turnId, idempotencyKey: ctx.request.idempotencyKey, tool: definition.name, argsDigest: argsDigest(input), language: input.language }, input, toolPolicyRef(definition));
         const sr = r.supportRequest;
         return ok(
           { request: { status: "REQUEST_ACCEPTED", supportReference: sr.referenceNumber }, synchronization: "PENDING_SYNC", linkedToAccount: r.linkedTo !== null },
@@ -154,7 +157,8 @@ export function getAuthorizedCaseStatusTool(s: BusinessServices): ToolModule<z.i
         } else {
           cases = sc.kind === "subject" ? await s.cases.forSubject(ctx.auth.tenantId, sc.id) : await s.cases.forOrganization(ctx.auth.tenantId, sc.id);
         }
-        // Repeat-caller recap: memory only, never for another subject or below A2 (DATA-04).
+        // Repeat-caller recap: a memory pointer reconciled with the system of record (open requests only),
+        // never for another subject or below A2 (DATA-04, DP-03).
         const recap = sc.kind === "subject" && sc.id === ctx.auth.subjectId ? await s.cases.recap(ctx.auth) : null;
         let speech: ToolSpeech;
         if (input.supportReference === null && recap) {

@@ -18,9 +18,13 @@
  * human release decision, so software never emits APPROVED_PILOT or
  * VERIFIED_PRODUCTION.
  *
- * Usage: tsx src/evaluation/manifest.ts --env <local|ci|sandbox|staging|production> [--out-dir <dir>]
- *   [--tool-catalog-digest <sha256>] [--knowledge-snapshot-digest <sha256>] [--image-digest <d>] [--build-id <id>]
- *   [--infra-plan-digest <sha256>] [--talkdesk-config-id <id>] [--retention-digest <sha256>] [--rollback-target <ref>]
+ * Usage: tsx src/evaluation/manifest.ts --env <local|ci|sandbox|staging|production> [--out-dir <dir>] [--dry-run]
+ *   [--tool-catalog-digest <sha256>] [--knowledge-snapshot-digest <sha256>] [--image-digest sha256:<hex>] [--build-id <id>]
+ *   [--source-commit <40 hex; must equal HEAD>] [--infra-plan-digest <sha256>] [--talkdesk-config-id <id>]
+ *   [--retention-digest <sha256>] [--rollback-target <ref>]
+ * (or `pnpm evidence manifest ...`). Unknown, repeated or value-less flags exit 2 (OPS-REL-02);
+ * `--dry-run` validates the exact command line and writes nothing. .github/workflows/release.yml
+ * runs this command; scripts/ci/check-release-manifest.test.ts executes that step verbatim.
  */
 import { execFileSync } from "node:child_process";
 import type { KeyObject } from "node:crypto";
@@ -29,7 +33,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Environment, PROTOCOL_VERSION, ReleaseManifest } from "../protocol/index.js";
 import type { ApprovalScope, ReleaseStatus, VersionSet } from "../protocol/index.js";
-import { evaluateApproval, loadApprovalRecords, parseTrustedPublicKey } from "../config/approvals.js";
+import { evaluateApproval, loadApprovalRecords, parseTrustedPublicKey, releaseSubjectExpectations } from "../config/approvals.js";
 import type { ApprovalEvaluation } from "../config/approvals.js";
 import { REQUIRED_APPROVALS_BY_ENVIRONMENT } from "../config/guard.js";
 import { migrationsDigest } from "../db/migrate.js";
@@ -91,6 +95,8 @@ export interface ManifestInput {
   knowledgeSnapshotDigest?: string | null;
   versions?: VersionSet | null;
   build?: { buildId: string | null; imageDigest: string | null };
+  /** Commit the caller built (CI's GITHUB_SHA). When set it must equal git HEAD, else SOURCE_COMMIT_MISMATCH blocks (OPS-REL-02). */
+  expectedSourceCommit?: string | null;
   infrastructurePlanDigest?: string | null;
   talkdeskConfigurationId?: string | null;
   retentionConfigurationDigest?: string | null;
@@ -184,6 +190,28 @@ export function collectEvidence(root: string, evidenceDir: string, env: Environm
 }
 
 const isLive = (env: Environment) => env === "sandbox" || env === "staging" || env === "production";
+
+/** Schema bounds of ReleaseManifest.testEvidence / quotaAndLoadEvidence (protocol/release.ts). */
+export const MAX_TEST_EVIDENCE = 128;
+export const MAX_LOAD_EVIDENCE = 32;
+
+/**
+ * Bounded subset for the manifest (OPS-REL-01): every non-PASS entry is kept first (FAIL,
+ * BLOCKED, NOT_RUN, INCONCLUSIVE), then PASS entries fill the remaining room; the result
+ * keeps the original (sorted path) order. Callers decide blockers over the full list.
+ */
+export function boundEvidence<T extends { status: EvidenceStatus }>(all: readonly T[], max: number): T[] {
+  if (all.length <= max) return [...all];
+  const rank: Record<EvidenceStatus, number> = { FAIL: 0, BLOCKED: 1, NOT_RUN: 2, INCONCLUSIVE: 3, PASS: 4 };
+  const keep = new Set(
+    all
+      .map((e, i) => ({ e, i }))
+      .sort((a, b) => rank[a.e.status] - rank[b.e.status] || a.i - b.i)
+      .slice(0, max)
+      .map((x) => x.i),
+  );
+  return all.filter((_, i) => keep.has(i));
+}
 const unpinnedLabel = (v: string) => v === "UNPINNED" || v === "UNKNOWN";
 
 export function buildReleaseManifest(input: ManifestInput): ManifestBuildResult {
@@ -204,6 +232,9 @@ export function buildReleaseManifest(input: ManifestInput): ManifestBuildResult 
   // ---------- source ----------
   const head = git.head();
   if (!head) blockers.push({ code: "SOURCE_COMMIT_UNAVAILABLE", detail: "git rev-parse HEAD failed; the manifest cannot bind source", prerequisites: [] });
+  if (input.expectedSourceCommit && head && input.expectedSourceCommit !== head) {
+    blockers.push({ code: "SOURCE_COMMIT_MISMATCH", detail: "the commit supplied by the caller is not the checked-out HEAD; the manifest records HEAD", prerequisites: [] });
+  }
   const dirty = git.dirty();
   if (dirty === true) gap("SOURCE_TREE_DIRTY", "working tree has uncommitted changes; the commit does not bind the built source");
   if (dirty === null) gap("SOURCE_TREE_STATE_UNKNOWN", "git status unavailable");
@@ -239,18 +270,32 @@ export function buildReleaseManifest(input: ManifestInput): ManifestBuildResult 
   if (!rollback && (env === "staging" || env === "production")) blockers.push({ code: "ROLLBACK_TARGET_MISSING", detail: "no rehearsed known-good rollback target", prerequisites: ["PRQ-011"] });
 
   // ---------- evidence ----------
+  // OPS-REL-01: every decision is made over the FULL evidence list, before the schema's
+  // size bound is applied; the recorded subset keeps every non-PASS entry so the deploy
+  // gate (which only sees the manifest) still sees each failure.
   const evidence = collectEvidence(root, input.evidenceDir ?? p.evidence, env);
-  const testEvidence = evidence.tests.slice(0, 128);
-  if (evidence.tests.length > 128) notes.push(`TEST_EVIDENCE_TRUNCATED: ${evidence.tests.length} entries, 128 recorded`);
-  const quotaAndLoadEvidence = evidence.load.slice(0, 32);
-  if (testEvidence.some((e) => e.status === "FAIL")) blockers.push({ code: "TEST_EVIDENCE_FAILING", detail: "at least one evidence entry is FAIL", prerequisites: [] });
-  if (testEvidence.length === 0) notes.push("NO_TEST_EVIDENCE: evidence/ holds no test reports or evaluation runs");
+  const testEvidence = boundEvidence(evidence.tests, MAX_TEST_EVIDENCE);
+  const quotaAndLoadEvidence = boundEvidence(evidence.load, MAX_LOAD_EVIDENCE);
+  if (evidence.tests.some((e) => e.status === "FAIL")) blockers.push({ code: "TEST_EVIDENCE_FAILING", detail: "at least one evidence entry is FAIL", prerequisites: [] });
+  if (evidence.load.some((e) => e.status === "FAIL")) blockers.push({ code: "QUOTA_LOAD_EVIDENCE_FAILING", detail: "at least one quota or load evidence entry is FAIL", prerequisites: ["PRQ-022"] });
+  for (const [label, all, kept, max] of [
+    ["TEST_EVIDENCE", evidence.tests, testEvidence, MAX_TEST_EVIDENCE],
+    ["QUOTA_LOAD_EVIDENCE", evidence.load, quotaAndLoadEvidence, MAX_LOAD_EVIDENCE],
+  ] as const) {
+    if (all.length <= max) continue;
+    const dropped = all.length - kept.length;
+    const nonPassDropped = all.filter((e) => e.status !== "PASS").length - kept.filter((e) => e.status !== "PASS").length;
+    // A live release must bind all of its evidence; locally the PASS-only overflow is noted.
+    if (live || nonPassDropped > 0) blockers.push({ code: `${label}_TRUNCATED`, detail: `${all.length} entries, ${kept.length} recorded (${dropped} dropped, ${nonPassDropped} of them not PASS)`, prerequisites: [] });
+    else notes.push(`${label}_TRUNCATED: ${all.length} entries, ${kept.length} recorded (only PASS entries dropped)`);
+  }
+  if (evidence.tests.length === 0) notes.push("NO_TEST_EVIDENCE: evidence/ holds no test reports or evaluation runs");
   if (live) {
-    const eligible = testEvidence.filter((e) => e.kind === "evaluation_run" && e.status === "PASS");
+    const eligible = evidence.tests.filter((e) => e.kind === "evaluation_run" && e.status === "PASS");
     if (eligible.length === 0) {
       blockers.push({ code: "ELIGIBLE_EVALUATION_EVIDENCE_MISSING", detail: `no evaluation run whose ${env} gate is PASS; local_fixture runs never satisfy it`, prerequisites: ["PRQ-012", "PRQ-043"] });
     }
-    if (quotaAndLoadEvidence.filter((e) => e.status === "PASS").length === 0) {
+    if (evidence.load.filter((e) => e.status === "PASS").length === 0) {
       blockers.push({ code: "QUOTA_LOAD_EVIDENCE_MISSING", detail: "no passing quota or load evidence for the vendor path (TB-10)", prerequisites: ["PRQ-022"] });
     }
   }
@@ -266,7 +311,9 @@ export function buildReleaseManifest(input: ManifestInput): ManifestBuildResult 
     }
   } else if (input.trustedApprovalKey) trustedKey = input.trustedApprovalKey;
   const now = clock.now();
-  const evaluations = loaded.records.map((r) => evaluateApproval(r, { environment: env, now, trustedKey }));
+  // OPS-APPR-01: an approval only counts when its signed subject names what this manifest releases.
+  const expected = releaseSubjectExpectations({ versions, policyBundleDigest: policyDigest, knowledgeSnapshotDigest: knowledgeDigest, build });
+  const evaluations = loaded.records.map((r) => evaluateApproval(r, { environment: env, now, trustedKey, expected }));
   const requiredApprovals = requiredApprovalsFor(env);
   const missingApprovals = requiredApprovals.filter((scope) => !evaluations.some((e) => e.scope === scope && e.status === "VALID"));
   if (missingApprovals.length > 0) blockers.push({ code: "APPROVALS_MISSING", detail: `missing or invalid: ${missingApprovals.join(", ")}`, prerequisites: ["PRQ-024"] });
@@ -337,31 +384,88 @@ export function writeReleaseManifest(result: ManifestBuildResult, outDir: string
   return { manifestPath, reportPath };
 }
 
-function arg(argv: readonly string[], name: string): string | undefined {
-  const i = argv.indexOf(name);
-  return i >= 0 ? argv[i + 1] : undefined;
+/** Flags `manifest` accepts (each takes one value). Anything else is a usage error (OPS-REL-02: no silently ignored flags). */
+export const MANIFEST_VALUE_FLAGS = [
+  "--env",
+  "--root",
+  "--out-dir",
+  "--tool-catalog-digest",
+  "--knowledge-snapshot-digest",
+  "--image-digest",
+  "--build-id",
+  "--source-commit",
+  "--infra-plan-digest",
+  "--talkdesk-config-id",
+  "--retention-digest",
+  "--rollback-target",
+] as const;
+/** Boolean flags: `--dry-run` validates the exact command line and writes nothing; `--help` prints usage. */
+export const MANIFEST_BOOLEAN_FLAGS = ["--dry-run", "--help"] as const;
+
+export const MANIFEST_USAGE = [
+  "usage: manifest --env <local|ci|sandbox|staging|production> [--out-dir <dir>] [--dry-run]",
+  "         [--image-digest sha256:<64 hex>] [--build-id <id>] [--source-commit <40 hex, must equal git HEAD>]",
+  "         [--tool-catalog-digest <sha256>] [--knowledge-snapshot-digest <sha256>] [--infra-plan-digest <sha256>]",
+  "         [--talkdesk-config-id <id>] [--retention-digest <sha256>] [--rollback-target <ref>] [--root <dir>]",
+  "       writes <out-dir>/release-manifest.<env>.json and release-manifest.<env>.report.json",
+].join("\n");
+
+type ParsedManifestArgs = { ok: true; values: Map<string, string>; flags: Set<string> } | { ok: false; reasonCode: string };
+
+/** Strict argv parse: unknown flags, missing values and repeated flags are rejected. */
+export function parseManifestArgs(argv: readonly string[]): ParsedManifestArgs {
+  const values = new Map<string, string>();
+  const flags = new Set<string>();
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i] ?? "";
+    if ((MANIFEST_BOOLEAN_FLAGS as readonly string[]).includes(a)) {
+      flags.add(a);
+      continue;
+    }
+    if (!(MANIFEST_VALUE_FLAGS as readonly string[]).includes(a)) return { ok: false, reasonCode: "MANIFEST_ARG_UNKNOWN" };
+    const v = argv[i + 1];
+    if (v === undefined || v.startsWith("--")) return { ok: false, reasonCode: "MANIFEST_ARG_VALUE_MISSING" };
+    if (values.has(a)) return { ok: false, reasonCode: "MANIFEST_ARG_REPEATED" };
+    values.set(a, v);
+    i++;
+  }
+  const commit = values.get("--source-commit");
+  if (commit !== undefined && !/^[a-f0-9]{40}$/.test(commit)) return { ok: false, reasonCode: "MANIFEST_ARG_SOURCE_COMMIT_INVALID" };
+  const image = values.get("--image-digest");
+  if (image !== undefined && !/^sha256:[a-f0-9]{64}$/.test(image)) return { ok: false, reasonCode: "MANIFEST_ARG_IMAGE_DIGEST_INVALID" };
+  return { ok: true, values, flags };
 }
 
 export function main(argv: readonly string[]): number {
-  const envArg = arg(argv, "--env");
-  const env = Environment.safeParse(envArg);
-  if (!env.success) {
-    process.stderr.write("usage: manifest --env <local|ci|sandbox|staging|production> [--out-dir <dir>]\n");
+  const parsed = parseManifestArgs(argv);
+  if (parsed.ok && parsed.flags.has("--help")) {
+    process.stdout.write(`${MANIFEST_USAGE}\n`);
+    return 0;
+  }
+  const env = Environment.safeParse(parsed.ok ? parsed.values.get("--env") : undefined);
+  if (!parsed.ok || !env.success) {
+    process.stderr.write(`manifest: ${parsed.ok ? "MANIFEST_ARG_ENV_INVALID" : parsed.reasonCode}\n${MANIFEST_USAGE}\n`);
     return 2;
   }
-  const root = resolve(arg(argv, "--root") ?? REPO_ROOT);
-  const outArg = arg(argv, "--out-dir");
+  const arg = (name: (typeof MANIFEST_VALUE_FLAGS)[number]): string | undefined => parsed.values.get(name);
+  const root = resolve(arg("--root") ?? REPO_ROOT);
+  const outArg = arg("--out-dir");
   const outDir = outArg ? (isAbsolute(outArg) ? outArg : resolve(process.cwd(), outArg)) : join(repoPaths(root).evidence, "release");
+  if (parsed.flags.has("--dry-run")) {
+    process.stdout.write(`manifest dry run: arguments accepted target=${env.data} out=${join(outDir, `release-manifest.${env.data}.json`)}\n`);
+    return 0;
+  }
   const result = buildReleaseManifest({
     targetEnvironment: env.data,
     root,
-    toolCatalogDigest: arg(argv, "--tool-catalog-digest") ?? null,
-    knowledgeSnapshotDigest: arg(argv, "--knowledge-snapshot-digest") ?? null,
-    build: { buildId: arg(argv, "--build-id") ?? null, imageDigest: arg(argv, "--image-digest") ?? null },
-    infrastructurePlanDigest: arg(argv, "--infra-plan-digest") ?? null,
-    talkdeskConfigurationId: arg(argv, "--talkdesk-config-id") ?? null,
-    retentionConfigurationDigest: arg(argv, "--retention-digest") ?? null,
-    rollbackTarget: arg(argv, "--rollback-target") ?? null,
+    toolCatalogDigest: arg("--tool-catalog-digest") ?? null,
+    knowledgeSnapshotDigest: arg("--knowledge-snapshot-digest") ?? null,
+    build: { buildId: arg("--build-id") ?? null, imageDigest: arg("--image-digest") ?? null },
+    expectedSourceCommit: arg("--source-commit") ?? null,
+    infrastructurePlanDigest: arg("--infra-plan-digest") ?? null,
+    talkdeskConfigurationId: arg("--talkdesk-config-id") ?? null,
+    retentionConfigurationDigest: arg("--retention-digest") ?? null,
+    rollbackTarget: arg("--rollback-target") ?? null,
   });
   const paths = writeReleaseManifest(result, outDir);
   process.stdout.write(

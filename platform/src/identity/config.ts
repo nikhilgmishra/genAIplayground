@@ -84,6 +84,11 @@ export const VerificationConfigSchema = z.strictObject({
   maxVerificationBeginsPerSession: z.number().int().min(1).max(50),
   /** A registered channel changed within this many days is a SIM-swap risk signal: no OTP is sent. */
   recentChannelChangeDays: z.number().int().min(1).max(365),
+  /**
+   * Storage TTL of the account-keyed abuse monitoring counters (abuse-monitor.ts, AUTH-ENUM-01).
+   * Engineering default pending Security approval; not a legal retention decision.
+   */
+  abuseSignalRetentionHours: z.number().int().min(1).max(24 * 90),
   /** Channel kinds a secure link may be delivered to, in preference order. */
   linkChannelKinds: z.array(z.enum(["portal_push", "email", "sms"])).min(1).max(3),
   acceptedAmr: z.array(z.string().regex(/^[a-z0-9_-]{2,16}$/)).min(1).max(16),
@@ -123,6 +128,7 @@ export const DEFAULT_VERIFICATION_CONFIG: VerificationConfig = {
   linkMaxPerAccountPerHour: 5,
   maxVerificationBeginsPerSession: 5,
   recentChannelChangeDays: 30,
+  abuseSignalRetentionHours: 168,
   linkChannelKinds: ["portal_push", "email", "sms"],
   acceptedAmr: [...DEFAULT_ACCEPTED_AMR],
   portalVerifyPath: "/verify/",

@@ -4,14 +4,21 @@
 # Gates, in order (any failure stops the deployment):
 #   1. cosign keyless verification of the release manifest, the image signature and the
 #      SBOM attestation, bound to this repository's release.yml on refs/heads/main.
-#   2. terraform plan with the read-only plan role (GitHub environment <env>-plan).
+#   2. terraform plan with the read-only plan role (GitHub environment <env>-plan). Its IAM
+#      trust pins the OIDC subject to <env>-plan AND this workflow file on refs/heads/main
+#      (job_workflow_ref; repository OIDC subject customization is a prerequisite), and the
+#      role writes only the state lock (VSP-INF-03). The job also refuses any other ref.
 #   3. infrastructure policy gate (OPA) on `terraform show -json`.
 #   4. release-manifest gate (scripts/ci/check-release-manifest.ts): status, signed and
 #      unexpired approvals, evidence, image digest and the reviewed plan digest.
 #      Production is refused unless the manifest permits it (OPS-04, OPS-05).
 #   5. manual approval: the apply job uses GitHub environment <env>, which must be
-#      configured with required reviewers (and, for production, a deployment branch
-#      rule restricted to main). The gate is re-checked immediately before apply.
+#      configured with required reviewers and a deployment branch rule restricted to
+#      main (every <env>-plan environment too). The gate is re-checked immediately
+#      before apply. The Node gate runs with the AWS credentials removed from its
+#      environment (VSP-INF-02). That narrows, but does not remove, what a compromised
+#      dependency can reach: steps share one runner, so dependency integrity (frozen
+#      lockfile, audit, SBOM) and the role boundary remain the controls.
 #   6. terraform apply of exactly the reviewed plan file (digest re-verified).
 # Rollback: dispatch this workflow with the previous release run (rollbackTarget);
 # ECS deployment circuit breakers also roll back failed task sets automatically.
@@ -65,6 +72,10 @@ jobs:
     outputs:
       plan_digest: ${{ steps.plan.outputs.plan_digest }}
     steps:
+      - name: Refuse any ref or workflow other than deploy.yml on main
+        run: |
+          [[ "${GITHUB_REF}" == "refs/heads/main" && "${GITHUB_WORKFLOW_REF}" == "${GITHUB_REPOSITORY}/.github/workflows/deploy.yml@refs/heads/main" ]] || { echo "::error::deploy runs only from .github/workflows/deploy.yml on refs/heads/main"; exit 1; }
+
       - uses: actions/checkout@v5 # pin to full commit SHA before production
         with:
           persist-credentials: false
@@ -182,6 +193,7 @@ jobs:
 
       - name: Release-manifest gate (refuses production unless the manifest permits it)
         run: |
+          unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN # the Node gate needs no AWS access
           platform/node_modules/.bin/tsx scripts/ci/check-release-manifest.ts \
             --manifest release/runs/release-manifest.json \
             --environment "${MANIFEST_ENV}" \
@@ -211,6 +223,10 @@ jobs:
     env:
       PLAN_DIGEST: ${{ needs.plan.outputs.plan_digest }}
     steps:
+      - name: Refuse any ref or workflow other than deploy.yml on main
+        run: |
+          [[ "${GITHUB_REF}" == "refs/heads/main" && "${GITHUB_WORKFLOW_REF}" == "${GITHUB_REPOSITORY}/.github/workflows/deploy.yml@refs/heads/main" ]] || { echo "::error::deploy runs only from .github/workflows/deploy.yml on refs/heads/main"; exit 1; }
+
       - uses: actions/checkout@v5 # pin to full commit SHA before production
         with:
           persist-credentials: false
@@ -275,6 +291,7 @@ jobs:
         run: |
           aws kms get-public-key --key-id "${TRUST_KEY_ARN}" --query PublicKey --output text | base64 -d > approvals-trust.der
           openssl pkey -pubin -inform DER -in approvals-trust.der -out approvals-trust.pem
+          unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN # the Node gate needs no AWS access
           platform/node_modules/.bin/tsx scripts/ci/check-release-manifest.ts \
             --manifest release/runs/release-manifest.json \
             --environment "${MANIFEST_ENV}" \

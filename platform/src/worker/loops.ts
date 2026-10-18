@@ -16,6 +16,7 @@ import type { ProviderCommitPort } from "../actions/ports.js";
 import type { TelephonyEvent, TelephonyFixture } from "../adapters/local/telephony-fixture.js";
 import { TRANSFER_EVENT_FOR_STATE } from "../adapters/local/telephony-fixture.js";
 import type { DeferredAuditQueue } from "../audit/deferred.js";
+import type { AuditCompletenessMonitor } from "../audit/monitor.js";
 import type { AuditShipper } from "../audit/shipper.js";
 import type { BusinessModule } from "../business/contract.js";
 import type { Db } from "../db/types.js";
@@ -382,6 +383,35 @@ export class AuditShipLoop implements WorkerLoop {
 }
 
 /**
+ * Audit completeness monitoring (audit/monitor.ts; OPS-01, OPS-AUD-01): local and shipped integrity,
+ * writer-head vs present rows, shipping lag, and committed-ledger-vs-audit reconciliation, emitting
+ * vsp_audit_ingestion_gaps_total / vsp_audit_export_completeness_ratio / vsp_audit_backlog_events.
+ * A FAIL verdict is reported in the loop details and through the metrics and alarms, not as a loop
+ * failure (restarting the worker cannot repair evidence); a monitor that cannot run reports failure.
+ */
+export class AuditVerifyLoop implements WorkerLoop {
+  readonly name = "audit.verify";
+  constructor(
+    private readonly monitor: Pick<AuditCompletenessMonitor, "runOnce">,
+    readonly intervalMs = 60_000,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      const r = await this.monitor.runOnce();
+      return ok(r.streams, {
+        verdict: r.verdict,
+        reasonCode: r.reasonCodes[0] ?? null,
+        integrityFindings: r.integrityFindings,
+        ingestionGaps: r.ingestionGaps,
+        reconciliationDiscrepancies: r.reconciliationDiscrepancies,
+        committedActionsChecked: r.committedActionsChecked,
+        backlog: r.backlog,
+      });
+    });
+  }
+}
+
+/**
  * Deferred route-audit flush (audit/deferred.ts): appends the human / safety handoff audit events
  * that were deferred during an audit outage, FIFO, once the audit store is writable again (the
  * queue skips the attempt while AuditHealth reports AUDIT_STORE_UNWRITABLE). Bounded per run.
@@ -439,6 +469,12 @@ export class SupportSyncRetryLoop implements WorkerLoop {
     private readonly tenantIds: readonly string[],
     readonly intervalMs = 30_000,
     private readonly limit = 100,
+    /**
+     * OPS-KS-02: kill-switch hold for the support-record integration (INTEGRATION <salesforce> /
+     * WRITES; unreadable state holds). While it returns a reason code nothing is re-enqueued for
+     * that tenant: due requests stay RETRY_SCHEDULED (no attempt spent) and resume on release.
+     */
+    private readonly hold?: (tenantId: string) => Promise<string | null>,
   ) {}
   runOnce(): Promise<LoopReport> {
     return guarded(async () => {
@@ -446,17 +482,22 @@ export class SupportSyncRetryLoop implements WorkerLoop {
       if (!retryDue) return { ok: false, processed: 0, reasonCode: "SUPPORT_SYNC_RETRY_UNAVAILABLE", details: {} };
       let requeued = 0;
       let failedTenants = 0;
+      let heldTenants = 0;
       let firstFailure: string | null = null;
       for (const tenantId of this.tenantIds) {
         try {
+          if (this.hold && (await this.hold(tenantId))) {
+            heldTenants += 1;
+            continue;
+          }
           requeued += await retryDue(tenantId, this.limit);
         } catch (err) {
           failedTenants += 1;
           firstFailure ??= reasonOf(err);
         }
       }
-      if (failedTenants > 0) return { ok: false, processed: requeued, reasonCode: firstFailure, details: { failedTenants } };
-      return ok(requeued, { tenants: this.tenantIds.length });
+      if (failedTenants > 0) return { ok: false, processed: requeued, reasonCode: firstFailure, details: { failedTenants, heldTenants } };
+      return ok(requeued, { tenants: this.tenantIds.length, heldTenants });
     });
   }
 }

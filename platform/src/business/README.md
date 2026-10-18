@@ -30,7 +30,7 @@ prepare/commit), 9 (support memory recap), 10 (handoff and safety route), 16 (jo
 | `providers.ts` | `ProviderCommitPort`s for `appointment.reschedule`, `appointment.create`, `billing.review.submit` (lookup by idempotency key; conflict and validation errors mapped to `FAILED` reason codes so the ledger does not record `UNKNOWN`). |
 | `commit.ts` | Maps ledger results to `COMMITTED / FAILED / UNKNOWN / STATE_CHANGED / RETRYABLE / REJECTED / DENIED`. |
 | `services/*.ts` | Appointments (options with opaque slot ids, prepare with optional slot id, commit, slot conflicts), billing (invoice facts, review prepare/commit with `onCommitted` follow-up), intake (general incl. representative-linked requests, complaint with policy-authorized subject link, partner), cases (status view, recap), knowledge (public FAQ search). |
-| `handoff.ts` | `BusinessHandoffService`: destination only from trusted configuration (a console-initiated `requestHuman` may name a staff-selected `destinationId`, which must be an allowlisted entry, and `initiatedBy {staffId}`, audited as the actor with sourceComponent `console`), deterministic handoff id per call and priority (a repeat never dials twice), strict `HandoffPackage` with a single-use receiver assertion, safety route that invalidates pending mutations and escalates the session; audit and support-record creation never block the safety transfer. |
+| `handoff.ts` | `BusinessHandoffService`: destination only from trusted configuration (a console-initiated `requestHuman` may name a staff-selected `destinationId`, which must be an allowlisted entry, and `initiatedBy {staffId}`, audited as the actor with sourceComponent `console`), deterministic handoff id per call and priority (a repeat never dials twice), strict `HandoffPackage` with a single-use receiver assertion, safety route that invalidates pending mutations and escalates the session (resolving the call's live session server-side when no context came with the request); a human request in safety mode takes the safety route; every safety route records content-free safety evidence; clinical / privacy / safety handoff records are restricted (`handoffRecordPlacement`); audit and support-record creation never block the safety transfer. |
 | `outcomes.ts` | `decideOutcome()` (pure) and `BusinessOutcomeService` (verifies claimed receipts against this call's `interaction_actions`; a call action still unsettled in the ledger => `OUTCOME_UNKNOWN` / `COMMIT_OUTCOME_UNKNOWN`; `reviseAfterCommit()` appends a revision when the reconciler commits it). |
 | `recheck.ts` | `BusinessPreDisclosureRecheck` (the `PreDisclosureRecheck` wired into the container's `PgWorkflowEngine`): current consent, representation, account state, kill switches and the OPA decision for purpose `durable_follow_up` with the durable grant's actor/subject, per grant-action rule (`RECHECK_RULES`). Ports `AccountStateLookup`, `ConsentRegistry`. |
 | `fixtures/recheck.fixture.ts` | **LOCAL FIXTURE**: `LocalAccountStateFixture` (actor/subject -> account over the SYNTHETIC directory, current state from `LocalIdentityDirectoryFixture`), `LocalConsentRegistryFixture` (in-memory consent changes after acceptance; `revoke`, `record`). Live versions BLOCKED. |
@@ -111,6 +111,37 @@ person's id and a restricted record all resolve to the same denied resource.
 - **Commit conflicts.** `SLOT_UNAVAILABLE` returns `committed: false` with fresh options;
   `STATE_CHANGED` is a permanent failure (re-prepare); `UNKNOWN` returns `UNKNOWN_OUTCOME` with
   the action id as the reconciliation reference.
+- **Success speech from the authoritative receipt (ACT-05, finding ACT-F4).** After a COMMITTED
+  ledger result, `AppointmentService.committedAppointment` never trusts a plain re-read: a
+  system-of-record read is used only when its version equals the receipt's `afterVersion` and its
+  provider evidence (`{appointmentId, startsAt, timeZone, status}`, the shape `SchedulingCommitPort`
+  records) hashes to the receipt's `evidenceHash`; otherwise the digest-bound prepared change is
+  checked against the same receipt evidence. Nothing that does not match the receipt is spoken: the
+  result is `UNKNOWN_OUTCOME` / `COMMITTED_RECORD_UNREADABLE` (a replica-lag / stale read can no longer
+  announce the old time as the new one). If the provider evidence shape changes, the check fails
+  closed (UNKNOWN), never open.
+- **Complete trusted readback (ACT-01, finding ACT-F5).** The digest-bound change carries every
+  caller-relevant fact the commit applies and the confirmation templates (DRAFT `0.2.0-draft`) read
+  all of them back: reschedule = old and new date / time / time zone **and visit type**
+  (`fromModality`, `toModality`; the scheduling commit copies the slot's modality); new booking = date
+  / time / time zone, visit type and the provider (`providerName`); billing review = the invoice date
+  and the **review reason** (`reasonCategory`). `confirmation.ts` `READBACK_FIELDS` /
+  `INTERNAL_CHANGE_FIELDS` list them per kind (a test asserts the change has no other field); an
+  action missing one is never read back partially (null => human route). The prepare-tool speech and
+  TC-07 use the same `confirmationSlotsFor`.
+- **Staff retry re-authorization (ACT-01, finding ACT-F3).** The appointment and billing provider
+  ports carry `authorizeOperatorRetry` (`services/operator-retry.ts`): before a console retry after a
+  NOT_FOUND reconciliation, the CALLER's current authority is re-established from server-side state
+  only: the bound session read by its non-bearer hash from the trusted session store (missing,
+  revoked, ended or expired fails; it must still be at the action's generation, same tenant, actor and
+  subject, without `SAFETY_ESCALATION_ACTIVE`), the authoritative target check, CURRENT relationships,
+  kill switches and policy for the same commit action, purpose and resource as the caller-path commit.
+  The ledger additionally requires the caller's confirmation to be fresh (see actions README).
+- **Intake creation key (ACT-02, finding ACT-F2).** The idempotent creation key of a support request,
+  complaint or partner intake is derived from the transport idempotency key (the tools require one),
+  not from a per-invocation turn id: a same-key retry after an ambiguous timeout, even after its gateway
+  reservation was re-taken, finds the record (and workflow, grant, sync message) the first execution
+  created. A direct business call without a key falls back to the turn id.
 - **Outcomes.** `RESOLVED` only with a verified COMMITTED receipt of the contract's action kind
   for this call; acceptance, request or Case creation is `REQUEST_ACCEPTED`; `TRANSFERRED` only
   after caller-confirmed connection; anything without evidence is `OUTCOME_UNKNOWN`. A call action
@@ -149,7 +180,12 @@ person's id and a restricted record all resolve to the same denied resource.
   `LINE_EXPLANATION` explain exactly the one matching line (`selectInvoiceLine`); none or several
   matches explain no line (balance facts).
 - **Support references** are spoken as pending synchronization, never as a Case number.
-- **Recap** only at A2 for the same subject; risk flags suppress it.
+- **Recap** only at A2 for the same subject; risk flags suppress it. Support memory is only a
+  POINTER (DATA-04, finding DP-03): `CaseService.recap` re-reads the referenced support request in the
+  caller's runtime view and speaks the recap only when it still names the caller's own subject, is not
+  RESOLVED and its authoritative status is open (not COMPLETED / CLOSED); the spoken category is the
+  record's. A stale entry (cancelled or completed workflow) is skipped and the caller hears the
+  authoritative `case.status`.
 - **Knowledge excerpts** are returned as cited data; templated speech is used only for mapped
   intents (free paraphrase of an excerpt is not spoken).
 - **`support_intake@1`** was added because `create_support_request` had no fitting contract.
@@ -180,6 +216,7 @@ console restricted-reader flag. Still open (owned by other modules):
 ```bash
 cd platform
 npx vitest run src/business src/gateway/tools src/voice src/main/sessionless-routing.test.ts
+npx vitest run src/business/transactions.test.ts test/journeys/transactions.test.ts   # ACT-F2..F5, DP-03
 npx vitest run test/journeys/recheck.test.ts test/journeys/outcomes.test.ts test/journeys/j2-billing-dispute.test.ts
 npx tsx src/business/contracts/cli-generate-doc.ts --check
 npx tsc -p tsconfig.json --noEmit
@@ -196,8 +233,9 @@ npx eslint src/business src/gateway/tools
   reconciled `action.committed` consumer), partner onboarding and complaint review. Without
   `ToolDeps.grants` the grantRef stays null and guarded transitions fail closed.
 * **Confirmation slots** (`confirmation.ts`, `BusinessModule.confirmationSlots`): typed values for
-  the TC-07 confirmation template from the prepared action (appointment from/to) or the system of
-  record (invoice issue date); anything missing => null => human route.
+  the TC-07 confirmation template from the prepared action (appointment from/to times, time zones and
+  visit types; new booking provider; billing review reason) or the system of record (invoice issue
+  date); anything missing => null => human route.
 * **Outcomes**: with `contractId: null` (TC-11) the contract is inferred from the call's verified
   committed actions (a resolving contract first); the evidence row records `contractInferred`.
 * **Handoff observer**: `BusinessHandoffService` reports every returned handoff to
@@ -224,3 +262,40 @@ npx eslint src/business src/gateway/tools
   saw the call's consent), so its disclosures wait for a human until the consent registry records
   current consent; the provider own-schedule offer reuses the client-oriented DRAFT template
   `appointment.option_offer` (a provider-facing template is a voice-module request).
+
+## Safety-handoff review fixes (SAFE-HANDOFF-02, -05, -07, DP-01)
+
+* **Safety supersedes standard journeys (SAFE-HANDOFF-02, SAFE-03).** `requestHuman` takes the
+  safety route instead (SAFETY_ROUTE MAINTAIN when a safety journey is active, otherwise a new
+  safety route) when the reason is `SAFETY_PRIORITY`, the staff-selected destination has purpose
+  `SAFETY_PRIORITY`, the stated category is `safety_concern`, the call has a SAFETY journey that is
+  ROUTING or CONNECTED (bounded lookup) or the session carries `SAFETY_ESCALATION_ACTIVE`. It never
+  dials a STANDARD destination then; the coordinator enforces the same invariant and supersedes the
+  call's STANDARD journeys when a safety route starts (`workflows/README.md`). The signal is
+  `CALLER_REQUEST` (UNRESOLVED) for caller-originated requests and `HUMAN_INTERVENTION` for staff.
+* **Staff safety escalation (SAFE-HANDOFF-05).** `requestSafetyRoute` accepts `initiatedBy` (audited
+  as the actor, sourceComponent `console`). With no usable context it resolves the call's live
+  session server-side through `ToolDeps.callSessions` (trusted call binding; composed in the local
+  container over the LOCAL FIXTURE interaction index) and uses it ONLY to revoke pending mutations
+  and apply `SAFETY_ESCALATION`, never for disclosure or the receiver package. Live resolution is
+  BLOCKED (TB-01 / an identity-owned call-index operation); the console then revokes the call's
+  pending actions through the ledger and the session flag is not set (recorded gap).
+* **Safety evidence for every source (SAFE-HANDOFF-07).** With `ToolDeps.safetyEvents` composed,
+  `requestSafetyRoute` begins the incident (validated instant, no I/O) before routing and records
+  ROUTE_INITIATED (time to route, `vsp_safety_time_to_routing_ms`) and SIGNAL_VALIDATED after the
+  route was requested, bounded and never blocking it: screening, `request_safety_route` with or
+  without a session, console escalation and a human request in safety mode (a request that only
+  maintains an already active safety journey passes `recordSafetyEvent: false`). The result says
+  `safetyEventRecorded`, so the screening route does not record twice. The reason code is the
+  caller's deterministic decision (`decisionReasonCode`) or `SafetyRouter.decide`.
+* **Restricted handoff records (DP-01, DATA-01, spec section 8).** `handoffRecordPlacement`:
+  reason `CLINICAL_QUESTION` or category `clinical_question_redirected` => restricted,
+  `q_clinical_route`, never subject-linked; `privacy_concern` => restricted, `q_privacy_office`;
+  `safety_concern` / `SAFETY_PRIORITY` => restricted P1 `q_safety_responders` (in practice the
+  safety record). Restricted rows are hidden from the runtime role (RLS) and synchronize as the
+  minimal RESTRICTED Case. `request_human_transfer` keeps the full category enum on purpose: a
+  schema rejection would fail the human route, so the restriction is derived server-side. Owner
+  queue names are placeholders pending the operations queue configuration.
+* **Additive contract changes:** `ToolDeps.safetyEvents`, `ToolDeps.callSessions`;
+  `HandoffResult.priority`, `HandoffResult.safetyEventRecorded`; `requestSafetyRoute` optional
+  `initiatedBy`, `decisionReasonCode`, `correlationId`, `recordSafetyEvent`.

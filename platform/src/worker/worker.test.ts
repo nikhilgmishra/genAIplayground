@@ -261,6 +261,7 @@ describe("worker loops over the local composition", () => {
       "actions.reconcile",
       "audit.deferred_flush",
       "audit.ship",
+      "audit.verify",
       "outbox.consume",
       "outbox.dispatch",
       "retention.run",

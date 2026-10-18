@@ -204,7 +204,9 @@ locals {
       severity    = "high"
     }
     audit-ingestion-gap = {
-      description = "A sequence gap was detected in audit ingestion. Runbook RB-AUDIT-GAP. Preserve evidence and reconcile source counts."
+      # OPS-AUD-01: the worker loop audit.verify (platform/src/audit/monitor.ts) emits this counter every
+      # run (0 = heartbeat), so missing data means verification is not running: breaching, not silence.
+      description = "Audit integrity or completeness finding (sequence gap, rewritten or missing row, committed action without audit evidence), or audit verification not reporting. Runbook RB-AUDIT-GAP. Preserve evidence and reconcile source counts."
       metric      = "vsp_audit_ingestion_gaps_total"
       dims        = {}
       stat        = "Sum"
@@ -212,7 +214,7 @@ locals {
       evaluations = 1
       threshold   = 0
       operator    = "GreaterThanThreshold"
-      missing     = "notBreaching"
+      missing     = "breaching"
       severity    = "critical"
     }
     audit-export-incomplete = {

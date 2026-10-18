@@ -14,7 +14,12 @@ content says.
 
 ## Who may create a record
 
-| Scope | Typical approver role (`approver.role`) |
+The table below is **enforced** (`APPROVER_ROLES_BY_SCOPE` in
+`platform/src/config/approvals.ts`, OPS-APPR-01): a record whose `approver.role` is not
+listed for its scope is `APPROVER_ROLE_NOT_PERMITTED` and never counts, in the runtime
+guard, the release-manifest builder and the deploy gate.
+
+| Scope | Allowed approver roles (`approver.role`) |
 |---|---|
 | `PHI_PROCESSING` | `privacy_counsel` |
 | `SECURITY_REVIEW`, `STATIC_CREDENTIAL_EXCEPTION` | `security_leadership` |
@@ -25,10 +30,12 @@ content says.
 | `VENDOR_SANDBOX_INTEGRATION` | `talkdesk_admin`, `salesforce_admin`, `identity_owner` (per integration) |
 | `MODEL_VOICE_SELECTION`, `KNOWLEDGE_RELEASE`, `POLICY_RELEASE` | `qa_language_lead`, `clinical_safety_lead`, `security_leadership` as applicable |
 
-The mapping above is a starting point for the organization's own RACI; the
-organization decides who is accountable. The guard checks scope, environment,
-validity window and signature; it does not decide whether the right person signed.
-That is enforced by who controls the signing key.
+The mapping above is the starting point for the organization's own RACI; the
+organization decides who is accountable and changes the table by a reviewed code
+change. The role check is a consistency check on the signed record: it makes a
+mis-scoped signature an explicit, auditable false statement, but it does not prove
+who held the signing key. That still depends on key custody; per-role signing keys
+are a security-leadership prerequisite (PRQ-023).
 
 ## Format
 
@@ -44,11 +51,31 @@ validated strictly against [`schema/ApprovalRecord.schema.json`](schema/Approval
 | `approvalId` | `apr_` + 8..64 base64url characters; unique across files (duplicates are a violation) |
 | `approver.name`, `approver.role` | The accountable human and their role |
 | `scope` | One `ApprovalScope` value |
-| `scopeDetail` | Exact scope: tenant, SKU, region, feature, model/voice id, budget ceiling, integration, etc. |
+| `scopeDetail` | Exact scope for humans: tenant, SKU, region, feature, model/voice id, budget ceiling, integration, etc. Software never reads it. |
+| `subject` | Machine-checkable, **signed** subject (see below). Required for the scopes in the subject table; must be absent for every other member |
 | `environment` | `local`, `ci`, `sandbox`, `staging` or `production`; a record only counts in that environment |
 | `grantedAt`, `expiresAt` | ISO-8601 UTC; the record is valid only in `[grantedAt, expiresAt)` |
 | `evidenceRef` | Pointer to the reviewed evidence (ticket, signed document, evidence-pack path) |
 | `signature` | Detached signature, `<algorithm>:<base64>` (see below); `null` = unsigned = invalid where approvals are required |
+
+### Subject binding (OPS-APPR-01)
+
+A record for a scope that approves a versioned artifact only counts when its signed
+`subject` names **exactly** the artifact being deployed (`SUBJECT_KIND_BY_SCOPE`):
+
+| Scope | `subject` member | Runtime guard compares with | Deploy gate / manifest builder compares with |
+|---|---|---|---|
+| `MODEL_VOICE_SELECTION` | `modelVoice {model, voice, agentConfig}` | `models.active` | `versions.model/voice/agentConfig` |
+| `POLICY_RELEASE` | `policyBundle {version, digest}` | the loaded bundle (version and digest) | `policyBundleDigest` |
+| `KNOWLEDGE_RELEASE` | `knowledgeSnapshotDigest` | the snapshot digest the composition serves | `knowledgeSnapshotDigest` |
+| `CLINICAL_SCRIPTS` | `templateCatalogDigest` | the template catalogue digest loaded | `versions.promptTemplates` (must be the sha256 digest) |
+| `PRODUCTION_DEPLOYMENT`, `PILOT_EXPOSURE` | `release {imageDigest}` | the running image digest | `build.imageDigest` |
+
+A record without the member is `SUBJECT_MISSING`; one naming another artifact is
+`SUBJECT_MISMATCH`; when the caller cannot state the artifact (for example the
+composition did not supply the image digest, or the manifest has no knowledge snapshot)
+the record is `SUBJECT_UNVERIFIABLE`. None of them count. A config file listing a model
+next to an approval id is not an approval of that model.
 
 ### Signature
 
@@ -89,8 +116,9 @@ leadership: no key exists yet and none may be created by the coding agent.
 - **local / ci**: none; live adapters and PHI scopes are rejected.
 
 A record counts only when it parses strictly, its signature verifies against the
-trusted key, its `environment` equals the deployment environment, and the guard's
-injected clock is inside `[grantedAt, expiresAt)`.
+trusted key, its `environment` equals the deployment environment, the guard's
+injected clock is inside `[grantedAt, expiresAt)`, its approver role is allowed for its
+scope, and (for subject-bound scopes) its signed subject equals the deployed artifact.
 
 The current rejection of `platform/config/production.json` is captured in
 `platform/src/config/__evidence__/production-guard-violations.json` (regenerated by

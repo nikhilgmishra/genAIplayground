@@ -1,15 +1,27 @@
 /**
- * ReconciledRetryPort over the action ledger (ACT-03): the console's
+ * ReconciledRetryPort over the action ledger (ACT-01, ACT-03): the console's
  * reconciliation.retry endpoint has already authenticated the staff member
- * (workforce SSO + MFA), authorized the action (console policy), checked its
- * own latest NOT_FOUND console reconciliation and consumed it with an audit
- * event. This port then hands the retry to LedgerActionService.retryAfterReconcile
- * with the LEDGER's latest reconciliation record id (a console_reconciliations
- * id would be refused as RECONCILIATION_NOT_LATEST). The ledger re-checks
- * everything that matters for the effect: the latest ledger reconciliation is
- * NOT_FOUND and unconsumed, the row is still CONFIRMED at the recorded row
- * version, the preparation is unexpired and the confirmation is recorded; the
- * provider is called with the SAME idempotency key as every earlier attempt.
+ * (workforce SSO + MFA), authorized the STAFF action (console policy), checked
+ * its own latest NOT_FOUND console reconciliation and consumed it with an audit
+ * event. The staff member's authority does not replace the CALLER's: this port
+ * hands the retry to LedgerActionService.retryAfterReconcile with the LEDGER's
+ * latest reconciliation record id (a console_reconciliations id would be refused
+ * as RECONCILIATION_NOT_LATEST) and the action kind's provider port, whose
+ * `authorizeOperatorRetry` (business/services/operator-retry.ts) re-establishes
+ * the caller's CURRENT authority. Before any provider call the ledger requires:
+ *   - the latest ledger reconciliation is NOT_FOUND and unconsumed, and the row is
+ *     still CONFIRMED at the recorded row version with no durable invalidation
+ *     request (barge-in, changed request, identity change, safety escalation or
+ *     call end while the action was in doubt makes it INVALIDATED instead);
+ *   - the preparation is unexpired AND the caller's confirmation is still fresh
+ *     (same window as the caller-path commit; otherwise the action expires and a
+ *     new preparation plus trusted caller confirmation is required);
+ *   - a fresh allow without REQUIRE_HUMAN from the port's re-authorization: the
+ *     bound session is live, unrevoked, at the action's generation, same actor and
+ *     subject, without SAFETY_ESCALATION_ACTIVE, and the current relationships,
+ *     kill switches and policy allow the commit; a step-up-bound action is never
+ *     retried by an operator.
+ * The provider is called with the SAME idempotency key as every earlier attempt.
  * Any refusal is the ledger's typed error (fails closed, nothing sent).
  */
 import type { ActionService, ProviderCommitPort } from "../actions/ports.js";

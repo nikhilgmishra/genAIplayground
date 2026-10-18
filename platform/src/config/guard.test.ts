@@ -4,10 +4,10 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import type { ApprovalRecord, ApprovalScope, Environment } from "../protocol/index.js";
+import type { ApprovalRecord, ApprovalScope, ApprovalSubject, Environment } from "../protocol/index.js";
 import { FakeClock } from "../shared/clock.js";
 import { ConfigurationRejectedError } from "../shared/errors.js";
-import { approvalSigningPayload, loadApprovalRecords } from "./approvals.js";
+import { APPROVER_ROLES_BY_SCOPE, approvalSigningPayload, loadApprovalRecords } from "./approvals.js";
 import { REQUIRED_APPROVALS_BY_ENVIRONMENT, assertDeployable, evaluateDeployability, phiEndpointsPermitted } from "./guard.js";
 import type { GuardContext, GuardReport } from "./guard.js";
 import { CONFIG_DIR, REPO_ROOT, loadPlatformConfig } from "./loader.js";
@@ -25,12 +25,30 @@ const NOW = clock.now();
 const TEST_ONLY_KEYS = generateKeyPairSync("ed25519");
 const TEST_ONLY_PUBLIC_PEM = TEST_ONLY_KEYS.publicKey.export({ type: "spki", format: "pem" }).toString();
 
+const HYPO_MODEL = { model: "hypothetical-model-1", voice: "hypothetical-voice-1", agentConfig: "hypothetical-agent-1" };
+const HYPO_KNOWLEDGE = "d".repeat(64);
+const HYPO_TEMPLATES = "e".repeat(64);
+const HYPO_IMAGE = `sha256:${"f".repeat(64)}`;
+
+/** TEST-ONLY subjects naming exactly the hypothetical production artifacts below (OPS-APPR-01). */
+function boundSubject(scope: ApprovalScope): ApprovalSubject | undefined {
+  if (scope === "MODEL_VOICE_SELECTION") return { modelVoice: HYPO_MODEL };
+  if (scope === "POLICY_RELEASE") return { policyBundle: { version: "policy-hypothetical-1", digest: "a".repeat(64) } };
+  if (scope === "KNOWLEDGE_RELEASE") return { knowledgeSnapshotDigest: HYPO_KNOWLEDGE };
+  if (scope === "CLINICAL_SCRIPTS") return { templateCatalogDigest: HYPO_TEMPLATES };
+  if (scope === "PRODUCTION_DEPLOYMENT" || scope === "PILOT_EXPOSURE") return { release: { imageDigest: HYPO_IMAGE } };
+  return undefined;
+}
+
 function testOnlyApproval(scope: ApprovalScope, environment: Environment, over: Partial<ApprovalRecord> = {}, signed = true): ApprovalRecord {
+  const subject = boundSubject(scope);
   const record: ApprovalRecord = {
     approvalId: `apr_TESTONLY_${scope.toLowerCase()}_${environment}`.slice(0, 68),
-    approver: { name: "Test Only Approver", role: "security_leadership" },
+    // The first role the scope allows (APPROVER_ROLES_BY_SCOPE); TEST-ONLY, no authority.
+    approver: { name: "Test Only Approver", role: APPROVER_ROLES_BY_SCOPE[scope][0] ?? "security_leadership" },
     scope,
     scopeDetail: `TEST-ONLY hypothetical ${scope} record for guard satisfiability tests; carries no authority`,
+    ...(subject ? { subject } : {}),
     environment,
     grantedAt: "2026-10-16T15:00:00.000Z",
     expiresAt: "2026-11-16T15:00:00.000Z",
@@ -60,8 +78,8 @@ function hypotheticalProductionConfig(): PlatformConfig {
     a.credentialRef = `arn:aws:secretsmanager:us-east-1:${HYPO_ACCOUNT}:secret:vsp-prod-${name}`;
   }
   c.models = {
-    active: { model: "hypothetical-model-1", voice: "hypothetical-voice-1", agentConfig: "hypothetical-agent-1" },
-    approved: [{ model: "hypothetical-model-1", voice: "hypothetical-voice-1", approvalId: testOnlyApproval("MODEL_VOICE_SELECTION", "production").approvalId }],
+    active: { ...HYPO_MODEL },
+    approved: [{ model: HYPO_MODEL.model, voice: HYPO_MODEL.voice, approvalId: testOnlyApproval("MODEL_VOICE_SELECTION", "production").approvalId }],
   };
   c.policy = { ...c.policy, expectedVersion: POLICY.version, expectedDigest: POLICY.digest };
   c.toolCatalog = { expectedDigest: CATALOG };
@@ -84,6 +102,9 @@ function hypotheticalProductionContext(config: PlatformConfig, approvals?: Appro
     adapterKinds: Object.fromEntries(Object.keys(config.adapters).map((k) => [k, "live" as const])),
     loadedPolicy: POLICY,
     toolCatalogDigest: CATALOG,
+    knowledgeSnapshotDigest: HYPO_KNOWLEDGE,
+    templateCatalogDigest: HYPO_TEMPLATES,
+    releaseImageDigest: HYPO_IMAGE,
     now: NOW,
   };
 }
@@ -367,6 +388,90 @@ describe("production guard (OPS-04)", () => {
     expect(has(r, "APPROVAL_MISSING", "approvals.required.VENDOR_SANDBOX_INTEGRATION")).toBe(true);
     expect(has(r, "APPROVAL_MISSING", "approvals.required.SECURITY_REVIEW")).toBe(true);
     expect(has(r, "RETENTION_UNSET")).toBe(true);
+  });
+});
+
+describe("approval binding (OPS-APPR-01)", () => {
+  const recordId = (approvals: ApprovalRecord[], scope: ApprovalScope) => approvals.find((a) => a.scope === scope)?.approvalId ?? "missing";
+
+  it("[OPS-04][OPS-06][OPS-APPR-01] an unreviewed model listed with the approval id of a record for another model is rejected", () => {
+    const c = hypotheticalProductionConfig();
+    const approvals = REQUIRED_APPROVALS_BY_ENVIRONMENT.production.map((s) => testOnlyApproval(s, "production"));
+    const mv = recordId(approvals, "MODEL_VOICE_SELECTION");
+    c.models = { active: { model: "unreviewed-model-9", voice: "unreviewed-voice-9", agentConfig: "agent-x" }, approved: [{ model: "unreviewed-model-9", voice: "unreviewed-voice-9", approvalId: mv }] };
+    const r = evaluateDeployability(c, hypotheticalProductionContext(c, approvals));
+    expect(r.deployable).toBe(false);
+    expect(has(r, "MODEL_VOICE_APPROVAL_INVALID", "models.approved")).toBe(true);
+    expect(has(r, "APPROVAL_MISSING", "approvals.required.MODEL_VOICE_SELECTION")).toBe(true);
+    expect(has(r, "APPROVAL_SUBJECT_MISMATCH", `approvals.records.${mv}`)).toBe(true);
+    // Changing only the agent configuration is also a different, unapproved subject.
+    const c2 = hypotheticalProductionConfig();
+    c2.models.active = { ...c2.models.active, agentConfig: "hypothetical-agent-2" };
+    expect(has(evaluateDeployability(c2, hypotheticalProductionContext(c2)), "MODEL_VOICE_APPROVAL_INVALID", "models.approved")).toBe(true);
+  });
+
+  it("[OPS-04][OPS-06][OPS-APPR-01] a POLICY_RELEASE record for bundle v1 does not approve a config pinned to (and loading) bundle v2", () => {
+    const c = hypotheticalProductionConfig();
+    const v2 = { version: "policy-hypothetical-2", digest: "c".repeat(64) };
+    c.policy = { ...c.policy, expectedVersion: v2.version, expectedDigest: v2.digest };
+    const ctx = { ...hypotheticalProductionContext(c), loadedPolicy: v2 };
+    const r = evaluateDeployability(c, ctx);
+    expect(r.deployable).toBe(false);
+    expect(has(r, "APPROVAL_MISSING", "approvals.required.POLICY_RELEASE")).toBe(true);
+    expect(has(r, "APPROVAL_SUBJECT_MISMATCH", `approvals.records.${recordId(ctx.approvals, "POLICY_RELEASE")}`)).toBe(true);
+    // Same digest but a different version label is still a different subject.
+    const c3 = hypotheticalProductionConfig();
+    c3.policy = { ...c3.policy, expectedVersion: "policy-hypothetical-relabelled" };
+    const r3 = evaluateDeployability(c3, { ...hypotheticalProductionContext(c3), loadedPolicy: { version: "policy-hypothetical-relabelled", digest: POLICY.digest } });
+    expect(has(r3, "APPROVAL_MISSING", "approvals.required.POLICY_RELEASE")).toBe(true);
+  });
+
+  it("[OPS-04][OPS-06][OPS-APPR-01] knowledge snapshot, template catalogue and image approvals must name the digests actually served; unknown digests fail closed", () => {
+    const c = hypotheticalProductionConfig();
+    const cases: [ApprovalScope, Partial<GuardContext>][] = [
+      ["KNOWLEDGE_RELEASE", { knowledgeSnapshotDigest: "9".repeat(64) }],
+      ["CLINICAL_SCRIPTS", { templateCatalogDigest: "9".repeat(64) }],
+      ["PRODUCTION_DEPLOYMENT", { releaseImageDigest: `sha256:${"9".repeat(64)}` }],
+    ];
+    for (const [scope, patch] of cases) {
+      const ctx = { ...hypotheticalProductionContext(c), ...patch };
+      const r = evaluateDeployability(c, ctx);
+      expect(r.deployable, scope).toBe(false);
+      expect(has(r, "APPROVAL_MISSING", `approvals.required.${scope}`), scope).toBe(true);
+      expect(has(r, "APPROVAL_SUBJECT_MISMATCH", `approvals.records.${recordId(ctx.approvals, scope)}`), scope).toBe(true);
+    }
+    const unknown = { ...hypotheticalProductionContext(c), knowledgeSnapshotDigest: undefined, templateCatalogDigest: null, releaseImageDigest: undefined };
+    const ru = evaluateDeployability(c, unknown);
+    expect(ru.deployable).toBe(false);
+    for (const scope of ["KNOWLEDGE_RELEASE", "CLINICAL_SCRIPTS", "PRODUCTION_DEPLOYMENT"] as const) {
+      expect(has(ru, "APPROVAL_SUBJECT_UNVERIFIABLE", `approvals.records.${recordId(unknown.approvals, scope)}`), scope).toBe(true);
+    }
+  });
+
+  it("[OPS-04][OPS-APPR-01] a subject-bound approval without a signed subject never counts; subjects of another scope are refused", () => {
+    const c = hypotheticalProductionConfig();
+    const approvals = REQUIRED_APPROVALS_BY_ENVIRONMENT.production.map((s) => (s === "KNOWLEDGE_RELEASE" ? testOnlyApproval(s, "production", { subject: undefined }) : testOnlyApproval(s, "production")));
+    const r = evaluateDeployability(c, hypotheticalProductionContext(c, approvals));
+    expect(has(r, "APPROVAL_SUBJECT_MISSING", `approvals.records.${recordId(approvals, "KNOWLEDGE_RELEASE")}`)).toBe(true);
+    const stray = REQUIRED_APPROVALS_BY_ENVIRONMENT.production.map((s) =>
+      s === "SECURITY_REVIEW" ? testOnlyApproval(s, "production", { subject: { modelVoice: HYPO_MODEL } }) : testOnlyApproval(s, "production"),
+    );
+    const r2 = evaluateDeployability(c, hypotheticalProductionContext(c, stray));
+    expect(has(r2, "APPROVAL_SUBJECT_UNEXPECTED", `approvals.records.${recordId(stray, "SECURITY_REVIEW")}`)).toBe(true);
+    expect(r2.deployable).toBe(false);
+  });
+
+  it("[OPS-04][OPS-APPR-01] approvals signed by a role not allowed for the scope are rejected (vendor admin approving PHI, clinical scripts, security)", () => {
+    const c = hypotheticalProductionConfig();
+    const approvals = REQUIRED_APPROVALS_BY_ENVIRONMENT.production.map((s) => testOnlyApproval(s, "production", { approver: { name: "Test Only Vendor Admin", role: "talkdesk_admin" } }));
+    const r = evaluateDeployability(c, hypotheticalProductionContext(c, approvals));
+    expect(r.deployable).toBe(false);
+    for (const scope of ["PHI_PROCESSING", "CLINICAL_SCRIPTS", "SECURITY_REVIEW", "RETENTION_SCHEDULE", "PRODUCTION_DEPLOYMENT"] as const) {
+      expect(has(r, "APPROVAL_MISSING", `approvals.required.${scope}`), scope).toBe(true);
+      expect(has(r, "APPROVAL_APPROVER_ROLE_NOT_PERMITTED", `approvals.records.${recordId(approvals, scope)}`), scope).toBe(true);
+    }
+    // DATA-01: still no approver names or values in violations.
+    expect(r.violations.map((v) => `${v.code}@${v.path}`).join("|")).not.toContain("Vendor Admin");
   });
 });
 

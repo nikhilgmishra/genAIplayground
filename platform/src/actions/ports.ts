@@ -31,6 +31,16 @@ export interface ProviderCommitPort {
   lookup(action: PreparedAction, providerIdempotencyKey: string): Promise<ProviderLookupResult>;
   /** Current authoritative version of the target, for the optimistic concurrency check. */
   currentVersion(action: PreparedAction): Promise<string>;
+  /**
+   * Optional (operator path; spec section 8 "Commit rechecks authorization", section 10, ACT-01):
+   * re-establishes the CURRENT authority of the action's caller before a staff-initiated retry
+   * (LedgerActionService.retryAfterReconcile): the bound session is live, unrevoked, at the action's
+   * generation, still the same actor and subject and without SAFETY_ESCALATION_ACTIVE; current
+   * relationships, kill switches and policy allow the action. Returns that fresh policy decision, or
+   * throws AccessDeniedError / SessionInvalidError with a reason code. Absent => operator retries are
+   * refused (REAUTHORIZATION_UNAVAILABLE) before any provider call.
+   */
+  authorizeOperatorRetry?(action: PreparedAction): Promise<PolicyDecision>;
 }
 
 export interface PrepareInput {

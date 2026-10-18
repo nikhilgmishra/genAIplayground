@@ -417,21 +417,288 @@ deny contains msg if {
 	some st in doc.Statement
 	contains(object.get(object.get(st, "Principal", {}), "Federated", ""), "token.actions.githubusercontent.com")
 	not exact_github_subject(st)
-	msg := sprintf("IAM: %s GitHub OIDC trust must pin aud and an exact repo:environment subject", [r.address])
+	msg := sprintf("IAM: %s GitHub OIDC trust must pin aud and an exact repo:environment:job_workflow_ref subject (one workflow file on one branch)", [r.address])
 }
 
+# The customized GitHub subject (repo, context, job_workflow_ref): the environment alone can be
+# claimed by a job on any branch; the workflow file at an exact branch ref cannot (VSP-INF-03).
 exact_github_subject(st) if {
 	eq := st.Condition.StringEquals
 	eq["token.actions.githubusercontent.com:aud"] == "sts.amazonaws.com"
 	sub := eq["token.actions.githubusercontent.com:sub"]
 	startswith(sub, "repo:")
 	contains(sub, ":environment:")
+	regex.match(`:job_workflow_ref:[^:@*]+/\.github/workflows/[^:@*/]+@refs/heads/[^:@*]+$`, sub)
 	not contains(sub, "*")
 }
 
 as_list(x) := x if is_array(x)
 
 as_list(x) := [x] if is_string(x)
+
+# ---------------------------------------------------------------- 10. WAF log redaction (VSP-INF-01)
+
+# WAF logs every request header; each header that carries a credential, a bearer session
+# reference, the call binding or a caller-chosen token must be redacted (exact lowercase
+# names, as WAF requires).
+waf_required_redacted_headers := {"authorization", "cookie", "mcp-session-id", "x-vsp-session-ref", "x-vsp-interaction-id", "idempotency-key"}
+
+waf_redacted_headers(c) := {h.name |
+	some f in object.get(after(c), "redacted_fields", [])
+	some h in object.get(f, "single_header", [])
+}
+
+deny contains msg if {
+	some c in of_type("aws_wafv2_web_acl_logging_configuration")
+	missing := waf_required_redacted_headers - waf_redacted_headers(c)
+	count(missing) > 0
+	msg := sprintf("WAF-LOGS: %s must redact %v (credentials and bearer references never reach WAF logs)", [c.address, sort(missing)])
+}
+
+deny contains msg if {
+	some c in of_type("aws_wafv2_web_acl_logging_configuration")
+	not waf_query_string_redacted(c)
+	msg := sprintf("WAF-LOGS: %s must redact the query string", [c.address])
+}
+
+waf_query_string_redacted(c) if {
+	some f in object.get(after(c), "redacted_fields", [])
+	count(object.get(f, "query_string", [])) > 0
+}
+
+# ---------------------------------------------------------------- 11. CI identity (VSP-INF-02, VSP-INF-03)
+
+# Minimal IAM evaluator used to probe rendered policy documents (same-account semantics: an
+# explicit Deny wins; Action/NotAction, Resource/NotResource, String*/Arn* conditions with
+# AWS absent-key semantics). An unsupported condition operator never matches, so a Deny that
+# uses one is treated as not applying: the probe then reports the path as open (fail closed).
+
+iam_statements(doc) := doc.Statement if is_array(doc.Statement)
+
+iam_statements(doc) := [doc.Statement] if is_object(doc.Statement)
+
+iam_explicit_deny(doc, action, resource, ctx) if {
+	some st in iam_statements(doc)
+	st.Effect == "Deny"
+	iam_applies(st, action, resource, ctx)
+}
+
+iam_allows(doc, action, resource, ctx) if {
+	not iam_explicit_deny(doc, action, resource, ctx)
+	some st in iam_statements(doc)
+	st.Effect == "Allow"
+	iam_applies(st, action, resource, ctx)
+}
+
+iam_applies(st, action, resource, ctx) if {
+	iam_action_in(st, action)
+	iam_resource_in(st, resource)
+	iam_conditions_hold(object.get(st, "Condition", {}), ctx)
+}
+
+# IAM action names are case-insensitive; resources are not. `null` = no glob delimiters.
+iam_action_in(st, action) if {
+	some p in as_list(object.get(st, "Action", []))
+	glob.match(lower(p), null, lower(action))
+}
+
+iam_action_in(st, action) if {
+	not_actions := as_list(st.NotAction)
+	not iam_any_action(not_actions, action)
+}
+
+iam_any_action(patterns, action) if {
+	some p in patterns
+	glob.match(lower(p), null, lower(action))
+}
+
+iam_resource_in(st, resource) if {
+	some p in as_list(object.get(st, "Resource", []))
+	glob.match(p, null, resource)
+}
+
+iam_resource_in(st, resource) if {
+	not_resources := as_list(st.NotResource)
+	not iam_any_resource(not_resources, resource)
+}
+
+iam_any_resource(patterns, resource) if {
+	some p in patterns
+	glob.match(p, null, resource)
+}
+
+iam_conditions_hold(cond, ctx) if {
+	every op, kv in cond {
+		every key, vals in kv {
+			iam_condition(op, object.get(ctx, key, null), as_list(vals))
+		}
+	}
+}
+
+# Operator -> whether its values are wildcard patterns.
+iam_positive_ops := {"StringEquals": false, "StringLike": true, "ArnEquals": true, "ArnLike": true}
+
+iam_negated_ops := {"StringNotEquals": false, "StringNotLike": true, "ArnNotEquals": true, "ArnNotLike": true}
+
+iam_condition(op, have, vals) if {
+	wild := iam_positive_ops[op]
+	have != null
+	iam_value_matches(wild, have, vals)
+}
+
+# A negated operator holds when the key is absent from the request.
+iam_condition(op, have, _) if {
+	op in object.keys(iam_negated_ops)
+	have == null
+}
+
+iam_condition(op, have, vals) if {
+	wild := iam_negated_ops[op]
+	have != null
+	not iam_value_matches(wild, have, vals)
+}
+
+iam_value_matches(false, have, vals) if have in vals
+
+iam_value_matches(true, have, vals) if {
+	some v in vals
+	glob.match(v, null, have)
+}
+
+# The CI permissions boundary (modules/iam_ci): known at plan time, so its effect is probed
+# directly. It must explicitly deny every path by which code running with the CI
+# credentials could rewrite the CI identity or escalate through another principal.
+ci_boundaries := {p |
+	some p in of_type("aws_iam_policy")
+	endswith(object.get(after(p), "name", ""), "-ci-boundary")
+	is_string(after(p).policy)
+}
+
+ci_boundary_arns(doc) := {arn |
+	some st in iam_statements(doc)
+	st.Effect == "Deny"
+	some arn in as_list(st.Condition.StringNotEquals["iam:PermissionsBoundary"])
+}
+
+ci_probe_region(doc) := r if {
+	regions := {x |
+		some st in iam_statements(doc)
+		some x in as_list(st.Condition.StringNotEquals["aws:RequestedRegion"])
+	}
+	r := sort(regions)[0]
+} else := "us-east-1"
+
+ci_self_change_actions := {
+	"iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:AttachRolePolicy", "iam:DetachRolePolicy",
+	"iam:UpdateAssumeRolePolicy", "iam:PutRolePermissionsBoundary", "iam:DeleteRolePermissionsBoundary", "iam:PassRole",
+}
+
+ci_foreign_role_actions := {"iam:AttachRolePolicy", "iam:PutRolePolicy", "iam:UpdateAssumeRolePolicy", "iam:PassRole"}
+
+ci_data_plane_probe_actions := {"dynamodb:GetItem", "dynamodb:Scan", "secretsmanager:GetSecretValue", "sqs:ReceiveMessage", "logs:FilterLogEvents", "kms:Decrypt"}
+
+ci_account_level_actions := {"iam:CreateOpenIDConnectProvider", "iam:CreateAccessKey", "iam:AttachGroupPolicy", "iam:CreatePolicyVersion"}
+
+ci_probes(part, acct, prefix, boundary, region) := (((self_p | foreign_p) | assume_p) | data_p) | account_p if {
+	roles := {sprintf("arn:%s:iam::%s:role/%s-gha-plan", [part, acct, prefix]), sprintf("arn:%s:iam::%s:role/%s-gha-apply", [part, acct, prefix])}
+	foreign := sprintf("arn:%s:iam::%s:role/PreExistingAdministratorRole", [part, acct])
+	self_p := {{"desc": sprintf("%s on its own role %s", [a, r]), "action": a, "resource": r, "ctx": {"aws:RequestedRegion": region, "iam:PermissionsBoundary": boundary}} |
+		some r in roles
+		some a in ci_self_change_actions
+	}
+	foreign_p := {{"desc": sprintf("%s on a role CI did not create", [a]), "action": a, "resource": foreign, "ctx": {"aws:RequestedRegion": region}} |
+		some a in ci_foreign_role_actions
+	}
+	assume_p := {{"desc": "sts:AssumeRole into an in-account role", "action": "sts:AssumeRole", "resource": foreign, "ctx": {"aws:RequestedRegion": region}}}
+	data_p := {{"desc": sprintf("%s by CI role %s", [a, r]), "action": a, "resource": sprintf("arn:%s:dynamodb:%s:%s:table/probe", [part, region, acct]), "ctx": {"aws:RequestedRegion": region, "aws:PrincipalArn": r, "kms:EncryptionContext:aws:s3:arn": "arn:aws:s3:::not-the-state-bucket/object"}} |
+		some r in roles
+		some a in ci_data_plane_probe_actions
+	}
+	account_p := {{"desc": a, "action": a, "resource": "*", "ctx": {"aws:RequestedRegion": region}} |
+		some a in ci_account_level_actions
+	}
+}
+
+ci_escalations(doc) := {probe.desc |
+	some arn in ci_boundary_arns(doc)
+	m := regex.find_all_string_submatch_n(`^arn:([a-z-]+):iam::([0-9]{12}):policy/(.+)-ci-boundary$`, arn, 1)[0]
+	some probe in ci_probes(m[1], m[2], m[3], arn, ci_probe_region(doc))
+	iam_allows(doc, probe.action, probe.resource, probe.ctx)
+}
+
+deny contains msg if {
+	some p in ci_boundaries
+	count(ci_boundary_arns(json.unmarshal(after(p).policy))) == 0
+	msg := sprintf("CI-BOUNDARY: %s must require itself (iam:PermissionsBoundary) on every role CI creates or changes", [p.address])
+}
+
+deny contains msg if {
+	some p in ci_boundaries
+	some e in ci_escalations(json.unmarshal(after(p).policy))
+	msg := sprintf("CI-BOUNDARY: %s allows %s (CI must not change its own identity, read data or escalate through other roles)", [p.address, e])
+}
+
+# Terraform state: plan writes only the lock; apply never deletes the state (VSP-INF-03).
+ci_role_policies(policy_name, role_suffix) := {p |
+	some p in of_type("aws_iam_role_policy")
+	ci_role_policy(p, policy_name, role_suffix)
+}
+
+ci_role_policy(p, policy_name, _) if after(p).name == policy_name
+
+ci_role_policy(p, _, role_suffix) if {
+	role := object.get(after(p), "role", "")
+	is_string(role)
+	endswith(role, role_suffix)
+}
+
+# An allowed write or delete on anything but a lock, not cancelled by an explicit deny in the
+# same policy (the role cannot rewrite it). The probe object stands for the state file.
+ci_state_writes(p, actions) := {sprintf("%s on %s", [a, r]) |
+	is_string(after(p).policy)
+	doc := json.unmarshal(after(p).policy)
+	some st in iam_statements(doc)
+	st.Effect == "Allow"
+	some a in actions
+	iam_action_in(st, a)
+	some r in as_list(object.get(st, "Resource", ["*"]))
+	not endswith(r, ".tflock")
+	not iam_explicit_deny(doc, a, ci_state_probe(r), {})
+}
+
+ci_state_probe("*") := "arn:aws:s3:::any-bucket/terraform.tfstate"
+
+ci_state_probe(r) := concat("", [trim_suffix(r, "*"), "terraform.tfstate"]) if {
+	r != "*"
+	endswith(r, "*")
+}
+
+ci_state_probe(r) := r if not endswith(r, "*")
+
+deny contains msg if {
+	some p in ci_role_policies("state-and-data-plane-deny", "-gha-plan")
+	some w in ci_state_writes(p, ["s3:PutObject", "s3:DeleteObject", "s3:DeleteObjectVersion"])
+	msg := sprintf("CI-STATE: %s lets the plan role %s (terraform plan writes only the .tflock)", [p.address, w])
+}
+
+deny contains msg if {
+	some p in ci_role_policies("deploy-within-boundary", "-gha-apply")
+	some w in ci_state_writes(p, ["s3:DeleteObject", "s3:DeleteObjectVersion"])
+	msg := sprintf("CI-STATE: %s lets the apply role %s (it may delete only the .tflock)", [p.address, w])
+}
+
+# CI cannot change its own identity (the boundary denies it); a plan that would is refused
+# here, before a partial apply. Creation (bootstrap, offline plans) is not a change.
+ci_identity_types := {"aws_iam_role", "aws_iam_role_policy", "aws_iam_policy", "aws_iam_role_policy_attachment", "aws_iam_openid_connect_provider"}
+
+deny contains msg if {
+	some rc in input.resource_changes
+	rc.type in ci_identity_types
+	regex.match(`(^|\.)module\.iam_ci(\[[0-9]+\])?$`, module_of(rc))
+	some action in rc.change.actions
+	action in {"update", "delete"}
+	msg := sprintf("CI-IDENTITY: %s would be changed by CI; changes to the CI identity are applied by an account administrator", [rc.address])
+}
 
 # ---------------------------------------------------------------- summary
 

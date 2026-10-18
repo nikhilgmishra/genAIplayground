@@ -1,6 +1,6 @@
 # [SPEC-3.ingress] Only the Talkdesk ingress is exposed: HTTPS-only with a TLS 1.3/1.2
 # policy, WAF managed rules + rate limit, path allowlist with fixed 404, access logs,
-# credential redaction in WAF logs. Offline: mock provider, plan only.
+# credential and bearer-header redaction in WAF logs (VSP-INF-01). Offline: mock provider, plan only.
 
 mock_provider "aws" {}
 
@@ -71,8 +71,30 @@ run "https_only_with_waf" {
   }
 
   assert {
-    condition     = length(aws_wafv2_web_acl_logging_configuration.this.redacted_fields) == 4
-    error_message = "[AUTH-06] authorization, cookie, MCP session header and query string are redacted from WAF logs"
+    condition     = length(aws_wafv2_web_acl_logging_configuration.this.redacted_fields) == 7
+    error_message = "[AUTH-06] exactly the six credential/bearer headers and the query string are redacted from WAF logs"
+  }
+
+  assert {
+    condition = alltrue([for h in ["authorization", "cookie", "mcp-session-id", "x-vsp-session-ref", "x-vsp-interaction-id", "idempotency-key"] :
+      contains([for f in aws_wafv2_web_acl_logging_configuration.this.redacted_fields : f.single_header[0].name if length(f.single_header) > 0], h)
+    ])
+    error_message = "[AUTH-06][VSP-INF-01] WAF logs redact Authorization, Cookie, Mcp-Session-Id, the bearer X-VSP-Session-Ref, X-VSP-Interaction-Id and Idempotency-Key by name"
+  }
+
+  assert {
+    condition     = length([for f in aws_wafv2_web_acl_logging_configuration.this.redacted_fields : f if length(f.query_string) > 0]) == 1
+    error_message = "[AUTH-06][VSP-INF-01] the query string is redacted from WAF logs"
+  }
+
+  assert {
+    condition     = alltrue([for f in aws_wafv2_web_acl_logging_configuration.this.redacted_fields : f.single_header[0].name == lower(f.single_header[0].name) if length(f.single_header) > 0])
+    error_message = "[VSP-INF-01] WAF single_header redactions must be lowercase (WAF matches lowercase names)"
+  }
+
+  assert {
+    condition     = length(aws_wafv2_web_acl_logging_configuration.this.logging_filter) == 0
+    error_message = "[OPS-03][VSP-INF-01] every request is logged (no logging_filter), which is why the bearer headers above must be redacted"
   }
 
   assert {

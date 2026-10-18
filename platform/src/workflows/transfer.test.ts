@@ -219,6 +219,124 @@ describe("TransferCoordinator", () => {
     expect(current(dropped.journey).destinationId).toBe("dst_outage_continuity");
   });
 
+  it("[SAFE-03][SAFE-04][SAFE-HANDOFF-01] a safety bridge drop after CALLER_CONFIRMED_CONNECTED re-enters the fallback chain: ROUTING, swept, timed out and re-dialled", async () => {
+    const { coordinator, clock, telephony, store } = setup();
+    const j = await coordinator.requestTransfer(safetyHandoff());
+    const connected = await drive(coordinator, j, ["RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED"]);
+    expect(connected.status).toBe("CONNECTED");
+    const dropped = (await coordinator.applyEvent({ transferId: current(connected).transferId, event: "BRIDGE_DROPPED", source: "talkdesk.fixture" })).journey;
+    // Nobody is on the line: the journey is routing again with the next staffed safety route in flight.
+    expect(dropped.status).toBe("ROUTING");
+    expect(dropped.connectedAt).toBeNull();
+    expect(journeyOutcome(dropped)).toBe("OUTCOME_UNKNOWN");
+    expect(current(dropped)).toMatchObject({ destinationId: "dst_safety_backup", state: "REQUESTED" });
+    expect((await store.listActive()).map((x) => x.handoffId)).toEqual([j.handoffId]);
+    // The backup never answers: the sweep times it out and keeps cycling the safety routes (never abandoned).
+    const dialsBefore = telephony.dials.length;
+    for (let i = 0; i < 3; i++) {
+      clock.advanceMs(20_000);
+      expect(await coordinator.sweepTimeouts()).toBe(1);
+    }
+    expect(telephony.dials.slice(dialsBefore).map((d) => d.destinationId)).toEqual(["dst_outage_continuity", "dst_safety_priority", "dst_safety_backup"]);
+    const after = (await coordinator.get(j.handoffId)) as TransferJourney;
+    expect(after.status).toBe("ROUTING");
+    // A later acceptance on the current attempt completes the transfer again.
+    expect(journeyOutcome(await drive(coordinator, after, ["RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED"]))).toBe("TRANSFERRED");
+  });
+
+  it("[SAFE-03][OPS-02][SAFE-HANDOFF-01] a bridge drop while telephony control is down awaits retry and is re-dialled by the sweep after recovery", async () => {
+    const { coordinator, clock, telephony } = setup();
+    const j = await coordinator.requestTransfer(safetyHandoff());
+    const connected = await drive(coordinator, j, ["RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED"]);
+    telephony.unavailable = true;
+    const dropped = (await coordinator.applyEvent({ transferId: current(connected).transferId, event: "BRIDGE_DROPPED", source: "talkdesk.fixture" })).journey;
+    expect(dropped.awaitingRetry).toBe(true);
+    expect(dropped.status).toBe("ROUTING");
+    telephony.unavailable = false;
+    const dialsBefore = telephony.dials.length;
+    clock.advanceMs(1000);
+    expect(await coordinator.sweepTimeouts()).toBe(1);
+    expect(telephony.dials.length).toBe(dialsBefore + 1);
+    const now = (await coordinator.get(j.handoffId)) as TransferJourney;
+    expect(now.awaitingRetry).toBe(false);
+    expect(current(now).state).toBe("REQUESTED");
+  });
+
+  it("[SPEC-10.transfer][SAFE-HANDOFF-01] a STANDARD bridge drop after connection is swept too, and a caller disconnect between attempts closes the journey", async () => {
+    const { coordinator, clock, telephony } = setup();
+    const j = await coordinator.requestTransfer(handoff({ destinationId: "dst_support_general" }));
+    const connected = await drive(coordinator, j, ["RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED"]);
+    telephony.failingDestinations.add("dst_outage_continuity");
+    const dropped = (await coordinator.applyEvent({ transferId: current(connected).transferId, event: "BRIDGE_DROPPED", source: "talkdesk.fixture" })).journey;
+    // The re-dial failed: the current attempt is terminal and the journey awaits a retry.
+    expect(dropped.status).toBe("ROUTING");
+    expect(current(dropped).state).toBe("FAILED");
+    const left = await coordinator.applyEvent({ transferId: current(dropped).transferId, event: "CALLER_DISCONNECTED", source: "talkdesk.fixture" });
+    expect(left.decision).toEqual({ kind: "applied", next: "CALLER_DISCONNECTED" });
+    expect(left.journey.status).toBe("CALLER_DISCONNECTED");
+    clock.advanceMs(120_000);
+    expect(await coordinator.sweepTimeouts()).toBe(0);
+  });
+
+  it("[SAFE-03][SAFE-HANDOFF-01] a legacy CONNECTED journey whose current attempt is terminal still accepts the caller's disconnect", async () => {
+    const { coordinator, store } = setup();
+    const j = await coordinator.requestTransfer(safetyHandoff());
+    const connected = await drive(coordinator, j, ["RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED"]);
+    // State written before this fix: CONNECTED status with a failed current attempt.
+    const stale = (await store.get(j.handoffId)) as TransferJourney;
+    const failedAttempt = { ...current(stale), state: "FAILED" as const, history: [...current(stale).history, { state: "FAILED" as const, at: START, source: "test" }] };
+    await store.put({ ...stale, status: "CONNECTED", connectedAt: null, attempts: stale.attempts.map((a) => (a.transferId === failedAttempt.transferId ? failedAttempt : a)), version: stale.version + 1 }, stale.version);
+    const r = await coordinator.applyEvent({ transferId: current(connected).transferId, event: "CALLER_DISCONNECTED", source: "talkdesk.fixture" });
+    expect(r.decision).toEqual({ kind: "applied", next: "CALLER_DISCONNECTED" });
+    expect(r.journey.status).toBe("CALLER_DISCONNECTED");
+  });
+
+  it("[SAFE-03][SAFE-HANDOFF-02] a SAFETY journey supersedes the call's active STANDARD journey: no further timeouts, failovers, prompts or dials", async () => {
+    const { coordinator, clock, telephony, audit } = setup();
+    const standard = await coordinator.requestTransfer(handoff({ destinationId: "dst_support_general" }));
+    const safety = await coordinator.requestTransfer(safetyHandoff());
+    const stopped = (await coordinator.get(standard.handoffId)) as TransferJourney;
+    expect(stopped.status).toBe("SUPERSEDED");
+    expect(audit.events.some((e) => e.action === "transfer.superseded" && e.reasonCode === "SUPERSEDED_BY_SAFETY_ROUTE" && e.correlationId === standard.handoffId)).toBe(true);
+    // Its late vendor events are rejected (recorded), never applied or failed over.
+    const late = await coordinator.applyEvent({ transferId: current(stopped).transferId, event: "RECEIVER_UNAVAILABLE", source: "talkdesk.fixture" });
+    expect(late.decision).toEqual({ kind: "rejected", reasonCode: "TRANSFER_JOURNEY_SUPERSEDED" });
+    const safetyConnected = await drive(coordinator, safety, ["RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED"]);
+    expect(safetyConnected.status).toBe("CONNECTED");
+    const dialsAtConnect = telephony.dials.length;
+    const updatesAtConnect = telephony.updates.length;
+    for (let i = 0; i < 6; i++) {
+      clock.advanceMs(61_000);
+      await coordinator.sweepTimeouts();
+    }
+    expect(telephony.dials.length).toBe(dialsAtConnect);
+    expect(telephony.updates.length).toBe(updatesAtConnect);
+    expect(telephony.dials.map((d) => [d.destinationId, d.priority])).toEqual([
+      ["dst_support_general", "STANDARD"],
+      ["dst_safety_priority", "SAFETY"],
+    ]);
+  });
+
+  it("[SAFE-03][SAFE-HANDOFF-02] a STANDARD request while the call's SAFETY journey is routing or connected dials nothing and returns the safety journey", async () => {
+    const { coordinator, telephony, audit } = setup();
+    const safety = await coordinator.requestTransfer(safetyHandoff());
+    const r = await coordinator.requestTransfer(handoff({ destinationId: "dst_support_general" }));
+    expect(r.handoffId).toBe(safety.handoffId);
+    expect(r.priority).toBe("SAFETY");
+    expect(telephony.dials.map((d) => d.priority)).toEqual(["SAFETY"]);
+    expect(audit.events.some((e) => e.action === "transfer.standard_request_superseded" && e.reasonCode === "SAFETY_JOURNEY_ACTIVE")).toBe(true);
+    await drive(coordinator, safety, ["RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED"]);
+    const again = await coordinator.requestTransfer(handoff({ destinationId: "dst_billing_specialist" }));
+    expect(again.handoffId).toBe(safety.handoffId);
+    expect(telephony.dials.map((d) => d.priority)).toEqual(["SAFETY"]);
+    // A different call is unaffected.
+    const other = await coordinator.requestTransfer(handoff({ callId: CALLS.concurrent.callId }));
+    expect(other.priority).toBe("STANDARD");
+    expect(telephony.dials.at(-1)?.callId).toBe(CALLS.concurrent.callId);
+    expect((await coordinator.activeSafetyJourney(TENANT_ID, CALLS.primary.callId))?.handoffId).toBe(safety.handoffId);
+    expect(await coordinator.activeSafetyJourney(TENANT_ID, CALLS.concurrent.callId)).toBeNull();
+  });
+
   it("[OPS-02] exhausted fallbacks route to OUTAGE_CONTINUITY and keep the caller connected — the call is never ended", async () => {
     const { coordinator, telephony, audit } = setup();
     let j = await coordinator.requestTransfer(handoff());

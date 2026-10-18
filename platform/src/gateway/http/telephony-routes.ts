@@ -600,13 +600,24 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
           // The route first: nothing that can fail (audit, database) runs before the priority transfer is requested.
           let routed: Awaited<ReturnType<HandoffService["requestSafetyRoute"]>> | null = null;
           try {
-            routed = await d.handoff.requestSafetyRoute({ tenantId: d.tenantId, callId, ctx: s?.auth ?? null, signals: evaluation.signals, locale: ctx.body.locale, validatedAt });
+            routed = await d.handoff.requestSafetyRoute({
+              tenantId: d.tenantId,
+              callId,
+              ctx: s?.auth ?? null,
+              signals: evaluation.signals,
+              locale: ctx.body.locale,
+              validatedAt,
+              decisionReasonCode: reasonCode,
+              correlationId: ctx.requestId,
+            });
             d.handoffs.record(callId, routed, "SAFETY");
           } catch (err) {
             // The independent Studio safety route (SF-S) is the backstop: still answer with the trusted safety destination.
             d.logger.error("gateway.safety.route_request_failed", { reasonCode: err instanceof PlatformError ? err.reasonCode : "UNCLASSIFIED_ERROR" });
           }
-          await recordIncident(d, incident, routed?.transferId ?? null);
+          // The HandoffService records the incident for every safety route source (SAFE-HANDOFF-07); this
+          // route records it only when the service did not (no recorder composed there, or the request failed).
+          if (routed?.safetyEventRecorded !== true) await recordIncident(d, incident, routed?.transferId ?? null);
           await d.audit.record({ tenantId: d.tenantId, action: SESSION_AUDIT_ACTIONS.safetySignal, outcome: "ALLOWED", sourceComponent: "safety", ctx: s?.auth ?? null, callId, reasonCode, correlationId: ctx.requestId });
           await d.audit.record({ tenantId: d.tenantId, action: SESSION_AUDIT_ACTIONS.safetyRouteInitiated, outcome: routed ? "PENDING" : "FAILED", sourceComponent: "safety", ctx: s?.auth ?? null, callId, reasonCode: routed ? reasonCode : "SAFETY_ROUTE_REQUEST_FAILED", evidencePointers: routed ? [`handoff:${routed.handoffId}`] : [], correlationId: ctx.requestId });
           return {
@@ -627,12 +638,14 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
           let routed: Awaited<ReturnType<HandoffService["requestHuman"]>> | null = null;
           try {
             routed = await d.handoff.requestHuman({ tenantId: d.tenantId, callId, ctx: s?.auth ?? null, reason: "CLINICAL_QUESTION", language: ctx.body.locale.slice(0, 2), issueCategory: "clinical_question_redirected" });
-            d.handoffs.record(callId, routed, "STANDARD");
+            d.handoffs.record(callId, routed, routed.priority ?? "STANDARD");
           } catch (err) {
             d.logger.warn("gateway.clinical.route_request_failed", { reasonCode: err instanceof PlatformError ? err.reasonCode : "UNCLASSIFIED_ERROR" });
           }
           await recordIncident(d, incident, routed?.transferId ?? null);
-          await d.audit.record({ tenantId: d.tenantId, action: "safety.clinical_boundary", outcome: routed ? "PENDING" : "FAILED", sourceComponent: "safety", ctx: s?.auth ?? null, callId, reasonCode, correlationId: ctx.requestId });
+          // DATA-01 (DP-01): the subject-linked audit event carries the generic boundary code only; the clinical
+          // topic stays in the content-free, subject-free safety_events row.
+          await d.audit.record({ tenantId: d.tenantId, action: "safety.clinical_boundary", outcome: routed ? "PENDING" : "FAILED", sourceComponent: "safety", ctx: s?.auth ?? null, callId, reasonCode: "CLINICAL_BOUNDARY_ROUTE", correlationId: ctx.requestId });
           return {
             status: 200,
             body: {
@@ -673,7 +686,8 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
             issueCategory: ctx.body.issueCategory,
             ...(ctx.body.accommodations ? { accommodations: ctx.body.accommodations } : {}),
           });
-          d.handoffs.record(callId, r, "STANDARD");
+          // A human request in safety mode is routed as SAFETY by the HandoffService (SAFE-03).
+          d.handoffs.record(callId, r, r.priority ?? "STANDARD");
           return { status: 200, body: { accepted: true, handoffId: r.handoffId, transferId: r.transferId, destinationId: r.destinationId, speechTemplateId: r.speechTemplateId, reasonCode: "HANDOFF_REQUESTED" } };
         } catch (err) {
           d.logger.error("gateway.human.route_request_failed", { reasonCode: err instanceof PlatformError ? err.reasonCode : "UNCLASSIFIED_ERROR" });

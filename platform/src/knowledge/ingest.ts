@@ -71,8 +71,10 @@ export function evaluateKnowledgeItem(raw: unknown, index: number, ctx: Evaluati
   const sanitizedTitle = sanitizeKnowledgeText(p.title, { allowedLinkDomains: ctx.allowedLinkDomains });
   const sanitizedBody = sanitizeKnowledgeText(p.body, { allowedLinkDomains: ctx.allowedLinkDomains });
   const findings = [...new Set([...sanitizedTitle.findings, ...sanitizedBody.findings])].sort();
-  if (sanitizedTitle.quarantineFindings.length + sanitizedBody.quarantineFindings.length > 0) reasons.add("KNOWLEDGE_EXECUTABLE_CONTENT");
-  for (const f of [...sanitizedTitle.quarantineFindings, ...sanitizedBody.quarantineFindings]) reasons.add(`KNOWLEDGE_${f}`);
+  const quarantineFindings = [...sanitizedTitle.quarantineFindings, ...sanitizedBody.quarantineFindings];
+  // An input the sanitizer refuses as too large (VSP-KN-02) is quarantined under its own reason, not as executable content.
+  if (quarantineFindings.some((f) => f !== "SANITIZER_INPUT_TOO_LARGE")) reasons.add("KNOWLEDGE_EXECUTABLE_CONTENT");
+  for (const f of quarantineFindings) reasons.add(`KNOWLEDGE_${f}`);
   if (sanitizedTitle.text.length === 0 || sanitizedBody.text.length === 0) reasons.add("KNOWLEDGE_EMPTY_AFTER_SANITIZE");
 
   for (const text of [p.title, p.body, decodeForDetection(p.title), decodeForDetection(p.body), sanitizedTitle.text, sanitizedBody.text]) {

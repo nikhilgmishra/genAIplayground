@@ -284,8 +284,22 @@ github_trust(sub) := rc("aws_iam_role", "module.ci.r", "module.ci", {"assume_rol
 	"Condition": {"StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com", "token.actions.githubusercontent.com:sub": sub}},
 }]})})
 
+pinned_subject(env) := sprintf("repo:example-owner/example-repo:environment:%s:job_workflow_ref:example-owner/example-repo/.github/workflows/deploy.yml@refs/heads/main", [env])
+
 test_github_exact_subject_allowed if {
-	count(terraform.deny) == 0 with input as plan([github_trust("repo:example-owner/example-repo:environment:production")])
+	count(terraform.deny) == 0 with input as plan([github_trust(pinned_subject("production"))])
+	count(terraform.deny) == 0 with input as plan([github_trust(pinned_subject("production-plan"))])
+}
+
+# [SPEC-14.iam][VSP-INF-03] an environment-only subject can be claimed by a job on any branch
+test_github_environment_only_subject_denied if {
+	has_prefix(terraform.deny, "IAM") with input as plan([github_trust("repo:example-owner/example-repo:environment:production")])
+	has_prefix(terraform.deny, "IAM") with input as plan([github_trust("repo:example-owner/example-repo:environment:production-plan")])
+}
+
+test_github_wildcard_workflow_ref_denied if {
+	has_prefix(terraform.deny, "IAM") with input as plan([github_trust("repo:example-owner/example-repo:environment:production:job_workflow_ref:example-owner/example-repo/.github/workflows/deploy.yml@refs/heads/*")])
+	has_prefix(terraform.deny, "IAM") with input as plan([github_trust("repo:example-owner/example-repo:environment:production:job_workflow_ref:example-owner/example-repo/.github/workflows/*@refs/heads/main")])
 }
 
 test_github_wildcard_subject_denied if {
@@ -294,6 +308,191 @@ test_github_wildcard_subject_denied if {
 
 test_github_branch_subject_denied if {
 	has_prefix(terraform.deny, "IAM") with input as plan([github_trust("repo:example-owner/example-repo:ref:refs/heads/main")])
+}
+
+# ------------------------------------------------------------ WAF log redaction
+
+waf_logging(fields) := rc("aws_wafv2_web_acl_logging_configuration", "module.ingress.aws_wafv2_web_acl_logging_configuration.this", "module.ingress", {"redacted_fields": fields})
+
+waf_header(name) := {"method": [], "query_string": [], "single_header": [{"name": name}], "uri_path": []}
+
+waf_query := {"method": [], "query_string": [{}], "single_header": [], "uri_path": []}
+
+waf_all_headers := [waf_header(h) | some h in ["authorization", "cookie", "mcp-session-id", "x-vsp-session-ref", "x-vsp-interaction-id", "idempotency-key"]]
+
+# [AUTH-06][VSP-INF-01] credentials and bearer references are redacted from WAF logs
+test_waf_logging_with_all_redactions_passes if {
+	count(terraform.deny) == 0 with input as plan([waf_logging(array.concat(waf_all_headers, [waf_query]))])
+}
+
+# [AUTH-06][VSP-INF-01] the original four-field configuration logged X-VSP-Session-Ref and Idempotency-Key
+test_waf_logging_without_session_ref_denied if {
+	old := [waf_header("authorization"), waf_header("cookie"), waf_header("mcp-session-id"), waf_query]
+	msgs := terraform.deny with input as plan([waf_logging(old)])
+	some m in msgs
+	startswith(m, "WAF-LOGS")
+	contains(m, "x-vsp-session-ref")
+	contains(m, "idempotency-key")
+	contains(m, "x-vsp-interaction-id")
+}
+
+test_waf_logging_without_query_string_denied if {
+	has_prefix(terraform.deny, "WAF-LOGS") with input as plan([waf_logging(waf_all_headers)])
+}
+
+# WAF matches lowercase header names only
+test_waf_logging_uppercase_header_does_not_count if {
+	fields := array.concat([waf_header("X-VSP-Session-Ref")], array.concat([h | some h in waf_all_headers; h.single_header[0].name != "x-vsp-session-ref"], [waf_query]))
+	has_prefix(terraform.deny, "WAF-LOGS") with input as plan([waf_logging(fields)])
+}
+
+# ------------------------------------------------------------ IAM evaluator
+
+test_iam_evaluator_semantics if {
+	doc := {"Statement": [
+		{"Effect": "Allow", "Action": ["iam:*", "dynamodb:*"], "Resource": "*"},
+		{"Effect": "Deny", "Action": "iam:PutRolePolicy", "Resource": "arn:aws:iam::111111111111:role/x"},
+		{"Effect": "Deny", "NotAction": ["iam:*"], "Resource": "*", "Condition": {"StringNotEquals": {"aws:RequestedRegion": ["us-east-1"]}}},
+		{"Effect": "Deny", "Action": "iam:UpdateAssumeRolePolicy", "NotResource": ["arn:aws:iam::111111111111:role/vsp-*"]},
+		{"Effect": "Deny", "Action": "dynamodb:GetItem", "Resource": "*", "Condition": {"ArnEquals": {"aws:PrincipalArn": ["arn:aws:iam::111111111111:role/ci"]}}},
+	]}
+	terraform.iam_explicit_deny(doc, "IAM:PUTROLEPOLICY", "arn:aws:iam::111111111111:role/x", {})
+	terraform.iam_allows(doc, "iam:PutRolePolicy", "arn:aws:iam::111111111111:role/y", {})
+	not terraform.iam_allows(doc, "dynamodb:Scan", "t", {"aws:RequestedRegion": "eu-west-1"})
+	terraform.iam_allows(doc, "dynamodb:Scan", "t", {"aws:RequestedRegion": "us-east-1"})
+	not terraform.iam_allows(doc, "dynamodb:Scan", "t", {}) # negated operator: absent key holds
+	not terraform.iam_allows(doc, "iam:UpdateAssumeRolePolicy", "arn:aws:iam::111111111111:role/Admin", {})
+	terraform.iam_allows(doc, "iam:UpdateAssumeRolePolicy", "arn:aws:iam::111111111111:role/vsp-task", {})
+	not terraform.iam_allows(doc, "dynamodb:GetItem", "t", {"aws:RequestedRegion": "us-east-1", "aws:PrincipalArn": "arn:aws:iam::111111111111:role/ci"})
+	terraform.iam_allows(doc, "dynamodb:GetItem", "t", {"aws:RequestedRegion": "us-east-1", "aws:PrincipalArn": "arn:aws:iam::111111111111:role/task"})
+	terraform.iam_allows(doc, "dynamodb:GetItem", "t", {"aws:RequestedRegion": "us-east-1"}) # positive operator: absent key does not hold
+}
+
+# ------------------------------------------------------------ CI boundary (VSP-INF-02)
+
+boundary_arn := "arn:aws:iam::111111111111:policy/vsp-test-ci-boundary"
+
+ci_roles := ["arn:aws:iam::111111111111:role/vsp-test-gha-plan", "arn:aws:iam::111111111111:role/vsp-test-gha-apply"]
+
+surface := {"Sid": "MaximumServiceSurface", "Effect": "Allow", "Action": ["iam:*", "sts:AssumeRole", "dynamodb:*", "secretsmanager:*", "sqs:*", "logs:*", "kms:*", "s3:*"], "Resource": "*"}
+
+regions := {"Sid": "OnlyApprovedRegions", "Effect": "Deny", "NotAction": ["iam:*", "sts:*"], "Resource": "*", "Condition": {"StringNotEquals": {"aws:RequestedRegion": ["us-east-1"]}}}
+
+# The shape of the boundary before VSP-INF-02.
+old_boundary := {"Statement": [
+	surface,
+	regions,
+	{"Sid": "NoLongLivedCredentials", "Effect": "Deny", "Action": ["iam:CreateUser", "iam:CreateAccessKey", "iam:CreateLoginProfile", "iam:UpdateLoginProfile", "iam:AttachUserPolicy", "iam:PutUserPolicy"], "Resource": "*"},
+	{"Sid": "RolesMustCarryThisBoundary", "Effect": "Deny", "Action": ["iam:CreateRole", "iam:PutRolePermissionsBoundary"], "Resource": "*", "Condition": {"StringNotEquals": {"iam:PermissionsBoundary": boundary_arn}}},
+	{"Sid": "BoundaryIsImmutableToCi", "Effect": "Deny", "Action": ["iam:DeleteRolePermissionsBoundary", "iam:CreatePolicyVersion", "iam:DeletePolicy", "iam:DeletePolicyVersion", "iam:SetDefaultPolicyVersion"], "Resource": [boundary_arn, "arn:aws:iam::111111111111:role/*"]},
+]}
+
+new_boundary := {"Statement": [
+	surface,
+	regions,
+	{"Sid": "NoLongLivedCredentials", "Effect": "Deny", "Action": ["iam:CreateUser", "iam:CreateAccessKey", "iam:AttachGroupPolicy"], "Resource": "*"},
+	{"Sid": "RolesMustCarryThisBoundary", "Effect": "Deny", "Action": ["iam:CreateRole", "iam:PutRolePermissionsBoundary", "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"], "Resource": "*", "Condition": {"StringNotEquals": {"iam:PermissionsBoundary": boundary_arn}}},
+	{"Sid": "CiIdentityIsImmutableToCi", "Effect": "Deny", "Action": ["iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:UpdateAssumeRolePolicy", "iam:PassRole", "iam:PutRolePermissionsBoundary", "iam:DeleteRolePermissionsBoundary"], "Resource": ci_roles},
+	{"Sid": "OnlyRolesCreatedByCiCanBeChangedOrPassed", "Effect": "Deny", "Action": ["iam:UpdateAssumeRolePolicy", "iam:PassRole"], "NotResource": ["arn:aws:iam::111111111111:role/vsp-test-*"]},
+	{"Sid": "NoInAccountRoleAssumption", "Effect": "Deny", "Action": ["sts:AssumeRole"], "Resource": ["arn:aws:iam::111111111111:role/*"]},
+	{"Sid": "NoIdentityProviderChanges", "Effect": "Deny", "Action": ["iam:CreateOpenIDConnectProvider"], "Resource": "*"},
+	{"Sid": "NoManagedPolicyChanges", "Effect": "Deny", "Action": ["iam:CreatePolicyVersion"], "Resource": "*"},
+	{"Sid": "NoDataPlaneReadsForCi", "Effect": "Deny", "Action": ["dynamodb:GetItem", "dynamodb:Scan", "secretsmanager:GetSecretValue", "sqs:ReceiveMessage", "logs:FilterLogEvents", "kms:Decrypt"], "Resource": "*", "Condition": {"ArnEquals": {"aws:PrincipalArn": ci_roles}, "StringNotLike": {"kms:EncryptionContext:aws:s3:arn": "arn:aws:s3:::vsp-test-tfstate/envs/sandbox/*"}}},
+]}
+
+boundary_rc(doc) := rc("aws_iam_policy", "module.stack.module.iam_ci[0].aws_iam_policy.boundary", "module.stack.module.iam_ci[0]", {"name": "vsp-test-ci-boundary", "policy": json.marshal(doc)})
+
+# [SPEC-14.iam][VSP-INF-02] the fixed boundary closes every probed path
+test_ci_boundary_compliant if {
+	count(terraform.deny) == 0 with input as plan([boundary_rc(new_boundary)])
+}
+
+# [SPEC-14.iam][VSP-INF-02] the original boundary let the apply role rewrite itself, widen a pre-existing role, assume it and read data
+test_ci_boundary_before_fix_denied if {
+	msgs := terraform.deny with input as plan([boundary_rc(old_boundary)])
+	some self_change in msgs
+	contains(self_change, "iam:PutRolePolicy on its own role arn:aws:iam::111111111111:role/vsp-test-gha-apply")
+	some trust in msgs
+	contains(trust, "iam:UpdateAssumeRolePolicy on its own role")
+	some foreign in msgs
+	contains(foreign, "iam:AttachRolePolicy on a role CI did not create")
+	some assume in msgs
+	contains(assume, "sts:AssumeRole into an in-account role")
+	some read in msgs
+	contains(read, "dynamodb:GetItem by CI role")
+	some idp in msgs
+	contains(idp, "iam:CreateOpenIDConnectProvider")
+}
+
+test_ci_boundary_without_self_requirement_denied if {
+	doc := {"Statement": [s | some s in new_boundary.Statement; s.Sid != "RolesMustCarryThisBoundary"]}
+	has_prefix(terraform.deny, "CI-BOUNDARY") with input as plan([boundary_rc(doc)])
+}
+
+# [VSP-INF-02] each statement is load-bearing: dropping any one reopens a path
+test_ci_boundary_each_deny_is_needed if {
+	every sid in ["CiIdentityIsImmutableToCi", "OnlyRolesCreatedByCiCanBeChangedOrPassed", "NoInAccountRoleAssumption", "NoIdentityProviderChanges", "NoManagedPolicyChanges", "NoDataPlaneReadsForCi", "NoLongLivedCredentials"] {
+		doc := {"Statement": [s | some s in new_boundary.Statement; s.Sid != sid]}
+		has_prefix(terraform.deny, "CI-BOUNDARY") with input as plan([boundary_rc(doc)])
+	}
+}
+
+# The boundary still admits what deployment and task roles need.
+test_ci_boundary_keeps_deploy_paths if {
+	ctx := {"aws:RequestedRegion": "us-east-1", "iam:PermissionsBoundary": boundary_arn}
+	terraform.iam_allows(new_boundary, "iam:PutRolePolicy", "arn:aws:iam::111111111111:role/vsp-test-gateway-task", ctx)
+	terraform.iam_allows(new_boundary, "iam:PassRole", "arn:aws:iam::111111111111:role/vsp-test-gateway-task", ctx)
+	terraform.iam_allows(new_boundary, "sts:AssumeRole", "arn:aws:iam::222222222222:role/vsp-audit-writer", ctx)
+	terraform.iam_allows(new_boundary, "dynamodb:GetItem", "arn:aws:dynamodb:us-east-1:111111111111:table/s", {"aws:RequestedRegion": "us-east-1", "aws:PrincipalArn": "arn:aws:iam::111111111111:role/vsp-test-gateway-task"})
+	terraform.iam_allows(new_boundary, "kms:Decrypt", "k", {"aws:RequestedRegion": "us-east-1", "aws:PrincipalArn": ci_roles[0], "kms:EncryptionContext:aws:s3:arn": "arn:aws:s3:::vsp-test-tfstate/envs/sandbox/terraform.tfstate"})
+}
+
+# ------------------------------------------------------------ Terraform state (VSP-INF-03)
+
+plan_policy(statements) := rc("aws_iam_role_policy", "module.stack.module.iam_ci[0].aws_iam_role_policy.plan", "module.stack.module.iam_ci[0]", {"name": "state-and-data-plane-deny", "policy": json.marshal({"Statement": statements})})
+
+apply_policy(statements) := rc("aws_iam_role_policy", "module.stack.module.iam_ci[0].aws_iam_role_policy.apply", "module.stack.module.iam_ci[0]", {"name": "deploy-within-boundary", "policy": json.marshal({"Statement": statements})})
+
+state_read := {"Effect": "Allow", "Action": ["s3:GetObject"], "Resource": ["arn:aws:s3:::b/envs/x/*"]}
+
+lock_write := {"Effect": "Allow", "Action": ["s3:PutObject", "s3:DeleteObject"], "Resource": ["arn:aws:s3:::b/envs/x/*.tflock"]}
+
+# [VSP-INF-03] the original plan grant covered the state object itself
+test_plan_role_state_write_denied if {
+	old := {"Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], "Resource": ["arn:aws:s3:::b/envs/x/*"]}
+	has_prefix(terraform.deny, "CI-STATE") with input as plan([plan_policy([old])])
+	has_prefix(terraform.deny, "CI-STATE") with input as plan([plan_policy([{"Effect": "Allow", "Action": "s3:*", "Resource": "*"}])])
+}
+
+test_plan_role_lock_only_allowed if {
+	count(terraform.deny) == 0 with input as plan([plan_policy([state_read, lock_write])])
+}
+
+test_apply_role_wildcard_s3_needs_explicit_delete_deny if {
+	deploy := {"Effect": "Allow", "Action": ["s3:*", "iam:*"], "Resource": "*"}
+	keep := {"Effect": "Deny", "Action": ["s3:DeleteObject", "s3:DeleteObjectVersion"], "NotResource": ["arn:aws:s3:::b/envs/x/*.tflock"]}
+	has_prefix(terraform.deny, "CI-STATE") with input as plan([apply_policy([deploy, state_read, lock_write])])
+	count(terraform.deny) == 0 with input as plan([apply_policy([deploy, state_read, lock_write, keep])])
+}
+
+test_apply_role_state_delete_denied if {
+	has_prefix(terraform.deny, "CI-STATE") with input as plan([apply_policy([{"Effect": "Allow", "Action": ["s3:DeleteObject"], "Resource": ["arn:aws:s3:::b/envs/x/*"]}])])
+	count(terraform.deny) == 0 with input as plan([apply_policy([state_read, lock_write, {"Effect": "Allow", "Action": ["s3:PutObject"], "Resource": ["arn:aws:s3:::b/envs/x/*"]}])])
+}
+
+# [VSP-INF-02] a reviewed plan cannot change the CI identity (administrator-applied only)
+test_ci_identity_change_denied if {
+	upd := {"type": "aws_iam_role_policy", "address": "module.stack.module.iam_ci[0].aws_iam_role_policy.apply", "module_address": "module.stack.module.iam_ci[0]", "change": {"actions": ["update"], "after": {"name": "deploy-within-boundary", "policy": json.marshal({"Statement": [state_read, lock_write]})}, "after_unknown": {}}}
+	has_prefix(terraform.deny, "CI-IDENTITY") with input as plan([upd])
+	gone := {"type": "aws_iam_role", "address": "module.iam_ci.aws_iam_role.plan", "module_address": "module.iam_ci", "change": {"actions": ["delete"], "after": null}}
+	has_prefix(terraform.deny, "CI-IDENTITY") with input as plan([gone])
+}
+
+test_ci_identity_creation_and_other_modules_allowed if {
+	created := rc("aws_iam_role", "module.stack.module.iam_ci[0].aws_iam_role.plan", "module.stack.module.iam_ci[0]", {"name": "vsp-test-gha-plan"})
+	count(terraform.deny) == 0 with input as plan([created])
+	task := {"type": "aws_iam_role", "address": "module.stack.module.ecs_service.aws_iam_role.task", "module_address": "module.stack.module.ecs_service", "change": {"actions": ["update"], "after": {"name": "vsp-test-gateway-task"}, "after_unknown": {}}}
+	count(terraform.deny) == 0 with input as plan([task])
 }
 
 # ------------------------------------------------------------ summary

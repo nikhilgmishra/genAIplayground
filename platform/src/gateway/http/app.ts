@@ -10,18 +10,26 @@
  *  - Fastify's own logger disabled; content-free completion logs carry the
  *    operation id, status and duration only (never URLs, headers or bodies);
  *  - generic error bodies with reason codes only;
- *  - per-integration rate limiting after authentication (safety/human and
- *    health routes exempt so throttling never blocks a safe route).
+ *  - per-integration rate limiting after authentication. Health and the
+ *    telephony-control safety/human routes are exempt. The two tool transports
+ *    (POST /v1/tools/:name/:version and POST /mcp) are metered per tool call by
+ *    the ToolCallRateLimiter instead (tool-rate-limit.ts): a SAFETY_AND_HUMAN_ROUTE
+ *    tool is classified before any limit and never throttled, every other tool call
+ *    or MCP message is counted per call and per integration, and MCP batches are
+ *    counted per message (SAFE-02/SAFE-03; SAFE-HANDOFF-03, VSP-GW-01, VSP-GW-03).
  */
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import type { Logger } from "../../observability/ports.js";
+import { systemClock } from "../../shared/clock.js";
+import type { Clock } from "../../shared/clock.js";
 import { newId } from "../../shared/ids.js";
 import type { IntegrationAuthenticator } from "../auth.js";
 import { errorBody, registerRoutes } from "./route.js";
 import type { RouteDef } from "./route.js";
+import { TOOL_RATE_LIMITED_OPERATIONS, ToolCallRateLimiter, defaultPerCallWindow } from "./tool-rate-limit.js";
 
 export interface GatewayHttpOptions {
   logger: Logger;
@@ -31,6 +39,10 @@ export interface GatewayHttpOptions {
   bodyLimitBytes?: number;
   /** Per-integration rate limit; null disables it (tests that need unbounded calls). */
   rateLimit?: { max: number; timeWindowMs: number } | null;
+  /** Per-call tool limit (default: defaultPerCallWindow of the per-integration limit). Ignored when rateLimit is null. */
+  perCallRateLimit?: { max: number; timeWindowMs: number };
+  /** Clock for the tool-call limiter windows (injectable; defaults to the system clock). */
+  clock?: Clock;
 }
 
 export const DEFAULT_BODY_LIMIT_BYTES = 64 * 1024;
@@ -53,13 +65,22 @@ export async function buildGatewayApp(opts: GatewayHttpOptions): Promise<Fastify
   await app.register(helmet, { global: true, contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } } });
 
   const rl = opts.rateLimit === undefined ? DEFAULT_RATE_LIMIT : opts.rateLimit;
+  // Tool calls are classified (safety/human route exempt) and metered per call and per integration.
+  const toolLimiter = rl
+    ? new ToolCallRateLimiter({ clock: opts.clock ?? systemClock, config: { integration: { ...rl }, perCall: opts.perCallRateLimit ?? defaultPerCallWindow(rl) } })
+    : null;
+  app.decorateRequest("vspToolLimiter", null);
+  app.addHook("onRequest", async (req) => {
+    req.vspToolLimiter = toolLimiter;
+  });
   if (rl) {
     await app.register(rateLimit, {
       global: false,
       hook: "preHandler",
       // Keyed by the authenticated integration (after the auth hook), never by caller-controlled data.
       keyGenerator: (req) => (req.vspIntegration ? `${req.vspIntegration.integrationId}:${req.vspIntegration.channel}` : "anonymous"),
-      allowList: (req) => req.routeOptions.config.vspRateLimitExempt === true,
+      // The tool transports are metered by the ToolCallRateLimiter (never a route-wide bucket for safety tools).
+      allowList: (req) => req.routeOptions.config.vspRateLimitExempt === true || TOOL_RATE_LIMITED_OPERATIONS.has(String(req.routeOptions.config.vspOperationId)),
       errorResponseBuilder: (req, context) => ({ statusCode: context.statusCode, ...errorBody("RATE_LIMITED", req.id) }),
       addHeaders: { "x-ratelimit-limit": true, "x-ratelimit-remaining": true, "x-ratelimit-reset": true, "retry-after": true },
     });

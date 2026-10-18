@@ -6,16 +6,32 @@
  * S3 PutObject / HeadObject / GetObject / ListObjectsV2 APIs and is covered by a
  * contract test with an injected stub client only. Running it requires: the audit
  * account bucket created with Object Lock enabled (versioning on), the audit KMS
- * key, a cross-account IAM role scoped to s3:PutObject / s3:GetObject /
- * s3:ListBucket / s3:PutObjectRetention on the audit prefix, and a retention
+ * key, the cross-account roles of infra/terraform/modules/audit and a retention
  * duration for the SECURITY_AUDIT class approved by counsel. None exist yet.
+ *
+ * Identities (OPS-AUD-02; must match infra/terraform/modules/audit):
+ *   - the WRITER role (shipper) may only s3:PutObject (+ kms:GenerateDataKey via S3); it is
+ *     explicitly denied s3:GetObject* / s3:ListBucket* / kms:Decrypt, so it can never read
+ *     evidence back (HeadObject is authorized as s3:GetObject, and returning the stored
+ *     checksum of an SSE-KMS object needs kms:Decrypt);
+ *   - the read-only VERIFIER role (audit.verify, IntegrityVerifier.verifyShipped) lists and
+ *     reads; listManifests / getBatch are only used with that identity.
  *
  * Controls on every object:
  *   - ObjectLockMode (COMPLIANCE or GOVERNANCE from config) + ObjectLockRetainUntilDate
  *     derived from the APPROVED retention-class duration; a null duration refuses to run.
  *   - IfNoneMatch "*": S3 rejects overwriting an existing key (412 Precondition Failed).
- *     A 412 is treated as an idempotent re-put only if HeadObject (ChecksumMode ENABLED)
- *     proves the stored SHA-256 equals ours; otherwise AUDIT_SINK_OBJECT_EXISTS.
+ *     existingObjectCheck "defer_to_verifier" (default, matches the writer IAM): a 412 on
+ *     the deterministic key of this batch (stream/first-last sequence) means the object is
+ *     already stored (a lost response, or a crash before the manifest or the local mark);
+ *     it is accepted WITHOUT reading it and counted in `existingObjectsUnverified`. The
+ *     content is then proven by the verifier identity: verifyShipped compares the stored
+ *     batch digest, manifest content and every still-present local row hash
+ *     (MANIFEST_DIGEST_MISMATCH / LOCAL_SINK_DIVERGENCE), and local rows are purged only
+ *     after a clean verification, so a foreign object at our key is detected, never lost.
+ *     "head_checksum" (only for an identity that may HeadObject with kms:Decrypt): a 412 is
+ *     accepted only if HeadObject (ChecksumMode ENABLED) proves the stored SHA-256 equals
+ *     ours; otherwise AUDIT_SINK_OBJECT_EXISTS.
  *   - ChecksumAlgorithm SHA256 + ChecksumSHA256 so S3 verifies the body end to end.
  *   - SSE-KMS with the audit-account key; ExpectedBucketOwner pins the audit account.
  */
@@ -48,6 +64,11 @@ export interface S3ObjectLockAuditSinkConfig {
   retentionDays: number | null;
   /** Audit-account KMS key id or ARN for SSE-KMS. */
   kmsKeyId: string;
+  /**
+   * How a 412 (key already exists) is resolved; see the header. Default "defer_to_verifier",
+   * the only mode compatible with the write-only writer role.
+   */
+  existingObjectCheck?: "defer_to_verifier" | "head_checksum";
 }
 
 /** Minimal client surface so tests inject a stub; production passes an S3Client. */
@@ -79,6 +100,9 @@ export function validateS3SinkConfig(config: S3ObjectLockAuditSinkConfig): strin
   if (!/^(arn:aws[a-z-]*:kms:[a-z0-9-]+:\d{12}:(key|alias)\/[A-Za-z0-9/_-]+|[A-Za-z0-9-]{8,128})$/.test(config.kmsKeyId)) {
     violations.push("AUDIT_KMS_KEY_INVALID");
   }
+  if (config.existingObjectCheck !== undefined && config.existingObjectCheck !== "defer_to_verifier" && config.existingObjectCheck !== "head_checksum") {
+    violations.push("AUDIT_EXISTING_OBJECT_CHECK_INVALID");
+  }
   return violations;
 }
 
@@ -86,6 +110,9 @@ export class S3ObjectLockAuditSink implements AuditSink {
   readonly kind = "live" as const;
   private readonly prefix: string;
   private readonly retentionDays: number;
+  private readonly existingObjectCheck: "defer_to_verifier" | "head_checksum";
+  /** Objects accepted on a 412 without reading them (content proven later by verifyShipped). */
+  existingObjectsUnverified = 0;
 
   constructor(
     private readonly client: S3SendClient,
@@ -96,6 +123,7 @@ export class S3ObjectLockAuditSink implements AuditSink {
     if (violations.length > 0 || config.retentionDays === null) throw new ConfigurationRejectedError(violations);
     this.retentionDays = config.retentionDays;
     this.prefix = config.keyPrefix ?? "";
+    this.existingObjectCheck = config.existingObjectCheck ?? "defer_to_verifier";
   }
 
   async putBatch(manifest: AuditManifestType, eventsNdjson: string): Promise<void> {
@@ -198,7 +226,14 @@ export class S3ObjectLockAuditSink implements AuditSink {
       if (status === 409 || name === "ConditionalRequestConflict") throw new AuditSinkError("AUDIT_SINK_CONDITIONAL_CONFLICT", true);
       if (status !== 412 && name !== "PreconditionFailed") throw new AuditSinkError("AUDIT_SINK_PUT_FAILED", true);
     }
-    // The key exists. Idempotent only if S3's stored SHA-256 equals ours.
+    // The key exists.
+    if (this.existingObjectCheck === "defer_to_verifier") {
+      // Write-only identity: never read evidence back. The key is deterministic for this batch;
+      // the verifier identity proves the stored content (verifyShipped) before any local purge.
+      this.existingObjectsUnverified += 1;
+      return;
+    }
+    // head_checksum: idempotent only if S3's stored SHA-256 equals ours.
     let existing: string | undefined;
     try {
       const head = await this.client.send(

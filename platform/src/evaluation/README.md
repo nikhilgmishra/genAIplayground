@@ -16,8 +16,8 @@ PRQ-023).
 | `results.ts` | Append-only JSONL writer under `evidence/runs/<runId>/` (exclusive create; summary/report once) |
 | `aggregate.ts`, `stats.ts` | Slices, critical-failure listing, production-weight vs oversampled-risk separation, gate status per environment, Clopper-Pearson / rule-of-three bounds |
 | `catalog.ts`, `traceability.ts` | Requirement catalogue loader and `docs/REQUIREMENTS_TRACEABILITY.md` generator |
-| `manifest.ts` | `buildReleaseManifest` / CLI -> `evidence/release/release-manifest.<env>.json` |
-| `cli.ts` | `generate`, `generate-risk`, `corpus`, `traceability`, `manifest`, `run`, `combine` subcommands (`pnpm evidence <cmd>`) |
+| `manifest.ts` | `buildReleaseManifest` / CLI -> `evidence/release/release-manifest.<env>.json`. Evidence blockers (`TEST_EVIDENCE_FAILING`, `QUOTA_LOAD_EVIDENCE_FAILING` — any load/quota FAIL blocks) are computed over the **full** evidence list before the schema bounds (128 test / 32 load entries); `boundEvidence` keeps every non-PASS entry when it must drop entries, and `*_TRUNCATED` blocks a live target or any target that would lose a non-PASS entry (OPS-REL-01). Approvals count only when role- and subject-bound to what the manifest releases (`releaseSubjectExpectations`, OPS-APPR-01). The CLI parses flags strictly (unknown / repeated / value-less flags exit 2), supports `--dry-run` (validates the exact command line, writes nothing) and `--source-commit` (must equal git HEAD, else `SOURCE_COMMIT_MISMATCH`) (OPS-REL-02) |
+| `cli.ts` | `generate`, `generate-risk`, `corpus`, `traceability`, `manifest`, `run`, `combine` subcommands (`pnpm evidence <cmd>`). `.github/workflows/release.yml` calls `evidence manifest --env … --image-digest … --source-commit … --build-id … --out-dir evidence/runs` (dry run first) and copies the result to `evidence/runs/release-manifest.json` for deploy.yml; `scripts/ci/check-release-manifest.test.ts` executes that step verbatim |
 | `evidence.fixture.ts` | TEST FIXTURES ONLY: ideal evidence and `ScriptedConversationDriverFixture` |
 
 ## ConversationDriver contract (for the local-stack / sandbox driver implementers)

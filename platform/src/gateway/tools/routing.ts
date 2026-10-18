@@ -13,6 +13,15 @@
  * an honest PERMANENT_FAILURE (CALL_UNIDENTIFIED_USE_STUDIO_ROUTE) and the
  * independent Studio route remains the backstop. Speech is never produced on this
  * path (there is no session generation to bind it to; Studio plays the fixed prompt).
+ *
+ * Reported status (SAFE-04; finding SAFE-HANDOFF-01): CONNECTED only while a human is
+ * confirmed on the line (journey connectedAt set). After a bridge drop the journey is
+ * routing again and the tool reports TRANSFER_REQUESTED, never a stale CONNECTED.
+ *
+ * request_human_transfer in safety mode (SAFE-03; SAFE-HANDOFF-02) returns the call's
+ * safety route (destinationPurpose SAFETY_PRIORITY); the HandoffService never dials a
+ * STANDARD destination then. Every request_safety_route call produces safety evidence
+ * (safety_events, time-to-routing metric) through the HandoffService (SAFE-HANDOFF-07).
  */
 import { z } from "zod";
 import type { DestinationConfig } from "../../config/ports.js";
@@ -22,6 +31,8 @@ import { speechFor } from "../../business/speech.js";
 import { IssueCategory } from "../../protocol/index.js";
 import type { SafetySignal } from "../../safety/ports.js";
 import type { HandoffResult } from "../../business/contract.js";
+import { journeyOutcome } from "../../workflows/transfer.js";
+import type { TransferJourney } from "../../workflows/transfer.js";
 import type { ToolModule } from "../ports.js";
 import { Id, LanguageArg, SupportRefArg, failed, ok } from "./common.js";
 import { TOOL_DEFINITIONS } from "./definitions.js";
@@ -52,8 +63,9 @@ export const HumanOutput = z.strictObject({
 
 const purposeOf = (destinations: readonly DestinationConfig[], id: string): z.infer<typeof Purpose> => destinations.find((d) => d.destinationId === id)?.purpose ?? "UNAVAILABLE";
 
-const statusOf = (j: { status: string } | null): z.infer<typeof RouteStatus> =>
-  !j ? "ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE" : j.status === "CONNECTED" || j.status === "COMPLETED" ? "CONNECTED" : "TRANSFER_REQUESTED";
+/** CONNECTED only after CALLER_CONFIRMED_CONNECTED and while nobody dropped (connectedAt set). */
+export const statusOf = (j: Pick<TransferJourney, "status" | "connectedAt"> | null): z.infer<typeof RouteStatus> =>
+  !j ? "ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE" : journeyOutcome(j) === "TRANSFERRED" ? "CONNECTED" : "TRANSFER_REQUESTED";
 
 /** Reason code when the session-less path has no trusted call id to route. */
 export const CALL_UNIDENTIFIED = "CALL_UNIDENTIFIED_USE_STUDIO_ROUTE";

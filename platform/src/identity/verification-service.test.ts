@@ -463,14 +463,16 @@ describe("OTP fallback", () => {
     expect(results.every((r) => !r.verified)).toBe(true);
   });
 
-  it("[SPEC-7.OTP] the 6th challenge for one account within an hour is throttled (no code sent, abuse flagged); the next hour is allowed", async () => {
+  it("[SPEC-7.OTP] [AUTH-ENUM-01] the 6th challenge for one account within an hour is throttled (no code sent, abuse recorded against the account, never on the caller's session); the next hour is allowed", async () => {
     const h = await createIdentityHarness();
     for (let i = 0; i < 5; i++) await beginAveryOtp(h);
     expect(h.notifications.sent).toHaveLength(5);
     const sixth = await beginAveryOtp(h);
     expect(sixth.begun.response).toBe("IF_ELIGIBLE_A_CODE_WAS_SENT");
     expect(h.notifications.sent).toHaveLength(5);
-    expect((await h.sessions.resolve(sixth.sessionRef, mcp())).riskFlags).toContain("OTP_ABUSE_SUSPECTED");
+    expect(await h.verification.abuse.count("OTP_ACCOUNT_LIMIT", { kind: "account", id: PEOPLE.avery.accountId })).toBe(1);
+    // A session flag here would make policy deny this caller's next begin only because the locator is real.
+    expect((await h.sessions.resolve(sixth.sessionRef, mcp())).riskFlags).toEqual([]);
     expect(h.metrics.counterValue("vsp_challenge_abuse_signals_total", { signal: "OTP_ABUSE_SUSPECTED" })).toBeGreaterThan(0);
     h.clock.advanceSeconds(3600);
     await beginAveryOtp(h);
@@ -500,14 +502,17 @@ describe("OTP fallback", () => {
     expect(h.notifications.sent.filter((m) => m.channelRef === AVERY_SMS)).toHaveLength(5);
   });
 
-  it("[SPEC-14.SIM_SWAP] a recent number change blocks OTP, flags RECENT_NUMBER_CHANGE and returns the generic response", async () => {
+  it("[SPEC-14.SIM_SWAP] [AUTH-ENUM-01] a recent number change blocks OTP, records RECENT_NUMBER_CHANGE against the account (not on the caller's session) and returns the generic response", async () => {
     const h = await createIdentityHarness();
     const { ctx, sessionRef } = await h.startCall();
     const r = await h.verification.beginOtp(ctx, { role: "client", locator: blakeLocator });
     expect(r.response).toBe("IF_ELIGIBLE_A_CODE_WAS_SENT");
     expect(h.notifications.lastTo(BLAKE_SMS)).toBeNull();
+    expect(await h.verification.abuse.count("RECENT_NUMBER_CHANGE", { kind: "account", id: PEOPLE.blake.accountId })).toBe(1);
+    expect(h.metrics.counterValue("vsp_challenge_abuse_signals_total", { signal: "RECENT_NUMBER_CHANGE" })).toBe(1);
     const after = await h.sessions.resolve(sessionRef, mcp());
-    expect(after.riskFlags).toContain("RECENT_NUMBER_CHANGE");
+    // The risk signal is account-derived: on the session it would tell this caller the locator is a real person.
+    expect(after.riskFlags).not.toContain("RECENT_NUMBER_CHANGE");
     expect(after.assurance).toBe("A0");
     for (const code of ["000000", "123456"]) {
       expect((await h.verification.submitOtp({ sessionRef, challengeId: r.challengeId, code }, telephony())).verified).toBe(false);
@@ -574,6 +579,192 @@ describe("OTP fallback", () => {
     const r = await h.verification.beginOtp(ctx, { role: "client", locator: averyLocator });
     expect(r.response).toBe("VERIFICATION_UNAVAILABLE_USE_HUMAN");
     expect(h.notifications.sent).toHaveLength(0);
+  });
+});
+
+describe("[AUTH-ENUM-01] no caller-observable state depends on whether the locator is a real person", () => {
+  const UNKNOWN = { fullName: "Nobody Synthetic-Unknown", dateOfBirth: "1999-09-09" };
+  const AVERY_CHANNELS: readonly string[] = PEOPLE.avery.channels.map((c) => c.channelRef);
+  /** Opaque ids and match codes differ per request by construction; everything else must be identical. */
+  const norm = (v: unknown): unknown =>
+    JSON.parse(JSON.stringify(v), (_k, x: unknown) => (typeof x === "string" ? (/^(vtx|otc)_/.test(x) ? "<opaque-id>" : MATCH_CODE_PATTERN.test(x) ? "<match-code>" : x) : x));
+  /** What policy, the handoff package and every later tool call see of the session. */
+  async function observe(h: IdentityHarness, sessionRef: string) {
+    const c = await h.sessions.resolve(sessionRef, mcp());
+    return { riskFlags: [...c.riskFlags].sort(), assurance: c.assurance, sessionGeneration: c.sessionGeneration, actorId: c.actorId, verificationMethod: c.verificationMethod };
+  }
+
+  async function secureLinkScript(locator: BeginVerificationInput["locator"]) {
+    const h = await createIdentityHarness();
+    const transcript: unknown[] = [];
+    // Four calls x six begins: past the per-account link limit (5/h) on calls 2-4 and past the per-session limit (5) on every call.
+    for (let call = 0; call < 4; call++) {
+      const { ctx, sessionRef } = await h.startCall(newId("cal"));
+      for (let i = 0; i < 6; i++) {
+        transcript.push(norm(await h.verification.beginSecureLink(ctx, { role: "client", locator })));
+        transcript.push(await observe(h, sessionRef));
+      }
+    }
+    // Then the finder's probe: a new call asking about someone else.
+    const probe = await h.startCall(newId("cal"));
+    transcript.push(norm(await h.verification.beginSecureLink(probe.ctx, { role: "client", locator: { fullName: "Probe Synthetic-Other", dateOfBirth: "1970-01-01" } })));
+    transcript.push(await observe(h, probe.sessionRef));
+    return { h, transcript };
+  }
+
+  it("[SPEC-14.ENUMERATION] [AUTH-ENUM-01] secure link: the full result + session sequence for a real and an unknown person is identical past the per-account limit; the account holder still gets at most 5 links an hour", async () => {
+    const real = await secureLinkScript(averyLocator);
+    const unknown = await secureLinkScript(UNKNOWN);
+    expect(real.transcript).toEqual(unknown.transcript);
+    expect(real.h.notifications.sent.filter((m) => AVERY_CHANNELS.includes(m.channelRef))).toHaveLength(5);
+    expect(unknown.h.notifications.sent).toHaveLength(0);
+    // Security monitoring sees the abuse against the account (calls 2-4: 3 x 5 suppressed links).
+    expect(await real.h.verification.abuse.count("LINK_ACCOUNT_LIMIT", { kind: "account", id: PEOPLE.avery.accountId })).toBe(15);
+    expect(real.h.metrics.counterValue("vsp_challenge_abuse_signals_total", { signal: "OTP_ABUSE_SUSPECTED" })).toBe(15);
+    // ...but never in a log line (no eligibility, no account, no session link for the account signal).
+    expect(JSON.stringify(real.h.records)).not.toMatch(/LINK_ACCOUNT_LIMIT|acc_synth|eligib/i);
+  });
+
+  async function otpScript(locator: BeginVerificationInput["locator"], role: BeginVerificationInput["role"] = "client") {
+    const h = await createIdentityHarness();
+    const transcript: unknown[] = [];
+    const wrongFor = () => {
+      const last = PEOPLE.avery.channels.map((c) => h.otpFor(c.channelRef)).find((x) => x !== null) ?? null;
+      return last === "000000" ? "111111" : "000000";
+    };
+    // Four calls; on each: two challenges with two wrong entries each, a submission to the superseded first
+    // challenge, then a third challenge whose first wrong entry spends the call's failure budget. Together this
+    // passes the per-account send limit, the per-destination limit and the account guess budget for a real person.
+    for (let call = 0; call < 4; call++) {
+      const { ctx, sessionRef } = await h.startCall(newId("cal"));
+      const ids: string[] = [];
+      for (let c = 0; c < 3; c++) {
+        const begun = await h.verification.beginOtp(ctx, { role, locator });
+        ids.push(begun.challengeId);
+        transcript.push(norm(begun));
+        for (let k = 0; k < (c < 2 ? 2 : 1); k++) transcript.push(await h.verification.submitOtp({ sessionRef, challengeId: begun.challengeId, code: wrongFor() }, telephony()));
+        if (c === 1) transcript.push(await h.verification.submitOtp({ sessionRef, challengeId: ids[0] as string, code: wrongFor() }, telephony()));
+        transcript.push(await observe(h, sessionRef));
+      }
+    }
+    return { h, transcript };
+  }
+
+  it("[SPEC-14.ENUMERATION] [AUTH-ENUM-01] OTP: identical sequences past the per-account, per-destination and account-guess limits; signals go to the account monitor only", async () => {
+    const real = await otpScript(averyLocator);
+    const unknown = await otpScript(UNKNOWN);
+    expect(real.transcript).toEqual(unknown.transcript);
+    expect(real.h.notifications.sent.filter((m) => AVERY_CHANNELS.includes(m.channelRef)).length).toBeLessThanOrEqual(5);
+    expect(unknown.h.notifications.sent).toHaveLength(0);
+    const account = { kind: "account", id: PEOPLE.avery.accountId } as const;
+    expect(await real.h.verification.abuse.count("OTP_ACCOUNT_GUESS_LIMIT", account)).toBeGreaterThan(0);
+    expect((await real.h.verification.abuse.count("OTP_ACCOUNT_LIMIT", account)) + (await real.h.verification.abuse.count("OTP_ACCOUNT_GUESS_LIMIT", account))).toBeGreaterThan(0);
+  });
+
+  it("[SPEC-14.SIM_SWAP] [AUTH-ENUM-01] a recently changed number on a real account leaves the same session state as an unknown person", async () => {
+    const run = async (locator: BeginVerificationInput["locator"]) => {
+      const h = await createIdentityHarness();
+      const { ctx, sessionRef } = await h.startCall();
+      const begun = await h.verification.beginOtp(ctx, { role: "client", locator });
+      const submitted = await h.verification.submitOtp({ sessionRef, challengeId: begun.challengeId, code: "000000" }, telephony());
+      return [norm(begun), submitted, await observe(h, sessionRef), h.notifications.sent.length];
+    };
+    expect(await run(blakeLocator)).toEqual(await run(UNKNOWN));
+  });
+
+  it("[SPEC-14.ENUMERATION] [AUTH-ENUM-01] a directory failure after exactly one candidate was found answers like no match (it can only happen for real people)", async () => {
+    const h = await createIdentityHarness();
+    const { ctx, sessionRef } = await h.startCall();
+    const directory = h.directory as unknown as { accountState: (id: string) => Promise<string> };
+    directory.accountState = async () => {
+      throw new Error("FIXTURE_PARTIAL_OUTAGE");
+    };
+    const r = await h.verification.beginSecureLink(ctx, { role: "client", locator: averyLocator });
+    const u = await h.verification.beginSecureLink(ctx, { role: "client", locator: UNKNOWN });
+    expect(norm(r)).toEqual(norm(u));
+    expect(r.response).toBe("IF_ELIGIBLE_A_LINK_WAS_SENT");
+    expect(h.notifications.sent).toHaveLength(0);
+    expect((await h.sessions.resolve(sessionRef, mcp())).riskFlags).toEqual([]);
+  });
+});
+
+describe("[AUTH-OTP-LIMIT-01] OTP limits are enforced when digits are submitted, not only when a code is sent", () => {
+  const codeOf = (h: IdentityHarness) => h.otpFor(AVERY_SMS) ?? "";
+  const wrongOf = (code: string) => (code === "000000" ? "111111" : "000000");
+
+  it("[SPEC-7.OTP] [AUTH-01] [AUTH-OTP-LIMIT-01] at most one outstanding challenge per call: a newer challenge supersedes older ones, which refuse even their correct code without using attempts", async () => {
+    const h = await createIdentityHarness();
+    const { ctx, sessionRef } = await h.startCall();
+    const first = await h.verification.beginOtp(ctx, { role: "client", locator: averyLocator });
+    const firstCode = codeOf(h);
+    const second = await h.verification.beginOtp(ctx, { role: "client", locator: averyLocator });
+    const secondCode = codeOf(h);
+    expect(await h.verification.submitOtp({ sessionRef, challengeId: first.challengeId, code: firstCode }, telephony())).toEqual({ verified: false, reasonCode: "OTP_CHALLENGE_SUPERSEDED" });
+    expect((await h.sessions.resolve(sessionRef, mcp())).assurance).toBe("A0");
+    expect(await h.verification.submitOtp({ sessionRef, challengeId: second.challengeId, code: secondCode }, telephony())).toEqual({ verified: true, reasonCode: "VERIFIED" });
+  });
+
+  it("[SPEC-7.OTP] [AUTH-01] [AUTH-OTP-LIMIT-01] five incorrect attempts per account per hour hold at submission across calls: a challenge issued earlier then refuses its correct code; the next hour works", async () => {
+    const h = await createIdentityHarness({ verification: { otpMaxPerAccountPerHour: 20 } });
+    const issued: { sessionRef: string; challengeId: string; code: string }[] = [];
+    for (let i = 0; i < 3; i++) {
+      const { ctx, sessionRef } = await h.startCall(newId("cal"));
+      const begun = await h.verification.beginOtp(ctx, { role: "client", locator: averyLocator });
+      issued.push({ sessionRef, challengeId: begun.challengeId, code: codeOf(h) });
+    }
+    const [a, b, c] = issued as [(typeof issued)[0], (typeof issued)[0], (typeof issued)[0]];
+    for (let k = 0; k < 3; k++) await h.verification.submitOtp({ sessionRef: a.sessionRef, challengeId: a.challengeId, code: wrongOf(a.code) }, telephony());
+    for (let k = 0; k < 2; k++) await h.verification.submitOtp({ sessionRef: b.sessionRef, challengeId: b.challengeId, code: wrongOf(b.code) }, telephony());
+    // Five incorrect attempts for this account in the hour: the correct code on call C is not even compared.
+    const results = [];
+    for (let k = 0; k < 3; k++) results.push(await h.verification.submitOtp({ sessionRef: c.sessionRef, challengeId: c.challengeId, code: c.code }, telephony()));
+    expect(results.map((r) => r.reasonCode)).toEqual(["OTP_INCORRECT", "OTP_INCORRECT", "OTP_CHALLENGE_LOCKED"]);
+    expect(results.some((r) => r.verified)).toBe(false);
+    expect((await h.sessions.resolve(c.sessionRef, mcp())).assurance).toBe("A0");
+    expect(await h.verification.abuse.count("OTP_ACCOUNT_GUESS_LIMIT", { kind: "account", id: PEOPLE.avery.accountId })).toBe(3);
+    // No new code while the budget is spent; the next hourly window restores it.
+    const sent = h.notifications.sent.length;
+    await h.verification.beginOtp((await h.startCall(newId("cal"))).ctx, { role: "client", locator: averyLocator });
+    expect(h.notifications.sent.length).toBe(sent);
+    h.clock.advanceSeconds(3600);
+    const later = await h.startCall(newId("cal"));
+    const fresh = await h.verification.beginOtp(later.ctx, { role: "client", locator: averyLocator });
+    expect(await h.verification.submitOtp({ sessionRef: later.sessionRef, challengeId: fresh.challengeId, code: codeOf(h) }, telephony())).toEqual({ verified: true, reasonCode: "VERIFIED" });
+  });
+
+  it("[SPEC-7.OTP] [AUTH-OTP-LIMIT-01] concurrent guesses spread over five calls cannot exceed the account budget: no correct code verifies afterwards", async () => {
+    const h = await createIdentityHarness({ verification: { otpMaxPerAccountPerHour: 20 } });
+    const issued: { sessionRef: string; challengeId: string; code: string }[] = [];
+    for (let i = 0; i < 5; i++) {
+      const { ctx, sessionRef } = await h.startCall(newId("cal"));
+      const begun = await h.verification.beginOtp(ctx, { role: "client", locator: averyLocator });
+      issued.push({ sessionRef, challengeId: begun.challengeId, code: codeOf(h) });
+    }
+    await Promise.all(issued.flatMap((x) => [0, 1].map(() => h.verification.submitOtp({ sessionRef: x.sessionRef, challengeId: x.challengeId, code: wrongOf(x.code) }, telephony()))));
+    const finals = await Promise.all(issued.map((x) => h.verification.submitOtp({ sessionRef: x.sessionRef, challengeId: x.challengeId, code: x.code }, telephony())));
+    expect(finals.every((r) => !r.verified)).toBe(true);
+    // 15 submissions, at most 5 compared: the other 10 were refused by the account budget.
+    expect(await h.verification.abuse.count("OTP_ACCOUNT_GUESS_LIMIT", { kind: "account", id: PEOPLE.avery.accountId })).toBe(10);
+  });
+
+  it("[SPEC-7.OTP] [AUTH-OTP-LIMIT-01] once the call has five failures (decoy or real challenges alike) or a lockout, no challenge on the call accepts digits", async () => {
+    const h = await createIdentityHarness();
+    const { ctx, sessionRef } = await h.startCall();
+    const nobody = { fullName: "Nobody Synthetic-Unknown", dateOfBirth: "1999-09-09" };
+    for (let c = 0; c < 2; c++) {
+      const decoy = await h.verification.beginOtp(ctx, { role: "client", locator: nobody });
+      for (let k = 0; k < 2; k++) expect((await h.verification.submitOtp({ sessionRef, challengeId: decoy.challengeId, code: "123456" }, telephony())).reasonCode).toBe("OTP_INCORRECT");
+    }
+    const real = await h.verification.beginOtp(ctx, { role: "client", locator: averyLocator });
+    const code = codeOf(h);
+    expect(code).toMatch(/^\d{6}$/);
+    expect(await h.verification.submitOtp({ sessionRef, challengeId: real.challengeId, code: wrongOf(code) }, telephony())).toEqual({ verified: false, reasonCode: "OTP_CHALLENGE_LOCKED" });
+    expect(await h.verification.submitOtp({ sessionRef, challengeId: real.challengeId, code }, telephony())).toEqual({ verified: false, reasonCode: "OTP_CHALLENGE_LOCKED" });
+    const after = await h.sessions.resolve(sessionRef, mcp());
+    expect(after.assurance).toBe("A0");
+    expect(after.riskFlags).toContain("OTP_ABUSE_SUSPECTED");
+    // Only one guess on this account was ever compared.
+    expect(await h.verification.abuse.count("OTP_ACCOUNT_GUESS_LIMIT", { kind: "account", id: PEOPLE.avery.accountId })).toBe(0);
   });
 });
 

@@ -21,6 +21,7 @@ import {
   ActionExpiryLoop,
   ActionReconcileLoop,
   AuditShipLoop,
+  AuditVerifyLoop,
   DeferredAuditFlushLoop,
   LocalConsumerQueueFixture,
   LocalTelephonyDeliveryLoop,
@@ -35,6 +36,8 @@ import {
 } from "./loops.js";
 import type { LoopReport, WorkerLoop } from "./loops.js";
 import type { LoopScheduler } from "./scheduler.js";
+import { integrationHoldReader } from "../ops/integration-gate.js";
+import { AuditCompletenessMonitor } from "../audit/monitor.js";
 
 export interface LoopStatus {
   name: string;
@@ -138,6 +141,7 @@ export interface WorkerIntervals {
   expireMs?: number;
   purgeMs?: number;
   auditShipMs?: number;
+  auditVerifyMs?: number;
   workflowTickMs?: number;
   transferSweepMs?: number;
   retentionMs?: number;
@@ -159,11 +163,27 @@ export function workerLoopsFor(c: Container, intervals: WorkerIntervals = {}): {
     // Deferred route audit (handoffs during an audit outage) is appended once the store is writable again.
     new DeferredAuditFlushLoop(c.deferredAudit, intervals.deferredAuditFlushMs),
     new AuditShipLoop(c.auditShipper, intervals.auditShipMs),
+    // OPS-AUD-01: integrity / ingestion / completeness reconciliation over every stream and tenant.
+    new AuditVerifyLoop(
+      new AuditCompletenessMonitor({
+        db: c.db,
+        sink: c.auditSink,
+        clock: c.clock,
+        metrics: c.metrics,
+        tenantIds: c.tenantIds,
+        logger: c.logger,
+        exportGraceSeconds: c.config.audit.maxBacklogAgeSeconds,
+      }),
+      intervals.auditVerifyMs,
+    ),
     new WorkflowTickLoop(c.workflows, c.clock, intervals.workflowTickMs),
     new TransferSweepLoop(c.transfers, intervals.transferSweepMs),
     new RetentionLoop(c.retention, c.clock, c.logger, intervals.retentionMs, c.metrics),
     // Re-enqueues due RETRY_SCHEDULED / stale SYNCING support requests; the consumer dead-letters after the budget.
-    new SupportSyncRetryLoop(c.business.supportRequests, c.tenantIds, intervals.supportSyncRetryMs),
+    // Held (nothing re-enqueued) while INTEGRATION <support records> or WRITES is engaged or unreadable (OPS-KS-02).
+    new SupportSyncRetryLoop(c.business.supportRequests, c.tenantIds, intervals.supportSyncRetryMs, undefined, (tenantId) =>
+      integrationHoldReader(() => c.deps.killSwitches.snapshot(tenantId), { integration: c.deps.adapters.supportRecords.integrationId, write: true }),
+    ),
     telephony,
   ];
   // Every loop reports content-free run / error / processed / lag / duration metrics through the Metrics port.

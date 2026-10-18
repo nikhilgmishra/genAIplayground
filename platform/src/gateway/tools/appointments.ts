@@ -21,6 +21,7 @@ import { CommitInput, DateArg, Id, InstantArg, denied, failed, fromError, ok, re
 import type { CommitInputT } from "./common.js";
 import { TOOL_DEFINITIONS } from "./definitions.js";
 import { toolPolicyRef } from "../../policy/input.js";
+import { confirmationSlotsFor } from "../../business/confirmation.js";
 
 const Modality = z.enum(["video", "in_person", "phone"]);
 const MAX_WINDOW_DAYS = 31;
@@ -171,19 +172,11 @@ export function prepareAppointmentChangeTool(s: BusinessServices): ToolModule<z.
       if (r.kind === "OPTION_AMBIGUOUS") return failed("OPTION_AMBIGUOUS");
       if (r.kind === "NOT_ELIGIBLE") return failed(r.reasonCode);
       const { action, slot, from } = r;
-      const to = whenSlots(slot.startsAt, slot.timeZone);
       const refs = [sourceRef("action", action.actionId), sourceRef("scheduling", slot.slotId)];
-      const speech = from
-        ? speechFor(
-            s.deps.templates,
-            "appointment.change_confirmation",
-            (() => {
-              const f = whenSlots(from.startsAt, from.timeZone);
-              return { fromDate: f.date, fromTime: f.time, fromTimeZone: f.timeZone, toDate: to.date, toTime: to.time, toTimeZone: to.timeZone };
-            })(),
-            refs,
-          )
-        : speechFor(s.deps.templates, "appointment.create_confirmation", to, refs);
+      // The readback is built from the digest-bound prepared change itself (the same slots TC-07 renders),
+      // so every caller-relevant change field is stated: times, time zones, visit type, provider (ACT-F5).
+      const slots = await confirmationSlotsFor(s.deps, action);
+      const speech = slots ? speechFor(s.deps.templates, from ? "appointment.change_confirmation" : "appointment.create_confirmation", slots, refs) : null;
       return ok(
         {
           change: {

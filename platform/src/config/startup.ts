@@ -25,6 +25,10 @@ export interface StartupInputs {
   adapterKinds: Record<string, "local_fixture" | "live">;
   loadedPolicy: { version: string; digest: string } | null;
   toolCatalogDigest: string | null;
+  /** OPS-APPR-01: digests of the served knowledge snapshot, template catalogue and running image (see GuardContext). */
+  knowledgeSnapshotDigest?: string | null;
+  templateCatalogDigest?: string | null;
+  releaseImageDigest?: string | null;
   env?: Readonly<Record<string, string | undefined>>;
   configDir?: string;
   repoRoot?: string;
@@ -72,6 +76,9 @@ export async function loadDeployableConfig(inputs: StartupInputs): Promise<Deplo
       adapterKinds: inputs.adapterKinds,
       loadedPolicy: inputs.loadedPolicy,
       toolCatalogDigest: inputs.toolCatalogDigest,
+      knowledgeSnapshotDigest: inputs.knowledgeSnapshotDigest ?? null,
+      templateCatalogDigest: inputs.templateCatalogDigest ?? null,
+      releaseImageDigest: inputs.releaseImageDigest ?? null,
       now: inputs.clock.now(),
     });
     logger.info("config.guard.accepted", { environment: report.environment, ruleSet: report.ruleSet, fileDigest: loaded.source.fileDigest });

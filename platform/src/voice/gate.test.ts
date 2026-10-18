@@ -63,17 +63,19 @@ describe("TemplateResponseGate: rendering", () => {
     expect(ok(gate.render(directive(), ctx())).utterance).toBe("Your current balance is $100.00, due on October 31, 2026.");
     const appt = APPOINTMENTS[0];
     const slot = SLOTS[0];
+    // ACT-F5: the readback also states the visit type before and after the change (template 0.2.0-draft).
     const change = directive({
       templateId: "appointment.change_confirmation",
+      templateVersion: "0.2.0-draft",
       responseClass: "COMMITMENT",
-      slots: { fromDate: "2026-10-22", fromTime: "12:00", fromTimeZone: appt.timeZone, toDate: "2026-10-23", toTime: "12:00", toTimeZone: slot.timeZone },
+      slots: { fromModality: appt.modality, fromDate: "2026-10-22", fromTime: "12:00", fromTimeZone: appt.timeZone, toDate: "2026-10-23", toTime: "12:00", toTimeZone: slot.timeZone, toModality: "in_person" },
       sourceRefs: ["action:act_synthPreparedAction001"],
     });
     expect(ok(gate.render(change, ctx())).utterance).toBe(
-      "To confirm, I'll move your appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time. Say yes to confirm, or no to keep it.",
+      "To confirm, I'll move your video appointment from October 22, 2026 at 12:00 PM, Central Time, to October 23, 2026 at 12:00 PM, Central Time, as an in-person visit. Say yes to confirm, or no to keep it.",
     );
     expect(ok(gate.render(change, ctx({ locale: "es-US" }))).utterance).toBe(
-      "Para confirmar: cambiaré su cita del 22 de octubre de 2026 a las 12:00 p. m., hora del Centro, al 23 de octubre de 2026 a las 12:00 p. m., hora del Centro. Diga sí para confirmar, o no para mantenerla.",
+      "Para confirmar: cambiaré su cita por video del 22 de octubre de 2026 a las 12:00 p. m., hora del Centro, al 23 de octubre de 2026 a las 12:00 p. m., hora del Centro, como una visita en persona. Diga sí para confirmar, o no para mantenerla.",
     );
   });
 

@@ -1,14 +1,15 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ReleaseManifest } from "../protocol/index.js";
 import { REQUIRED_APPROVALS_BY_ENVIRONMENT } from "../config/guard.js";
 import { migrationsDigest } from "../db/migrate.js";
 import { sha256Hex } from "../shared/canonical.js";
 import { FakeClock } from "../shared/clock.js";
 import { corpusDigest } from "./corpus.js";
-import { buildReleaseManifest, requiredApprovalsFor, UNPINNED_DIGEST, writeReleaseManifest } from "./manifest.js";
+import { boundEvidence, buildReleaseManifest, main as manifestMain, MAX_TEST_EVIDENCE, parseManifestArgs, requiredApprovalsFor, UNPINNED_DIGEST, writeReleaseManifest } from "./manifest.js";
+import { main as cliMain } from "./cli.js";
 import type { GitReader } from "./manifest.js";
 import { REPO_ROOT, repoPaths } from "./paths.js";
 
@@ -150,5 +151,101 @@ describe("release manifest builder", () => {
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
     expect(report.blockers.length).toBe(result.blockers.length);
     expect(report.statement).toContain("does not certify HIPAA compliance or production readiness");
+  });
+  describe("evidence bounds (OPS-REL-01)", () => {
+    const reports = (ev: string, pass: number, failing: string[] = []) => {
+      mkdirSync(join(ev, "reports"), { recursive: true });
+      for (let i = 0; i < pass; i++) writeFileSync(join(ev, "reports", `a-${String(i).padStart(3, "0")}.json`), JSON.stringify({ testResults: [], success: true }));
+      for (const name of failing) writeFileSync(join(ev, "reports", name), JSON.stringify({ testResults: [{}], success: false }));
+    };
+
+    it("[OPS-03][OPS-REL-01] a FAIL report that sorts after entry 128 still blocks and is kept in manifest.testEvidence", () => {
+      const ev = tmp();
+      reports(ev, 130, ["z-security-regression.json"]);
+      const r = base({ targetEnvironment: "local", evidenceDir: ev });
+      const codes = r.blockers.map((b) => b.code);
+      expect(codes).toContain("TEST_EVIDENCE_FAILING");
+      expect(r.manifest.status).toBe("BLOCKED");
+      expect(r.manifest.testEvidence).toHaveLength(MAX_TEST_EVIDENCE);
+      expect(r.manifest.testEvidence.some((e) => e.ref.endsWith("z-security-regression.json") && e.status === "FAIL")).toBe(true);
+      // Only PASS entries were dropped, so locally the overflow is a note, not a blocker.
+      expect(codes).not.toContain("TEST_EVIDENCE_TRUNCATED");
+      expect(r.notes.join(" ")).toContain("TEST_EVIDENCE_TRUNCATED");
+      expect(ReleaseManifest.safeParse(r.manifest).success).toBe(true);
+    });
+
+    it("[OPS-03][OPS-REL-01] truncation blocks a live target, and blocks anywhere when a non-PASS entry would be dropped", () => {
+      const ev = tmp();
+      reports(ev, 130);
+      expect(base({ evidenceDir: ev }).blockers.map((b) => b.code)).toContain("TEST_EVIDENCE_TRUNCATED");
+      const ev2 = tmp();
+      reports(ev2, 0, Array.from({ length: 130 }, (_, i) => `f-${String(i).padStart(3, "0")}.json`));
+      const local = base({ targetEnvironment: "local", evidenceDir: ev2 });
+      expect(local.blockers.map((b) => b.code)).toEqual(expect.arrayContaining(["TEST_EVIDENCE_FAILING", "TEST_EVIDENCE_TRUNCATED"]));
+    });
+
+    it("[OPS-03][OPS-REL-01] any FAIL quota or load evidence is a builder blocker even when another entry passes", () => {
+      const ev = tmp();
+      mkdirSync(join(ev, "load"), { recursive: true });
+      writeFileSync(join(ev, "load", "a-pass.json"), JSON.stringify({ status: "PASS" }));
+      writeFileSync(join(ev, "load", "b-quota-fail.json"), JSON.stringify({ status: "FAIL" }));
+      const r = base({ targetEnvironment: "local", evidenceDir: ev });
+      expect(r.blockers.map((b) => b.code)).toContain("QUOTA_LOAD_EVIDENCE_FAILING");
+      expect(r.manifest.status).toBe("BLOCKED");
+      expect(r.manifest.quotaAndLoadEvidence.map((e) => e.status)).toEqual(["PASS", "FAIL"]);
+    });
+
+    it("[OPS-03][OPS-REL-01] boundEvidence keeps every non-PASS entry first and preserves order", () => {
+      const all = [
+        { ref: "a", status: "PASS" as const },
+        { ref: "b", status: "PASS" as const },
+        { ref: "c", status: "INCONCLUSIVE" as const },
+        { ref: "d", status: "FAIL" as const },
+      ];
+      expect(boundEvidence(all, 2).map((e) => e.ref)).toEqual(["c", "d"]);
+      expect(boundEvidence(all, 3).map((e) => e.ref)).toEqual(["a", "c", "d"]);
+      expect(boundEvidence(all, 10)).toEqual(all);
+    });
+  });
+  describe("manifest CLI contract (OPS-REL-02)", () => {
+    const quiet = () => {
+      vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+      vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+    };
+    afterEach(() => vi.restoreAllMocks());
+    const IMG = `sha256:${"a".repeat(64)}`;
+
+    it("[OPS-06][OPS-REL-02] the old release.yml command line (release-manifest --environment ... --out) is refused, not silently accepted", async () => {
+      quiet();
+      const out = tmp();
+      expect(await cliMain(["release-manifest", "--environment", "sandbox", "--out", join(out, "m.json")])).toBe(2);
+      expect(await cliMain(["manifest", "--environment", "sandbox", "--out", join(out, "m.json")])).toBe(2);
+      expect(manifestMain(["--env", "sandbox", "--out", join(out, "m.json")])).toBe(2);
+      expect(readdirSync(out)).toEqual([]);
+    });
+
+    it("[OPS-06][OPS-REL-02] strict flags: unknown, repeated, value-less and malformed values are usage errors; --dry-run writes nothing", async () => {
+      expect(parseManifestArgs(["--env", "ci", "--bogus", "x"])).toEqual({ ok: false, reasonCode: "MANIFEST_ARG_UNKNOWN" });
+      expect(parseManifestArgs(["--env", "ci", "--env", "local"])).toEqual({ ok: false, reasonCode: "MANIFEST_ARG_REPEATED" });
+      expect(parseManifestArgs(["--env", "--out-dir", "x"])).toEqual({ ok: false, reasonCode: "MANIFEST_ARG_VALUE_MISSING" });
+      expect(parseManifestArgs(["--env", "ci", "--source-commit", "HEAD"])).toEqual({ ok: false, reasonCode: "MANIFEST_ARG_SOURCE_COMMIT_INVALID" });
+      expect(parseManifestArgs(["--env", "ci", "--image-digest", "latest"])).toEqual({ ok: false, reasonCode: "MANIFEST_ARG_IMAGE_DIGEST_INVALID" });
+      quiet();
+      const out = tmp();
+      const args = ["manifest", "--env", "sandbox", "--image-digest", IMG, "--source-commit", "b".repeat(40), "--build-id", "1.1", "--out-dir", out];
+      expect(await cliMain([...args, "--dry-run"])).toBe(0);
+      expect(readdirSync(out)).toEqual([]);
+      expect(await cliMain(["manifest", "--help"])).toBe(0);
+    });
+
+    it("[OPS-06][OPS-REL-02] --source-commit must equal the checked-out HEAD", () => {
+      const ok = base({ targetEnvironment: "local", expectedSourceCommit: HEAD });
+      expect(ok.blockers.map((b) => b.code)).not.toContain("SOURCE_COMMIT_MISMATCH");
+      const other = base({ targetEnvironment: "local", expectedSourceCommit: "e".repeat(40) });
+      expect(other.blockers.map((b) => b.code)).toContain("SOURCE_COMMIT_MISMATCH");
+      expect(other.manifest.sourceCommit).toBe(HEAD);
+      expect(other.manifest.status).toBe("BLOCKED");
+    });
   });
 });

@@ -101,6 +101,59 @@ run "object_locked_separate_account_store" {
     condition     = aws_kms_key.audit.enable_key_rotation
     error_message = "audit CMK rotates"
   }
+
+  assert {
+    condition     = length(aws_iam_role.verifier) == 0 && output.verifier_role_arn == null
+    error_message = "[OPS-AUD-02] no verifier role unless verifier principals are provided"
+  }
+}
+
+# [OPS-01] [OPS-AUD-02] The platform's automated verifier (audit.verify) gets its own READ-ONLY
+# role; writers still cannot read and the verifier cannot write.
+run "verifier_role_is_read_only_and_separate_from_writers" {
+  command = plan
+
+  providers = {
+    aws.audit = aws.audit
+  }
+
+  variables {
+    verifier_principal_arns = ["arn:aws:iam::111111111111:role/vsp-test-audit-verify-task"]
+  }
+
+  assert {
+    condition     = length(aws_iam_role.verifier) == 1 && aws_iam_role.verifier[0].name == "vsp-test-audit-verifier" && aws_iam_role.verifier[0].name != aws_iam_role.writer.name
+    error_message = "[OPS-AUD-02] a separate verifier role exists"
+  }
+
+  assert {
+    condition     = jsonencode(jsondecode(aws_iam_role.verifier[0].assume_role_policy).Statement[0].Condition.ArnEquals["aws:PrincipalArn"]) == jsonencode(var.verifier_principal_arns)
+    error_message = "[OPS-AUD-02] verifier trust is limited to the named workload verifier task roles"
+  }
+
+  assert {
+    condition     = local.verifier_read_actions == ["s3:GetObject", "s3:ListBucket"] && contains(local.verifier_denied_actions, "s3:PutObject*") && contains(local.verifier_denied_actions, "s3:DeleteObject*") && contains(local.verifier_denied_actions, "kms:GenerateDataKey*")
+    error_message = "[OPS-AUD-02] the verifier can only list and read; it cannot write, delete or encrypt"
+  }
+
+  assert {
+    condition = (
+      contains(one([for s in jsondecode(local.bucket_policy).Statement : s.Condition.ArnNotEquals["aws:PrincipalArn"] if s.Sid == "DenyReadsExceptAuditorRole"]), "arn:aws:iam::222222222222:role/vsp-test-audit-verifier")
+      && contains(one([for s in jsondecode(local.bucket_policy).Statement : s.Condition.ArnNotEquals["aws:PrincipalArn"] if s.Sid == "DenyReadsExceptAuditorRole"]), "arn:aws:iam::222222222222:role/vsp-test-audit-reader")
+      && !contains(one([for s in jsondecode(local.bucket_policy).Statement : s.Condition.ArnNotEquals["aws:PrincipalArn"] if s.Sid == "DenyReadsExceptAuditorRole"]), "arn:aws:iam::222222222222:role/vsp-test-audit-writer")
+    )
+    error_message = "[OPS-AUD-02] only the auditor and the verifier may read evidence; never the writer"
+  }
+
+  assert {
+    condition     = one([for s in jsondecode(local.bucket_policy).Statement : s.Condition.ArnNotEquals["aws:PrincipalArn"] if s.Sid == "DenyWritesExceptWriterRole"]) == "arn:aws:iam::222222222222:role/vsp-test-audit-writer"
+    error_message = "[OPS-AUD-02] the verifier is still denied writes by the bucket policy"
+  }
+
+  assert {
+    condition     = contains([for s in jsondecode(local.key_policy).Statement : s.Sid], "VerifierDecryptsViaS3Only") && local.writer_allowed_s3_actions == ["s3:PutObject"] && contains(local.writer_denied_actions, "s3:GetObject*") && contains(local.writer_denied_actions, "kms:Decrypt")
+    error_message = "[OPS-AUD-02] the verifier decrypts via S3 only; the writer stays write-only (no GetObject, no kms:Decrypt)"
+  }
 }
 
 run "rejects_null_object_lock_mode" {
@@ -156,6 +209,20 @@ run "rejects_writer_who_is_also_auditor" {
 
   variables {
     auditor_principal_arns = ["arn:aws:iam::111111111111:role/vsp-test-gateway-task"]
+  }
+
+  expect_failures = [terraform_data.account_separation]
+}
+
+run "rejects_writer_who_is_also_verifier" {
+  command = plan
+
+  providers = {
+    aws.audit = aws.audit
+  }
+
+  variables {
+    verifier_principal_arns = ["arn:aws:iam::111111111111:role/vsp-test-worker-task"]
   }
 
   expect_failures = [terraform_data.account_separation]

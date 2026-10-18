@@ -90,8 +90,13 @@ export class HandoffServiceFixture implements HandoffService {
     return { handoffId, transferId: journey.currentTransferId, destinationId: journey.routePlan[journey.routeIndex] ?? destination.destinationId, journey, speechTemplateId: "transfer.in_progress" };
   }
 
+  /** Safety routes requested through the port (the console's staff escalation uses this, SAFE-HANDOFF-05). */
+  readonly safetyRequests: { callId: string; signalSources: string[]; initiatedBy: string | null }[] = [];
+
   async requestSafetyRoute(input: Parameters<HandoffService["requestSafetyRoute"]>[0]): Promise<HandoffResult> {
-    return this.requestHuman({ tenantId: input.tenantId, callId: input.callId, ctx: input.ctx, reason: "SAFETY_PRIORITY", language: "en", issueCategory: "safety_concern" });
+    this.safetyRequests.push({ callId: input.callId, signalSources: input.signals.map((x) => x.source), initiatedBy: input.initiatedBy?.staffId ?? null });
+    const r = await this.requestHuman({ tenantId: input.tenantId, callId: input.callId, ctx: input.ctx, reason: "SAFETY_PRIORITY", language: "en", issueCategory: "safety_concern", initiatedBy: input.initiatedBy ?? null });
+    return { ...r, priority: "SAFETY", speechTemplateId: "safety.acknowledgment" };
   }
 }
 

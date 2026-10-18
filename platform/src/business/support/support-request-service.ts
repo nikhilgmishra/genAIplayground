@@ -15,6 +15,14 @@
  *   phase C: settle by claim token -> SYNCED, RETRY_SCHEDULED (bounded attempts,
  *   exponential backoff) or DEAD_LETTER (operator repair). The customer's request is
  *   never lost: the internal row persists whatever Salesforce does.
+ *   Kill switches (OPS-KS-02): the composition gives this service a SupportRecordSystem
+ *   gated by INTEGRATION <salesforce> / WRITES (ops/integration-gate.ts). The hold is
+ *   checked BEFORE the claim: a held sync makes no state transition and spends no
+ *   attempt; the row records last_sync_reason KILL_SWITCH_* and a next check time
+ *   (audited as support_request.sync_held) and the retry sweep re-enqueues it after the
+ *   switch is released. A switch engaged between that check and the vendor call
+ *   (IntegrationHeldError, nothing reached Salesforce) settles RETRY_SCHEDULED and is
+ *   never dead-lettered.
  *   Restricted records (privacy / safety) are synchronized only as a MINIMAL restricted
  *   Case (fixed summary, no attempted steps or receipts, restricted=true) so they never
  *   appear as broadly visible Cases.
@@ -57,6 +65,7 @@ import { newId, newSupportReference } from "../../shared/ids.js";
 import type { SupportRequestService, SupportRequestTrace, SupportRequestTraceOptions } from "../contract.js";
 import { UNKNOWN_CONSENT, atLeast, auditSessionRef, consentStatusCode, durationMs, reasonOf } from "../shared.js";
 import { assembleSummary } from "./summaries.js";
+import { holdReasonOf, isIntegrationHeld } from "../../ops/integration-gate.js";
 
 export const SUPPORT_SYNC_CONSUMER = "business.support_request.sync";
 
@@ -83,6 +92,10 @@ const CATEGORY_DEADLINE: Partial<Record<IssueCategoryT, string>> = {
   complaint: "P5D",
   privacy_concern: "P5D",
 };
+
+/** Phase-B failure; `held` = an INTEGRATION / WRITES kill switch stopped the call before Salesforce (OPS-KS-02). */
+type SyncFailure = { reasonCode: string; permanent: boolean; held?: boolean };
+const KILL_SWITCH_HOLD_REASONS: ReadonlySet<string> = new Set(["KILL_SWITCH_INTEGRATION", "KILL_SWITCH_WRITES", "KILL_SWITCH_STATE_UNAVAILABLE"]);
 
 /** Default horizon of the recap memory entry when the contract has no deadline (engineering default). */
 const DEFAULT_MEMORY_HORIZON = "P14D";
@@ -637,6 +650,11 @@ export class PgSupportRequestService implements SupportRequestService {
     const p = SyncPayload.safeParse(payload);
     if (!p.success) throw new ValidationError("SUPPORT_SYNC_PAYLOAD_INVALID");
     const { tenantId, supportRequestId } = p.data;
+    // OPS-KS-02: INTEGRATION <support records> / WRITES kill switch (unreadable state holds). Checked BEFORE
+    // claiming, so a held sync spends no attempt and makes no state transition; the row keeps a durable
+    // hold marker that the retry sweep re-enqueues after the switch is released.
+    const hold = await holdReasonOf(this.supportRecords, true);
+    if (hold) return this.holdSync(tenantId, supportRequestId, hold);
     const now = this.clock.now();
     const token = newId("scl");
 
@@ -669,7 +687,7 @@ export class PgSupportRequestService implements SupportRequestService {
 
     // Phase B: idempotent upserts by external id, with no database transaction open.
     let caseId: string | null = null;
-    let failure: { reasonCode: string; permanent: boolean } | null = null;
+    let failure: SyncFailure | null = null;
     try {
       const row = c.row;
       await this.supportRecords.upsertInteraction(row.interaction_external_id, {
@@ -681,12 +699,63 @@ export class PgSupportRequestService implements SupportRequestService {
       const result = await this.supportRecords.upsertCase(row.issue_external_id, row.interaction_external_id, this.caseFields(row));
       caseId = result.caseId;
     } catch (err) {
-      const permanent = err instanceof ValidationError || (err instanceof ConflictError && !err.retryable) || (err instanceof DependencyError && err.outcome === "FAILED" && !err.retryable);
-      failure = { reasonCode: reasonOf(err, "SALESFORCE_SYNC_FAILED"), permanent };
+      if (isIntegrationHeld(err)) {
+        // OPS-KS-02: INTEGRATION / WRITES kill switch engaged (or unreadable): nothing reached Salesforce.
+        // Keep the request pending without spending an attempt; resume after the switch is released.
+        failure = { reasonCode: err.reasonCode, permanent: false, held: true };
+      } else {
+        const permanent = err instanceof ValidationError || (err instanceof ConflictError && !err.retryable) || (err instanceof DependencyError && err.outcome === "FAILED" && !err.retryable);
+        failure = { reasonCode: reasonOf(err, "SALESFORCE_SYNC_FAILED"), permanent };
+      }
     }
 
     // Phase C: settle by claim token.
     return this.settle(tenantId, supportRequestId, token, caseId, failure);
+  }
+
+  /**
+   * OPS-KS-02 hold without a claim: PENDING / RETRY_SCHEDULED rows keep their state and attempt count;
+   * the hold reason and the next check time are recorded (same-state update) and audited. Rows that are
+   * SYNCING (another claim in flight), SYNCED or DEAD_LETTER are left untouched.
+   */
+  private async holdSync(tenantId: string, supportRequestId: string, reasonCode: string): Promise<SyncOutcome> {
+    const now = this.clock.now();
+    const state = await this.db.tx(
+      async (q) => {
+        const r = await q.query<SrRow>(`select ${SR_COLUMNS} from support_requests where support_request_id = $1 for update`, [supportRequestId]);
+        const row = r.rows[0];
+        if (!row) throw new ValidationError("SUPPORT_REQUEST_NOT_FOUND");
+        if (row.sync_state !== "PENDING" && row.sync_state !== "RETRY_SCHEDULED") return row.sync_state;
+        await q.query(
+          `update support_requests set next_sync_attempt_at = $2, last_sync_reason = $3, row_version = row_version + 1, updated_at = $4
+            where support_request_id = $1`,
+          [supportRequestId, iso(addMs(now, this.policy.baseBackoffMs)), reasonCode, iso(now)],
+        );
+        await this.audit.append(
+          q,
+          buildAuditInput(
+            {
+              tenantId,
+              correlationId: supportRequestId,
+              sourceComponent: "worker",
+              action: "support_request.sync_held",
+              outcome: "PENDING",
+              subjectRef: row.subject_ref,
+              callId: row.call_id,
+              evidencePointers: [`db://support_requests/${supportRequestId}`],
+              reasonCode,
+              dataClass: "BUSINESS_RECORD",
+            },
+            this.clock,
+          ),
+          this.auditStream,
+        );
+        return row.sync_state;
+      },
+      { role: "app_worker", rls: { tenantId } },
+    );
+    this.logger.info("support_request.sync.held", { supportRequestId, syncState: state, reasonCode });
+    return { duplicate: false, syncState: state };
   }
 
   private claimStale(row: SrRow, now: Date): boolean {
@@ -723,7 +792,7 @@ export class PgSupportRequestService implements SupportRequestService {
     return Math.min(this.policy.maxBackoffMs, this.policy.baseBackoffMs * 2 ** Math.max(0, attempts - 1));
   }
 
-  private async settle(tenantId: string, supportRequestId: string, token: string, caseId: string | null, failure: { reasonCode: string; permanent: boolean } | null): Promise<SyncOutcome> {
+  private async settle(tenantId: string, supportRequestId: string, token: string, caseId: string | null, failure: SyncFailure | null): Promise<SyncOutcome> {
     const now = this.clock.now();
     const state = await this.db.tx(
       async (q) => {
@@ -746,7 +815,18 @@ export class PgSupportRequestService implements SupportRequestService {
         } else {
           const f = failure ?? { reasonCode: "SALESFORCE_SYNC_FAILED", permanent: false };
           reason = f.reasonCode;
-          if (f.permanent || row.sync_attempts >= this.policy.maxAttempts) {
+          if (f.held) {
+            // OPS-KS-02: a switch engaged between the pre-claim check and the vendor call. Nothing reached
+            // Salesforce; the claimed attempt stays counted (attempts never decrease) but a hold never
+            // dead-letters; the retry sweep re-enqueues it once due and the switch is released.
+            next = "RETRY_SCHEDULED";
+            action = "support_request.sync_held";
+            await q.query(
+              `update support_requests set sync_state = 'RETRY_SCHEDULED', sync_claim_token = null,
+                      next_sync_attempt_at = $2, last_sync_reason = $3, row_version = row_version + 1, updated_at = $4 where support_request_id = $1`,
+              [supportRequestId, iso(addMs(now, this.policy.baseBackoffMs)), f.reasonCode, iso(now)],
+            );
+          } else if (f.permanent || row.sync_attempts >= this.policy.maxAttempts) {
             next = "DEAD_LETTER";
             action = "support_request.sync_dead_lettered";
             await q.query(
@@ -789,7 +869,7 @@ export class PgSupportRequestService implements SupportRequestService {
     );
     if (state.changed) {
       const result = state.state === "SYNCED" ? "synced" : state.state === "DEAD_LETTER" ? "dead_lettered" : "retried";
-      this.metrics.increment("vsp_crm_reconciliation_total", { result });
+      if (!failure?.held) this.metrics.increment("vsp_crm_reconciliation_total", { result });
       if (state.state === "SYNCED" && "createdAt" in state && state.createdAt) {
         this.metrics.observe("vsp_crm_sync_lag_ms", Math.max(0, now.getTime() - new Date(state.createdAt).getTime()));
       }
@@ -816,14 +896,29 @@ export class PgSupportRequestService implements SupportRequestService {
     const staleBefore = iso(addMs(now, -this.policy.claimStaleSeconds * 1000));
     return this.db.tx(
       async (q) => {
-        const r = await q.query<{ support_request_id: string; sync_state: string; sync_attempts: number; last_sync_attempt_at: Date | string | null }>(
-          `select support_request_id, sync_state, sync_attempts, last_sync_attempt_at from support_requests
+        const r = await q.query<{
+          support_request_id: string;
+          sync_state: string;
+          sync_attempts: number;
+          last_sync_attempt_at: Date | string | null;
+          next_sync_attempt_at: Date | string | null;
+          last_sync_reason: string | null;
+        }>(
+          `select support_request_id, sync_state, sync_attempts, last_sync_attempt_at, next_sync_attempt_at, last_sync_reason from support_requests
             where (sync_state = 'RETRY_SCHEDULED' and next_sync_attempt_at <= $1) or (sync_state = 'SYNCING' and last_sync_attempt_at <= $2)
+               or (sync_state = 'PENDING' and next_sync_attempt_at <= $1 and last_sync_reason = any($4::text[]))
             order by updated_at, support_request_id limit $3`,
-          [iso(now), staleBefore, Math.min(Math.max(limit, 1), 1000)],
+          [iso(now), staleBefore, Math.min(Math.max(limit, 1), 1000), [...KILL_SWITCH_HOLD_REASONS]],
         );
         for (const row of r.rows) {
-          const suffix = row.sync_state === "SYNCING" ? `stale:${new Date(row.last_sync_attempt_at ?? 0).getTime()}` : "retry";
+          // A kill-switch hold keeps the attempt count, so its re-enqueue needs its own dedupe key (OPS-KS-02).
+          const held = (row.sync_state === "RETRY_SCHEDULED" || row.sync_state === "PENDING") && KILL_SWITCH_HOLD_REASONS.has(row.last_sync_reason ?? "");
+          const suffix =
+            row.sync_state === "SYNCING"
+              ? `stale:${new Date(row.last_sync_attempt_at ?? 0).getTime()}`
+              : held
+                ? `held:${new Date(row.next_sync_attempt_at ?? 0).getTime()}`
+                : "retry";
           await this.enqueueSync(q, tenantId, row.support_request_id, row.sync_attempts, `support_request.sync:${row.support_request_id}:a${row.sync_attempts}:${suffix}`);
         }
         return r.rows.length;

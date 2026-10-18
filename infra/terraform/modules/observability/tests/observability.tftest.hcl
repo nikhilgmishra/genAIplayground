@@ -57,6 +57,11 @@ run "dashboards_and_alarms" {
   }
 
   assert {
+    condition     = aws_cloudwatch_metric_alarm.app["audit-ingestion-gap"].treat_missing_data == "breaching" && aws_cloudwatch_metric_alarm.app["audit-ingestion-gap"].metric_name == "vsp_audit_ingestion_gaps_total"
+    error_message = "[OPS-01][OPS-AUD-01] the critical audit-ingestion-gap alarm fires when audit verification stops reporting (missing data is breaching)"
+  }
+
+  assert {
     condition = alltrue([for a in values(aws_cloudwatch_metric_alarm.app) :
     !can(regex("[0-9]{3}-[0-9]{3}-[0-9]{4}|@|\\$\\{|date of birth|DOB|SSN", a.alarm_description))])
     error_message = "[DATA-01] alarm text contains no PHI, identifiers or interpolated labels"

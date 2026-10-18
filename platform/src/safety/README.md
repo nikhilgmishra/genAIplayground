@@ -15,7 +15,7 @@ clinical procedures it routes into.
 | `detector.ts` | `RuleBasedSafetySignalDetector` (EXPLICIT_PHRASE, CALLER_REQUEST, ASR_UNCERTAIN, unsupported locale), the `SemanticSignalDetector` interface with `LocalHeuristicSemanticDetector` (**LOCAL FIXTURE**), `CompositeSafetySignalDetector`, `humanInterventionSignal()`, `failSafeSignal()` (source `FAIL_SAFE`), strict `SafetySignalSchema`, deployment checks. |
 | `clinical-boundary.ts` | `RuleBasedClinicalBoundaryDetector`: diagnosis, medication, therapy-advice and screening questions in en/es → `CLINICAL_BOUNDARY_ROUTE`. Administrative mentions ("reschedule my therapy session") do not trigger it. |
 | `router.ts` | `DeterministicSafetyRouter` (implements `SafetyRouter`), `StickySafetyRouter` + `InMemorySafetyModeStoreFixture`, `safetyModeFromRiskFlags()`. |
-| `conversation-guard.ts` | Pure `decide(state, event)` and the `ConversationGuard` wrapper: turn, silence, refusal, guardrail-trigger, duration and cost limits that only ever CONTINUE, PLAY_TEMPLATE, OFFER_HUMAN, TRANSFER_HUMAN or SAFETY_ROUTE. There is no terminate or hang-up action. |
+| `conversation-guard.ts` | Pure `decide(state, event)` and the `ConversationGuard` wrapper: turn, silence, refusal, guardrail-trigger, duration and cost limits that only ever CONTINUE, PLAY_TEMPLATE, OFFER_HUMAN, TRANSFER_HUMAN or SAFETY_ROUTE. There is no terminate or hang-up action. **Not wired into a runtime path** (no import outside `src/safety`): it is the property-tested policy model. The runtime enforcement of "a human request in safety mode keeps the safety route" lives in `business/handoff.ts` (`requestHuman` -> safety route) and `workflows/transfer.ts` (one active journey per call, SAFETY first); see finding SAFE-HANDOFF-02. |
 | `safety-events.ts` + `migrations/0610_safety_events.sql`, `0611_safety_fail_safe_source.sql` (adds `FAIL_SAFE` to the allowed `signal_sources`) | `SafetyEventRecorder`: a content-free, append-only `safety_events` table (RLS by tenant), with an audit event per phase written through the `AuditWriter` port in the same transaction. Time from validated signal to route initiation is measured with the injected `Clock` against the 2 s target, and utterance-to-detection latency separately. |
 | `pipeline.ts` | `SafetyPipeline.evaluate()`: detector + clinical detector + router in one call. |
 
@@ -65,6 +65,7 @@ clinical procedures it routes into.
   - Latency must match the timestamps. TRANSFERRED requires a transfer id. The table is append-only for every role, the owner included.
   - If the audit write fails, the row is still kept as `AUDIT_UNAVAILABLE`. If the database is down, the result says so.
   - Recording never throws into, or delays, the safety route.
+  - **Every safety route source is recorded (finding SAFE-HANDOFF-07).** The recorder is composed into the business `HandoffService` (`ToolDeps.safetyEvents`), so the Studio screening route, the model-raised `request_safety_route` (with or without a session), a console staff escalation (`HUMAN_INTERVENTION`) and a human request in safety mode (`CALLER_REQUEST`) all write SIGNAL_VALIDATED + ROUTE_INITIATED rows and the `vsp_safety_time_to_routing_ms` sample. The screening route records itself only when the HandoffService did not.
 
 ## LOCAL FIXTURES (labelled)
 
@@ -124,7 +125,7 @@ npx eslint src/safety
 |---|---|---|
 | SAFE-01 | `clinical-boundary.ts`, `router.ts` (boundary route); templates checked in `voice/registry.ts` | `clinical-boundary.test.ts`, corpus clinical and medication cases, `router.test.ts` |
 | SAFE-02 | `router.ts` takes no identity input and sets `requiresAuthentication: false`; guard human and safety actions require no authentication | `router.test.ts`, `safety-flow.test.ts`, `conversation-guard.test.ts` |
-| SAFE-03 | `conversation-guard.ts` `decide()` | `conversation-guard.property.test.ts`, `conversation-guard.test.ts`, `safety-flow.test.ts` |
+| SAFE-03 | `conversation-guard.ts` `decide()` (policy model, not wired at runtime); runtime: `business/handoff.ts` safety supersedes human requests, `workflows/transfer.ts` SAFETY supersedes STANDARD journeys and re-enters the fallback chain after a bridge drop | `conversation-guard.property.test.ts`, `conversation-guard.test.ts`, `safety-flow.test.ts`; runtime: `transfer.test.ts`, `business/handoff.test.ts`, `test/journeys/safety-handoff-regressions.test.ts` (`[SAFE-HANDOFF-01]`, `[SAFE-HANDOFF-02]`) |
 | SAFE-04 (evidence side) | `safety_events` requires a transfer id for TRANSFERRED | `safety-events.test.ts` |
 | SAFE-05 | Fixed allowlisted `dst_safety_priority`; caller text never selects a destination | `router.test.ts` |
 | DATA-01 | Signals are closed-set values; content-free table and audit inputs; content-free logs | `detector.test.ts`, `detector.property.test.ts`, `safety-events.test.ts` |

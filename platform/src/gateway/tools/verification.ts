@@ -1,8 +1,12 @@
 /**
  * begin_verification (verification:begin). The locator only LOCATES a candidate
  * inside the restricted verification service; it never authenticates (AUTH-01) and is
- * never echoed, logged or audited. The response is generic for zero, one or many
- * matches (no enumeration). The secure-link match code (two words, generated for every
+ * never echoed, logged or audited. The gateway replay cache persists only a KEYED hash
+ * of the request (HMAC with a secret pepper, DP-02), never a digest that could be tested
+ * against candidate names and dates of birth. The response is generic for zero, one or
+ * many matches, and so is every LATER result on the call: account-derived throttles act
+ * silently and never become session risk flags that policy would turn into a different
+ * result (AUTH-ENUM-01, identity/abuse-monitor.ts). The secure-link match code (two words, generated for every
  * request, eligible or not; not a secret) is never a tool output field: it is spoken only
  * through the approved-template path (verification.secure_link_match_code, slot type
  * match_code) so the caller can compare it with the words the portal shows.

@@ -90,6 +90,18 @@ variable "auditor_principal_arns" {
   }
 }
 
+variable "verifier_principal_arns" {
+  description = "Workload-account task role ARNs allowed to assume the read-only evidence verifier role (the platform audit.verify loop, OPS-AUD-02). Must not overlap writer_principal_arns. Empty = verifier role not created (shipped-object verification BLOCKED; the platform reports INCONCLUSIVE)."
+  type        = list(string)
+  default     = []
+  nullable    = false
+
+  validation {
+    condition     = alltrue([for a in var.verifier_principal_arns : can(regex("^arn:aws[a-z-]*:iam::[0-9]{12}:role/", a))])
+    error_message = "verifier_principal_arns must be IAM role ARNs."
+  }
+}
+
 variable "key_admin_role_arns" {
   description = "Audit-account roles that administer the audit CMK and bucket configuration (cannot read evidence)."
   type        = list(string)

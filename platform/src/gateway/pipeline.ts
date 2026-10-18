@@ -34,6 +34,7 @@ import { z } from "zod";
 import type { RelationshipDirectory } from "../adapters/ports.js";
 import type { AuditWriter } from "../audit/ports.js";
 import { buildAuditInput } from "../audit/build-input.js";
+import { AuditEventInvalidError, AuditWriterInput, EvidencePointer } from "../audit/schema.js";
 import { sessionBindingRefFor } from "../identity/keys.js";
 import type { Logger, Metrics } from "../observability/ports.js";
 import type { KillSwitchService, KillSwitchSnapshot, AdmissionController, AdmissionClass } from "../ops/ports.js";
@@ -170,12 +171,18 @@ export const PIPELINE_REASON = {
   RESOURCE_UNRESOLVED: "RESOURCE_UNRESOLVED",
   RELATIONSHIPS_UNAVAILABLE: "RELATIONSHIPS_UNAVAILABLE",
   IDEMPOTENCY_KEY_REQUIRED: "IDEMPOTENCY_KEY_REQUIRED",
+  /** VSP-GW-04: a supplied key outside the one shared grammar (transport + audit) is refused, never silently dropped. */
+  IDEMPOTENCY_KEY_INVALID: "IDEMPOTENCY_KEY_INVALID",
   IDEMPOTENCY_KEY_REUSED: "IDEMPOTENCY_KEY_REUSED",
   IDEMPOTENCY_IN_PROGRESS: "IDEMPOTENCY_IN_PROGRESS",
   IDEMPOTENCY_STORE_UNAVAILABLE: "IDEMPOTENCY_STORE_UNAVAILABLE",
   IDEMPOTENT_REPLAY: "IDEMPOTENT_REPLAY",
   OUTPUT_SCHEMA_VIOLATION: "OUTPUT_SCHEMA_VIOLATION",
   AUDIT_UNAVAILABLE: "AUDIT_UNAVAILABLE",
+  /** VSP-GW-04: the audit writer rejected the event's shape (not an outage): not retryable, alerted. */
+  AUDIT_EVENT_INVALID: "AUDIT_EVENT_INVALID",
+  /** ACT-F2: the audit reason of the tool.invoke event recording the late settlement of an UNKNOWN_OUTCOME. */
+  LATE_SETTLEMENT: "LATE_SETTLEMENT",
   SESSIONLESS_ROUTE_UNSUPPORTED: "SESSIONLESS_ROUTE_UNSUPPORTED",
   TOOL_RESULT_INVALID: "TOOL_RESULT_INVALID",
   INTERNAL_ERROR: "INTERNAL_ERROR",
@@ -186,6 +193,35 @@ export const PIPELINE_REASON = {
 const UNKNOWN_TOOL = { name: "unknown_tool", version: "0.0.0" } as const;
 const TURN_ID = /^turn_[A-Za-z0-9_-]{4,64}$/;
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{16,128}$/;
+/** The audit writer's own key rule (audit/schema.ts: token grammar + PHI-shape heuristics), reused as is. */
+const AUDIT_IDEMPOTENCY_KEY = AuditWriterInput.shape.idempotencyKey;
+
+/**
+ * VSP-GW-04: the ONE idempotency-key grammar shared by the transport boundary and the audit record.
+ * A key is accepted only when it matches the published ToolRequest pattern AND the audit writer would
+ * store it (first character alphanumeric; no e-mail, phone, SSN or calendar-date shapes), so an
+ * accepted key can never make the gateway's tool.invoke evidence unwritable.
+ */
+export function isAcceptedIdempotencyKey(value: unknown): value is string {
+  return typeof value === "string" && IDEMPOTENCY_KEY.test(value) && AUDIT_IDEMPOTENCY_KEY.safeParse(value).success;
+}
+
+/**
+ * ACT-02 / ACT-03: tools whose execution writes durable records (consequential commits, prepared actions,
+ * intakes that create support requests, grants, workflows and CRM sync messages, and every tool that
+ * requires an idempotency key). An ambiguous failure after such an execution started may have left the
+ * record behind, so it is UNKNOWN_OUTCOME (never RETRYABLE_FAILURE) and its idempotency reservation is
+ * kept until the execution settles.
+ */
+export function writesDurableRecords(def: Pick<ToolDefinition, "consequential" | "idempotency" | "safetyClass">): boolean {
+  return (
+    def.consequential ||
+    def.idempotency === "IDEMPOTENCY_KEY_REQUIRED" ||
+    def.safetyClass === "INTAKE" ||
+    def.safetyClass === "PREPARE_MUTATION" ||
+    def.safetyClass === "COMMIT_MUTATION"
+  );
+}
 const LOCALE = /^[a-z]{2}-[A-Z]{2}$/;
 const FALLBACK_TEMPLATE_ID = "fallback.safe_explanation";
 const FORBIDDEN = new Set(FORBIDDEN_ARGUMENT_FIELDS);
@@ -259,6 +295,8 @@ interface InvocationState {
   decision: PolicyDecision | null;
   obligations: Set<string>;
   idempotencyKey: string | null;
+  /** A key was supplied but is outside the shared grammar (VSP-GW-04). */
+  idempotencyKeyInvalid: boolean;
   evidence: string[];
   auditReason: string | null;
   locale: string;
@@ -285,6 +323,8 @@ export class ToolPipeline {
 
   async invoke(inv: ToolInvocation, integration: IntegrationIdentity, transport: TransportContext): Promise<ToolResult> {
     const now = this.deps.clock.now();
+    const rawKey: unknown = inv?.idempotencyKey;
+    const keySupplied = rawKey !== undefined && rawKey !== null;
     const st: InvocationState = {
       requestId: newId("req"),
       turnId: typeof inv?.turnId === "string" && TURN_ID.test(inv.turnId) ? inv.turnId : newTurnId(),
@@ -298,7 +338,8 @@ export class ToolPipeline {
       transportCallId: null,
       decision: null,
       obligations: new Set(),
-      idempotencyKey: typeof inv?.idempotencyKey === "string" && IDEMPOTENCY_KEY.test(inv.idempotencyKey) ? inv.idempotencyKey : null,
+      idempotencyKey: keySupplied && isAcceptedIdempotencyKey(rawKey) ? rawKey : null,
+      idempotencyKeyInvalid: keySupplied && !isAcceptedIdempotencyKey(rawKey),
       evidence: [],
       auditReason: null,
       locale: typeof inv?.locale === "string" && LOCALE.test(inv.locale) ? inv.locale : this.defaultLocale,
@@ -332,6 +373,14 @@ export class ToolPipeline {
     const def = entry.definition;
     const module = entry.module as ToolModule<unknown, unknown>;
     const isSafety = def.safetyClass === "SAFETY_AND_HUMAN_ROUTE";
+
+    // VSP-GW-04: a supplied key outside the shared grammar is refused (a distinct, non-retryable reason)
+    // instead of being dropped or reaching the audit writer. Safety and human routes are never blocked:
+    // they continue without the key (no replay protection for that call), still fully audited.
+    if (st.idempotencyKeyInvalid) {
+      d.logger.warn("gateway.idempotency.key_invalid", { reasonCode: PIPELINE_REASON.IDEMPOTENCY_KEY_INVALID, requestId: st.requestId, tool: def.name });
+      if (!isSafety) return this.finish(st, { status: "PERMANENT_FAILURE", reasonCode: PIPELINE_REASON.IDEMPOTENCY_KEY_INVALID }, null, null);
+    }
 
     // (c) argument bound, forbidden identity fields, strict schema -----------------------
     if (!isPlainObject(inv.arguments)) return this.finish(st, { status: "PERMANENT_FAILURE", reasonCode: PIPELINE_REASON.INVALID_ARGUMENTS }, null, null);
@@ -457,9 +506,15 @@ export class ToolPipeline {
 
     // (i) execute -----------------------------------------------------------------
     const execCtx: ToolExecutionContext = { auth: ctx, request, decision: verdict.primary ?? denyPlaceholder(d.clock.now()), now: d.clock.now() };
+    // The execution's own promise: a timeout does not cancel it, so its real result is settled later (ACT-F2).
+    const flight: { current: Promise<Outcome> | null } = { current: null };
     let outcome: Outcome;
     try {
-      outcome = await this.execute(def, isSafety, () => module.execute(execCtx, input));
+      outcome = await this.execute(def, isSafety, () => {
+        const p = module.execute(execCtx, input);
+        flight.current = p;
+        return p;
+      });
     } catch (err) {
       outcome = this.outcomeFromError(err, def, st, "DEPENDENCY_FAILED", true);
     }
@@ -467,8 +522,42 @@ export class ToolPipeline {
     // (j)-(n)
     const fieldMask = verdict.allow && verdict.primary ? verdict.primary.fieldMask : [];
     const result = await this.complete(st, entry, module, outcome, fieldMask);
+    if (result.status === "UNKNOWN_OUTCOME" && writesDurableRecords(def) && idem.kind === "reserved") {
+      // ACT-03: in doubt. The reservation is NOT released (a same-key retry is IN_PROGRESS, then replays
+      // the real result); it is completed when the execution settles, or re-taken only after its lease,
+      // when the business creation key (derived from this idempotency key) finds the record it created.
+      this.settleWhenDone(st, entry, module, flight.current, fieldMask, idem);
+      return result;
+    }
     await this.settleIdempotency(idem, result);
     return result;
+  }
+
+  /**
+   * ACT-F2: completes a kept reservation with the REAL result once the timed-out execution settles.
+   * The settlement is recorded by its own tool.invoke audit event (same correlation id, reason
+   * LATE_SETTLEMENT). A still-ambiguous failure keeps the reservation until its lease expires. Never throws.
+   */
+  private settleWhenDone(
+    st: InvocationState,
+    entry: PinnedToolEntry,
+    module: ToolModule<unknown, unknown>,
+    inFlight: Promise<Outcome> | null,
+    fieldMask: readonly string[],
+    idem: { kind: "reserved"; scope: IdempotencyScope; key: string; hash: string },
+  ): void {
+    if (!inFlight) return;
+    const late: InvocationState = { ...st, evidence: [...st.evidence], obligations: new Set(st.obligations), auditReason: PIPELINE_REASON.LATE_SETTLEMENT };
+    const settle = async (outcome: Outcome): Promise<void> => {
+      if (outcome.status === "UNKNOWN_OUTCOME") return;
+      const result = await this.complete(late, entry, module, outcome, fieldMask);
+      if (result.status !== "UNKNOWN_OUTCOME") await this.settleIdempotency(idem, result);
+    };
+    void inFlight
+      .then(settle, (err: unknown) => settle(this.outcomeFromError(err, entry.definition, late, "DEPENDENCY_FAILED", true)))
+      .catch((err: unknown) => {
+        this.deps.logger.warn("gateway.idempotency.late_settle_failed", { reasonCode: err instanceof PlatformError ? err.reasonCode : "UNCLASSIFIED_ERROR", requestId: st.requestId });
+      });
   }
 
   /** SAFE-02 path: SAFETY_AND_HUMAN_ROUTE tool without a resolvable session. */
@@ -676,7 +765,8 @@ export class ToolPipeline {
         return { status: "RETRYABLE_FAILURE", reasonCode, retryAfterMs: typeof after === "number" && after >= 0 && after <= 60_000 ? Math.floor(after) : 1000 };
       }
       if (err.outcome === "UNKNOWN") {
-        if (!executed || !def.consequential) return { status: "RETRYABLE_FAILURE", reasonCode, retryAfterMs: 1000 };
+        // ACT-03: an executed tool that writes durable records may have written them; never "retry freely".
+        if (!executed || !writesDurableRecords(def)) return { status: "RETRYABLE_FAILURE", reasonCode, retryAfterMs: 1000 };
         return { status: "UNKNOWN_OUTCOME", reasonCode, reconciliationRef: st.requestId };
       }
       // FAILED: a definite failure. Retryable only when the dependency explicitly said so.
@@ -691,8 +781,8 @@ export class ToolPipeline {
     if (err instanceof PlatformError) {
       return err.retryable ? { status: "RETRYABLE_FAILURE", reasonCode: safeReason(err.reasonCode, fallback), retryAfterMs: 1000 } : { status: "PERMANENT_FAILURE", reasonCode: safeReason(err.reasonCode, fallback) };
     }
-    // Unclassified: an executed consequential operation may have had an effect (ACT-03).
-    if (executed && def.consequential) return { status: "UNKNOWN_OUTCOME", reasonCode: "UNCLASSIFIED_ERROR", reconciliationRef: st.requestId };
+    // Unclassified: an executed operation that writes durable records may have had an effect (ACT-03).
+    if (executed && writesDurableRecords(def)) return { status: "UNKNOWN_OUTCOME", reasonCode: "UNCLASSIFIED_ERROR", reconciliationRef: st.requestId };
     return { status: "PERMANENT_FAILURE", reasonCode: PIPELINE_REASON.INTERNAL_ERROR };
   }
 
@@ -702,10 +792,10 @@ export class ToolPipeline {
     if (outcome.status !== "SUCCESS" && outcome.status !== "PENDING") return this.finish(st, sanitizeFailure(outcome, st), null, null);
     const out = module.output.safeParse(outcome.data);
     if (!out.success || !isPlainObject(out.data)) {
-      // Unexpected or missing fields fail closed. A consequential effect may already exist, so it is reported as unknown.
+      // Unexpected or missing fields fail closed. A durable effect may already exist, so it is reported as unknown.
       return this.finish(
         st,
-        def.consequential
+        writesDurableRecords(def)
           ? { status: "UNKNOWN_OUTCOME", reasonCode: PIPELINE_REASON.OUTPUT_SCHEMA_VIOLATION, reconciliationRef: st.requestId }
           : { status: "PERMANENT_FAILURE", reasonCode: PIPELINE_REASON.OUTPUT_SCHEMA_VIOLATION },
         null,
@@ -762,10 +852,15 @@ export class ToolPipeline {
     const reasonCode = "reasonCode" in outcome ? outcome.reasonCode : null;
     const auditReadRequired = st.obligations.has("AUDIT_READ") && (outcome.status === "SUCCESS" || outcome.status === "PENDING");
     const isSafety = st.entry?.definition.safetyClass === "SAFETY_AND_HUMAN_ROUTE";
-    const auditEventId = await this.appendAudit(st, outcome.status, st.auditReason ?? reasonCode, auditReadRequired && !isSafety);
+    const appended = await this.appendAudit(st, outcome.status, st.auditReason ?? reasonCode, auditReadRequired && !isSafety);
+    const auditEventId = appended.eventId;
     if (auditReadRequired && !isSafety && auditEventId === null) {
-      // AUDIT_READ: the disclosure must be durably recorded before any data is returned.
-      const blocked: Outcome = { status: "RETRYABLE_FAILURE", reasonCode: PIPELINE_REASON.AUDIT_UNAVAILABLE, retryAfterMs: 5000 };
+      // AUDIT_READ: the disclosure must be durably recorded before any data is returned. A rejected event
+      // shape is not an outage: it is reported as such (not retryable) instead of AUDIT_UNAVAILABLE (VSP-GW-04).
+      const blocked: Outcome =
+        appended.failure === "INVALID"
+          ? { status: "PERMANENT_FAILURE", reasonCode: PIPELINE_REASON.AUDIT_EVENT_INVALID }
+          : { status: "RETRYABLE_FAILURE", reasonCode: PIPELINE_REASON.AUDIT_UNAVAILABLE, retryAfterMs: 5000 };
       return this.build(st, tool, blocked, null, null, null);
     }
     return this.build(st, tool, outcome, data, speech, auditEventId);
@@ -816,48 +911,80 @@ export class ToolPipeline {
     return result;
   }
 
-  /** Appends the `tool.invoke` audit event. Returns the event id, or null when it could not be written. */
-  private async appendAudit(st: InvocationState, status: ToolStatus, reasonCode: string | null, required: boolean): Promise<string | null> {
+  /**
+   * Appends the `tool.invoke` audit event. Returns the event id, or null with the failure kind when it
+   * could not be written. A schema rejection (AuditEventInvalidError) is never silently dropped
+   * (VSP-GW-04): it is logged at error level, counted (vsp_audit_events_rejected_total) and the event is
+   * retried once minimized (no idempotency key, only grammar-valid evidence pointers), so the gateway's
+   * record of the call still exists.
+   */
+  private async appendAudit(st: InvocationState, status: ToolStatus, reasonCode: string | null, required: boolean): Promise<{ eventId: string | null; failure: "INVALID" | "UNAVAILABLE" | null }> {
     const d = this.deps;
-    const ctx = st.ctx;
     const def = st.entry?.definition ?? null;
     try {
-      const input = buildAuditInput(
-        {
-          tenantId: d.tenantId,
-          correlationId: st.requestId,
-          sourceComponent: st.transport.kind === "mcp" ? "mcp_adapter" : "gateway",
-          action: "tool.invoke",
-          outcome: AUDIT_OUTCOME[status],
-          actorRef: ctx?.actorId ?? null,
-          subjectRef: ctx?.subjectId ?? null,
-          role: ctx?.selectedRole ?? null,
-          callId: ctx?.callId ?? st.transportCallId,
-          sessionRef: st.bindingRef,
-          sessionGeneration: ctx?.sessionGeneration ?? null,
-          turnId: st.turnId,
-          versions: d.versions,
-          policyDecision: st.decision
-            ? { decisionId: st.decision.decisionId, allow: st.decision.allow, reasonCodes: st.decision.reasonCodes.slice(0, 16), policyVersion: st.decision.policyVersion }
-            : null,
-          assurance: ctx?.assurance ?? null,
-          evidencePointers: st.evidence.slice(0, 16),
-          idempotencyKey: st.idempotencyKey,
-          reasonCode: reasonCode && ReasonCode.safeParse(reasonCode).success && !/\d{4,}/.test(reasonCode) ? reasonCode : null,
-          dataClass: "SECURITY_AUDIT",
-        },
-        d.clock,
-      );
-      const ev = await d.audit.appendStandalone(input);
-      return ev.eventId;
+      return { eventId: await this.writeToolInvoke(st, status, reasonCode, false), failure: null };
     } catch (err) {
+      if (err instanceof AuditEventInvalidError) {
+        d.logger.error("gateway.audit.event_invalid", {
+          reasonCode: PIPELINE_REASON.AUDIT_EVENT_INVALID,
+          requestId: st.requestId,
+          tool: def?.name ?? null,
+          // Schema field path and issue count only (never values).
+          kind: (err.issues[0]?.path ?? "unknown").split(".")[0] ?? "unknown",
+          issueCount: err.issues.length,
+        });
+        try {
+          d.metrics.increment("vsp_audit_events_rejected_total", { source_component: st.transport.kind === "mcp" ? "mcp_adapter" : "gateway" });
+        } catch {
+          // Metrics never affect the result.
+        }
+        try {
+          return { eventId: await this.writeToolInvoke(st, status, reasonCode, true), failure: null };
+        } catch (retryErr) {
+          d.logger.error("gateway.audit.append_failed", { reasonCode: retryErr instanceof PlatformError ? retryErr.reasonCode : "AUDIT_UNAVAILABLE", requestId: st.requestId, tool: def?.name ?? null });
+          return { eventId: null, failure: retryErr instanceof AuditEventInvalidError ? "INVALID" : "UNAVAILABLE" };
+        }
+      }
       d.logger[required ? "error" : "warn"]("gateway.audit.append_failed", {
         reasonCode: err instanceof PlatformError ? err.reasonCode : "AUDIT_UNAVAILABLE",
         requestId: st.requestId,
         tool: def?.name ?? null,
       });
-      return null;
+      return { eventId: null, failure: "UNAVAILABLE" };
     }
+  }
+
+  private async writeToolInvoke(st: InvocationState, status: ToolStatus, reasonCode: string | null, minimized: boolean): Promise<string> {
+    const d = this.deps;
+    const ctx = st.ctx;
+    const input = buildAuditInput(
+      {
+        tenantId: d.tenantId,
+        correlationId: st.requestId,
+        sourceComponent: st.transport.kind === "mcp" ? "mcp_adapter" : "gateway",
+        action: "tool.invoke",
+        outcome: AUDIT_OUTCOME[status],
+        actorRef: ctx?.actorId ?? null,
+        subjectRef: ctx?.subjectId ?? null,
+        role: ctx?.selectedRole ?? null,
+        callId: ctx?.callId ?? st.transportCallId,
+        sessionRef: st.bindingRef,
+        sessionGeneration: ctx?.sessionGeneration ?? null,
+        turnId: st.turnId,
+        versions: d.versions,
+        policyDecision: st.decision
+          ? { decisionId: st.decision.decisionId, allow: st.decision.allow, reasonCodes: st.decision.reasonCodes.slice(0, 16), policyVersion: st.decision.policyVersion }
+          : null,
+        assurance: ctx?.assurance ?? null,
+        evidencePointers: (minimized ? st.evidence.filter((p) => EvidencePointer.safeParse(p).success) : st.evidence).slice(0, 16),
+        idempotencyKey: minimized ? null : st.idempotencyKey,
+        reasonCode: reasonCode && ReasonCode.safeParse(reasonCode).success && !/\d{4,}/.test(reasonCode) ? reasonCode : null,
+        dataClass: "SECURITY_AUDIT",
+      },
+      d.clock,
+    );
+    const ev = await d.audit.appendStandalone(input);
+    return ev.eventId;
   }
 
   private observe(st: InvocationState, status: ToolStatus, reasonCode: string | null): void {

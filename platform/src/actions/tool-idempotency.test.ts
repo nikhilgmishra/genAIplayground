@@ -6,7 +6,9 @@ import { OTHER_TENANT_ID, TENANT_ID } from "../fixtures/synthetic-world.js";
 import { FakeClock } from "../shared/clock.js";
 import { newSessionRef } from "../shared/ids.js";
 import { sessionBindingRef } from "./digest.js";
-import { ToolRequestIdempotency, computeToolRequestHash } from "./tool-idempotency.js";
+import { LOCAL_FIXTURE_REQUEST_HASH_PEPPER } from "./fixtures/request-hash-pepper.fixture.js";
+import { ToolRequestIdempotency, computeToolRequestHash, keyedRequestHash } from "./tool-idempotency.js";
+import type { RequestHashPepper } from "./tool-idempotency.js";
 
 let db: PgliteDb;
 let clock: FakeClock;
@@ -143,5 +145,69 @@ describe("ToolRequestIdempotency", () => {
       }),
       { seed: 21, numRuns: 25 },
     );
+  });
+});
+
+describe("[DATA-01][DP-02] persisted request hashes are keyed, never a dictionary-testable digest of tool arguments", () => {
+  const verifyMeta = { toolName: "begin_verification", toolVersion: "1.0.0" };
+  const binding = sessionBindingRef("ses_synthSessionForHash0001");
+  const locatorArgs = (fullName: string, dateOfBirth: string) => ({ method: "SECURE_LINK", locator: { kind: "NAME_AND_DATE_OF_BIRTH", fullName, dateOfBirth } });
+  const fingerprintOf = (args: Record<string, unknown>) => computeToolRequestHash({ toolName: verifyMeta.toolName, toolVersion: verifyMeta.toolVersion, arguments: args, sessionBinding: binding });
+  const rowsOf = async (d: PgliteDb) =>
+    d.tx(async (tx) => (await tx.query<Record<string, unknown>>("select * from tool_request_idempotency")).rows, { role: "owner" });
+
+  it("[DATA-01][DP-02] the stored request_hash is HMAC-SHA256(pepper, fingerprint): an offline dictionary attack over candidate (name, DOB) pairs finds nothing", async () => {
+    const keyedSvc = new ToolRequestIdempotency({ db, clock, requestHashPepper: LOCAL_FIXTURE_REQUEST_HASH_PEPPER });
+    expect(keyedSvc.requestHashKeying).toBe("local_fixture");
+    expect(keyedSvc.requestHashPepperRef).toBe("local-fixture:tool-request-hash-pepper");
+    const secret = locatorArgs("Avery Synthetic-Client", "1990-01-01");
+    const fp = fingerprintOf(secret);
+    await keyedSvc.record(scope, KEY, fp, verifyMeta, { status: "SUCCESS" });
+    const [row] = await rowsOf(db);
+    // The attacker knows every other input (tool, version, binding ref from audit) and tries the directory.
+    const candidates = [locatorArgs("Blake Synthetic", "1985-05-05"), secret, locatorArgs("Casey Example", "1979-12-31")];
+    for (const c of candidates) expect(row?.request_hash).not.toBe(fingerprintOf(c));
+    expect(row?.request_hash).toBe(keyedRequestHash(LOCAL_FIXTURE_REQUEST_HASH_PEPPER, fp));
+    // No persisted column is an unkeyed digest of the arguments or carries the locator itself.
+    const dump = JSON.stringify(row);
+    expect(dump).not.toContain(fp);
+    expect(dump).not.toMatch(/Avery|Synthetic-Client|1990-01-01/);
+    // Same behaviour still works through the keyed form: replay matches, another request does not.
+    expect((await keyedSvc.reserve(scope, KEY, fp, verifyMeta)).status).toBe("REPLAY");
+    expect(await reason(keyedSvc.reserve(scope, KEY, fingerprintOf(candidates[0] as Record<string, unknown>), verifyMeta))).toBe("IDEMPOTENCY_KEY_REUSED");
+  });
+
+  it("[DATA-01][DP-02] different peppers give unrelated stored values; a store without the right pepper cannot match a row and fails closed", async () => {
+    const other: RequestHashPepper = { ref: "local-fixture:other-pepper", key: Buffer.alloc(32, 7) };
+    const a = new ToolRequestIdempotency({ db, clock, requestHashPepper: LOCAL_FIXTURE_REQUEST_HASH_PEPPER });
+    const b = new ToolRequestIdempotency({ db, clock, requestHashPepper: other });
+    const fp = fingerprintOf(locatorArgs("Avery Synthetic-Client", "1990-01-01"));
+    expect(keyedRequestHash(other, fp)).not.toBe(keyedRequestHash(LOCAL_FIXTURE_REQUEST_HASH_PEPPER, fp));
+    await a.record(scope, KEY, fp, verifyMeta, { status: "SUCCESS" });
+    expect(await reason(b.reserve(scope, KEY, fp, verifyMeta))).toBe("IDEMPOTENCY_KEY_REUSED");
+    expect(await reason(b.lookup(scope, KEY, fp))).toBe("IDEMPOTENCY_KEY_REUSED");
+    // With no pepper configured the key is random per instance: still keyed, never the fingerprint.
+    const ephemeral = new ToolRequestIdempotency({ db, clock });
+    expect(ephemeral.requestHashKeying).toBe("ephemeral_single_instance");
+    expect(ephemeral.requestHashPepperRef).toBeNull();
+    await ephemeral.record(scope, "idem_synthKey00000000002", fp, verifyMeta, { status: "SUCCESS" });
+    const stored = (await rowsOf(db)).map((r) => r.request_hash);
+    expect(stored).toHaveLength(2);
+    expect(stored).not.toContain(fp);
+  });
+
+  it("[DP-02] the pepper must be >= 32 bytes from a Secrets Manager or labelled LOCAL FIXTURE reference (fail closed at construction)", () => {
+    const bad: unknown[] = [
+      { ref: "local-fixture:short", key: Buffer.alloc(31, 1) },
+      { ref: "file:keys/pepper.bin", key: Buffer.alloc(32, 1) },
+      { ref: "arn:aws:kms:us-east-1:123456789012:key/abc", key: Buffer.alloc(32, 1) },
+      { ref: "plain-text-pepper", key: Buffer.alloc(32, 1) },
+      { ref: "local-fixture:not-a-buffer", key: "x".repeat(64) },
+    ];
+    for (const p of bad) {
+      expect(() => new ToolRequestIdempotency({ db, clock, requestHashPepper: p as RequestHashPepper })).toThrow(expect.objectContaining({ reasonCode: "IDEMPOTENCY_REQUEST_HASH_PEPPER_INVALID" }));
+    }
+    const live = new ToolRequestIdempotency({ db, clock, requestHashPepper: { ref: "arn:aws:secretsmanager:us-east-1:123456789012:secret:vsp-tool-request-pepper", key: Buffer.alloc(32, 9) } });
+    expect(live.requestHashKeying).toBe("secret_ref");
   });
 });

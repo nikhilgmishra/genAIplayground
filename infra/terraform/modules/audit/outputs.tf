@@ -23,6 +23,11 @@ output "auditor_role_arn" {
   value       = local.create_auditor ? local.auditor_role_arn : null
 }
 
+output "verifier_role_arn" {
+  description = "Read-only evidence verifier role ARN for the platform audit.verify loop, or null when verifier principals are not provided (OPS-AUD-02)."
+  value       = local.create_verifier ? local.verifier_role_arn : null
+}
+
 output "kms_key_arn" {
   description = "Audit-account CMK."
   value       = aws_kms_key.audit.arn

@@ -18,9 +18,11 @@ tool modules (definitions and execution); the pipeline owns everything around th
 | `session-binding.ts` | TB-01 modes: `trusted_header` (`X-VSP-Session-Ref`), `server_to_server_lookup` (`X-VSP-Interaction-Id` → `InteractionLookup`), `tool_argument_lookup_exception` (refused without an approval id). |
 | `gateway-audit.ts` | Content-free audit helper; the bearer session reference is always converted with `sessionBindingRefFor()`. |
 | `call-state.ts` | Per-process session leases and handoff index; read-only pending-action lookup. |
-| `mcp.ts` | MCP Streamable HTTP adapter (`POST /mcp`, stateless, JSON responses; `GET`/`DELETE` 405). |
+| `mcp.ts` | MCP Streamable HTTP adapter (`POST /mcp`, stateless, JSON responses; `GET`/`DELETE` 405). Rate limited per JSON-RPC message; batches of at most `MCP_MAX_BATCH_MESSAGES` (10) dispatched one at a time, safety and human-route calls first. |
+| `call-sessions.ts` | `InteractionIndexCallSessions`: server-side call -> live session resolution for safety routes without a session context (console escalation; used only to revoke and flag). LOCAL FIXTURE interaction index; live BLOCKED (TB-01). |
 | `openapi.ts`, `generate-openapi.ts` | OpenAPI 3.1 document generated from the route definitions into `schemas/openapi/gateway.openapi.json`; `--check` fails on drift. |
-| `http/route.ts`, `http/app.ts` | Route definitions (one source for Fastify and OpenAPI), auth hook before parsing, strict params/body, response validation, helmet, no CORS, body limit, per-integration rate limit, generic errors, opaque request ids. |
+| `http/route.ts`, `http/app.ts` | Route definitions (one source for Fastify and OpenAPI), auth hook before parsing, strict params/body, response validation, helmet, no CORS, body limit, per-integration rate limit (route buckets for everything except the two tool transports), generic errors, opaque request ids. |
+| `http/tool-rate-limit.ts` | `ToolCallRateLimiter` for `POST /v1/tools/:name/:version` and `POST /mcp`: SAFETY_AND_HUMAN_ROUTE tools (from the pinned catalogue) classified before any limit and never throttled; every other tool call / MCP message counted in a per-call bucket and the per-integration ceiling (fixed windows, injected Clock, bounded key map, opaque keys only). |
 | `http/tool-routes.ts` | `GET /v1/tools/catalog`, `POST /v1/tools/:name/:version`. |
 | `http/telephony-routes.ts` | Telephony-control API (TC-01..TC-08, TC-10..TC-12, utterance screening, human request). |
 | `http/portal-routes.ts` | Secure-link portal API (describe, approve, step-up). |
@@ -47,11 +49,42 @@ and the call id from the trusted transport binding; without a trusted call id th
 (j) OPA decision for every permission (deny by default) →
 (k) tool-request idempotency (replay, key reuse, in progress, key required) →
 (l) execution with timeout, per-dependency breaker and bounded retries (never for safety tools) →
-(m) strict output (violation: read → PERMANENT_FAILURE, consequential → UNKNOWN_OUTCOME),
+(m) strict output (violation: read → PERMANENT_FAILURE, durable-record writer → UNKNOWN_OUTCOME),
 field mask, speech directive pre-check (fallback `fallback.safe_explanation`) →
 (n) audit (`tool.invoke`, binding ref, evidence pointers; AUDIT_READ data is withheld when
 the append fails) →
 (o) strict `ToolResult` and metrics/logs (content-free).
+
+### Ambiguous outcomes of tools that write durable records (ACT-02, ACT-03; finding ACT-F2)
+
+`writesDurableRecords(def)` is true for consequential commits, PREPARE_MUTATION, INTAKE and every
+`IDEMPOTENCY_KEY_REQUIRED` tool (intakes create a support request, a grant, a workflow and a CRM
+sync message even though they are not `consequential`). For such a tool an executed ambiguous
+failure (`DependencyError UNKNOWN`, e.g. the pipeline timeout, an unclassified error, or an output
+schema violation) is `UNKNOWN_OUTCOME` (reconciliation ref = request id), never
+`RETRYABLE_FAILURE`, and its idempotency reservation is **kept** (not released). The timed-out
+execution cannot be cancelled, so the pipeline keeps its promise and settles the reservation with
+the REAL result when it completes (`tool.invoke` audit event with reason `LATE_SETTLEMENT`, same
+correlation id); a same-key retry meanwhile gets `IDEMPOTENCY_IN_PROGRESS`, then the replay. A
+still-ambiguous execution keeps the reservation until its lease expires; a re-execution after that is
+reconciled by the business creation key, which is derived from the same transport idempotency key
+(`business/services/intake.ts`). A provably-not-started failure stays `RETRYABLE_FAILURE`.
+Known limit: `ToolModule.execute` takes no `AbortSignal` (gateway/ports.ts), so a timed-out
+execution runs to completion; the result above is reported honestly as in doubt instead.
+
+### One idempotency-key grammar; `tool.invoke` audit never silently dropped (OPS-01; finding VSP-GW-04)
+
+`isAcceptedIdempotencyKey` = the published transport pattern (`^[A-Za-z0-9_-]{16,128}$`) AND the
+audit writer's own key rule (`audit/schema.ts AuditWriterInput.shape.idempotencyKey`: first character
+alphanumeric, no e-mail, phone, SSN or calendar-date shapes). A supplied key outside it is refused
+before any session or policy work with `PERMANENT_FAILURE IDEMPOTENCY_KEY_INVALID` (audited without
+the key); safety and human routes continue without the key (SAFE-02). If the writer still rejects a
+`tool.invoke` event by schema (`AuditEventInvalidError`), that is not reported as an outage: it is
+logged at error level (`gateway.audit.event_invalid`, field path and count only), counted
+(`vsp_audit_events_rejected_total{source_component}`) and retried once minimized (no key,
+grammar-valid evidence pointers only); an AUDIT_READ disclosure that still cannot be recorded returns
+`PERMANENT_FAILURE AUDIT_EVENT_INVALID` (no data), not the retryable `AUDIT_UNAVAILABLE`. Tests:
+`pipeline.transactions.test.ts`, `../../test/journeys/transactions.test.ts`.
 
 ## Commands
 
@@ -148,3 +181,35 @@ change request.)
   `get_authorized_case_status` finds it; a refused link denies the request.
 * Tool catalogue regenerated: `TOOL_CATALOG_VERSION` `2026-10-18.3`; OpenAPI regenerated (TC-11
   summary).
+
+## Safety-handoff review fixes (SAFE-HANDOFF-03, VSP-GW-01, VSP-GW-03, SAFE-HANDOFF-07)
+
+* **Tool rate limiting never throttles the safe route.** The generic route limiter used to put
+  every call of a Talkdesk integration into one bucket per route, so routine tool traffic of other
+  calls turned `request_safety_route` / `request_human_transfer` into `429 RATE_LIMITED` on both
+  `/v1/tools` and `/mcp` (the header comment claimed the opposite). Now `buildGatewayApp` creates a
+  `ToolCallRateLimiter` whenever the per-integration limit is on and the two tool transports are
+  metered by it: the tool name is classified from the pinned catalogue BEFORE any limit
+  (SAFETY_AND_HUMAN_ROUTE => exempt, never counted); everything else takes a token from its call's
+  bucket (trusted `X-VSP-Interaction-Id`, else the session-reference hash) and from the
+  per-integration ceiling. Default per-call share: `max(min(ceiling, 120), floor(ceiling / 5))`
+  per window (engineering default pending SRE capacity review, TB-10; `perCallRateLimit` overrides).
+  The production ceiling itself (600/min default, per process) still has to be sized against the
+  capacity model; that is configuration, not code (see the report's known gaps).
+* **MCP batches are counted per message.** A JSON-RPC array is accepted (older protocol revisions)
+  only up to 10 messages (`400 -32600` above, or when empty, before any tool runs); every message is
+  admitted on its own and dispatched sequentially through a fresh stateless server/transport (no
+  100-way concurrent fan-out); a throttled message gets its own JSON-RPC error
+  (`MCP_RATE_LIMITED_CODE` -32029) while the others still run; a single throttled message answers
+  HTTP 429 `RATE_LIMITED` as before. Rate-limit headers report the most restrictive metered decision.
+* **Tool status after a bridge drop (SAFE-HANDOFF-01).** `routing.ts` `statusOf` reports CONNECTED
+  only when the journey's `connectedAt` is set (a dropped bridge is TRANSFER_REQUESTED again).
+* **Safety evidence.** `request_safety_route` (with or without a session) now produces safety_events
+  and the time-to-routing metric through the HandoffService (`ToolDeps.safetyEvents`, composed in the
+  container with the same recorder the screening route uses); the screening route records only when
+  the HandoffService did not (`HandoffResult.safetyEventRecorded`). A human request routed as SAFETY
+  is indexed with that priority (`HandoffResult.priority`) for TC-12.
+* **Clinical-boundary audit minimization (DP-01).** The subject-linked `safety.clinical_boundary`
+  audit event carries the generic reason code `CLINICAL_BOUNDARY_ROUTE`; the specific category stays
+  in the content-free, subject-free `safety_events` row and the Studio response.
+* OpenAPI regenerated (summaries of `tools.invoke` and `mcp.post`).

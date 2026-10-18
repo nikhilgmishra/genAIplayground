@@ -137,7 +137,7 @@ Finer rules the server enforces:
 | `workflows.tasks`, `workflows.decision` | `WorkflowEngine.openTasks`; for a decision the backend calls `PgWorkflowEngine.issueTaskToken` and then `completeHumanTask` for the same authenticated staff member inside the one request, so the plaintext token never leaves the server. `completeHumanTask` takes no reason code yet (interface change requested); until then the reason is recorded in the console audit event |
 | `safetyEvents.list` | `safety_events` rows written by `SafetyEventRecorder` (`platform/src/safety/safety-events.ts`) |
 | `audit.search` | `PgAuditQuery` as app_auditor plus a console audit event for the search (same semantics as `auditedSearch`, which does not return the event id) |
-| `calls.transfer` | `HandoffService.requestHuman` (`platform/src/business/contract.ts`), which routes through the `TransferCoordinator` |
+| `calls.transfer` | `HandoffService.requestHuman`, or `HandoffService.requestSafetyRoute` for a staff safety escalation (`platform/src/business/contract.ts`), both routing through the `TransferCoordinator`; `LedgerActionService.cancelPending` for the escalation's pending-action revocation |
 | `destinations.list` | Trusted `DestinationConfig` (vendor queue refs never returned) |
 | `supportRequests.trace` | `SupportRequestService.trace` + ledger `describe` + `WorkflowEngine.get/openTasks` |
 | `calls.list`, `calls.get`, `overview` | `read-models.ts` over `audit_event_metadata` (app_console), `safety_events`, `TransferStore.listActive/get`, kill switches, budgets, capacity, `AuditHealth` |
@@ -230,6 +230,20 @@ which re-checks the allowlist (refusal: `400 DESTINATION_NOT_ALLOWLISTED`, nothi
 and audits the staff member as the actor. A different dialled destination (coordinator
 fallback) is still reported as `TRANSFER_DESTINATION_SUBSTITUTED`.
 
+**Staff safety escalation (spec section 10: human intervention is a safety signal; finding
+SAFE-HANDOFF-05).** When the reason is `SAFETY_PRIORITY` or the selected destination has purpose
+`SAFETY_PRIORITY`, the handler calls `HandoffService.requestSafetyRoute` with
+`humanInterventionSignal()` and `initiatedBy {staffId}` instead of a plain human request: the
+priority route is requested first, then the business layer resolves the call's live session
+server-side to revoke its pending mutations and apply `SAFETY_ESCALATION` (TC-12 then answers
+priority SAFETY), writes the restricted P1 safety record and the safety incident (`safety_events`,
+time-to-routing metric). The console additionally cancels the call's remaining `PREPARED` /
+`CONFIRMED` actions through the ledger (`action.cancel`, reason `SAFETY_ESCALATION`, actor the staff
+member), so revocation does not depend on that session resolution (which is a LOCAL FIXTURE in the
+local composition and BLOCKED live, TB-01). The success audit reason code is
+`SAFETY_ESCALATION_ROUTED`. A human request for a call whose safety route is active is answered with
+that safety route (the business layer never dials a STANDARD destination then).
+
 ### Audit (OPS-01)
 
 * Console-owned effects (logout revocation, release review, console reconciliation record and
@@ -283,10 +297,17 @@ staging/production).
   `LedgerReconciledRetry` (`reconciled-retry.ts`): it reads the ledger's LATEST reconciliation
   record (must be NOT_FOUND and unconsumed) and calls `LedgerActionService.retryAfterReconcile`
   with that ledger id, the staff ref and the provider port, so the ledger re-checks the row
-  version, the CONFIRMED state, the expiry and the recorded confirmation and commits with the SAME
-  provider idempotency key. Without a port the endpoint still answers `503 RETRY_PATH_UNAVAILABLE`.
+  version, the CONFIRMED state, the expiry, the recorded confirmation **and its freshness** (the
+  caller-path window; stale => `CONFIRMATION_STALE`, action expired), refuses an action carrying a
+  durable invalidation request, and requires the port's `authorizeOperatorRetry` to re-establish the
+  CALLER's current authority (live, unrevoked session at the action's generation without a safety
+  escalation; current relationships, kill switches and policy) before it commits with the SAME
+  provider idempotency key (ACT-01, finding ACT-F3). The staff member's console authorization never
+  substitutes for the caller's. Without a port the endpoint still answers `503 RETRY_PATH_UNAVAILABLE`.
   End to end: `platform/test/journeys/console-retry.test.ts` (UNKNOWN commit -> reconcile
-  NOT_FOUND -> retry COMMITTED, one scheduling effect, a second retry refused).
+  NOT_FOUND -> retry COMMITTED, one scheduling effect, a second retry refused) and
+  `platform/test/journeys/transactions.test.ts` (safety escalation while in doubt -> reconcile
+  INVALIDATED, retry commits nothing; stale confirmation -> retry refused, action expired).
 * Safety events: the `FAIL_SAFE` signal source (the safety pipeline could not assess an utterance
   and routed to safety) is part of `SafetySignalSource` in `contract.ts`, `schemas.ts` and the read
   model; up to six sources per incident.

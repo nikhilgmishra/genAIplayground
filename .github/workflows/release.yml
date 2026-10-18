@@ -119,20 +119,28 @@ jobs:
           .tools/cosign sign --yes "${IMAGE_REF}"
           .tools/cosign attest --yes --type cyclonedx --predicate evidence/runs/sbom.cdx.json "${IMAGE_REF}"
 
+      # OPS-REL-02: this step is executed verbatim (pnpm dispatch shimmed to the package.json
+      # `evidence` script) by scripts/ci/check-release-manifest.test.ts, so a renamed command or
+      # flag fails CI instead of failing here. The CLI rejects unknown flags (exit 2).
       - name: Generate release manifest (evaluation module; never fabricates approvals)
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          if ! grep -qs "release-manifest" platform/src/evaluation/cli.ts; then
-            echo "::error::platform/src/evaluation/cli.ts has no 'release-manifest' command (owner: evaluation engineer); cannot generate the manifest"
+          args=(manifest
+            --env "${TARGET_ENVIRONMENT}"
+            --image-digest "${DIGEST}"
+            --source-commit "${GITHUB_SHA}"
+            --build-id "${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+            --out-dir "${GITHUB_WORKSPACE}/evidence/runs")
+          # Real pre-check: the CLI validates this exact command line and writes nothing.
+          if ! pnpm --filter @vsp/platform evidence "${args[@]}" --dry-run; then
+            echo "::error::the evaluation CLI rejected the release-manifest command line (owner: evaluation engineer); cannot generate the manifest"
             exit 1
           fi
-          pnpm --filter @vsp/platform evidence release-manifest \
-            --environment "${TARGET_ENVIRONMENT}" \
-            --image-digest "${DIGEST}" \
-            --source-commit "${GITHUB_SHA}" \
-            --build-id "${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}" \
-            --out "${GITHUB_WORKSPACE}/evidence/runs/release-manifest.json"
+          pnpm --filter @vsp/platform evidence "${args[@]}"
+          # deploy.yml consumes runs/release-manifest.json from the release artifact.
+          cp "evidence/runs/release-manifest.${TARGET_ENVIRONMENT}.json" evidence/runs/release-manifest.json
+          test -s evidence/runs/release-manifest.json
 
       - name: Check the manifest is well formed (decision recorded, not enforced here)
         run: |

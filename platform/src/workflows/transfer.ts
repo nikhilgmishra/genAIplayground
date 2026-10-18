@@ -18,6 +18,21 @@
  * attempt counts or budget limits (SAFE-03); they cycle through the staffed
  * safety routes and continuity indefinitely, and time-to-route-initiation is
  * measured with the injected Clock against the 2 s engineering target.
+ *
+ * A bridge drop after CALLER_CONFIRMED_CONNECTED re-enters the fallback chain
+ * (SAFE-03/SAFE-04, finding SAFE-HANDOFF-01): the journey goes back to ROUTING
+ * whenever a new attempt is in flight, so the sweep times it out and retries it
+ * like any other unanswered attempt; "CONNECTED" always means a human is on the
+ * line right now (connectedAt set).
+ *
+ * At most one non-terminal journey per call, SAFETY first (SAFE-03, finding
+ * SAFE-HANDOFF-02): starting (or re-requesting) a SAFETY journey supersedes every
+ * active STANDARD journey of the call (status SUPERSEDED: no further timeouts,
+ * failovers, update prompts or dials; later vendor events on it are recorded and
+ * rejected), and a STANDARD request while a SAFETY journey of the call is ROUTING
+ * or CONNECTED dials nothing and returns that SAFETY journey. The TelephonyControl
+ * port has no cancel operation, so a STANDARD dial already in flight at the vendor
+ * is not withdrawn there (TB-07); it is only never retried or failed over.
  */
 import { z } from "zod";
 import type { TelephonyControl } from "../adapters/ports.js";
@@ -187,7 +202,17 @@ export function validateDestinations(destinations: readonly DestinationConfig[])
 // Journey and store
 // ---------------------------------------------------------------------------
 
-export type JourneyStatus = "ROUTING" | "CONNECTED" | "COMPLETED" | "CALLER_DISCONNECTED" | "HOLDING_FOR_OPERATIONS";
+/**
+ * ROUTING: an attempt is in flight (or awaiting a retry) and nobody is connected.
+ * CONNECTED: the caller is confirmed connected to a human now (connectedAt set).
+ * SUPERSEDED: a STANDARD journey replaced by the call's SAFETY journey (terminal).
+ */
+export type JourneyStatus = "ROUTING" | "CONNECTED" | "COMPLETED" | "CALLER_DISCONNECTED" | "HOLDING_FOR_OPERATIONS" | "SUPERSEDED";
+
+/** Journeys that still own the call's route (a SAFETY journey never holds for operations). */
+export function isActiveJourney(j: Pick<TransferJourney, "status">): boolean {
+  return j.status === "ROUTING" || j.status === "CONNECTED" || j.status === "HOLDING_FOR_OPERATIONS";
+}
 
 export interface SafetyRouteTiming {
   validatedSafetyEventAt: string;
@@ -236,7 +261,10 @@ export interface TransferStore {
   findByTransferId(transferId: string): Promise<TransferJourney | null>;
   /** Conditional write: expectedVersion null creates (fails if present); otherwise the stored version must match. */
   put(journey: TransferJourney, expectedVersion: number | null): Promise<void>;
+  /** Journeys with an attempt in flight or awaiting retry (status ROUTING): the sweep's work list. */
   listActive(): Promise<TransferJourney[]>;
+  /** Every journey of one call (any status), oldest first: the one-active-journey-per-call invariant. */
+  listForCall(tenantId: string, callId: string): Promise<TransferJourney[]>;
 }
 
 /** LOCAL FIXTURE transfer store (in-memory, SYNTHETIC data only). Production requires a live store (OPS-04). */
@@ -264,6 +292,12 @@ export class MemoryTransferStore implements TransferStore {
   }
   async listActive(): Promise<TransferJourney[]> {
     return [...this.journeys.values()].filter((j) => j.status === "ROUTING").map((j) => structuredClone(j));
+  }
+  async listForCall(tenantId: string, callId: string): Promise<TransferJourney[]> {
+    return [...this.journeys.values()]
+      .filter((j) => j.tenantId === tenantId && j.callId === callId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map((j) => structuredClone(j));
   }
 }
 
@@ -395,7 +429,19 @@ export class TransferCoordinator {
     const existing = await this.store.get(handoff.handoffId);
     if (existing) {
       if (existing.tenantId !== handoff.tenantId || existing.callId !== handoff.callId) throw new AccessDeniedError("HANDOFF_ID_CONFLICT");
+      if (existing.priority === "SAFETY" && isActiveJourney(existing)) await this.supersedeStandardJourneys(existing);
       return existing;
+    }
+
+    if (!isSafety) {
+      // SAFE-03: the safety route supersedes standard journeys; a STANDARD request never dials while
+      // a SAFETY journey of the same call is routing or connected (the caller stays on that route).
+      const activeSafety = await this.activeSafetyJourney(handoff.tenantId, handoff.callId);
+      if (activeSafety) {
+        await this.auditJourney(activeSafety, "transfer.standard_request_superseded", "DENIED", "SAFETY_JOURNEY_ACTIVE");
+        this.logger.warn("transfer.standard_request_superseded", { handoffId: activeSafety.handoffId, reasonCode: "SAFETY_JOURNEY_ACTIVE" });
+        return activeSafety;
+      }
     }
 
     let safety: SafetyRouteTiming | null = null;
@@ -439,7 +485,48 @@ export class TransferCoordinator {
     await this.persist(journey, true);
     await this.auditJourney(journey, "transfer.requested", "PENDING", null);
     await this.routeFrom(journey, 0, false);
+    // The priority route is initiated first; only then are competing STANDARD journeys stopped.
+    if (isSafety) await this.supersedeStandardJourneys(journey);
     return journey;
+  }
+
+  /** Every journey of one call (any status), oldest first. */
+  async journeysForCall(tenantId: string, callId: string): Promise<TransferJourney[]> {
+    return this.store.listForCall(tenantId, callId);
+  }
+
+  /** The call's SAFETY journey that is routing or connected right now, or null. */
+  async activeSafetyJourney(tenantId: string, callId: string): Promise<TransferJourney | null> {
+    const all = await this.store.listForCall(tenantId, callId);
+    return all.filter((j) => j.priority === "SAFETY" && (j.status === "ROUTING" || j.status === "CONNECTED")).at(-1) ?? null;
+  }
+
+  /**
+   * Stops every active STANDARD journey of the safety journey's call (status SUPERSEDED, audited).
+   * Never throws: a failure is logged and the next safety request or sweep tries again; the
+   * safety route itself is never affected.
+   */
+  private async supersedeStandardJourneys(safety: TransferJourney): Promise<number> {
+    let superseded = 0;
+    try {
+      for (const j of await this.store.listForCall(safety.tenantId, safety.callId)) {
+        if (j.priority !== "STANDARD" || !isActiveJourney(j)) continue;
+        j.status = "SUPERSEDED";
+        j.awaitingRetry = false;
+        try {
+          await this.persist(j);
+        } catch (err) {
+          this.logger.error("transfer.supersede_failed", { handoffId: j.handoffId, reasonCode: err instanceof ConflictError || err instanceof DependencyError ? err.reasonCode : "TRANSFER_SUPERSEDE_FAILED" });
+          continue;
+        }
+        superseded++;
+        await this.auditJourney(j, "transfer.superseded", "INVALIDATED", "SUPERSEDED_BY_SAFETY_ROUTE");
+        this.logger.warn("transfer.superseded_by_safety", { handoffId: j.handoffId, reasonCode: "SUPERSEDED_BY_SAFETY_ROUTE" });
+      }
+    } catch {
+      this.logger.error("transfer.supersede_failed", { handoffId: safety.handoffId, reasonCode: "TRANSFER_STORE_UNAVAILABLE" });
+    }
+    return superseded;
   }
 
   /** Applies a telephony event (idempotent on duplicates, rejects invalid/out-of-order events without corrupting state). */
@@ -455,6 +542,9 @@ export class TransferCoordinator {
 
     let attempt = journey.attempts.find((a) => a.transferId === input.transferId);
     if (!attempt) return this.reject(journey, input.event, "TRANSFER_ATTEMPT_UNKNOWN");
+    // A STANDARD journey superseded by the call's safety route never resumes (no status change,
+    // no failover, no dial); its late vendor events are recorded for operations only.
+    if (journey.status === "SUPERSEDED") return this.reject(journey, input.event, "TRANSFER_JOURNEY_SUPERSEDED");
     if (attempt.transferId !== journey.currentTransferId) {
       // The caller leaving is call-level and applies to the active attempt; anything else on a
       // superseded attempt is stale (recorded for operations, never applied).
@@ -468,7 +558,7 @@ export class TransferCoordinator {
 
     if (
       input.event === "CALLER_DISCONNECTED" &&
-      (journey.status === "ROUTING" || journey.status === "HOLDING_FOR_OPERATIONS") &&
+      (journey.status === "ROUTING" || journey.status === "HOLDING_FOR_OPERATIONS" || journey.status === "CONNECTED") &&
       TERMINAL_TRANSFER_STATES.has(attempt.state)
     ) {
       // Between attempts (awaiting a retry or holding for operations): the journey ends because the caller left.
@@ -514,7 +604,9 @@ export class TransferCoordinator {
     } else if (next === "COMPLETED") {
       journey.status = "COMPLETED";
     } else if (next === "BRIDGE_DROPPED") {
+      // SAFE-HANDOFF-01: nobody is connected any more; the journey is routing again (sweep, retries).
       journey.connectedAt = null;
+      journey.status = "ROUTING";
     } else if (next === "CALLER_DISCONNECTED") {
       journey.status = "CALLER_DISCONNECTED";
       journey.awaitingRetry = false;
@@ -654,6 +746,9 @@ export class TransferCoordinator {
     j.attempts = [...j.attempts, record].slice(-MAX_ATTEMPTS_KEPT);
     j.attemptCount += 1;
     j.awaitingRetry = false;
+    // A new attempt in flight means the journey is routing (sweep-visible), whatever came before.
+    j.status = "ROUTING";
+    j.connectedAt = null;
     if (dest.purpose === "OUTAGE_CONTINUITY") j.continuityAttempts += 1;
     // Persist before dialling so a crash after the dial is reconcilable.
     await this.persist(j);

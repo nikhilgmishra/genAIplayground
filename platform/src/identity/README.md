@@ -25,6 +25,7 @@ AUTH-06, AUTH-07, DATA-01, DATA-04, and trust-boundary flags TB-01, TB-03, TB-06
 | Auth Gate | `session-service.ts` (`interpretAuthGateVariable`, `authGateVariableFor`, `authGate`) | — | Open only for the boolean `true` |
 | Verification | `verification-service.ts` (`SecureVerificationService`) | — | Secure link + OIDC (A2), OTP fallback (A1), step-up (A3 for one digest), portal `describeTransaction`, `effectiveAssuranceFor` |
 | Match codes | `match-code.ts` | — | 256 fixed words, two distinct words via CSPRNG |
+| Abuse monitor | `abuse-monitor.ts` (`VerificationAbuseMonitor`) | follows KV kind | Account-keyed (sha256 of account / destination id) hourly counters of account-derived abuse signals, plus the aggregated `vsp_challenge_abuse_signals_total{signal}` metric; never a session flag, policy input, tool result or session-linked log (AUTH-ENUM-01) |
 | Assertions | `assertions/assertion-service.ts` (`SignedAssertionService`) | follows signer kind | ES256 compact JWS, `typ: vsp-assertion+jwt`; purposes `transfer_receiver`, `portal_binding` (single use, jti replay store in KV), `durable_action_grant` (1..8 listed actions, bounded TTL) |
 | Key ring | `assertions/key-ring.ts` (`AssertionKeyRing`) | — | One active signer, retained public keys for rotation, `retire(kid)`; JWKS never contains private material |
 | Signers | `assertions/signers.ts` | `LocalEs256Signer`: local_fixture; `KmsAssertionSigner`: live | KMS `Sign` (`ECDSA_SHA_256`, `MessageType: RAW`, 4096-byte limit enforced) + `GetPublicKey` (must be `ECC_NIST_P256`, `SIGN_VERIFY`) |
@@ -77,7 +78,11 @@ checks the role against the selected role, applies a per-session attempt limit, 
 through `IdentityDirectory`, and ALWAYS returns `{transactionId, matchCode, response:
 "IF_ELIGIBLE_A_LINK_WAS_SENT"}`. A transaction (decoy when ineligible) is stored for every request.
 Only exactly one ACTIVE candidate holding the role with a verified `portal_push` / `email` / `sms`
-channel (and within the per-account link limit) gets a link: template `verify.secure_link`, link
+channel (and within the per-account link limit, 5 per hour) gets a link. Over the limit, delivery is
+suppressed silently (the account holder is protected from a link flood) and `LINK_ACCOUNT_LIMIT` is
+recorded in the abuse monitor; the caller's session is NOT flagged (see "Enumeration resistance").
+A directory failure after exactly one candidate was found is treated as "not eligible" (nothing sent,
+generic response) because only real people can reach it. Template `verify.secure_link`, link
 path `/verify/<vtx_ opaque id>#n=<32-byte nonce>` — the nonce is in the URL fragment (not sent to
 servers) and nothing in the URL is PHI. The transaction stores `sha256(nonce)`, session hash,
 generation, call, candidate, role and expiry (300 s default).
@@ -98,14 +103,25 @@ policy time.
 disabled → `VERIFICATION_UNAVAILABLE_USE_HUMAN` for everyone. Codes go only to an existing verified
 `sms` (optionally `voice`) channel from the directory; there is no input that can carry a
 destination. Recent channel change (< 30 days, configurable) → nothing sent, `RECENT_NUMBER_CHANGE`
-flagged. Limits (proposed, pending security approval): 3 incorrect attempts per challenge (then
-LOCKED + `OTP_ABUSE_SUSPECTED`), 5 challenges per account per hour, 5 incorrect attempts per account
-per hour, 5 per destination per hour, no further codes on a call after an abuse flag. Every path
-returns `IF_ELIGIBLE_A_CODE_WAS_SENT`. Code = 6 digits from `crypto.randomInt`, stored only as
+recorded in the abuse monitor against the account (not on the session). Limits (proposed, pending
+security approval), all enforced where they bite:
+
+| Limit | Default | Enforced at | When exceeded |
+|---|---|---|---|
+| Incorrect attempts per challenge | 3 | submit (CAS-counted) | challenge LOCKED; session `OTP_ABUSE_SUSPECTED` (uniform: decoys lock the same way) |
+| Challenges per account per hour | 5 | begin | nothing sent, `OTP_ACCOUNT_LIMIT` monitored |
+| Challenges per destination per hour | 5 | begin | nothing sent, `OTP_DESTINATION_LIMIT` monitored |
+| Compared guesses per account per hour | 5 | **submit** (a slot is reserved by an atomic increment before each comparison, so guesses over many calls or sent concurrently cannot exceed it; a correct entry also uses its slot) and begin (no new code while spent) | the comparison is skipped and the attempt is handled exactly like a wrong code (what every decoy does); `OTP_ACCOUNT_GUESS_LIMIT` monitored |
+| Outstanding challenges per call | 1 | submit | a newer challenge supersedes older ones: `OTP_CHALLENGE_SUPERSEDED`, no attempt used |
+| Incorrect attempts per call (any challenge, decoy or real) | 5 (`otpMaxFailuresPerAccountPerHour`) | submit | `OTP_CHALLENGE_LOCKED` + session `OTP_ABUSE_SUSPECTED` |
+| After `OTP_ABUSE_SUSPECTED` on the call | — | begin and submit | no further codes sent; no challenge on the call accepts digits (`OTP_CHALLENGE_LOCKED`) |
+
+Every begin returns `IF_ELIGIBLE_A_CODE_WAS_SENT`. Code = 6 digits from `crypto.randomInt`, stored only as
 `HMAC-SHA256(pepper, "vsp.otp.v1:" + challengeId + ":" + code)`, expiry 300 s. `submitOtp` is
 accepted only from `telephony_control` (`mcp_tools` → `AccessDeniedError
 OTP_SUBMIT_CHANNEL_NOT_ALLOWED`), constant-time compare, CAS-counted attempts (concurrent guesses
-cannot exceed the limit), single use, bound to session + generation + call. Success → A1,
+cannot exceed the limit), single use, bound to session + generation + call + the session's latest
+challenge (`sessionSeq`). Success → A1,
 `otp_sms_registered_channel` (or voice), A1 scopes (`case:create` by default). SMS OTP is never
 treated as strong MFA.
 
@@ -127,6 +143,30 @@ attributed to a call. It is audit evidence only: the portal route puts it on the
 `verification.bound` / `verification.failed` audit event (so the call's audit timeline and the
 console investigation show the binding) and never returns it to the portal. The bearer session
 reference is never returned.
+
+## Enumeration resistance (AUTH-ENUM-01)
+
+Name + DOB only locate. Beyond the identical response to each begin, nothing the caller can observe
+LATER (the next tool result, a policy denial, a TC response, the Auth Gate, the session's risk flags,
+assurance or generation) may depend on whether the locator matched a real, eligible account:
+
+- Controls derived from account- or destination-specific facts (per-account link and OTP limits,
+  per-destination limit, account guess budget, a real account's challenge locking, recent number
+  change) act SILENTLY (suppress the send or the comparison) and are recorded only in
+  `VerificationAbuseMonitor`: KV counters `abm#<signal>:<hour>:<sha256(kind NUL id)>` with a TTL of
+  `abuseSignalRetentionHours` (default 168, engineering default pending Security approval), plus the
+  aggregated metric. They are never written to the session, never logged with a session binding ref,
+  and never reach policy. Security monitoring reads them with `abuse.count(signal, subject, at?)`.
+- Session risk flags are set only by controls every caller triggers identically: more than
+  `maxVerificationBeginsPerSession` begins (`ENUMERATION_SUSPECTED`), a locked challenge or the call's
+  OTP failure budget (`OTP_ABUSE_SUSPECTED`). Policy (`policy/vsp/authz.rego`) denies
+  `verification:begin` on those two flags; that denial is therefore the same for real and unknown people.
+- Tests compare the FULL observable sequence for a real and an unknown person past every limit, at the
+  service level (`[AUTH-ENUM-01]` in `verification-service.test.ts`) and through the full container
+  with the real MCP client, pipeline and OPA policy (`enumeration-resistance.integration.test.ts`).
+- The model-facing `begin_verification` request hash persisted by the gateway replay cache is keyed
+  with a secret pepper (DP-02, `platform/src/actions/tool-idempotency.ts`), so name + DOB cannot be
+  recovered from `tool_request_idempotency` or its backups by a dictionary attack.
 
 ## Assertions
 
@@ -206,12 +246,22 @@ in-process HTTP server on 127.0.0.1).
 | DATA-01 | No PHI in links, KV records, logs or metric labels | `[DATA-01]`, `[AUTH-06]` |
 | DATA-04 | No API accepts summary/memory-derived identity, assurance or consent | `[DATA-04]` |
 | Spec 7 / 14 | Enumeration, fixation, replay, SIM swap, step-up, assertions, KV contract | `[SPEC-7.*]`, `[SPEC-14.*]` |
+| AUTH-ENUM-01 | Account-derived abuse signals only in the account-keyed monitor; identical observable sequences for real and unknown people past every limit; partial directory failure answers like no match | `[AUTH-ENUM-01]` in verification-service and enumeration-resistance integration tests |
+| AUTH-OTP-LIMIT-01 | Account guess budget reserved before each comparison; one outstanding challenge per call; call failure budget; abuse-flagged call accepts no digits | `[AUTH-OTP-LIMIT-01]` |
+| DP-02 (with actions) | Locator-bearing tool request hashes persisted only as HMAC(pepper, fingerprint) | `[DP-02]` in enumeration-resistance integration test and `actions/tool-idempotency.test.ts` |
 
 ## Known gaps
 
 - Timing side channel: for an eligible candidate the service awaits one notification send (and a
-  few extra KV writes) that decoys do not perform. Response bodies are identical; latency is not
-  equalised. Dispatching notifications through the outbox asynchronously would close this.
+  few extra KV writes, including abuse-monitor increments) that decoys do not perform. Response
+  bodies and later results are identical; latency is not equalised. Dispatching notifications
+  through the outbox asynchronously would close this.
+- The account guess budget is shared by everyone who can reach a challenge for that account, so an
+  attacker can spend a real person's budget for the hour (denial of service, which spec section 7
+  anticipates); that person then needs the human recovery route. Spending it is visible to security
+  monitoring (`OTP_ACCOUNT_GUESS_LIMIT`), not to callers. A correct entry also uses a slot.
+- The abuse monitor has no console view or alarm rule of its own yet; investigation reads the KV
+  counters and the aggregated metric. Its retention default needs Security approval.
 - Identity events are written to the content-free logger and metrics only; they are not yet
   appended to the durable audit chain (the audit writer is transaction-bound to PostgreSQL; session
   state lives in the KV store). Wiring `session.*` / `verification.*` audit events is integration work.

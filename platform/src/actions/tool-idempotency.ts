@@ -10,10 +10,22 @@
  *
  * Consequential commits are additionally protected by the action ledger digest/commit protocol;
  * this table is a replay cache, not the commit-safety mechanism.
+ *
+ * Persisted request hashes are KEYED (DP-02). Tool arguments can carry identity locators
+ * (begin_verification: full name + date of birth) and other PHI-classified values whose input
+ * space is small enough to enumerate. A plain digest of those arguments in
+ * `tool_request_idempotency.request_hash` (and in every database backup) would let anyone with
+ * table or backup read access test candidate values offline. The caller therefore passes an
+ * in-memory request FINGERPRINT (`computeToolRequestHash`), and this store only ever writes,
+ * compares and reads `HMAC-SHA256(pepper, "vsp.tool-request.v2" NUL fingerprint)`. The pepper is
+ * secret key material from the configured secret reference (Secrets Manager live; a labelled
+ * LOCAL FIXTURE value offline). Without the pepper a stored value cannot be tested against any
+ * candidate argument set.
  */
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { Db, Queryable } from "../db/types.js";
-import { canonicalJson, digestOf } from "../shared/canonical.js";
+import { canonicalJson, digestOf, hmacHex } from "../shared/canonical.js";
 import type { Clock } from "../shared/clock.js";
 import { addMs, iso } from "../shared/clock.js";
 import { ConflictError, ValidationError } from "../shared/errors.js";
@@ -41,8 +53,12 @@ const StoredResponse = z
   });
 
 /**
- * Request hash over tool identity, arguments and the (non-bearer) session binding, so the same
- * key replayed from a different session or with different arguments is a mismatch.
+ * Request FINGERPRINT over tool identity, arguments and the (non-bearer) session binding, so the
+ * same key replayed from a different session or with different arguments is a mismatch.
+ *
+ * The fingerprint is an unkeyed digest and exists in memory only: `ToolRequestIdempotency` never
+ * persists, logs or returns it; it persists only the keyed value (`keyedRequestHash`, DP-02). Do not
+ * store or emit a fingerprint anywhere else.
  */
 export function computeToolRequestHash(input: {
   toolName: string;
@@ -51,6 +67,36 @@ export function computeToolRequestHash(input: {
   sessionBinding: string | null;
 }): string {
   return digestOf({ v: "tool-request.v1", ...input });
+}
+
+/**
+ * Secret pepper for the persisted request hash (DP-02). `ref` names where the key material came
+ * from (a Secrets Manager secret ARN live, `local-fixture:<name>` offline) and is safe to log;
+ * `key` is never logged, persisted, returned or put in an error.
+ */
+export interface RequestHashPepper {
+  readonly ref: string;
+  readonly key: Buffer;
+}
+
+/** Secrets Manager secret ARN, or a labelled LOCAL FIXTURE reference. Repository files are not acceptable for secret key material. */
+const PEPPER_REF = /^(arn:aws:secretsmanager:[A-Za-z0-9-]{1,32}:[A-Za-z0-9]{1,32}:secret:[A-Za-z0-9/_+=.@-]{1,256}|local-fixture:[a-z0-9][a-z0-9._/-]{0,127})$/;
+export const REQUEST_HASH_PEPPER_MIN_BYTES = 32;
+const KEYED_HASH_DOMAIN = "vsp.tool-request.v2\u0000";
+
+function validPepper(p: unknown): p is RequestHashPepper {
+  if (typeof p !== "object" || p === null) return false;
+  const c = p as { ref?: unknown; key?: unknown };
+  return typeof c.ref === "string" && PEPPER_REF.test(c.ref) && Buffer.isBuffer(c.key) && c.key.length >= REQUEST_HASH_PEPPER_MIN_BYTES;
+}
+
+const keyed = (key: Buffer, fingerprint: string): string => hmacHex(key, `${KEYED_HASH_DOMAIN}${fingerprint}`);
+
+/** The value stored in `tool_request_idempotency.request_hash`: HMAC-SHA256(pepper, domain NUL fingerprint). */
+export function keyedRequestHash(pepper: RequestHashPepper, fingerprint: string): string {
+  if (!validPepper(pepper)) throw new ValidationError("IDEMPOTENCY_REQUEST_HASH_PEPPER_INVALID");
+  if (!RequestHash.safeParse(fingerprint).success) throw new ValidationError("IDEMPOTENCY_REQUEST_HASH_INVALID");
+  return keyed(pepper.key, fingerprint);
 }
 
 export type ReserveResult =
@@ -79,27 +125,50 @@ export interface ToolRequestIdempotencyOptions {
   retentionSeconds?: number;
   /** In-progress reservations older than this may be re-taken (crashed gateway instance). */
   leaseSeconds?: number;
+  /**
+   * Secret pepper for the persisted request hash (DP-02), shared by every gateway instance that
+   * writes this table. Live: loaded from the configured Secrets Manager secret (BLOCKED until
+   * provisioned). Offline: `LOCAL_FIXTURE_REQUEST_HASH_PEPPER`. When omitted, a random per-instance
+   * key is generated: stored hashes stay unrecoverable, but a replay that reaches ANOTHER instance
+   * (or this one after a restart) cannot match and fails closed as IDEMPOTENCY_KEY_REUSED (never a
+   * second execution). Multi-instance deployments must pass the shared pepper.
+   */
+  requestHashPepper?: RequestHashPepper;
 }
 
 export class ToolRequestIdempotency {
   private readonly retentionMs: number;
   private readonly leaseMs: number;
+  private readonly pepperKey: Buffer;
+  /** Non-secret reference of the configured request-hash pepper (readiness/evidence); null for the ephemeral per-instance key. Never the key. */
+  readonly requestHashPepperRef: string | null;
+  /**
+   * Where the request-hash pepper came from (non-secret evidence): a Secrets Manager reference, a
+   * labelled LOCAL FIXTURE reference, or a per-instance ephemeral key (no pepper configured).
+   */
+  readonly requestHashKeying: "secret_ref" | "local_fixture" | "ephemeral_single_instance";
 
   constructor(private readonly opts: ToolRequestIdempotencyOptions) {
     const retention = opts.retentionSeconds ?? 86_400;
     const lease = opts.leaseSeconds ?? 30;
     if (!Number.isInteger(retention) || retention < 60 || retention > 7 * 86_400) throw new ValidationError("IDEMPOTENCY_CONFIG_INVALID");
     if (!Number.isInteger(lease) || lease < 1 || lease > 3_600) throw new ValidationError("IDEMPOTENCY_CONFIG_INVALID");
+    if (opts.requestHashPepper !== undefined && !validPepper(opts.requestHashPepper)) throw new ValidationError("IDEMPOTENCY_REQUEST_HASH_PEPPER_INVALID");
     this.retentionMs = retention * 1000;
     this.leaseMs = lease * 1000;
+    // Copied so a caller cannot change the key after construction.
+    this.pepperKey = opts.requestHashPepper ? Buffer.from(opts.requestHashPepper.key) : randomBytes(REQUEST_HASH_PEPPER_MIN_BYTES);
+    this.requestHashPepperRef = opts.requestHashPepper?.ref ?? null;
+    this.requestHashKeying = !opts.requestHashPepper ? "ephemeral_single_instance" : opts.requestHashPepper.ref.startsWith("local-fixture:") ? "local_fixture" : "secret_ref";
   }
 
-  private validate(scope: IdempotencyScope, key: string, requestHash: string): IdempotencyScope {
+  /** Validates the inputs and returns the KEYED request hash: the only form that is ever written, compared or read in SQL. */
+  private validate(scope: IdempotencyScope, key: string, requestHash: string): { scope: IdempotencyScope; stored: string } {
     const s = IdempotencyScope.safeParse(scope);
     if (!s.success) throw new ValidationError("IDEMPOTENCY_SCOPE_INVALID");
     if (!Key.safeParse(key).success) throw new ValidationError("IDEMPOTENCY_KEY_INVALID");
     if (!RequestHash.safeParse(requestHash).success) throw new ValidationError("IDEMPOTENCY_REQUEST_HASH_INVALID");
-    return s.data;
+    return { scope: s.data, stored: keyed(this.pepperKey, requestHash) };
   }
 
   private tx<T>(scope: IdempotencyScope, fn: (tx: Queryable) => Promise<T>): Promise<T> {
@@ -120,7 +189,7 @@ export class ToolRequestIdempotency {
 
   /** Reserves the key for a new execution, or returns the stored result / in-progress marker. */
   async reserve(scope: IdempotencyScope, key: string, requestHash: string, meta: ToolMeta): Promise<ReserveResult> {
-    const s = this.validate(scope, key, requestHash);
+    const { scope: s, stored } = this.validate(scope, key, requestHash);
     const m = ToolMeta.safeParse(meta);
     if (!m.success) throw new ValidationError("IDEMPOTENCY_TOOL_META_INVALID");
     const now = this.opts.clock.now();
@@ -131,13 +200,13 @@ export class ToolRequestIdempotency {
             status, response, lease_until, created_at, completed_at, expires_at, updated_at)
          values ($1, $2, $3, $4, $5, $6, 'IN_PROGRESS', null, $7, $8, null, $9, $8)
          on conflict (tenant_id, integration_id, idempotency_key) do nothing`,
-        [s.tenantId, s.integrationId, key, requestHash, m.data.toolName, m.data.toolVersion, iso(addMs(now, this.leaseMs)), nowIso, iso(addMs(now, this.retentionMs))],
+        [s.tenantId, s.integrationId, key, stored, m.data.toolName, m.data.toolVersion, iso(addMs(now, this.leaseMs)), nowIso, iso(addMs(now, this.retentionMs))],
       );
       if (inserted.rowCount > 0) return { status: "NEW" } as const;
       const row = await this.lock(tx, s, key);
       if (!row) throw new ConflictError("IDEMPOTENCY_RECORD_MISSING", "IDEMPOTENCY_RECORD_MISSING", true);
       const expired = ms(row.expires_at) <= now.getTime();
-      if (!expired && row.request_hash !== requestHash) throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+      if (!expired && row.request_hash !== stored) throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
       if (!expired && row.status === "COMPLETED" && row.response) {
         return { status: "REPLAY", response: row.response, completedAt: isoOf(row.completed_at ?? row.expires_at) } as const;
       }
@@ -150,7 +219,7 @@ export class ToolRequestIdempotency {
              completed_at = null, created_at = case when $10 then $8::timestamptz else created_at end,
              expires_at = case when $10 then $9::timestamptz else expires_at end, updated_at = $8
          where tenant_id = $1 and integration_id = $2 and idempotency_key = $3`,
-        [s.tenantId, s.integrationId, key, requestHash, m.data.toolName, m.data.toolVersion, iso(addMs(now, this.leaseMs)), nowIso, iso(addMs(now, this.retentionMs)), expired],
+        [s.tenantId, s.integrationId, key, stored, m.data.toolName, m.data.toolVersion, iso(addMs(now, this.leaseMs)), nowIso, iso(addMs(now, this.retentionMs)), expired],
       );
       return { status: "NEW" } as const;
     });
@@ -158,43 +227,43 @@ export class ToolRequestIdempotency {
 
   /** Stores the result for a reserved key. Use `completeInTx` to commit it with the effect. */
   async complete(scope: IdempotencyScope, key: string, requestHash: string, response: Record<string, unknown>): Promise<void> {
-    const s = this.validate(scope, key, requestHash);
+    const { scope: s } = this.validate(scope, key, requestHash);
     await this.tx(s, (tx) => this.completeInTx(tx, s, key, requestHash, response));
   }
 
   async completeInTx(tx: Queryable, scope: IdempotencyScope, key: string, requestHash: string, response: Record<string, unknown>): Promise<void> {
-    const s = this.validate(scope, key, requestHash);
+    const { scope: s, stored } = this.validate(scope, key, requestHash);
     if (!StoredResponse.safeParse(response).success) throw new ValidationError("IDEMPOTENCY_RESPONSE_INVALID");
     const nowIso = iso(this.opts.clock.now());
     const r = await tx.query(
       `update tool_request_idempotency set status = 'COMPLETED', response = $5::jsonb, completed_at = $6, lease_until = null, updated_at = $6
        where tenant_id = $1 and integration_id = $2 and idempotency_key = $3 and request_hash = $4 and status = 'IN_PROGRESS'
          and expires_at > $6`,
-      [s.tenantId, s.integrationId, key, requestHash, JSON.stringify(response), nowIso],
+      [s.tenantId, s.integrationId, key, stored, JSON.stringify(response), nowIso],
     );
     if (r.rowCount > 0) return;
     const row = await this.lock(tx, s, key);
-    if (row && row.request_hash !== requestHash && ms(row.expires_at) > this.opts.clock.now().getTime()) throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
-    if (row && row.status === "COMPLETED" && row.request_hash === requestHash) return; // already stored
+    if (row && row.request_hash !== stored && ms(row.expires_at) > this.opts.clock.now().getTime()) throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+    if (row && row.status === "COMPLETED" && row.request_hash === stored) return; // already stored
     throw new ConflictError("IDEMPOTENCY_RESERVATION_LOST");
   }
 
   /** Releases a reservation after a retryable failure so the same request may execute again. */
   async release(scope: IdempotencyScope, key: string, requestHash: string): Promise<void> {
-    const s = this.validate(scope, key, requestHash);
+    const { scope: s, stored } = this.validate(scope, key, requestHash);
     const nowIso = iso(this.opts.clock.now());
     await this.tx(s, (tx) =>
       tx.query(
         `update tool_request_idempotency set status = 'RELEASED', lease_until = null, updated_at = $5
          where tenant_id = $1 and integration_id = $2 and idempotency_key = $3 and request_hash = $4 and status = 'IN_PROGRESS'`,
-        [s.tenantId, s.integrationId, key, requestHash, nowIso],
+        [s.tenantId, s.integrationId, key, stored, nowIso],
       ),
     );
   }
 
   /** Read-only lookup; mismatched request hash on a live key is rejected. */
   async lookup(scope: IdempotencyScope, key: string, requestHash: string): Promise<LookupResult> {
-    const s = this.validate(scope, key, requestHash);
+    const { scope: s, stored } = this.validate(scope, key, requestHash);
     const now = this.opts.clock.now();
     const row = await this.tx(s, async (tx) =>
       (
@@ -206,7 +275,7 @@ export class ToolRequestIdempotency {
       ).rows[0] ?? null,
     );
     if (!row || ms(row.expires_at) <= now.getTime()) return null;
-    if (row.request_hash !== requestHash) throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
+    if (row.request_hash !== stored) throw new ConflictError("IDEMPOTENCY_KEY_REUSED");
     if (row.status === "COMPLETED" && row.response) return { status: "COMPLETED", response: row.response, completedAt: isoOf(row.completed_at ?? row.expires_at) };
     return { status: row.status === "RELEASED" ? "RELEASED" : "IN_PROGRESS" };
   }

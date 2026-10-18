@@ -300,6 +300,8 @@ export const WORKER_LOOP_NAMES = [
   "telephony.local_fixture_delivery",
   "support.sync_retry",
   "audit.deferred_flush",
+  // OPS-AUD-01: integrity, ingestion and completeness reconciliation (audit/monitor.ts).
+  "audit.verify",
 ] as const;
 
 /** Durable action grant check results (platform/src/workflows/grants.ts reason codes, lower-cased) plus engine-side gaps. */
@@ -471,6 +473,8 @@ export function createMetricCatalogue(ext: CatalogueExtensions = {}): MetricCata
     }),
     def("vsp_audit_deferred_depth", "gauge", "1", "audit", "Route audit events waiting in the process-local deferred queue (lost on a crash)"),
     def("vsp_audit_deferred_age_ms", "histogram", "ms", "audit", "Time from deferral to the durable append of a deferred route audit event"),
+    // VSP-GW-04: tool.invoke events the audit writer rejected by schema (not an outage; the gateway retries once minimized).
+    def("vsp_audit_events_rejected_total", "counter", "1", "audit", "Audit events rejected by the writer's strict schema (never silently dropped)", { source_component: AuditSourceComponent.options }),
     def("vsp_protected_actions_total", "counter", "1", "service_objectives", "Protected actions by authorization and audit evidence", {
       authorization: ["valid_decision", "missing_decision"],
       audit: ["recorded_before_ack", "not_recorded"],

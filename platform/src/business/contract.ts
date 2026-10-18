@@ -17,6 +17,7 @@ import type { KnowledgeService } from "../knowledge/ports.js";
 import type { SupportMemory } from "../memory/ports.js";
 import type { KillSwitchService, AdmissionController } from "../ops/ports.js";
 import type { SafetyRouter, SafetySignal, SafetySignalDetector } from "../safety/ports.js";
+import type { SafetyEventRecorder } from "../safety/safety-events.js";
 import type { ResponseGate, TemplateRegistry } from "../voice/ports.js";
 import type { DestinationConfig } from "../config/ports.js";
 import type { Logger, Metrics } from "../observability/ports.js";
@@ -111,6 +112,22 @@ export interface ToolDeps {
    * Absent => the handoff audit failure is only logged (previous behaviour).
    */
   deferredAudit?: DeferredAuditSink;
+  /**
+   * Added (additive, optional; safety-handoff fixes SAFE-HANDOFF-05/07): content-free safety evidence
+   * (safety_events + SECURITY_AUDIT event + vsp_safety_* metrics). When present, the HandoffService
+   * records every safety route it initiates (screening, request_safety_route with or without a
+   * session, console staff escalation, a human request in safety mode), AFTER the route was
+   * initiated and never blocking it. Absent => callers that hold their own recorder record.
+   */
+  safetyEvents?: Pick<SafetyEventRecorder, "begin" | "recordValidated" | "recordRouteInitiated">;
+  /**
+   * Added (additive, optional; SAFE-HANDOFF-05): the call's live session resolved SERVER-SIDE from
+   * the trusted call binding (never a caller, model or tool value), for safety routes that arrive
+   * without a session context (console staff escalation, session-less tools). Used ONLY to revoke
+   * the session's pending mutations and apply SAFETY_ESCALATION; never to disclose anything or to
+   * build the handoff package. null when no live session can be resolved.
+   */
+  callSessions?: { readonly kind: "local_fixture" | "live"; resolveForCall(tenantId: string, callId: string): Promise<AuthContext | null> };
 }
 
 export interface HandoffResult {
@@ -125,6 +142,10 @@ export interface HandoffResult {
    * for the handoff, when one could be created without delaying the route.
    */
   supportReference?: string | null;
+  /** Added (additive, optional): the journey priority actually routed (a human request in safety mode is SAFETY). */
+  priority?: "SAFETY" | "STANDARD";
+  /** Added (additive, optional): the HandoffService recorded the safety incident (ToolDeps.safetyEvents). */
+  safetyEventRecorded?: boolean;
 }
 
 export interface HandoffService {
@@ -159,6 +180,14 @@ export interface HandoffService {
     signals: SafetySignal[];
     locale: string;
     validatedAt: Date;
+    /** Added (additive, optional): the staff member who raised the concern from the console (audited as the actor). */
+    initiatedBy?: { staffId: string } | null;
+    /** Added (additive, optional): deterministic routing reason code for the safety evidence (e.g. the screening decision). */
+    decisionReasonCode?: string;
+    /** Added (additive, optional): correlation id for the safety evidence (request id). */
+    correlationId?: string;
+    /** Added (additive, optional): false when the request only maintains an already active safety route (no new incident). */
+    recordSafetyEvent?: boolean;
   }): Promise<HandoffResult>;
 }
 

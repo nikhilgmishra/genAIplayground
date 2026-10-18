@@ -457,10 +457,23 @@
     },
     {
       "templateId": "appointment.change_confirmation",
-      "version": "0.1.0-draft",
+      "version": "0.2.0-draft",
       "responseClass": "COMMITMENT",
-      "text": "To confirm, I'll move your appointment from {fromDate} at {fromTime}, {fromTimeZone}, to {toDate} at {toTime}, {toTimeZone}. Say yes to confirm, or no to keep it.",
+      "text": "To confirm, I'll move your {fromModality} appointment from {fromDate} at {fromTime}, {fromTimeZone}, to {toDate} at {toTime}, {toTimeZone}, as {toModality}. Say yes to confirm, or no to keep it.",
       "slots": {
+        "fromModality": {
+          "type": "enum",
+          "enumValues": [
+            "video",
+            "in_person",
+            "phone"
+          ],
+          "labels": {
+            "video": "video",
+            "in_person": "in-person",
+            "phone": "phone"
+          }
+        },
         "fromDate": {
           "type": "date"
         },
@@ -478,6 +491,19 @@
         },
         "toTimeZone": {
           "type": "time_zone"
+        },
+        "toModality": {
+          "type": "enum",
+          "enumValues": [
+            "video",
+            "in_person",
+            "phone"
+          ],
+          "labels": {
+            "video": "a video visit",
+            "in_person": "an in-person visit",
+            "phone": "a phone visit"
+          }
         }
       },
       "approval": {
@@ -488,8 +514,8 @@
         "owner": "support_operations",
         "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
         "languageReview": "SOURCE_LOCALE",
-        "purpose": "Confirmation question bound to a prepared appointment change (dates, times and time zones read back before commit).",
-        "notes": "",
+        "purpose": "Confirmation question bound to a prepared appointment change (dates, times, time zones and the visit type before and after are read back before commit).",
+        "notes": "ACT-F5: every caller-relevant field of the digest-bound change is read back (visit type, provider of a new booking, review reason).",
         "acknowledgmentOnly": false
       }
     },
@@ -918,10 +944,26 @@
     },
     {
       "templateId": "appointment.create_confirmation",
-      "version": "0.1.0-draft",
+      "version": "0.2.0-draft",
       "responseClass": "COMMITMENT",
-      "text": "To confirm, I'll book a new appointment on {date} at {time}, {timeZone}. Say yes to confirm, or no to cancel.",
+      "text": "To confirm, I'll book {modality} with {providerName} on {date} at {time}, {timeZone}. Say yes to confirm, or no to cancel.",
       "slots": {
+        "modality": {
+          "type": "enum",
+          "enumValues": [
+            "video",
+            "in_person",
+            "phone"
+          ],
+          "labels": {
+            "video": "a video visit",
+            "in_person": "an in-person visit",
+            "phone": "a phone visit"
+          }
+        },
+        "providerName": {
+          "type": "person_display_name"
+        },
         "date": {
           "type": "date"
         },
@@ -940,8 +982,8 @@
         "owner": "support_operations",
         "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
         "languageReview": "SOURCE_LOCALE",
-        "purpose": "Confirmation question bound to a prepared appointment booking (date, time and time zone read back before commit). Added by the business layer (wave 2).",
-        "notes": "",
+        "purpose": "Confirmation question bound to a prepared appointment booking (visit type, provider, date, time and time zone read back before commit). Added by the business layer (wave 2).",
+        "notes": "ACT-F5: every caller-relevant field of the digest-bound change is read back (visit type, provider of a new booking, review reason).",
         "acknowledgmentOnly": false
       }
     },
@@ -1091,12 +1133,31 @@
     },
     {
       "templateId": "billing.review_confirmation",
-      "version": "0.1.0-draft",
+      "version": "0.2.0-draft",
       "responseClass": "COMMITMENT",
-      "text": "To confirm, I'll submit a billing review for the invoice issued on {issuedDate}. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel.",
+      "text": "To confirm, I'll submit a billing review for the invoice issued on {issuedDate}, because {reasonCategory}. A review does not change your balance unless our team completes it with a change. Say yes to confirm, or no to cancel.",
       "slots": {
         "issuedDate": {
           "type": "date"
+        },
+        "reasonCategory": {
+          "type": "enum",
+          "enumValues": [
+            "CHARGE_NOT_RECOGNIZED",
+            "AMOUNT_INCORRECT",
+            "LATE_CANCELLATION_FEE_DISPUTE",
+            "NO_SHOW_FEE_DISPUTE",
+            "INSURANCE_SHOULD_HAVE_PAID",
+            "OTHER"
+          ],
+          "labels": {
+            "CHARGE_NOT_RECOGNIZED": "you do not recognize the charge",
+            "AMOUNT_INCORRECT": "the amount looks incorrect",
+            "LATE_CANCELLATION_FEE_DISPUTE": "you are disputing a late cancellation fee",
+            "NO_SHOW_FEE_DISPUTE": "you are disputing a missed appointment fee",
+            "INSURANCE_SHOULD_HAVE_PAID": "you believe insurance should have paid",
+            "OTHER": "of another billing concern"
+          }
         }
       },
       "approval": {
@@ -1107,8 +1168,8 @@
         "owner": "support_operations",
         "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
         "languageReview": "SOURCE_LOCALE",
-        "purpose": "Confirmation question bound to a prepared billing review. States that a review is not a change to the balance (ACT-04). Added by the business layer (wave 2).",
-        "notes": "No refund, waiver or coverage wording.",
+        "purpose": "Confirmation question bound to a prepared billing review: the invoice and the review reason the action carries are read back. States that a review is not a change to the balance (ACT-04). Added by the business layer (wave 2).",
+        "notes": "No refund, waiver or coverage wording. ACT-F5: every caller-relevant field of the digest-bound change is read back (visit type, provider of a new booking, review reason).",
         "acknowledgmentOnly": false
       }
     },

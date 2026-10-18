@@ -374,24 +374,33 @@ resource "aws_cloudwatch_log_resource_policy" "waf" {
   })
 }
 
-# Credentials and possible one-time tokens never reach WAF logs.
+# WAF logs record every request header (no logging_filter: allowed requests are logged
+# too), so every header that carries a credential, a bearer reference or a caller-chosen
+# token is redacted by name; WAF writes REDACTED in place of the value (VSP-INF-01):
+#  - authorization, cookie: integration credentials;
+#  - mcp-session-id: MCP transport session;
+#  - x-vsp-session-ref: the opaque session reference, a bearer for the live call
+#    (platform/src/gateway/session-binding.ts SESSION_REF_HEADER; sent on every Studio
+#    telephony-control step and on MCP requests in trusted_header mode);
+#  - x-vsp-interaction-id: the Talkdesk call id that binds a session to the call (and
+#    resolves it in server_to_server_lookup mode);
+#  - idempotency-key: model- or client-chosen key of a consequential request.
+# The query string is redacted as well (one-time tokens must never be in URLs, but a
+# misbehaving client could still put one there). Header names must be lowercase.
+locals {
+  waf_redacted_headers = ["authorization", "cookie", "mcp-session-id", "x-vsp-session-ref", "x-vsp-interaction-id", "idempotency-key"]
+}
+
 resource "aws_wafv2_web_acl_logging_configuration" "this" {
   resource_arn            = aws_wafv2_web_acl.this.arn
   log_destination_configs = [aws_cloudwatch_log_group.waf.arn]
 
-  redacted_fields {
-    single_header {
-      name = "authorization"
-    }
-  }
-  redacted_fields {
-    single_header {
-      name = "cookie"
-    }
-  }
-  redacted_fields {
-    single_header {
-      name = "mcp-session-id"
+  dynamic "redacted_fields" {
+    for_each = local.waf_redacted_headers
+    content {
+      single_header {
+        name = redacted_fields.value
+      }
     }
   }
   redacted_fields {

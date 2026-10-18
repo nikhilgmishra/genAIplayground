@@ -13,7 +13,7 @@ permits it (OPS-04).
 |---|---|
 | `modules/network` | VPC across >= 3 AZs; public subnets for the ALB and NAT only; private app and data subnets (data has no internet route); gateway endpoints for S3/DynamoDB; interface endpoints for SQS, KMS, Secrets Manager, Logs, CloudWatch, ECR, STS and Step Functions; endpoint policies limited to the workload and audit accounts; KMS-encrypted flow logs |
 | `modules/kms` | One CMK per data class / purpose, with rotation. Key policies separate administration from cryptographic use, limit use to named role ARNs (`aws:PrincipalArn`), optionally restrict use by `kms:ViaService`, and never grant `kms:*` or `Principal "*"` |
-| `modules/ingress` | Internet-facing ALB, HTTPS-only (TLS13 policy). Path allowlist with a fixed 404 default. Optional ALB JWT validation and an optional supplemental WAF IP allowlist. WAFv2 with AWS managed rule groups and a rate-based rule. Sampled requests are off and credentials are redacted from WAF logs. Access logs go to a dedicated bucket. The HTTP->HTTPS redirect listener is off by default |
+| `modules/ingress` | Internet-facing ALB, HTTPS-only (TLS13 policy). Path allowlist with a fixed 404 default. Optional ALB JWT validation and an optional supplemental WAF IP allowlist. WAFv2 with AWS managed rule groups and a rate-based rule. Sampled requests are off. WAF logs every request header, so `authorization`, `cookie`, `mcp-session-id`, the bearer session reference `x-vsp-session-ref`, the call binding `x-vsp-interaction-id`, `idempotency-key` and the query string are redacted by name (VSP-INF-01; tftest and the `WAF-LOGS` policy rule assert each name). Access logs go to a dedicated bucket. The HTTP->HTTPS redirect listener is off by default |
 | `modules/ecs_service` | Fargate cluster plus gateway and worker services. Tasks run by image digest, as non-root uid 10001, with a read-only root FS and capabilities dropped. No public IP, no ECS Exec. Least-privilege task role per service; execution role limited to the image, log groups and listed secrets. Autoscaling keeps a warm minimum. Circuit breaker rolls back failed deployments. Optional regional write fence (explicit IAM Deny) |
 | `modules/aurora` | Aurora PostgreSQL 16, Multi-AZ, CMK storage and Performance Insights, IAM DB auth, TLS forced, statement logging off, deletion protection, backups. Optional Aurora Global Database (primary or read-only secondary with no write forwarding) |
 | `modules/dynamodb_sessions` | Session table (`pk`, TTL attribute `ttl`): PITR, CMK SSE, deletion protection, optional global-table replica with its own regional CMK |
@@ -22,11 +22,11 @@ permits it (OPS-04).
 | `modules/audit` | **Audit account** (`aws.audit` provider alias only): Object Lock bucket (mode and days REQUIRED, null rejected), versioning, audit CMK, deny-delete / TLS-only bucket policy, write-only cross-account writer role (PutObject only), separate read-only auditor role, S3 access logs |
 | `modules/observability` | KMS-encrypted SNS alarm topic, 11 dashboards (spec section 13 list plus platform), alarms on catalogue metrics (`platform/src/observability/metrics.ts`) and ALB metrics. Alarm text is fixed and contains no PHI |
 | `modules/secrets` | Secrets Manager containers with CMK, reader-only resource policies and optional rotation hooks. **No secret values** |
-| `modules/iam_ci` | GitHub OIDC provider. Plan/apply roles trust exactly `repo:<owner>/<repo>:environment:<env>[-plan]` with aud `sts.amazonaws.com`. Permissions boundary; no long-lived keys; no data-plane reads |
+| `modules/iam_ci` | GitHub OIDC provider. Plan/apply roles trust exactly `repo:<owner>/<repo>:environment:<env>[-plan]:job_workflow_ref:<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main` with aud `sts.amazonaws.com` (needs the repository OIDC subject customization, see prerequisites). Permissions boundary that CI cannot change and that also denies the CI roles any change to their own policies/trust/boundary, role-policy changes on roles without the boundary, trust changes and PassRole on roles CI did not create, assuming in-account roles, identity-provider/user/group/managed-policy changes, and the data-plane reads listed in `data_plane_reads` (DynamoDB items, queue messages, secret values, log events and query results, RDS log files, X-Ray traces, SSM parameters, EC2 console/password data, KMS decrypt outside the state) (VSP-INF-02). Plan reads the state and writes only `<key>.tflock`; apply overwrites the state but deletes only the lock; neither changes the state bucket's configuration (VSP-INF-03). No long-lived keys |
 | `modules/budgets` | AWS Budgets alerts (actual and forecasted). **Alerts are not hard caps** |
 | `modules/stack` | Composition used by every environment root |
 | `envs/{sandbox,staging,production,production-dr}` | Roots: providers (`allowed_account_ids` pinning, audit-account alias), partial S3 backend, tfvars without secrets, plan tests |
-| `policy/` | Rego policy over `terraform show -json` (OPA, pinned) + unit tests + SYNTHETIC offline-plan fixtures |
+| `policy/` | Rego policy over `terraform show -json` (OPA, pinned) + unit tests + SYNTHETIC offline-plan fixtures. Includes a minimal IAM evaluator that probes the rendered CI boundary for self-modification and escalation paths (`CI-BOUNDARY`), the CI state grants (`CI-STATE`), CI identity changes (`CI-IDENTITY`), pinned GitHub subjects (`IAM`) and WAF log redaction (`WAF-LOGS`) |
 
 ## Commands (all offline)
 
@@ -55,15 +55,21 @@ roots.
 Offline plans (`scripts/terraform-plan-offline.sh`) copy each env into a temporary workspace,
 use a local backend and fake credentials, strip `allowed_account_ids`/`assume_role`, and pin
 every AWS endpoint and proxy to a dead local port. Nothing is refreshed or validated by AWS.
-Computed values stay unknown, so IAM policy *content* is verified by the module `terraform test`
-suites rather than by OPA. A real-account plan is **NOT RUN**.
+Computed values stay unknown, so IAM policy *content* that references computed ARNs is verified
+by the module `terraform test` suites rather than by OPA. The CI boundary and the CI role
+policies are fully known at plan time, so OPA also probes them in the offline plans. A
+real-account plan is **NOT RUN**.
 
 ## Apply order (performed by CI after approval, never by the coding agent)
 
 1. **Bootstrap (per account, by an administrator):** state bucket (versioned, SSE-KMS, public
    access blocked), the audit-account deploy role owned by the audit account's administrators,
    and the approvals trust key (KMS asymmetric key, owner: security). The first apply of
-   `iam_ci` is done by the administrator; after that, CI manages it.
+   `iam_ci` is done by the administrator, and so is every later change to it: the boundary
+   denies CI any change to its own roles, the boundary and the OIDC provider, and the
+   `CI-IDENTITY` policy rule refuses a CI plan that would change them. State bucket
+   versioning is the recovery control for a bad state write; CI cannot change the bucket's
+   configuration.
 2. `envs/sandbox`, `envs/staging`: independent, one account each.
 3. `envs/production`: creates the Aurora Global Database, the session-table DR replica and its
    DR-region CMK, and the audit store (which also trusts the DR worker role).
@@ -148,9 +154,19 @@ suites rather than by OPA. A real-account plan is **NOT RUN**.
   reviewed plan behind the `<env>` GitHub environment's required reviewers. The gate is
   re-checked before apply.
 * Prerequisites: pin all actions to full commit SHAs. Pin the Node base image by digest.
-  Create GitHub environments `<env>-plan` and `<env>` (the latter with required reviewers;
-  production restricted to `main`). Add CODEOWNERS so audit-module and policy changes need
-  security review (owners UNKNOWN).
+  Create GitHub environments `<env>-plan` and `<env>` (the latter with required reviewers);
+  restrict **every** one of them, `<env>-plan` included, to the `main` branch with a
+  deployment branch rule (repository administrator). Set the repository OIDC subject
+  customization to `include_claim_keys: ["repo", "context", "job_workflow_ref"]` (repository
+  administrator, GitHub API); until it is set the CI roles cannot be assumed (fails closed).
+  The customization is repository-wide, so the release role's trust (outside this stack,
+  owner: platform) must use the same subject format. The audit account must differ from the
+  workload account (in-account role assumption is denied). Add CODEOWNERS so audit-module
+  and policy changes need security review (owners UNKNOWN). These are NOT verified here.
+* Residual risk (by design): the apply role can still create roles within the boundary and
+  deploy code that runs with them; that path is gated by the reviewed `<env>` environment, the
+  release-manifest gate and the OPA plan gate, not by IAM. An organization SCP that limits
+  cross-account trust on CI-created roles needs the AWS organization administrator.
 
 ## Cost
 

@@ -24,7 +24,8 @@ import type { AuditEventInput, CommitReceipt, StaffActor, StaffRole } from "../p
 import { PgAuditQuery } from "../audit/query.js";
 import { CONSOLE_LOCAL_SIGN_IN_COMPONENT, WORKFORCE_IDP_ADAPTER_KEY } from "../config/guard.js";
 import { killSwitchBlock } from "../ops/kill-switches.js";
-import { AccessDeniedError, ConfigurationRejectedError, PlatformError } from "../shared/errors.js";
+import { humanInterventionSignal } from "../safety/detector.js";
+import { AccessDeniedError, ConfigurationRejectedError, ConflictError, PlatformError } from "../shared/errors.js";
 import { digestOf } from "../shared/canonical.js";
 import { newId } from "../shared/ids.js";
 import { WorkflowRecheckDeniedError } from "../workflows/engine.js";
@@ -625,10 +626,16 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
       const intentId = await auditRequired(ctx, { outcome: "PENDING", reasonCode: body.reason, callId, evidencePointers: [`db://destinations/${body.destinationId}`] });
       // Kill switches never gate the human route; the handoff service owns the transfer (SAFE-04/SAFE-05).
       const language = destination.languages.find((l) => /^[a-z]{2}(-[A-Z]{2})?$/.test(l)) ?? "en";
+      // A staff-raised safety concern (spec section 10: human intervention is a safety signal) takes the FULL
+      // safety path (SAFE-HANDOFF-05): priority route first, then pending mutations revoked, the session flagged
+      // (resolved server-side by the handoff service), the restricted safety record and safety evidence.
+      const staffSafety = body.reason === "SAFETY_PRIORITY" || destination.purpose === "SAFETY_PRIORITY";
       // The staff-selected destination is passed through; the handoff service re-checks it against the allowlist (SAFE-05).
       let result: Awaited<ReturnType<typeof deps.handoff.requestHuman>>;
       try {
-        result = await deps.handoff.requestHuman({ tenantId, callId, ctx: null, reason: body.reason, language, issueCategory: null, destinationId: destination.destinationId, initiatedBy: { staffId } });
+        result = staffSafety
+          ? await deps.handoff.requestSafetyRoute({ tenantId, callId, ctx: null, signals: [humanInterventionSignal(language)], locale: language, validatedAt: ctx.now, initiatedBy: { staffId }, correlationId: ctx.correlationId })
+          : await deps.handoff.requestHuman({ tenantId, callId, ctx: null, reason: body.reason, language, issueCategory: null, destinationId: destination.destinationId, initiatedBy: { staffId } });
       } catch (err) {
         if (err instanceof AccessDeniedError && err.reasonCode === "DESTINATION_NOT_ALLOWLISTED") {
           await auditBestEffort(ctx, { outcome: "DENIED", reasonCode: "DESTINATION_NOT_ALLOWLISTED", callId, policyDecision: ctx.decision });
@@ -636,6 +643,9 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
         }
         throw err;
       }
+      // Defense in depth for the safety path: the call's pending mutations are revoked through the ledger even
+      // when its live session cannot be resolved server-side (each cancellation is audited by the ledger).
+      if (staffSafety || result.priority === "SAFETY") await revokePendingForCall(tenantId, staffId, callId, ctx.now);
       if (!result.transferId) {
         await auditBestEffort(ctx, { outcome: "PENDING", reasonCode: "TRANSFER_ROUTE_PENDING", callId, policyDecision: ctx.decision, evidencePointers: [`transfer_journey:${result.handoffId}`] });
         throw unavailable("TRANSFER_ROUTE_PENDING", false);
@@ -646,7 +656,7 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
       const state: C.TransferState = attempt?.state ?? "REQUESTED";
       const doneId = await auditBestEffort(ctx, {
         outcome: "SUCCEEDED",
-        reasonCode: result.destinationId === body.destinationId ? "TRANSFER_REQUESTED" : "TRANSFER_DESTINATION_SUBSTITUTED",
+        reasonCode: staffSafety ? "SAFETY_ESCALATION_ROUTED" : result.destinationId === body.destinationId ? "TRANSFER_REQUESTED" : "TRANSFER_DESTINATION_SUBSTITUTED",
         callId,
         policyDecision: ctx.decision,
         evidencePointers: [`transfer:${result.transferId}`, `transfer_journey:${result.handoffId}`],
@@ -654,6 +664,26 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
       return { transferId: result.transferId, callId, destinationId: result.destinationId, state, auditEventId: doneId ?? intentId };
     },
   });
+
+  /** Cancels the call's PREPARED/CONFIRMED actions (SAFETY_ESCALATION); never fails the escalation. */
+  async function revokePendingForCall(tenantId: string, staffId: string, callId: string, now: Date): Promise<number> {
+    let revoked = 0;
+    try {
+      const rows = (await pendingActionRows(deps.db, tenantId, staffId, now)).filter((r) => r.call_id === callId && (r.state === "PREPARED" || r.state === "CONFIRMED"));
+      for (const r of rows) {
+        try {
+          await deps.actions.cancelPending(tenantId, r.action_id, { reasonCode: "SAFETY_ESCALATION", actorRef: staffId });
+          revoked++;
+        } catch (err) {
+          // Already invalidated by the session escalation (or committed meanwhile): nothing left to revoke.
+          if (!(err instanceof ConflictError || err instanceof AccessDeniedError)) deps.logger.warn("console.safety_revoke_failed", { reasonCode: err instanceof PlatformError ? err.reasonCode : "UNCLASSIFIED_ERROR" });
+        }
+      }
+    } catch (err) {
+      deps.logger.warn("console.safety_revoke_failed", { reasonCode: err instanceof PlatformError ? err.reasonCode : "UNCLASSIFIED_ERROR" });
+    }
+    return revoked;
+  }
 
   /* ---------------- support request trace ---------------- */
 

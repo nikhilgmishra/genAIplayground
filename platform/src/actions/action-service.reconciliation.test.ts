@@ -19,8 +19,13 @@ import type { ActionService, CommitDeps } from "./ports.js";
 const STAFF = "stf_synthSupervisor01";
 
 let h: LedgerHarness;
+/** LOCAL FIXTURE: the business layer re-established the caller's current authority (allow, fresh). */
+const allowOperatorRetry = (harness: LedgerHarness) => {
+  harness.provider.operatorRetryAuthority = async () => allowDecision(harness.clock);
+};
 beforeEach(async () => {
   h = await createLedgerHarness();
+  allowOperatorRetry(h);
 });
 afterEach(async () => {
   await h.db.close();
@@ -337,6 +342,7 @@ describe("retryAfterReconcile (staff retry after NOT_FOUND)", () => {
   it("[ACT-02] provider-side dedup disabled: the ledger alone prevents a duplicate effect across caller retry, reconcile and staff retry", async () => {
     await h.db.close();
     h = await createLedgerHarness({}, { providerDedupByKey: false });
+    allowOperatorRetry(h);
     const { ctx, action, rec } = await notFoundReconciled();
     expect((await h.service.retryAfterReconcile(TENANT_ID, action.actionId, { reconciliationId: rec.reconciliationId, reasonCode: "OPERATOR_RETRY", staffRef: STAFF }, h.provider)).outcome).toBe("COMMITTED");
     // A late caller retry and further reconciliations return the stored receipt with no provider commit.

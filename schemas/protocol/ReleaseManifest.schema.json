@@ -351,6 +351,74 @@
             "minLength": 10,
             "maxLength": 2000
           },
+          "subject": {
+            "type": "object",
+            "properties": {
+              "modelVoice": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                  },
+                  "voice": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                  },
+                  "agentConfig": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                  }
+                },
+                "required": [
+                  "model",
+                  "voice",
+                  "agentConfig"
+                ],
+                "additionalProperties": false
+              },
+              "policyBundle": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "version",
+                  "digest"
+                ],
+                "additionalProperties": false
+              },
+              "knowledgeSnapshotDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "templateCatalogDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "release": {
+                "type": "object",
+                "properties": {
+                  "imageDigest": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "imageDigest"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
           "environment": {
             "type": "string",
             "enum": [

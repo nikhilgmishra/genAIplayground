@@ -4,26 +4,48 @@
  *
  * Retrieved articles are untrusted model input (spec section 3). Before an item
  * is stored the sanitizer:
- *  - normalizes Unicode (NFKC), removes invisible/bidi/control characters;
+ *  - refuses (fails closed with the quarantine finding SANITIZER_INPUT_TOO_LARGE)
+ *    any input longer than MAX_SANITIZE_INPUT_CHARS before or after NFKC;
+ *  - normalizes Unicode (NFKC), folds the IDNA label separators U+3002, U+FF0E
+ *    and U+FF61 to ".", removes invisible/bidi/control characters;
  *  - decodes HTML entities to a fixpoint (so encoded markup cannot survive);
  *  - removes <script>/<style>/<iframe>/<object>/<embed>/<form>/... blocks with
  *    their content, HTML comments and every remaining tag;
  *  - removes fenced code blocks and inline code (executable content);
  *  - removes images, attachments, executable file references and data: URIs;
  *  - rewrites markdown/HTML links to their text; an allowlisted link target is
- *    kept only as plain text "host/path" (no scheme, query or fragment);
- *  - removes raw URLs and bare domains outside the allowlist;
+ *    kept only as plain text "host/path" (no scheme, port, query, fragment or
+ *    dotted path segment);
+ *  - removes raw URLs, bare domains and IP literals outside the allowlist;
  *  - repeats the pipeline until the text is stable, then hard-scrubs anything
  *    left that still violates the output invariants.
  *
- * Output invariants (property-tested): no "<" or ">", no "://", no "www.",
- * no javascript:/vbscript:/data: URI, and no bare domain outside the allowlist.
+ * Output invariants (property-tested, including generated domains on arbitrary
+ * TLDs, IDNA separators and IPv4/IPv6 literals): no "<" or ">", no "://", no
+ * "www.", no javascript:/vbscript:/data: URI, no bare domain outside the
+ * allowlist and no IP literal. A "bare domain" is a dotted run of labels
+ * (letters of any script, digits, "_" or "-") in which some label after the
+ * first is 2-63 letters or an xn-- A-label; an IPv4 literal is a run of four
+ * or more numeric labels; an IPv6 literal is a (bracketed) colon-hex group
+ * sequence with "::" or eight groups. Spelled-out forms ("evil dot com") are
+ * not domains under this definition (see README, known limitations).
+ *
+ * Every pattern runs in time linear in the input (VSP-KN-02): element matching
+ * (blocks, anchors) pairs opening and closing tags in one pass (markup.ts)
+ * instead of lazy cross-tag regexes, `<tag ...>` patterns are evaluated only up
+ * to the last ">", host literals are found by a linear scan (host-literals.ts),
+ * and the remaining quantifiers are delimiter-bounded or capped.
+ * Combined with the input cap this bounds sanitization time; there is no
+ * wall-clock deadline (output must stay deterministic for content digests).
  *
  * Findings are reason codes. QUARANTINE-level findings (executable or embedded
  * content) make the ingestion pipeline quarantine the item; STRIP-level
  * findings (formatting, links) are recorded and the cleaned text is kept.
  */
 import { stripControl, stripInvisible } from "../privacy/patterns.js";
+import { IDNA_DOTS, hostLiterals, hostSpans, normalizeHost, replaceSpans } from "./host-literals.js";
+import { replaceElements, replaceTags } from "./markup.js";
+import { MAX_BODY_CHARS } from "./schema.js";
 
 export type SanitizeFindingCode =
   | "HTML_MARKUP_STRIPPED"
@@ -41,7 +63,8 @@ export type SanitizeFindingCode =
   | "LINK_REMOVED"
   | "URL_REMOVED"
   | "INVISIBLE_CHARACTERS_REMOVED"
-  | "SANITIZER_HARD_SCRUB_APPLIED";
+  | "SANITIZER_HARD_SCRUB_APPLIED"
+  | "SANITIZER_INPUT_TOO_LARGE";
 
 /** Findings that indicate executable or embedded content: the item is quarantined. */
 export const QUARANTINE_FINDINGS: ReadonlySet<SanitizeFindingCode> = new Set([
@@ -53,7 +76,15 @@ export const QUARANTINE_FINDINGS: ReadonlySet<SanitizeFindingCode> = new Set([
   "CODE_BLOCK_REMOVED",
   "EXECUTABLE_ATTACHMENT_REMOVED",
   "SANITIZER_HARD_SCRUB_APPLIED",
+  "SANITIZER_INPUT_TOO_LARGE",
 ]);
+
+/**
+ * Hard cap on sanitizer input, checked on the raw input and again after NFKC
+ * (which can expand a character up to 18-fold). Twice the schema's body bound
+ * leaves room for ordinary normalization; anything larger fails closed.
+ */
+export const MAX_SANITIZE_INPUT_CHARS = 2 * MAX_BODY_CHARS;
 
 export interface SanitizeOptions {
   /** Exact approved hosts whose links may be kept as plain text. Lowercase, no scheme. */
@@ -68,29 +99,38 @@ export interface SanitizeResult {
 
 const MAX_PASSES = 6;
 
-const BLOCK_ELEMENTS = /<\s*(script|style|iframe|object|embed|applet|form|noscript|template|svg|math|frameset|frame|base|link|meta)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi;
+const BLOCK_NAMES = "script|style|iframe|object|embed|applet|form|noscript|template|svg|math|frameset|frame|base|link|meta";
+/** "<name" prefix of an executable/embedded block element (paired with BLOCK_CLOSE by replaceElements). */
+const BLOCK_OPEN = new RegExp(`<\\s*(${BLOCK_NAMES})\\b`, "gi");
+const BLOCK_CLOSE = new RegExp(`<\\s*\\/\\s*(${BLOCK_NAMES})\\s*>`, "gi");
 const UNCLOSED_BLOCK = /<\s*(script|style|iframe|object|embed|applet|form|noscript|template|svg|math)\b[\s\S]*$/i;
+// `<prefix>[^>]*>` patterns: applied only up to the last ">" (replaceTags), which makes them linear.
 const VOID_EMBED = /<\s*(iframe|object|embed|applet|base|link|meta|frame|input|button)\b[^>]*>/gi;
-const EVENT_HANDLER = /<[^>]*\son[a-z]{2,20}\s*=/i;
-const HTML_COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
-const ANCHOR = /<a\b[^>]*?\bhref\s*=\s*(["']?)([^"'\s>]*)\1[^>]*>([\s\S]*?)<\s*\/\s*a\s*>/gi;
 const IMG_TAG = /<\s*img\b[^>]*>/gi;
+// Equivalent to /<[^>]*\son.../ (the last bracket before the attribute is "<") without its O(n^2) rescans.
+const EVENT_HANDLER = /<[^<>]*\son[a-z]{2,20}\s*=/i;
+const HTML_COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
+const ANCHOR_OPEN = /<(a)\b/gi;
+const ANCHOR_CLOSE = /<\s*\/\s*(a)\s*>/gi;
+const HREF_ATTR = /\bhref\s*=\s*(["']?)([^"'\s>]*)\1/i;
 const TAG = /<\/?[A-Za-z!?][^<>]*>/g;
 const FENCED = /(```|~~~)[\s\S]*?(?:\1|$)/g;
-const INLINE_CODE = /`[^`\n]{0,400}`/g;
-const MD_IMAGE = /!\[[^\]\n]{0,400}\]\([^)\n]{0,2000}\)/g;
-const MD_LINK = /\[([^\]\n]{0,400})\]\(\s*<?([^)\s>]{0,2000})>?(?:\s+["'][^"'\n]{0,200}["'])?\s*\)/g;
+// Capped runs that must end at a delimiter use the atomic idiom `(?=(X{0,n}))\k`: a shorter run can
+// never be followed by the delimiter, so forbidding the backtrack keeps the semantics and removes the
+// per-start backtracking over the cap (VSP-KN-02).
+const INLINE_CODE = /`(?=([^`\n]{0,400}))\1`/g;
+const MD_IMAGE = /!\[(?=([^\]\n]{0,400}))\1\]\((?=([^)\n]{0,2000}))\2\)/g;
+const MD_LINK = /\[(?=([^\]\n]{0,400}))\1\]\(\s*<?(?=([^)\s>]{0,2000}))\2>?(?:\s+["'][^"'\n]{0,200}["'])?\s*\)/g;
 const MD_REF_DEF = /^[ \t]{0,3}\[[^\]\n]{1,200}\]:[ \t]*\S+.*$/gm;
-const MD_REF_LINK = /\[([^\]\n]{1,400})\]\[[^\]\n]{0,200}\]/g;
-const AUTOLINK = /<((?:https?|mailto|ftp):[^>\s]{1,2000})>/gi;
+const MD_REF_LINK = /\[(?=([^\]\n]{1,400}))\1\]\[(?=([^\]\n]{0,200}))\2\]/g;
+// An autolink cannot contain "<" (CommonMark); excluding it ends every attempt at the next tag.
+const AUTOLINK = /<((?:https?|mailto|ftp):[^<>\s]{1,2000})>/gi;
 const EXEC_URI = /(?:javascript|vbscript|livescript)\s*:[^\s]*/gi;
 const DATA_URI = /\bdata\s*:\s*[a-z]+\/[a-z0-9.+-]+[;,][^\s]*/gi;
 const SCHEME_URL = /(?<![a-z0-9+.-])[a-z][a-z0-9+.-]{1,15}:\/\/[^\s<>"'`)\]]*/gi;
 const PROTOCOL_RELATIVE = /(^|[\s(["'])\/\/[a-z0-9-]+(?:\.[a-z0-9-]+)+[^\s<>"'`)\]]*/gi;
 const WWW = /www\.[^\s<>"'`)\]]*/gi;
 const OTHER_URI = /\b(?:file|mailto|tel|sip|sips|callto|sms|ftp|ws|wss)\s*:[^\s]*/gi;
-const BARE_TLDS = "com|net|org|info|io|co|us|biz|gov|edu|health|care|app|dev|xyz|link|ly|me|ai|test|invalid|example|localhost|online|site|ru|cn|tk";
-const BARE_DOMAIN = new RegExp(`(?<![a-z0-9-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+(?:${BARE_TLDS})\\b(?::\\d{1,5})?(?:\\/[^\\s<>"'\`)\\]]*)?`, "gi");
 const EXEC_FILE = /\b[\w.-]{1,120}\.(?:exe|bat|cmd|ps1|psm1|sh|bash|vbs|vbe|js|jse|wsf|msi|scr|jar|apk|dmg|pkg|hta|lnk|iso|docm|xlsm|pptm|dll|bin)\b/gi;
 const ATTACHMENT_REF = /\b(?:attachment|attached file|download)\s*:\s*\S+/gi;
 
@@ -129,12 +169,14 @@ export function normalizeAllowedDomains(domains: readonly string[] | undefined):
 }
 
 function hostAllowed(host: string, allowed: ReadonlySet<string>): boolean {
-  return allowed.has(host.toLowerCase().replace(/\.$/, ""));
+  return allowed.has(normalizeHost(host).replace(/\.$/, ""));
 }
 
 /**
  * Plain-text rendering of an allowlisted link: "host/path" without scheme,
- * credentials, port, query or fragment. Returns null when not allowlisted.
+ * credentials, port, query or fragment. A path is kept only when it is short,
+ * carries no long digit run and no "." (a dotted path segment would itself read
+ * as a domain). Returns null when not allowlisted.
  */
 export function plainTextLink(target: string, allowed: ReadonlySet<string>): string | null {
   let t = target.trim();
@@ -150,7 +192,7 @@ export function plainTextLink(target: string, allowed: ReadonlySet<string>): str
   if (url.username || url.password) return null;
   if (!hostAllowed(url.hostname, allowed)) return null;
   const path = url.pathname.replace(/\/+$/, "");
-  const safePath = /^[/A-Za-z0-9._~-]{0,120}$/.test(path) && !/\d{4,}/.test(path) ? path : "";
+  const safePath = /^[/A-Za-z0-9_~-]{0,120}$/.test(path) && !/\d{4,}/.test(path) ? path : "";
   return `${url.hostname.toLowerCase()}${safePath}`;
 }
 
@@ -167,18 +209,25 @@ function onePass(input: string, allowed: ReadonlySet<string>, findings: Set<Sani
   if (EVENT_HANDLER.test(s)) findings.add("EVENT_HANDLER_REMOVED");
 
   // Executable / embedded blocks with their content.
-  BLOCK_ELEMENTS.lastIndex = 0;
-  s = s.replace(BLOCK_ELEMENTS, (_m, tag: string) => {
-    findings.add(/^(script|style|noscript|template|svg|math)$/i.test(tag) ? "SCRIPT_OR_STYLE_REMOVED" : "EMBEDDED_OBJECT_REMOVED");
-    return " ";
-  });
+  s = replaceElements(
+    s,
+    BLOCK_OPEN,
+    BLOCK_CLOSE,
+    () => "",
+    (tag) => {
+      findings.add(/^(script|style|noscript|template|svg|math)$/i.test(tag) ? "SCRIPT_OR_STYLE_REMOVED" : "EMBEDDED_OBJECT_REMOVED");
+      return " ";
+    },
+  );
   const unclosed = UNCLOSED_BLOCK.exec(s);
   if (unclosed) {
     findings.add(/^(iframe|object|embed|applet|form)$/i.test(unclosed[1] ?? "") ? "EMBEDDED_OBJECT_REMOVED" : "SCRIPT_OR_STYLE_REMOVED");
     s = s.slice(0, unclosed.index);
   }
-  record(VOID_EMBED, "EMBEDDED_OBJECT_REMOVED");
-  s = s.replace(VOID_EMBED, " ");
+  s = replaceTags(s, VOID_EMBED, () => {
+    findings.add("EMBEDDED_OBJECT_REMOVED");
+    return " ";
+  });
 
   // Code (executable content).
   record(FENCED, "CODE_BLOCK_REMOVED");
@@ -195,8 +244,10 @@ function onePass(input: string, allowed: ReadonlySet<string>, findings: Set<Sani
   // Images, attachments, executable file references.
   record(MD_IMAGE, "ATTACHMENT_REMOVED");
   s = s.replace(MD_IMAGE, " ");
-  record(IMG_TAG, "ATTACHMENT_REMOVED");
-  s = s.replace(IMG_TAG, " ");
+  s = replaceTags(s, IMG_TAG, () => {
+    findings.add("ATTACHMENT_REMOVED");
+    return " ";
+  });
   record(ATTACHMENT_REF, "ATTACHMENT_REMOVED");
   s = s.replace(ATTACHMENT_REF, " ");
   record(EXEC_FILE, "EXECUTABLE_ATTACHMENT_REMOVED");
@@ -213,7 +264,13 @@ function onePass(input: string, allowed: ReadonlySet<string>, findings: Set<Sani
     return text;
   };
   s = s.replace(AUTOLINK, (_m, target: string) => rewriteLink("", target));
-  s = s.replace(ANCHOR, (_m, _q: string, target: string, text: string) => rewriteLink(text, target));
+  s = replaceElements(
+    s,
+    ANCHOR_OPEN,
+    ANCHOR_CLOSE,
+    (tag) => HREF_ATTR.exec(tag)?.[2] ?? null,
+    (_name, target, text) => rewriteLink(text, target),
+  );
   s = s.replace(MD_LINK, (_m, text: string, target: string) => rewriteLink(text, target));
   record(MD_REF_DEF, "LINK_REMOVED");
   s = s.replace(MD_REF_DEF, " ");
@@ -225,7 +282,7 @@ function onePass(input: string, allowed: ReadonlySet<string>, findings: Set<Sani
   if (/[<>]/.test(s)) findings.add("HTML_MARKUP_STRIPPED");
   s = s.replace(/[<>]/g, " ");
 
-  // Raw URLs and bare domains.
+  // Raw URLs, bare domains and IP literals.
   const urlReplacer = (m: string) => {
     const trail = /[.,;:!?]+$/.exec(m)?.[0] ?? "";
     const plain = plainTextLink(m.slice(0, m.length - trail.length), allowed);
@@ -244,11 +301,9 @@ function onePass(input: string, allowed: ReadonlySet<string>, findings: Set<Sani
   s = s.replace(WWW, urlReplacer);
   record(OTHER_URI, "URL_REMOVED");
   s = s.replace(OTHER_URI, " ");
-  s = s.replace(BARE_DOMAIN, (m) => {
+  s = replaceSpans(s, hostSpans(s, (h) => hostAllowed(h, allowed)), (span, m) => {
     const trail = /[.,;:!?]+$/.exec(m)?.[0] ?? "";
-    const core = m.slice(0, m.length - trail.length);
-    const host = core.replace(/[:/].*$/, "").toLowerCase();
-    if (hostAllowed(host, allowed)) return `${plainTextLink(core, allowed) ?? host}${trail}`;
+    if (span.allowedHost !== null) return `${plainTextLink(m.slice(0, m.length - trail.length), allowed) ?? span.allowedHost}${trail}`;
     findings.add("URL_REMOVED");
     return ` ${trail}`;
   });
@@ -274,14 +329,9 @@ export function sanitizedTextViolations(text: string, allowedDomains?: readonly 
   if (/www\./i.test(text)) v.push("WWW_HOST");
   if (/(?:java|vb|live)script\s*:/i.test(text)) v.push("EXECUTABLE_URI");
   if (/\bdata\s*:\s*[a-z]+\/[a-z0-9.+-]+[;,]/i.test(text)) v.push("DATA_URI");
-  BARE_DOMAIN.lastIndex = 0;
-  for (const m of text.matchAll(BARE_DOMAIN)) {
-    const host = m[0].replace(/[:/].*$/, "").toLowerCase();
-    if (!hostAllowed(host, allowed)) {
-      v.push("BARE_DOMAIN_NOT_ALLOWLISTED");
-      break;
-    }
-  }
+  const literals = hostLiterals(text);
+  if (literals.some((l) => l.kind === "DOMAIN" && !hostAllowed(l.host, allowed))) v.push("BARE_DOMAIN_NOT_ALLOWLISTED");
+  if (literals.some((l) => l.kind !== "DOMAIN")) v.push("IP_LITERAL");
   return v;
 }
 
@@ -296,17 +346,23 @@ function hardScrub(text: string, allowed: ReadonlySet<string>): string {
       .replace(/www\./gi, " ")
       .replace(/(?:java|vb|live)script\s*:/gi, " ")
       .replace(/\bdata\s*:\s*[a-z]+\/[a-z0-9.+-]+[;,]/gi, " ");
-    BARE_DOMAIN.lastIndex = 0;
-    s = s.replace(BARE_DOMAIN, (m) => (hostAllowed(m.replace(/[:/].*$/, ""), allowed) ? m : " "));
+    // An allowlisted span keeps only its host: port and path (which may hold more literals) go.
+    s = replaceSpans(s, hostSpans(s, (h) => hostAllowed(h, allowed)), (span) => (span.allowedHost !== null ? span.allowedHost : " "));
     if (s === before) break;
   }
   return s;
 }
 
+function tooLarge(): SanitizeResult {
+  return { text: "", findings: ["SANITIZER_INPUT_TOO_LARGE"], quarantineFindings: ["SANITIZER_INPUT_TOO_LARGE"] };
+}
+
 export function sanitizeKnowledgeText(input: string, opts: SanitizeOptions = {}): SanitizeResult {
+  if (input.length > MAX_SANITIZE_INPUT_CHARS) return tooLarge();
   const allowed = normalizeAllowedDomains(opts.allowedLinkDomains);
   const findings = new Set<SanitizeFindingCode>();
-  const normalized = input.normalize("NFKC");
+  const normalized = input.normalize("NFKC").replace(IDNA_DOTS, ".");
+  if (normalized.length > MAX_SANITIZE_INPUT_CHARS) return tooLarge();
   const visible = stripControl(stripInvisible(normalized));
   if (visible !== normalized.replace(/\r\n?/g, "\n")) findings.add("INVISIBLE_CHARACTERS_REMOVED");
 

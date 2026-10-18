@@ -161,6 +161,20 @@ every non-permitted actor kind escalates.
   rejected without state change; terminal attempt states absorb.
 * Outcome is `TRANSFERRED` only once `CALLER_CONFIRMED_CONNECTED` was reached (cleared again if the
   bridge drops). A successful dial is never a transfer (SAFE-04).
+* Journey status: `ROUTING` whenever an attempt is in flight or awaiting a retry (the sweep's work
+  list), `CONNECTED` only while the caller is confirmed connected (`connectedAt` set). A bridge drop
+  after `CALLER_CONFIRMED_CONNECTED` puts the journey back to `ROUTING` and re-enters the fallback
+  chain, so the sweep times out and re-dials the next attempt (SAFETY and STANDARD); a caller
+  disconnect between attempts closes the journey even if it was CONNECTED before (finding
+  SAFE-HANDOFF-01).
+* One active journey per call, SAFETY first (SAFE-03, finding SAFE-HANDOFF-02): starting or
+  re-requesting a SAFETY journey marks every active STANDARD journey of the call `SUPERSEDED`
+  (audited `transfer.superseded`, reason `SUPERSEDED_BY_SAFETY_ROUTE`; no further timeouts,
+  failovers, update prompts or dials; late vendor events on it are rejected
+  `TRANSFER_JOURNEY_SUPERSEDED`). A STANDARD request while a SAFETY journey of the call is ROUTING
+  or CONNECTED dials nothing and returns that SAFETY journey (audited
+  `transfer.standard_request_superseded`). `activeSafetyJourney()` / `journeysForCall()` expose
+  this to the HandoffService; `TransferStore.listForCall` backs it.
 * Destinations come only from `DestinationConfig[]`; ids/queue refs that look like phone numbers
   (`+…`, ≥7 digits), tel/sip/http URIs, emails or paths are rejected (SAFE-05). A **safety** handoff
   carrying a bad or non-safety destination is routed to the configured `SAFETY_PRIORITY`
@@ -191,7 +205,8 @@ every non-permitted actor kind escalates.
 | Item | Why | Prerequisite |
 |---|---|---|
 | Deploying the generated state machines; worker / human-task bridge against real Step Functions + SQS (`SendTaskSuccess`, heartbeats, KMS-encrypted SFN token storage) | Requires real AWS resources and billable execution | AWS sandbox account, reviewed Terraform plan, cost estimate, approval (spec section 5) |
-| Live `TransferStore` (DynamoDB conditional writes) and live TelephonyControl events | Transfer events export (TB-07) and webhook authentication (TB-09) are UNKNOWN | Talkdesk sandbox + documented transfer event API; without TB-07 outcomes stay OUTCOME_UNKNOWN and humans reconcile |
+| Live `TransferStore` (DynamoDB conditional writes, incl. a per-call index for `listForCall`) and live TelephonyControl events | Transfer events export (TB-07) and webhook authentication (TB-09) are UNKNOWN | Talkdesk sandbox + documented transfer event API; without TB-07 outcomes stay OUTCOME_UNKNOWN and humans reconcile |
+| Withdrawing a STANDARD dial already in flight at the vendor when a safety route supersedes it | The `TelephonyControl` port has no cancel operation; the superseded journey is only never retried or failed over | Talkdesk documented transfer-cancel capability (TB-07) |
 | Production deadlines, retry budgets, attempt timeouts, continuity attempt cap, task-token TTL | Operational/security commitments, not engineering facts | Support operations and security approval |
 | Approved update template content (`updateTemplateIds`) and safety disconnect / after-hours procedures | Clinical and legal scripts | Clinical safety lead approval (spec section 5) |
 | Live recheck hook (OPA decision + consent / representation / account-state lookups) | Owned by policy and identity modules | Those modules' live implementations |
@@ -203,7 +218,7 @@ every non-permitted actor kind escalates.
 |---|---|---|
 | ACT-04 | `outcome.ts`; audit outcome PENDING for nonterminal | `engine.test.ts`, `definitions.test.ts` (`[ACT-04]`) |
 | ACT-02 | dedupe keys + unique index; single-use tasks; no CANCEL after commit submission | `[ACT-02]` tests |
-| SAFE-03 | safety journeys cycle routes forever; route timing; audit/store gaps tolerated | `transfer.test.ts` `[SAFE-03]` |
+| SAFE-03 | safety journeys cycle routes forever (also after a bridge drop); route timing; audit/store gaps tolerated; SAFETY supersedes STANDARD journeys of the call | `transfer.test.ts` `[SAFE-03]`, `[SAFE-HANDOFF-01]`, `[SAFE-HANDOFF-02]` |
 | SAFE-04 | `transferTransition`, `journeyOutcome` | `[SAFE-04]` incl. property test |
 | SAFE-05 | `looksLikeDialTarget`, allowlist, `validateDestinations` | `[SAFE-05]` incl. property test |
 | OPS-01 | audit in the transition transaction; fail closed | `[OPS-01]` |

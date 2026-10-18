@@ -11,6 +11,8 @@ export type { ResolveOptions, SessionServiceDeps } from "./session-service.js";
 export { BeginVerificationInputSchema, SecureVerificationService, effectiveAssuranceFor } from "./verification-service.js";
 export type { VerificationServiceDeps } from "./verification-service.js";
 export { MATCH_CODE_PATTERN, MATCH_CODE_WORDS, newMatchCode } from "./match-code.js";
+export { AccountAbuseSignal, VerificationAbuseMonitor } from "./abuse-monitor.js";
+export type { AbuseMonitorDeps, AbuseSubject } from "./abuse-monitor.js";
 export { ASSERTION_TYP, DEFAULT_MAX_TTL_SECONDS, SignedAssertionService } from "./assertions/assertion-service.js";
 export type { AssertionPurpose, AssertionServiceDeps, VerifyExpectation } from "./assertions/assertion-service.js";
 export { AssertionKeyRing } from "./assertions/key-ring.js";

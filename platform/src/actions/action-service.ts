@@ -23,8 +23,15 @@
  * Every reconciliation appends a durable record (action_reconciliations, migration 0101) in the
  * same transaction as the ledger transition it causes. A staff-initiated retry
  * (retryAfterReconcile) is allowed only against the latest NOT_FOUND record of a still-confirmed,
- * unexpired action at exactly the recorded row version, reuses the SAME provider idempotency key,
- * consumes the record (single use) and is audited with the staff actor.
+ * unexpired action at exactly the recorded row version whose caller confirmation is still FRESH and
+ * whose caller's CURRENT authority the provider port re-establishes (authorizeOperatorRetry); it
+ * reuses the SAME provider idempotency key, consumes the record (single use) and is audited with
+ * the staff actor (ACT-F3).
+ *
+ * Interruptions while in doubt (ACT-F1, migration 0102): invalidatePending and a superseding prepare
+ * record a durable invalidation request on COMMITTING / UNKNOWN actions of the session; a NOT_FOUND
+ * reconciliation (or a provably-not-started attempt) then makes them INVALIDATED, never CONFIRMED,
+ * while COMMITTED evidence is still recorded.
  */
 import { z } from "zod";
 import type { AuditHealth, AuditWriter } from "../audit/ports.js";
@@ -185,8 +192,27 @@ const CONFIRMATION_METHODS_BY_CHANNEL: Partial<Record<IntegrationIdentityT["chan
 };
 
 const PENDING_STATES: readonly ActionState[] = ["PREPARED", "CONFIRMED"];
+/** In doubt: the provider may or may not have applied the effect; only reconciliation can tell (ACT-03). */
+const IN_DOUBT_STATES: readonly ActionState[] = ["COMMITTING", "UNKNOWN"];
+
+/** Reason of a durable invalidation request recorded while the action was in doubt, or null (ACT-01). */
+const invalidationRequestOf = (row: LedgerRow): string | null => (row.invalidation_requested_at !== null && row.invalidation_requested_at !== undefined ? (row.invalidation_reason ?? R.SUPERSEDED) : null);
 
 type Scope = { tenantId: string; role: "app_runtime" | "app_worker" };
+
+/**
+ * Operator-retry re-authorization refusals that mean the caller's authority is gone for good: the
+ * confirmed action is invalidated (a new preparation and caller confirmation are required).
+ */
+const OPERATOR_RETRY_TERMINAL_REASONS: ReadonlySet<string> = new Set([
+  "SESSION_REVOKED",
+  "SESSION_ENDED",
+  "SESSION_EXPIRED",
+  "SESSION_NOT_FOUND",
+  "SESSION_GENERATION_CHANGED",
+  "SESSION_IDENTITY_CHANGED",
+  "SAFETY_ESCALATION_ACTIVE",
+]);
 
 /** What initiated a reconciliation (stored on the durable record). */
 type ReconTrigger = "RECONCILE" | "COMMIT_RETRY" | "RECONCILE_WITH_RESULT";
@@ -221,6 +247,8 @@ interface LedgerPatch {
   lastReconciledAt?: string;
   incrementCommitAttempts?: boolean;
   incrementReconcileAttempts?: boolean;
+  /** Durable invalidation request on an in-doubt row (migration 0102; immutable once set). */
+  invalidationRequest?: { at: string; reason: string };
 }
 
 interface Rejection {
@@ -355,15 +383,22 @@ export class LedgerActionService implements ActionService {
 
     await this.db.tx(
       async (tx) => {
-        // A changed request supersedes this session's pending actions on the same record.
+        // A changed request supersedes this session's pending actions on the same record. An earlier
+        // action on the record that is still IN DOUBT cannot be invalidated before it is reconciled
+        // (its effect may exist, ACT-03); the supersede is recorded durably on it instead, so a later
+        // NOT_FOUND reconciliation invalidates it and it can never be committed (ACT-01).
         const pending = await tx.query<LedgerRow>(
           `select ${LEDGER_COLUMNS} from action_ledger
-           where tenant_id = $1 and session_ref_hash = $2 and state in ('PREPARED', 'CONFIRMED')
+           where tenant_id = $1 and session_ref_hash = $2 and state in ('PREPARED', 'CONFIRMED', 'COMMITTING', 'UNKNOWN')
              and target ->> 'system' = $3 and target ->> 'recordRef' = $4
            for update`,
           [auth.tenantId, sessionHash, inp.target.system, inp.target.recordRef],
         );
         for (const row of pending.rows) {
+          if (IN_DOUBT_STATES.includes(rowState(row))) {
+            await this.requestInvalidation(tx, row, R.SUPERSEDED, now, true);
+            continue;
+          }
           const updated = await this.patch(tx, row, { state: "INVALIDATED", stateReason: R.SUPERSEDED }, now);
           if (updated) await this.appendAudit(tx, updated, { action: "action.invalidate", outcome: "INVALIDATED", reasonCode: R.SUPERSEDED });
         }
@@ -547,17 +582,26 @@ export class LedgerActionService implements ActionService {
             { role: "app_worker" },
           );
     let count = 0;
+    let requested = 0;
     for (const tenantId of tenants) {
-      count += await this.transitionMany(
+      // Pending actions are invalidated now. In-doubt actions (COMMITTING / UNKNOWN) cannot be: their
+      // effect may exist and must be reconciled first (ACT-03). The invalidation is recorded durably on
+      // them instead, so a NOT_FOUND reconciliation makes them INVALIDATED and never CONFIRMED again
+      // (ACT-01: an interruption, changed request or identity change invalidates the pending action).
+      const r = await this.transitionMany(
         { tenantId, role: "app_runtime" },
-        `session_ref_hash = $1 and state in ('PREPARED', 'CONFIRMED')`,
+        `session_ref_hash = $1 and state in ('PREPARED', 'CONFIRMED', 'COMMITTING', 'UNKNOWN')`,
         [hash],
         "INVALIDATED",
         reason,
         "action.invalidate",
+        { requestInDoubt: true },
       );
+      count += r.transitioned;
+      requested += r.requested;
     }
     if (count > 0) this.logger.info("action.invalidated", { reasonCode: reason, invalidatedCount: count });
+    if (requested > 0) this.logger.info("action.invalidation_requested", { reasonCode: reason, inDoubtCount: requested });
     return count;
   }
 
@@ -566,15 +610,17 @@ export class LedgerActionService implements ActionService {
     const tenant = parseOrThrow(TenantId, tenantId, R.INVALID_AUTH_CONTEXT);
     const max = parseOrThrow(z.number().int().min(1).max(1_000), limit, R.INVALID_COMMIT_INPUT);
     const now = this.clock.now();
-    return this.transitionMany(
-      { tenantId: tenant, role: "app_worker" },
-      `action_id in (select action_id from action_ledger where state in ('PREPARED', 'CONFIRMED') and expires_at <= $1
-                     order by expires_at limit ${max})`,
-      [iso(now)],
-      "EXPIRED",
-      R.PREPARATION_EXPIRED,
-      "action.expire",
-    );
+    return (
+      await this.transitionMany(
+        { tenantId: tenant, role: "app_worker" },
+        `action_id in (select action_id from action_ledger where state in ('PREPARED', 'CONFIRMED') and expires_at <= $1
+                       order by expires_at limit ${max})`,
+        [iso(now)],
+        "EXPIRED",
+        R.PREPARATION_EXPIRED,
+        "action.expire",
+      )
+    ).transitioned;
   }
 
   /** Operator/console cancellation of uncommitted work. Audited; fails closed without audit. */
@@ -876,13 +922,21 @@ export class LedgerActionService implements ActionService {
   }
 
   /**
-   * Staff-initiated retry after a NOT_FOUND reconciliation (spec section 8, ACT-03). Allowed only when
+   * Staff-initiated retry after a NOT_FOUND reconciliation (spec section 8, ACT-01, ACT-03). Allowed only when
    *  - `input.reconciliationId` is the LATEST reconciliation of the action, its result is NOT_FOUND and
    *    it has not been consumed by an earlier retry (single use);
    *  - the ledger row is still exactly at the row version recorded by that reconciliation, in state
    *    CONFIRMED (a NOT_FOUND reconciliation only returns an action to CONFIRMED while the caller's
-   *    confirmation was still fresh) with the caller's original confirmation recorded;
-   *  - the preparation has not expired.
+   *    confirmation was still fresh and no invalidation was requested while it was in doubt) with the
+   *    caller's original confirmation recorded and carrying no invalidation request;
+   *  - the preparation has not expired AND the caller's confirmation is still FRESH (the same
+   *    confirmationFreshSeconds window as the caller path; checked again under the row lock). A stale
+   *    confirmation expires the action: a new preparation and a new trusted caller confirmation are needed;
+   *  - the caller's CURRENT authority is re-established by `provider.authorizeOperatorRetry` (the
+   *    business layer: bound session live, unrevoked, same generation, no safety escalation; current
+   *    relationships, kill switches and policy). It must return a fresh allow without REQUIRE_HUMAN.
+   *    A port without it, an error, a denial or a stale decision refuses the retry before any provider
+   *    call. A step-up-bound action is never retried by an operator (the step-up belongs to the caller).
    * Never on COMMITTED or UNKNOWN. The provider is called with the SAME idempotency key as every earlier
    * attempt, so a duplicate effect is impossible on a deduplicating provider and an in-doubt outcome is
    * again UNKNOWN (reconciled first). Every step is audited with the staff actor; the console API
@@ -912,11 +966,32 @@ export class LedgerActionService implements ActionService {
     const now = this.clock.now();
     if (now.getTime() >= toDate(row.expires_at).getTime()) return refuse(new ConflictError(R.PREPARATION_EXPIRED), { to: "EXPIRED", from: ["CONFIRMED"] });
     if (rowConfirmation(row) === null || row.confirmed_at === null) return refuse(new ConflictError("CONFIRMATION_NOT_RECORDED"));
+    // ACT-01: an operator retry never outlives the caller's confirmation (same window as the caller path).
+    if (!this.confirmationFresh(row, now)) return refuse(new ConflictError(R.CONFIRMATION_STALE), { to: "EXPIRED", from: ["CONFIRMED"] });
+    if (invalidationRequestOf(row) !== null) return refuse(new ConflictError(R.ACTION_NOT_COMMITTABLE));
     const action = rowToAction(row);
     if (!verifyActionDigest(action)) {
       this.logger.error("action.ledger.integrity_violation", { actionId: row.action_id });
       return refuse(new AccessDeniedError(R.LEDGER_INTEGRITY_VIOLATION));
     }
+
+    // Re-establish the caller's CURRENT authority (spec section 8: commit rechecks authorization;
+    // section 10: a safety concern revokes pending mutations). Outside any transaction.
+    if (typeof provider.authorizeOperatorRetry !== "function") return refuse(new AccessDeniedError(R.REAUTHORIZATION_UNAVAILABLE));
+    let decision: PolicyDecisionT;
+    try {
+      decision = PolicyDecision.parse(await provider.authorizeOperatorRetry(action));
+    } catch (err) {
+      const code = err instanceof PlatformError && ReasonCode.safeParse(err.reasonCode).success ? err.reasonCode : R.POLICY_EVALUATION_FAILED;
+      // The caller's authority is gone for good (session ended/revoked/changed, safety escalation): invalidate.
+      const terminal = (err instanceof AccessDeniedError || err instanceof SessionInvalidError) && OPERATOR_RETRY_TERMINAL_REASONS.has(code);
+      return refuse(new AccessDeniedError(code), terminal ? { to: "INVALIDATED", from: ["CONFIRMED"] } : undefined);
+    }
+    const refuseWith = (error: PlatformError) => this.reject(row, scope, { error, auditAction: rejected, actorRef: staffRef, policy: decision });
+    if (!decision.allow) return refuseWith(new AccessDeniedError(R.POLICY_DENIED));
+    if (decision.obligations.includes("REQUIRE_HUMAN")) return refuseWith(new AccessDeniedError(R.HUMAN_REQUIRED));
+    if (!this.decisionFresh(decision, now)) return refuseWith(new AccessDeniedError(R.POLICY_DECISION_STALE));
+    if (row.requires_step_up || decision.obligations.includes("REQUIRE_STEP_UP")) return refuseWith(new AccessDeniedError(R.STEP_UP_REQUIRED));
 
     // OPS-01: block before any provider call when durable evidence cannot be written.
     await this.auditHealth.assertCanAcceptConsequential();
@@ -933,6 +1008,8 @@ export class LedgerActionService implements ActionService {
           }
           const t = this.clock.now();
           if (t.getTime() >= toDate(locked.expires_at).getTime()) throw new ConflictError(R.PREPARATION_EXPIRED);
+          if (!this.confirmationFresh(locked, t)) throw new ConflictError(R.CONFIRMATION_STALE);
+          if (invalidationRequestOf(locked) !== null) throw new ConflictError(R.ACTION_NOT_COMMITTABLE);
           const current = await this.latestReconciliationRow(tx, locked.action_id, true);
           if (!current || current.reconciliation_id !== reconciliationId || current.result !== "NOT_FOUND" || current.retry_consumed_at !== null) {
             throw new ConflictError("RECONCILIATION_NOT_LATEST");
@@ -962,6 +1039,7 @@ export class LedgerActionService implements ActionService {
             outcome: "PENDING",
             reasonCode: reason,
             actorRef: staffRef,
+            policy: decision,
             evidence: [`reconciliation:${reconciliationId}`],
           });
           return updated;
@@ -1020,15 +1098,19 @@ export class LedgerActionService implements ActionService {
         if (rowState(locked) === "COMMITTED") return this.alreadyCommitted(tx, locked, trigger);
         if (locked.row_version !== row.row_version) throw new ConflictError(R.CONCURRENT_MODIFICATION, R.CONCURRENT_MODIFICATION, true);
         const now = this.clock.now();
-        // Provider has no record for the key: treat as NOT_STARTED. Back to CONFIRMED only while
-        // the original confirmation is still fresh; otherwise a new preparation is required.
+        // Provider has no record for the key: treat as NOT_STARTED. An invalidation requested while the
+        // action was in doubt (barge-in, changed request, identity change, safety escalation, call end)
+        // now takes effect: INVALIDATED, never back to CONFIRMED (ACT-01). Otherwise back to CONFIRMED
+        // only while the original confirmation is still fresh; else a new preparation is required.
+        const invalidation = invalidationRequestOf(locked);
         const fresh = now.getTime() < toDate(locked.expires_at).getTime() && this.confirmationFresh(locked, now);
+        const next: ActionState = invalidation !== null ? "INVALIDATED" : fresh ? "CONFIRMED" : "EXPIRED";
         const updated = await this.patch(
           tx,
           locked,
           {
-            state: fresh ? "CONFIRMED" : "EXPIRED",
-            stateReason: R.PROVIDER_NOT_FOUND,
+            state: next,
+            stateReason: invalidation ?? R.PROVIDER_NOT_FOUND,
             committingSince: null,
             incrementReconcileAttempts: true,
             lastReconciledAt: iso(now),
@@ -1037,6 +1119,7 @@ export class LedgerActionService implements ActionService {
         );
         if (!updated) throw new ConflictError(R.CONCURRENT_MODIFICATION, R.CONCURRENT_MODIFICATION, true);
         const ev = await this.appendAudit(tx, updated, { action: "action.reconciled", outcome: "RECONCILED", reasonCode: R.PROVIDER_NOT_FOUND });
+        if (invalidation !== null) await this.appendAudit(tx, updated, { action: "action.invalidate", outcome: "INVALIDATED", reasonCode: invalidation });
         const reconciliationId = await this.insertReconciliation(tx, updated, { trigger, lookupPerformed: true, result: "NOT_FOUND", receiptId: null, auditEventId: ev.eventId });
         return { receipt: this.transientReceipt(updated, "NOT_STARTED", ev.eventId, true), reconciliationId, result: "NOT_FOUND" as const };
       },
@@ -1347,8 +1430,11 @@ export class LedgerActionService implements ActionService {
           const locked = await this.lockRow(tx, committing.action_id);
           if (!locked || rowState(locked) !== "COMMITTING" || locked.commit_attempt_id !== committing.commit_attempt_id) return;
           const now = this.clock.now();
-          const updated = await this.patch(tx, locked, { state: "CONFIRMED", stateReason: reason, committingSince: null }, now);
+          // An invalidation requested while the attempt was in flight takes effect now (ACT-01).
+          const invalidation = invalidationRequestOf(locked);
+          const updated = await this.patch(tx, locked, { state: invalidation !== null ? "INVALIDATED" : "CONFIRMED", stateReason: invalidation ?? reason, committingSince: null }, now);
           if (updated) await this.appendAudit(tx, updated, { action: "action.commit.not_started", outcome: "FAILED", reasonCode: reason, actorRef });
+          if (updated && invalidation !== null) await this.appendAudit(tx, updated, { action: "action.invalidate", outcome: "INVALIDATED", reasonCode: invalidation, actorRef });
         },
         { role: scope.role, rls: { tenantId: scope.tenantId } },
       );
@@ -1450,6 +1536,10 @@ export class LedgerActionService implements ActionService {
     if (p.committingSince !== undefined) add("committing_since", p.committingSince);
     if (p.receipt !== undefined) add("receipt", JSON.stringify(p.receipt), "::jsonb");
     if (p.lastReconciledAt !== undefined) add("last_reconciled_at", p.lastReconciledAt);
+    if (p.invalidationRequest !== undefined) {
+      add("invalidation_requested_at", p.invalidationRequest.at);
+      add("invalidation_reason", p.invalidationRequest.reason);
+    }
     if (p.incrementCommitAttempts) sets.push("commit_attempts = commit_attempts + 1");
     if (p.incrementReconcileAttempts) sets.push("reconcile_attempts = reconcile_attempts + 1");
     add("updated_at", iso(now));
@@ -1544,22 +1634,53 @@ export class LedgerActionService implements ActionService {
     throw rej.error;
   }
 
-  /** Bulk fail-safe transition with audit; falls back to the transition alone if audit is unavailable. */
-  private async transitionMany(scope: Scope, where: string, params: unknown[], to: "INVALIDATED" | "EXPIRED", reason: string, auditAction: string): Promise<number> {
+  /**
+   * Records a durable invalidation request on an in-doubt row (migration 0102). The row stays in doubt
+   * until reconciliation: COMMITTED evidence is still recorded (truth is never hidden), NOT_FOUND makes
+   * it INVALIDATED instead of CONFIRMED. The first request wins and is immutable. Returns true when set.
+   */
+  private async requestInvalidation(tx: Queryable, row: LedgerRow, reason: string, now: Date, withAudit: boolean): Promise<boolean> {
+    if (invalidationRequestOf(row) !== null || !IN_DOUBT_STATES.includes(rowState(row))) return false;
+    const updated = await this.patch(tx, row, { invalidationRequest: { at: iso(now), reason } }, now);
+    if (!updated) return false;
+    if (withAudit) await this.appendAudit(tx, updated, { action: "action.invalidation_requested", outcome: "PENDING", reasonCode: reason });
+    return true;
+  }
+
+  /**
+   * Bulk fail-safe transition with audit; falls back to the transition alone if audit is unavailable.
+   * With `requestInDoubt`, matching in-doubt rows get a durable invalidation request instead (they are
+   * reconciled first, ACT-03). Returns how many rows transitioned and how many in-doubt rows were flagged.
+   */
+  private async transitionMany(
+    scope: Scope,
+    where: string,
+    params: unknown[],
+    to: "INVALIDATED" | "EXPIRED",
+    reason: string,
+    auditAction: string,
+    opts: { requestInDoubt?: boolean } = {},
+  ): Promise<{ transitioned: number; requested: number }> {
     const run = (withAudit: boolean) =>
       this.db.tx(
         async (tx) => {
           const rows = await tx.query<LedgerRow>(`select ${LEDGER_COLUMNS} from action_ledger where ${where} for update`, params);
           const now = this.clock.now();
           let n = 0;
+          let requested = 0;
           for (const row of rows.rows) {
-            if (!PENDING_STATES.includes(rowState(row))) continue;
+            const state = rowState(row);
+            if (opts.requestInDoubt && IN_DOUBT_STATES.includes(state)) {
+              if (await this.requestInvalidation(tx, row, reason, now, withAudit)) requested += 1;
+              continue;
+            }
+            if (!PENDING_STATES.includes(state)) continue;
             const updated = await this.patch(tx, row, { state: to, stateReason: reason }, now);
             if (!updated) continue;
             n += 1;
             if (withAudit) await this.appendAudit(tx, updated, { action: auditAction, outcome: "INVALIDATED", reasonCode: reason });
           }
-          return n;
+          return { transitioned: n, requested };
         },
         { role: scope.role, rls: { tenantId: scope.tenantId } },
       );

@@ -21,7 +21,11 @@
  * - partner intake: organization-scoped (the partner's server-established organization),
  *   never an individual's record; onboarding requests start partner_onboarding in the
  *   same transaction.
- * Creation is idempotent per (call, turn, tool, arguments).
+ * Creation is idempotent per (call, request identity, tool, arguments). The request identity is the
+ * transport idempotency key (the tools require one): a retry of the same request after an ambiguous
+ * timeout, even once its gateway reservation was re-taken, finds the record the first execution created
+ * instead of creating a second support request, workflow, grant and Salesforce Case (ACT-02, ACT-F2).
+ * Only a direct business call without a key falls back to the turn id.
  */
 import type { AuthContext, IssueCategory, SupportRequest, ToolDefinition, WorkflowType } from "../../protocol/index.js";
 import { AccessDeniedError } from "../../shared/errors.js";
@@ -64,6 +68,8 @@ const OWNER_QUEUE_BY_CATEGORY: Partial<Record<IssueCategory, string>> = {
 export interface IntakeContext {
   auth: AuthContext;
   turnId: string;
+  /** Transport idempotency key of the request (ToolRequest.idempotencyKey); null outside the gateway. */
+  idempotencyKey?: string | null;
   tool: string;
   argsDigest: string;
   language: string;
@@ -104,7 +110,9 @@ export class IntakeService {
   }
 
   private creationKey(c: IntakeContext): string {
-    return PgSupportRequestService.creationKeyFor({ tenantId: c.auth.tenantId, callId: c.auth.callId, turnId: c.turnId, tool: c.tool, args: c.argsDigest });
+    // ACT-F2: the request identity is the transport idempotency key, never a per-invocation minted turn id.
+    const requestIdentity = c.idempotencyKey ? `idem:${c.idempotencyKey}` : c.turnId;
+    return PgSupportRequestService.creationKeyFor({ tenantId: c.auth.tenantId, callId: c.auth.callId, turnId: requestIdentity, tool: c.tool, args: c.argsDigest });
   }
 
   /**

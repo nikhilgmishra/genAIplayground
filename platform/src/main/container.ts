@@ -31,6 +31,7 @@ import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { LedgerActionService } from "../actions/action-service.js";
 import { ToolRequestIdempotency } from "../actions/tool-idempotency.js";
+import { LOCAL_FIXTURE_REQUEST_HASH_PEPPER } from "../actions/fixtures/request-hash-pepper.fixture.js";
 import { createLocalFixtureSet } from "../adapters/local/fixture-set.js";
 import type { LocalFixtureSet } from "../adapters/local/fixture-set.js";
 import { LocalIdentityDirectoryFixture } from "../adapters/local/identity-directory.js";
@@ -57,7 +58,8 @@ import { PgliteDb } from "../db/pglite.js";
 import { STAFF } from "../fixtures/synthetic-world.js";
 import { CATALOG_FILE, buildCatalog, catalogDriftAgainst, loadPinnedCatalogFile } from "../gateway/catalog.js";
 import type { PinnedCatalog } from "../gateway/catalog.js";
-import { LocalFixtureTokenAuthenticator } from "../gateway/auth.js";
+import { LOCAL_FIXTURE_TOKENS, LocalFixtureTokenAuthenticator } from "../gateway/auth.js";
+import { InteractionIndexCallSessions } from "../gateway/call-sessions.js";
 import type { IntegrationAuthenticator } from "../gateway/auth.js";
 import { CallOutcomeTracker, HandoffIndex, SessionLeaseRegistry } from "../gateway/call-state.js";
 import { GatewayAudit } from "../gateway/gateway-audit.js";
@@ -86,6 +88,8 @@ import { createLogger } from "../observability/logger.js";
 import { InMemoryMetrics, createMetricCatalogue } from "../observability/metrics.js";
 import type { Logger } from "../observability/ports.js";
 import { createOpsServices } from "../ops/compose.js";
+import { KillSwitchGatedNotificationSender } from "../ops/notification-gate.js";
+import { KillSwitchGatedSupportRecords } from "../ops/integration-gate.js";
 import type { OpsServices } from "../ops/compose.js";
 import { PgOutboxDispatcher } from "../outbox/dispatcher.js";
 import { MemoryPublisherFixture } from "../outbox/memory-publisher.fixture.js";
@@ -333,6 +337,9 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
     const kv = new MemoryKvStoreFixture();
     const directory = new LocalIdentityDirectoryFixture({ extraPeople: [] });
     const notifications = new NotificationFixture({ clock, registeredChannelRefs: directory.allVerifiedChannelRefs() });
+    // OPS-KS-01: every outbound send passes the OUTBOUND_NOTIFICATIONS and INTEGRATION "notifications" kill
+    // switches (fail closed). `ops` is composed below; the closure reads it only when a send happens.
+    const gatedNotifications = new KillSwitchGatedNotificationSender({ inner: notifications, snapshot: () => ops.killSwitches.snapshot(tenantId), logger });
     const idp = await LocalOidcProviderFixture.create({ clock });
     const oidc = new LocalOidcVerifierFixture(idp, { clock });
     const identityConfig = identityConfigFromPlatform(config, { policyVersion: policy.policyVersion, otpEnabled: opts.otpEnabled ?? false });
@@ -342,7 +349,7 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       kv,
       directory,
       oidc,
-      notifications,
+      notifications: gatedNotifications,
       clock,
       logger,
       metrics,
@@ -370,14 +377,15 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
     if (!/^[A-Za-z0-9_.-]{1,48}$/.test(instanceId)) throw new ConfigurationRejectedError(["INSTANCE_ID_INVALID@VSP_INSTANCE_ID"]);
     const dispatcher = new PgOutboxDispatcher({ db, publisher, clock, tenants: tenantIds, audit, logger, instanceId });
     const actions = new LedgerActionService({ db, clock, audit, auditHealth, outbox, logger });
-    const toolIdempotency = new ToolRequestIdempotency({ db, clock });
+    // Persisted request hashes are keyed with a secret pepper (DP-02); LOCAL FIXTURE pepper offline, Secrets Manager live (BLOCKED).
+    const toolIdempotency = new ToolRequestIdempotency({ db, clock, requestHashPepper: LOCAL_FIXTURE_REQUEST_HASH_PEPPER });
 
     // Adapters (LOCAL FIXTURES registered under the config keys).
     const fixtureSet = createLocalFixtureSet({
       clock,
       logger,
       destinations: config.destinations.map((d) => ({ destinationId: d.destinationId, vendorQueueRef: d.vendorQueueRef, purpose: d.purpose })),
-      extra: { "identity-directory": directory, "oidc-client-idp": oidc, notifications },
+      extra: { "identity-directory": directory, "oidc-client-idp": oidc, notifications: gatedNotifications },
     });
 
     // Workflows, transfers, knowledge, memory, ops, safety, voice.
@@ -444,6 +452,16 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
     // TC-11 through the HandoffService observer; the pipeline records outcome evidence flags.
     const handoffs = new HandoffIndex(clock);
     const callOutcomes = new CallOutcomeTracker();
+    // Safety evidence for every safety route source (SAFE-HANDOFF-07), and the server-side call -> live session
+    // resolution for safety routes without a session context (SAFE-HANDOFF-05; LOCAL FIXTURE interaction index).
+    const safetyEvents = new SafetyEventRecorder({ db, audit, clock, logger, metrics });
+    const interactionLookup = new LocalInteractionLookupFixture();
+    const authenticator = new LocalFixtureTokenAuthenticator({ environment, tenantId });
+    const callSessions = new InteractionIndexCallSessions({
+      lookup: interactionLookup,
+      sessions,
+      integration: () => authenticator.authenticate(`Bearer ${LOCAL_FIXTURE_TOKENS.telephony_control}`, "telephony_control").catch(() => null),
+    });
     const deps: ToolDeps = {
       tenantId,
       environment,
@@ -473,9 +491,10 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
         billing: fixtureSet.billing,
         claims: fixtureSet.claims,
         provider: fixtureSet.provider,
-        supportRecords: fixtureSet.supportRecords,
+        // OPS-KS-02: background Salesforce sync stops (and is held pending) while INTEGRATION salesforce or WRITES is engaged.
+        supportRecords: new KillSwitchGatedSupportRecords({ inner: fixtureSet.supportRecords, snapshot: () => ops.killSwitches.snapshot(tenantId), logger }),
         telephony: fixtureSet.telephony,
-        notifications,
+        notifications: gatedNotifications,
       },
       destinations: config.destinations,
       safety: { detector: new RuleBasedSafetySignalDetector(), router: new DeterministicSafetyRouter() },
@@ -486,6 +505,8 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       grants,
       handoffObserver: (callId, result, priority) => handoffs.record(callId, result, priority),
       deferredAudit,
+      safetyEvents,
+      callSessions,
     };
 
     // Business module and the pinned catalogue (must match the committed, reviewed file).
@@ -499,7 +520,6 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
     }
     Object.freeze(versions);
 
-    const interactionLookup = new LocalInteractionLookupFixture();
     const binding = new SessionBindingResolver({
       mode: config.sessionBinding.mode,
       exceptionApprovalId: config.sessionBinding.exceptionApprovalId,
@@ -531,7 +551,6 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       callOutcomes,
     });
 
-    const authenticator = new LocalFixtureTokenAuthenticator({ environment, tenantId });
     const leases = new SessionLeaseRegistry();
     const gatewayAudit = new GatewayAudit(audit, clock, logger, versions);
     const rateLimit =
@@ -544,6 +563,8 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       logger,
       authenticator,
       rateLimit,
+      // Tool-call limiter windows use the container clock (safety/human-route tools are never limited).
+      clock,
       ...(gatewayConfig?.http ? { bodyLimitBytes: gatewayConfig.http.bodyLimitBytes } : {}),
       routes: [
         ...healthRoutes(new ReadinessProbe({ db, policy, auditHealth, configGuardPassed: deployable.report.deployable })),
@@ -573,7 +594,7 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
           supportRequests: business.supportRequests,
           journeys: transfers,
           callOutcomes,
-          safetyEvents: new SafetyEventRecorder({ db, audit, clock, logger, metrics }),
+          safetyEvents,
           ...(business.confirmationSlots ? { confirmationSlots: business.confirmationSlots } : {}),
           versions,
           destinations: config.destinations,

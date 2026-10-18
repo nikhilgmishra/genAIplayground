@@ -78,6 +78,8 @@ export interface AppHarnessOptions extends GatewayHarnessOptions {
   environment?: "local" | "ci" | "sandbox";
   otpEnabled?: boolean;
   rateLimit?: { max: number; timeWindowMs: number } | null;
+  /** Per-call tool limit (SAFE-HANDOFF-03 / VSP-GW-01 tests); default derived from rateLimit. */
+  perCallRateLimit?: { max: number; timeWindowMs: number };
 }
 
 export async function createAppHarness(opts: AppHarnessOptions = {}): Promise<AppHarness> {
@@ -106,6 +108,7 @@ export async function createAppHarness(opts: AppHarnessOptions = {}): Promise<Ap
     logger: h.identity.logger,
     authenticator,
     rateLimit: opts.rateLimit === undefined ? null : opts.rateLimit,
+    ...(opts.perCallRateLimit ? { perCallRateLimit: opts.perCallRateLimit } : {}),
     routes: [
       ...healthRoutes(new ReadinessProbe({ db: h.db, policy: h.engine, auditHealth, configGuardPassed: true })),
       ...toolRoutes({ pipeline: h.pipeline, catalog: h.catalog }),

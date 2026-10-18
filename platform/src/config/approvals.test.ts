@@ -4,9 +4,11 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { ApprovalRecord } from "../protocol/index.js";
+import type { ApprovalRecord, ApprovalScope } from "../protocol/index.js";
 import { FakeClock } from "../shared/clock.js";
 import {
+  APPROVER_ROLES_BY_SCOPE,
+  SUBJECT_KIND_BY_SCOPE,
   FileTrustedKeyResolver,
   KmsTrustedKeyResolver,
   approvalSigningPayload,
@@ -15,6 +17,7 @@ import {
   parseTrustedPublicKey,
   verifyApprovalSignature,
 } from "./approvals.js";
+import type { ApprovalSubjectExpectations } from "./approvals.js";
 import { REPO_ROOT } from "./loader.js";
 
 /**
@@ -102,6 +105,50 @@ describe("approval signature verification", () => {
     expect(() => parseTrustedPublicKey(weak)).toThrow("APPROVAL_TRUST_KEY_INVALID");
     const p384 = generateKeyPairSync("ec", { namedCurve: "secp384r1" }).publicKey.export({ type: "spki", format: "pem" }).toString();
     expect(() => parseTrustedPublicKey(p384)).toThrow("APPROVAL_TRUST_KEY_INVALID");
+  });
+});
+
+describe("approval binding (OPS-APPR-01)", () => {
+  const k = TEST_ONLY_ED25519;
+  const modelRecord = (over: Partial<ApprovalRecord> = {}) =>
+    testOnlySign(
+      baseRecord({
+        approvalId: "apr_TESTONLYmodel0001",
+        scope: "MODEL_VOICE_SELECTION",
+        approver: { name: "Test Only Approver", role: "qa_language_lead" },
+        subject: { modelVoice: { model: "m-1", voice: "v-1", agentConfig: "a-1" } },
+        ...over,
+      }),
+      k.privateKey,
+      "ed25519",
+    );
+  const ctx = (expected?: ApprovalSubjectExpectations) => ({ environment: "production" as const, now: clock.now(), trustedKey: k.publicKey, expected });
+
+  it("[OPS-04][OPS-APPR-01] the subject is covered by the signature (editing it after signing invalidates the record)", () => {
+    const signed = modelRecord();
+    expect(verifyApprovalSignature(signed, k.publicKey)).toBe("VERIFIED");
+    expect(verifyApprovalSignature({ ...signed, subject: { modelVoice: { model: "m-9", voice: "v-1", agentConfig: "a-1" } } }, k.publicKey)).toBe("SIGNATURE_INVALID");
+  });
+
+  it("[OPS-04][OPS-APPR-01] a subject-bound record is VALID only for the exact artifact it names, and never when the caller cannot state it", () => {
+    expect(evaluateApproval(modelRecord(), ctx({ modelVoice: { model: "m-1", voice: "v-1", agentConfig: "a-1" } })).status).toBe("VALID");
+    expect(evaluateApproval(modelRecord(), ctx({ modelVoice: { model: "m-2", voice: "v-1", agentConfig: "a-1" } })).status).toBe("SUBJECT_MISMATCH");
+    expect(evaluateApproval(modelRecord(), ctx()).status).toBe("SUBJECT_UNVERIFIABLE");
+    expect(evaluateApproval(modelRecord({ subject: undefined }), ctx({ modelVoice: { model: "m-1", voice: "v-1", agentConfig: "a-1" } })).status).toBe("SUBJECT_MISSING");
+    for (const scope of Object.keys(SUBJECT_KIND_BY_SCOPE) as ApprovalScope[]) {
+      const role = APPROVER_ROLES_BY_SCOPE[scope][0];
+      if (!role) throw new Error("no role");
+      const r = testOnlySign(baseRecord({ scope, approver: { name: "Test Only Approver", role } }), k.privateKey, "ed25519");
+      expect(evaluateApproval(r, ctx()).status, scope).toBe("SUBJECT_MISSING");
+    }
+  });
+
+  it("[OPS-04][OPS-APPR-01] every scope has an allowed-role list and other roles are refused", () => {
+    for (const scope of Object.keys(APPROVER_ROLES_BY_SCOPE) as ApprovalScope[]) expect(APPROVER_ROLES_BY_SCOPE[scope].length, scope).toBeGreaterThan(0);
+    const vendor = testOnlySign(baseRecord({ scope: "PHI_PROCESSING", approver: { name: "Test Only Vendor", role: "talkdesk_admin" } }), k.privateKey, "ed25519");
+    expect(evaluateApproval(vendor, ctx()).failures).toEqual(["APPROVER_ROLE_NOT_PERMITTED"]);
+    const counsel = testOnlySign(baseRecord({ scope: "PHI_PROCESSING", approver: { name: "Test Only Counsel", role: "privacy_counsel" } }), k.privateKey, "ed25519");
+    expect(evaluateApproval(counsel, ctx()).status).toBe("VALID");
   });
 });
 

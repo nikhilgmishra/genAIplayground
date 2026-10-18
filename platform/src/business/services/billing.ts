@@ -24,6 +24,10 @@ import type { ReauthorizeSpec } from "../policy.js";
 import { issueWorkflowGrant, type WorkflowStartWithSnapshot } from "../grants.js";
 import { decideNow } from "../policy.js";
 import { BillingReviewCommitPort } from "../providers.js";
+import { TOOL_DEFINITIONS } from "../../gateway/tools/definitions.js";
+import { AccessDeniedError } from "../../shared/errors.js";
+import { authorizeOperatorRetry, withOperatorRetryAuthority } from "./operator-retry.js";
+import type { OperatorRetrySpec } from "./operator-retry.js";
 import { UNKNOWN_CONSENT } from "../shared.js";
 import type { PgSupportRequestService } from "../support/support-request-service.js";
 
@@ -46,14 +50,27 @@ export type BillingReviewCommitOutcome =
   | Exclude<CommitResult, { kind: "COMMITTED" }>;
 
 export class BillingService {
-  readonly provider: BillingReviewCommitPort;
+  /** System-of-record commit port; carries the operator-retry authority (ACT-F3) for staff retries. */
+  readonly provider: BillingReviewCommitPort & { authorizeOperatorRetry(action: PreparedAction): Promise<PolicyDecision> };
 
   constructor(
     private readonly deps: ToolDeps,
     private readonly support: PgSupportRequestService,
     private readonly interactions: InteractionIndex,
   ) {
-    this.provider = new BillingReviewCommitPort(deps.adapters.billing);
+    // A staff retry re-establishes the CALLER's current authority with exactly the submit tool's policy
+    // action, purpose and resource (gateway/tools/billing.ts submit_billing_review).
+    const submitTool = TOOL_DEFINITIONS.submit_billing_review;
+    const spec: OperatorRetrySpec = {
+      action: submitTool.permissions[0] ?? "",
+      purpose: "caller_self_service",
+      tool: submitTool,
+      resource: (a) => ({ type: "billing_review", tenantId: a.tenantId, subjectId: a.subjectId, organizationId: null, classification: "FINANCIAL", actionDigest: a.digest }),
+      check: async (a) => {
+        if (a.kind !== "billing.review.submit") throw new AccessDeniedError("ACTION_NOT_AVAILABLE");
+      },
+    };
+    this.provider = withOperatorRetryAuthority(new BillingReviewCommitPort(deps.adapters.billing), (a) => authorizeOperatorRetry(deps, spec, a));
   }
 
   async invoice(invoiceId: string): Promise<Invoice | null> {

@@ -60,17 +60,22 @@ describe("typed confirmation slots (TC-07)", () => {
   const fixtures = createLocalFixtureSet({ clock: new FakeClock() });
   const deps = { adapters: { billing: fixtures.billing } } as unknown as Pick<ToolDeps, "adapters">;
 
-  it("[ACT-01][ACT-05] reschedule: from/to date, time and time zone from the authoritative prepared change", async () => {
-    const a = action({ change: { slotId: SLOTS[0].slotId, toStartsAt: SLOTS[0].startsAt, toTimeZone: SLOTS[0].timeZone, fromStartsAt: APPOINTMENTS[0].startsAt, fromTimeZone: APPOINTMENTS[0].timeZone } });
-    const slots = await confirmationSlotsFor(deps, a);
-    expect(slots).toMatchObject({ fromTimeZone: "America/Chicago", toTimeZone: "America/Chicago" });
-    expect(Object.keys(slots ?? {}).sort()).toEqual(["fromDate", "fromTime", "fromTimeZone", "toDate", "toTime", "toTimeZone"]);
+  it("[ACT-01][ACT-05][ACT-F5] reschedule: from/to date, time, time zone and visit type from the authoritative prepared change", async () => {
+    const change = { slotId: SLOTS[0].slotId, toStartsAt: SLOTS[0].startsAt, toTimeZone: SLOTS[0].timeZone, toModality: SLOTS[0].modality, fromStartsAt: APPOINTMENTS[0].startsAt, fromTimeZone: APPOINTMENTS[0].timeZone, fromModality: APPOINTMENTS[0].modality };
+    const slots = await confirmationSlotsFor(deps, action({ change }));
+    expect(slots).toMatchObject({ fromTimeZone: "America/Chicago", toTimeZone: "America/Chicago", fromModality: "video", toModality: "video" });
+    expect(Object.keys(slots ?? {}).sort()).toEqual(["fromDate", "fromModality", "fromTime", "fromTimeZone", "toDate", "toModality", "toTime", "toTimeZone"]);
+    // A change without the visit type is never read back partially (route to a human).
+    expect(await confirmationSlotsFor(deps, action({ change: { ...change, toModality: null } }))).toBeNull();
   });
 
   it("[ACT-01] billing review: the invoice issue date from the system of record; another subject's invoice or a missing fact yields null (route to a human)", async () => {
-    const mine = action({ kind: "billing.review.submit", target: { system: "billing", recordType: "invoice", recordRef: INVOICES[0].invoiceId, beforeVersion: "v1" } });
-    expect(await confirmationSlotsFor(deps, mine)).toEqual({ issuedDate: INVOICES[0].issuedOn });
-    const other = action({ kind: "billing.review.submit", target: { system: "billing", recordType: "invoice", recordRef: INVOICES[1].invoiceId, beforeVersion: "v1" } });
+    const review = { reasonCategory: "OTHER", requestedStatus: "IN_REVIEW" };
+    const mine = action({ kind: "billing.review.submit", target: { system: "billing", recordType: "invoice", recordRef: INVOICES[0].invoiceId, beforeVersion: "v1" }, change: review });
+    // ACT-F5: the review reason the digest binds is read back with the invoice date.
+    expect(await confirmationSlotsFor(deps, mine)).toEqual({ issuedDate: INVOICES[0].issuedOn, reasonCategory: "OTHER" });
+    expect(await confirmationSlotsFor(deps, { ...mine, change: { requestedStatus: "IN_REVIEW" } })).toBeNull();
+    const other = action({ kind: "billing.review.submit", target: { system: "billing", recordType: "invoice", recordRef: INVOICES[1].invoiceId, beforeVersion: "v1" }, change: review });
     expect(await confirmationSlotsFor(deps, other)).toBeNull();
     expect(await confirmationSlotsFor(deps, action({ change: { toStartsAt: SLOTS[0].startsAt } }))).toBeNull();
   });

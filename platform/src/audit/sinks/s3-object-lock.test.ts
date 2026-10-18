@@ -122,7 +122,7 @@ describe("S3ObjectLockAuditSink (LIVE adapter, BLOCKED for execution; stub-clien
     expect((sent[0] as PutObjectCommand).input.ObjectLockMode).toBe("GOVERNANCE");
   });
 
-  it("[ACT-02] a 412 on an identical object is an idempotent no-op proven by HeadObject checksum", async () => {
+  it("[ACT-02] head_checksum mode: a 412 on an identical object is an idempotent no-op proven by HeadObject checksum", async () => {
     const { manifest, ndjson } = batch(1);
     const { client, sent } = stub(async (cmd) => {
       if (cmd instanceof PutObjectCommand) throw Object.assign(new Error("PreconditionFailed"), { name: "PreconditionFailed", $metadata: { httpStatusCode: 412 } });
@@ -132,7 +132,7 @@ describe("S3ObjectLockAuditSink (LIVE adapter, BLOCKED for execution; stub-clien
       }
       throw new Error("unexpected");
     });
-    await new S3ObjectLockAuditSink(client, config, clock).putBatch(manifest, ndjson);
+    await new S3ObjectLockAuditSink(client, { ...config, existingObjectCheck: "head_checksum" }, clock).putBatch(manifest, ndjson);
     expect(sent.map((c) => (c as object).constructor.name)).toEqual(["PutObjectCommand", "HeadObjectCommand", "PutObjectCommand", "HeadObjectCommand"]);
     expect((sent[1] as HeadObjectCommand).input).toEqual({
       Bucket: "vsp-audit-evidence-synthetic",
@@ -142,19 +142,20 @@ describe("S3ObjectLockAuditSink (LIVE adapter, BLOCKED for execution; stub-clien
     });
   });
 
-  it("[OPS-01] a 412 on a different object is refused as AUDIT_SINK_OBJECT_EXISTS (no overwrite)", async () => {
+  it("[OPS-01] head_checksum mode: a 412 on a different object is refused as AUDIT_SINK_OBJECT_EXISTS (no overwrite)", async () => {
     const { manifest, ndjson } = batch(1);
     const { client } = stub(async (cmd) => {
       if (cmd instanceof PutObjectCommand) throw Object.assign(new Error("x"), { name: "PreconditionFailed", $metadata: { httpStatusCode: 412 } });
       if (cmd instanceof HeadObjectCommand) return { ChecksumSHA256: b64("different content") };
       return {};
     });
-    await expect(new S3ObjectLockAuditSink(client, config, clock).putBatch(manifest, ndjson)).rejects.toMatchObject({ reasonCode: "AUDIT_SINK_OBJECT_EXISTS" });
+    const headMode = { ...config, existingObjectCheck: "head_checksum" as const };
+    await expect(new S3ObjectLockAuditSink(client, headMode, clock).putBatch(manifest, ndjson)).rejects.toMatchObject({ reasonCode: "AUDIT_SINK_OBJECT_EXISTS" });
     const { client: noChecksum } = stub(async (cmd) => {
       if (cmd instanceof PutObjectCommand) throw Object.assign(new Error("x"), { $metadata: { httpStatusCode: 412 } });
       return {};
     });
-    await expect(new S3ObjectLockAuditSink(noChecksum, config, clock).putBatch(manifest, ndjson)).rejects.toMatchObject({ reasonCode: "AUDIT_SINK_OBJECT_EXISTS" });
+    await expect(new S3ObjectLockAuditSink(noChecksum, headMode, clock).putBatch(manifest, ndjson)).rejects.toMatchObject({ reasonCode: "AUDIT_SINK_OBJECT_EXISTS" });
   });
 
   it("[OPS-01] transport failures and 409 conflicts are retryable sink errors with reason codes only", async () => {

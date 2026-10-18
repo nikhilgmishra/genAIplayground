@@ -183,6 +183,8 @@ requirements:
     enforcement: [platform/src/evaluation/scorer.ts, platform/src/evaluation/aggregate.ts, platform/src/evaluation/traceability.ts, docs/prerequisites.yaml]
     verification: [unit]
     externalBlock: null
+    # Review finding id used by the release-manifest evidence-bound regression tests.
+    aliases: [OPS-REL-01]
   - id: OPS-04
     kind: invariant
     section: "Acceptance invariants; 16"
@@ -204,6 +206,8 @@ requirements:
     enforcement: [platform/src/evaluation/manifest.ts, platform/src/protocol/release.ts]
     verification: [unit, operational]
     externalBlock: { reason: "Vendor version identity, pinned CI actions and base image", prerequisites: [PRQ-020, PRQ-041, PRQ-042] }
+    # Review finding id used by the release.yml manifest-command regression tests.
+    aliases: [OPS-REL-02]
 
   # ---------------------------------------------------------------- section 2
   - id: SPEC-2.auth-gate-values

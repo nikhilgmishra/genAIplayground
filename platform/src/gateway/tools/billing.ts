@@ -172,7 +172,11 @@ export function prepareBillingReviewTool(s: BusinessServices): ToolModule<z.infe
             expiresAt: action.expiresAt,
             confirmationTemplateId: "billing.review_confirmation",
           },
-          speechFor(s.deps.templates, "billing.review_confirmation", { issuedDate: invoice.issuedOn }, [sourceRef("action", action.actionId), sourceRef("billing", invoice.invoiceId)]),
+          // The invoice and the review reason the digest-bound action carries are both read back (ACT-F5).
+          speechFor(s.deps.templates, "billing.review_confirmation", { issuedDate: invoice.issuedOn, reasonCategory: input.reasonCategory }, [
+            sourceRef("action", action.actionId),
+            sourceRef("billing", invoice.invoiceId),
+          ]),
         );
       } catch (err) {
         return fromError(err, "PREPARE_FAILED");

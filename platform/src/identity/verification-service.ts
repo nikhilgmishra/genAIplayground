@@ -20,6 +20,7 @@ import { silentLogger } from "../observability/logger.js";
 import { noopMetrics } from "../observability/metrics.js";
 import type { BeginVerificationInput, GenericVerificationResponse, KvStore, VerificationCompletion, VerificationService } from "./ports.js";
 import type { VerificationConfig } from "./config.js";
+import { VerificationAbuseMonitor } from "./abuse-monitor.js";
 import { bindingRefFromHash, epochSeconds, hourWindow, kvKeys, sessionRefHash } from "./keys.js";
 import { MATCH_CODE_PATTERN, newMatchCode } from "./match-code.js";
 import { addRiskFlag, lifecycleProblem } from "./session-store.js";
@@ -42,6 +43,16 @@ import type { TrustedSessionService } from "./session-service.js";
  * matches, ineligible accounts, throttles and risk blocks all return the same
  * response shape and value; transactions/challenges are stored for every request
  * (decoys when nothing is sent). Eligibility is never logged.
+ *
+ * AUTH-ENUM-01: nothing a caller can observe LATER may depend on whether the locator
+ * matched either. Per-account / per-destination throttles, the account OTP guess
+ * budget, lockouts of a real account's challenge and recent number changes only
+ * exist for real accounts, so they suppress the send or the comparison SILENTLY and
+ * are recorded in the account-keyed abuse monitor (abuse-monitor.ts) — never as a
+ * session risk flag (policy denies `verification:begin` on ENUMERATION_SUSPECTED /
+ * OTP_ABUSE_SUSPECTED, which would turn the flag into a different tool result).
+ * Session flags are set only by controls every caller triggers identically: too many
+ * begins on the call, a locked challenge, the session OTP failure budget.
  *
  * Secrets: OTP codes exist in plaintext only on the way to the NotificationSender;
  * the store holds HMAC-SHA256(pepper, challengeId:code). Nonces are stored only as
@@ -100,6 +111,8 @@ const OtpChallenge = z.strictObject({
   channelKind: z.enum(["sms", "voice"]).nullable(),
   codeHmac: Sha256Hex,
   attempts: z.number().int().min(0),
+  /** Position of this challenge among the session's OTP challenges; only the latest one accepts digits (AUTH-OTP-LIMIT-01). */
+  sessionSeq: z.number().int().min(1),
   createdAt: IsoDateTime,
   expiresAt: IsoDateTime,
 });
@@ -141,9 +154,25 @@ export interface VerificationServiceDeps {
   otpPepper: Buffer;
   logger?: Logger;
   metrics?: Metrics;
+  /** Account-keyed abuse monitoring store (AUTH-ENUM-01); defaults to one over `kv`. */
+  abuseMonitor?: VerificationAbuseMonitor;
 }
 
 const STORE_GRACE_SECONDS = 3600;
+
+/**
+ * Throttle counter kinds for the OTP submission limits (AUTH-OTP-LIMIT-01):
+ * - OTP_ACCOUNT_GUESSES (per account, hourly window): one slot is RESERVED by an atomic increment
+ *   before each comparison on a real account's challenge, so concurrent guesses across calls can
+ *   never exceed `otpMaxFailuresPerAccountPerHour` compared guesses per account per hour (a correct
+ *   entry also uses its slot). Also read by `beginOtp`: a spent budget means no new code is sent.
+ * - OTP_SESSION_FAILURES (per session): incorrect entries on ANY challenge of the call, decoy or
+ *   real, so it behaves identically for every caller.
+ * - OTP_SESSION_SEQ (per session): sequence of the session's challenges; only the latest accepts digits.
+ */
+const OTP_ACCOUNT_GUESSES = "otp-guess";
+const OTP_SESSION_FAILURES = "otp-sfail";
+const OTP_SESSION_SEQ = "otp-seq";
 
 /** Effective assurance for one prepared action: A3 only when an unexpired step-up is bound to exactly this digest. */
 export function effectiveAssuranceFor(ctx: AuthContext, actionDigest: string, now: Date): Assurance {
@@ -156,12 +185,15 @@ export class SecureVerificationService implements VerificationService {
   private readonly logger: Logger;
   private readonly metrics: Metrics;
   private readonly cfg: VerificationConfig;
+  /** Account-keyed abuse signals (security monitoring only; never caller-observable). */
+  readonly abuse: VerificationAbuseMonitor;
 
   constructor(private readonly deps: VerificationServiceDeps) {
     if (!Buffer.isBuffer(deps.otpPepper) || deps.otpPepper.length < 32) throw new ValidationError("OTP_PEPPER_INVALID");
     this.cfg = deps.config;
     this.logger = (deps.logger ?? silentLogger).child({ component: "identity.verification" });
     this.metrics = deps.metrics ?? noopMetrics;
+    this.abuse = deps.abuseMonitor ?? new VerificationAbuseMonitor({ kv: deps.kv, clock: deps.clock, metrics: this.metrics, retentionHours: deps.config.abuseSignalRetentionHours });
   }
 
   // =========================== secure link (preferred) ===========================
@@ -184,7 +216,10 @@ export class SecureVerificationService implements VerificationService {
       return { transactionId, matchCode, response: "VERIFICATION_UNAVAILABLE_USE_HUMAN" };
     }
     if (candidate && !(await this.withinLimit("link-acct", candidate.accountId, this.cfg.linkMaxPerAccountPerHour))) {
-      await this.flagSession(hash, "OTP_ABUSE_SUSPECTED");
+      // Protects the account holder from a flood of unsolicited links: delivery is suppressed SILENTLY and the
+      // signal goes to the account-keyed monitor. No session flag: it would change this caller's later results
+      // only when the locator is a real person (AUTH-ENUM-01).
+      await this.abuse.record("LINK_ACCOUNT_LIMIT", { kind: "account", id: candidate.accountId });
       candidate = null;
     }
 
@@ -315,21 +350,26 @@ export class SecureVerificationService implements VerificationService {
       // Once this call has shown OTP abuse signals, no further codes are sent on it (the caller still hears the generic response).
       candidate = null;
     }
+    // Account-derived risk signals below suppress the send SILENTLY and go to the account-keyed monitor, never to
+    // the session: a session flag would change this caller's later results only for real people (AUTH-ENUM-01).
     if (candidate && this.recentlyChanged(candidate.channel, now)) {
       // SIM-swap risk: never send a possession challenge to a recently changed number.
-      await this.flagSession(hash, "RECENT_NUMBER_CHANGE");
+      await this.abuse.record("RECENT_NUMBER_CHANGE", { kind: "account", id: candidate.accountId });
       candidate = null;
     }
     if (candidate) {
-      const failures = await this.counterValue("otp-fail", candidate.accountId);
+      const account = { kind: "account", id: candidate.accountId } as const;
+      const guesses = await this.counterValue(OTP_ACCOUNT_GUESSES, candidate.accountId).catch(() => Number.POSITIVE_INFINITY);
       const accountOk = await this.withinLimit("otp-acct", candidate.accountId, this.cfg.otpMaxPerAccountPerHour);
       const destinationOk = await this.withinLimit("otp-dest", candidate.channel.channelRef, this.cfg.otpMaxPerDestinationPerHour);
-      if (!accountOk || !destinationOk || failures >= this.cfg.otpMaxFailuresPerAccountPerHour) {
-        await this.flagSession(hash, "OTP_ABUSE_SUSPECTED");
-        candidate = null;
-      }
+      if (!accountOk) await this.abuse.record("OTP_ACCOUNT_LIMIT", account);
+      if (!destinationOk) await this.abuse.record("OTP_DESTINATION_LIMIT", { kind: "destination", id: candidate.channel.channelRef });
+      if (guesses >= this.cfg.otpMaxFailuresPerAccountPerHour) await this.abuse.record("OTP_ACCOUNT_GUESS_LIMIT", account);
+      if (!accountOk || !destinationOk || guesses >= this.cfg.otpMaxFailuresPerAccountPerHour) candidate = null;
     }
 
+    // Every stored challenge (decoy or real) becomes the session's only outstanding one (AUTH-OTP-LIMIT-01).
+    const sessionSeq = await this.deps.kv.increment(kvKeys.throttle(OTP_SESSION_SEQ, hash, 0), this.sessionCounterTtl(rec.expiresAt));
     // A code is generated for every request; for decoys it is discarded immediately.
     const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
     const challenge: OtpChallenge = {
@@ -346,6 +386,7 @@ export class SecureVerificationService implements VerificationService {
       channelKind: candidate ? (candidate.channel.kind === "voice" ? "voice" : "sms") : null,
       codeHmac: this.codeDigest(challengeId, code),
       attempts: 0,
+      sessionSeq,
       createdAt: iso(now),
       expiresAt: iso(addMs(now, this.cfg.otpExpirySeconds * 1000)),
     };
@@ -377,15 +418,41 @@ export class SecureVerificationService implements VerificationService {
     const pk = kvKeys.otpChallenge(p.data.challengeId);
     const candidateDigest = this.codeDigest(p.data.challengeId, p.data.code);
     const formatOk = /^\d{6}$/.test(p.data.code);
+    const now = this.deps.clock.now();
+
+    // Session-scoped limits (AUTH-OTP-LIMIT-01). They depend only on what happened on this call, never on
+    // whether a challenge is a decoy, so they behave identically for every caller (AUTH-ENUM-01):
+    // only the session's latest challenge accepts digits; after any lockout (OTP_ABUSE_SUSPECTED) or once the
+    // session's failure budget is spent, no challenge on this call accepts digits.
+    const currentSeq = await this.counterAt(kvKeys.throttle(OTP_SESSION_SEQ, hash, 0));
+    const sessionFailures = await this.counterAt(kvKeys.throttle(OTP_SESSION_FAILURES, hash, 0));
+    const sessionBlocked = ctx.riskFlags.includes("OTP_ABUSE_SUSPECTED") || sessionFailures >= this.cfg.otpMaxFailuresPerAccountPerHour;
+    const gate = (ch: OtpChallenge): string | null => {
+      if (ch.sessionRefHash !== hash || ch.callId !== ctx.callId || ch.tenantId !== ctx.tenantId) return "OTP_CHALLENGE_INVALID";
+      if (ch.generation !== ctx.sessionGeneration) return "OTP_SESSION_CHANGED";
+      if (ch.status === "VERIFIED") return "OTP_CHALLENGE_ALREADY_USED";
+      if (ch.sessionSeq !== currentSeq) return "OTP_CHALLENGE_SUPERSEDED";
+      if (sessionBlocked || ch.status === "LOCKED" || ch.attempts >= this.cfg.otpMaxAttemptsPerChallenge) return "OTP_CHALLENGE_LOCKED";
+      if (now.getTime() >= Date.parse(ch.expiresAt)) return "OTP_CHALLENGE_EXPIRED";
+      return null;
+    };
+
+    // Account guess budget ("five per account per hour", spec section 7), enforced at SUBMISSION: a slot is
+    // reserved atomically before the comparison, so guesses spread over many calls or sent concurrently can
+    // never exceed it. A spent budget skips the comparison: the attempt is handled exactly like a wrong code,
+    // which is what every decoy challenge does, so the caller learns nothing (the signal goes to the monitor).
+    let budgetOk = true;
+    const pre = await this.readRecord(pk, OtpChallenge);
+    if (pre && gate(pre) === null && pre.eligible && pre.candidateAccountId) {
+      budgetOk = await this.withinLimit(OTP_ACCOUNT_GUESSES, pre.candidateAccountId, this.cfg.otpMaxFailuresPerAccountPerHour);
+      if (!budgetOk) await this.abuse.record("OTP_ACCOUNT_GUESS_LIMIT", { kind: "account", id: pre.candidateAccountId });
+    }
 
     const outcome: { verdict: "MATCH" | "OTP_INCORRECT" | "OTP_CHALLENGE_LOCKED" | null } = { verdict: null };
     const updated = await this.updateRecord(pk, OtpChallenge, (ch) => {
-      if (ch.sessionRefHash !== hash || ch.callId !== ctx.callId || ch.tenantId !== ctx.tenantId) return { abort: "OTP_CHALLENGE_INVALID" };
-      if (ch.generation !== ctx.sessionGeneration) return { abort: "OTP_SESSION_CHANGED" };
-      if (ch.status === "VERIFIED") return { abort: "OTP_CHALLENGE_ALREADY_USED" };
-      if (ch.status === "LOCKED" || ch.attempts >= this.cfg.otpMaxAttemptsPerChallenge) return { abort: "OTP_CHALLENGE_LOCKED" };
-      if (this.deps.clock.now().getTime() >= Date.parse(ch.expiresAt)) return { abort: "OTP_CHALLENGE_EXPIRED" };
-      const match = constantTimeEqualHex(candidateDigest, ch.codeHmac) && formatOk && ch.eligible;
+      const problem = gate(ch);
+      if (problem) return { abort: problem };
+      const match = budgetOk && constantTimeEqualHex(candidateDigest, ch.codeHmac) && formatOk && ch.eligible;
       if (match) {
         outcome.verdict = "MATCH";
         return { ...ch, status: "VERIFIED" as const };
@@ -400,10 +467,14 @@ export class SecureVerificationService implements VerificationService {
       return this.otpResult(false, updated.aborted === "NOT_FOUND" ? "OTP_CHALLENGE_INVALID" : updated.aborted, hash);
     }
     const ch = updated.value;
-    const verdict = outcome.verdict ?? "OTP_INCORRECT";
+    let verdict = outcome.verdict ?? "OTP_INCORRECT";
     if (verdict !== "MATCH") {
-      if (ch.eligible && ch.candidateAccountId) await this.bump("otp-fail", ch.candidateAccountId);
+      // Counted for decoy and real challenges alike; an unavailable counter is treated as a spent budget (fail closed).
+      const failures = await this.deps.kv.increment(kvKeys.throttle(OTP_SESSION_FAILURES, hash, 0), this.sessionCounterTtl(ctx.expiresAt)).catch(() => Number.POSITIVE_INFINITY);
+      if (failures >= this.cfg.otpMaxFailuresPerAccountPerHour) verdict = "OTP_CHALLENGE_LOCKED";
       if (verdict === "OTP_CHALLENGE_LOCKED") {
+        if (ch.eligible && ch.candidateAccountId) await this.abuse.record("OTP_ACCOUNT_CHALLENGE_LOCKED", { kind: "account", id: ch.candidateAccountId });
+        // Session-scoped and uniform: decoy challenges lock the same way.
         await this.flagSession(hash, "OTP_ABUSE_SUSPECTED");
         this.verificationMetric("otp_sms_registered_channel", "locked");
       } else this.verificationMetric("otp_sms_registered_channel", "failure");
@@ -557,9 +628,15 @@ export class SecureVerificationService implements VerificationService {
     if (candidates.length !== 1) return null;
     const c = candidates[0];
     if (!c || !c.roles.includes(req.role)) return null;
-    if ((await this.deps.directory.accountState(c.accountId)) !== "ACTIVE") return null;
-    const channel = this.pickChannel(await this.deps.directory.registeredChannels(c.accountId), kinds);
-    return channel ? { accountId: c.accountId, actorId: c.actorId, channel } : null;
+    // A failure AFTER exactly one candidate was found only happens for real people; it must not surface as a
+    // different response (AUTH-ENUM-01). Fail closed silently: treated as not eligible, nothing is sent.
+    try {
+      if ((await this.deps.directory.accountState(c.accountId)) !== "ACTIVE") return null;
+      const channel = this.pickChannel(await this.deps.directory.registeredChannels(c.accountId), kinds);
+      return channel ? { accountId: c.accountId, actorId: c.actorId, channel } : null;
+    } catch {
+      return null;
+    }
   }
 
   private pickChannel(channels: RegisteredChannel[], kinds: readonly RegisteredChannel["kind"][]): RegisteredChannel | null {
@@ -593,9 +670,24 @@ export class SecureVerificationService implements VerificationService {
   }
 
   private async counterValue(kind: string, subject: string): Promise<number> {
-    const item = await this.deps.kv.get<{ count?: unknown }>(kvKeys.throttle(kind, subject, hourWindow(this.deps.clock.now())));
+    return this.counterAt(kvKeys.throttle(kind, subject, hourWindow(this.deps.clock.now())));
+  }
+
+  private async counterAt(pk: string): Promise<number> {
+    const item = await this.deps.kv.get<{ count?: unknown }>(pk);
     const c = item?.data.count;
     return typeof c === "number" ? c : 0;
+  }
+
+  /** Storage TTL for per-session counters: session hard expiry plus the store grace (cleanup only; readers never rely on it). */
+  private sessionCounterTtl(sessionExpiresAt: string): number {
+    return epochSeconds(new Date(sessionExpiresAt)) + STORE_GRACE_SECONDS;
+  }
+
+  private async readRecord<T>(pk: string, schema: z.ZodType<T>): Promise<T | null> {
+    const item = await this.deps.kv.get<unknown>(pk);
+    const r = item ? schema.safeParse(item.data) : null;
+    return r?.success ? r.data : null;
   }
 
   private async flagSession(hash: string, flag: RiskFlag): Promise<void> {

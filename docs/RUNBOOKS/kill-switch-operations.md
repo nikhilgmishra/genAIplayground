@@ -17,11 +17,11 @@ Separate kill switches exist for each scope (`KillSwitchScope`, `platform/src/pr
 |---|---|---|---|
 | `AI_ADMISSION` | `*` | No new AI sessions; callers go to staffed queues through the continuity route | security_admin, supervisor |
 | `INTENT` | intent id | Intent no longer offered; intake or human handoff instead | security_admin, supervisor |
-| `INTEGRATION` | integration id (for example `salesforce`, `scheduling`) | Calls to that integration stop; dependent intents degrade | security_admin, supervisor |
+| `INTEGRATION` | integration id (for example `salesforce`, `scheduling`) | Gateway tool calls whose policy action lists the integration are refused; dependent intents degrade. Background Salesforce sync (`salesforce`) is held pending, not dead-lettered, and resumes on release; outbound notification sends stop for `notifications` (OPS-KS-01/02). Other background provider calls (for example reconciliation lookups) are not yet gated | security_admin, supervisor |
 | `WRITES` | `*` | All consequential commits refused; reads may continue | security_admin, supervisor |
 | `MODEL_VERSION` | version label | Sessions on that model version refused | security_admin, supervisor, deployment_operator |
 | `VOICE_VERSION` | version label | Sessions on that voice version refused | security_admin, supervisor, deployment_operator |
-| `OUTBOUND_NOTIFICATIONS` | `*` | No outbound notifications | security_admin, supervisor |
+| `OUTBOUND_NOTIFICATIONS` | `*` | No outbound notifications: every secure-link, step-up and OTP send is refused before the provider (unreadable switch state also refuses). The caller still hears the neutral verification response, so offer the human route | security_admin, supervisor |
 
 ## Trigger and detection signals
 

@@ -156,7 +156,7 @@ export function submitPartnerIntakeTool(s: BusinessServices): ToolModule<z.infer
     async execute(ctx, input) {
       if (!ctx.auth.organizationId) return denied("RESOURCE_NOT_AUTHORIZED");
       try {
-        const r = await s.intake.partner({ auth: ctx.auth, turnId: ctx.request.turnId, tool: definition.name, argsDigest: argsDigest(input), language: input.language }, input);
+        const r = await s.intake.partner({ auth: ctx.auth, turnId: ctx.request.turnId, idempotencyKey: ctx.request.idempotencyKey, tool: definition.name, argsDigest: argsDigest(input), language: input.language }, input);
         return ok(
           { intake: { status: "REQUEST_ACCEPTED", supportReference: r.supportRequest.referenceNumber }, workflowAccepted: r.workflowId !== null },
           speechFor(s.deps.templates, "commitment.request_accepted_pending_sync", { supportReference: r.supportRequest.referenceNumber }, [sourceRef("sr", r.supportRequest.supportRequestId)]),
