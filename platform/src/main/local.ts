@@ -3,7 +3,8 @@
  * gateway on 127.0.0.1:8080 and the worker loops in the same process (PGlite is
  * in-memory, so gateway and worker must share it), worker health on
  * 127.0.0.1:8081. Loopback only; SYNTHETIC data only; every adapter is a
- * labelled local fixture. Never a deployment (server.ts refuses fixtures
+ * labelled local fixture. The console API (LOCAL FIXTURE workforce sign-in) is
+ * served on 127.0.0.1:8090. Never a deployment (server.ts refuses fixtures
  * outside local/ci through the configuration guard).
  */
 import type { AddressInfo } from "node:net";
@@ -18,6 +19,7 @@ import type { Logger } from "../observability/ports.js";
 import { buildWorkerHealthApp, Worker, workerLoopsFor } from "../worker/worker.js";
 import { TimerLoopScheduler } from "../worker/scheduler.js";
 import type { LoopScheduler } from "../worker/scheduler.js";
+import { buildLocalConsole } from "./console.js";
 import { buildContainer } from "./container.js";
 import type { Container } from "./container.js";
 
@@ -28,12 +30,14 @@ export interface LocalRuntime {
   worker: Worker;
   gatewayUrl: string;
   workerHealthUrl: string;
+  consoleUrl: string;
   close(): Promise<void>;
 }
 
 export interface StartLocalOptions {
   port?: number;
   workerPort?: number;
+  consolePort?: number;
   buildBusiness?: BuildBusiness;
   clock?: Clock;
   logger?: Logger;
@@ -44,7 +48,7 @@ export interface StartLocalOptions {
 }
 
 /** The LOCAL FIXTURE banner: labels, loopback URLs and the SYNTHETIC integration tokens (not secrets). */
-export function localBanner(gatewayUrl: string, workerHealthUrl: string, c: Pick<Container, "catalog" | "policy" | "label">): string[] {
+export function localBanner(gatewayUrl: string, workerHealthUrl: string, consoleUrl: string, c: Pick<Container, "catalog" | "policy" | "label">): string[] {
   return [
     "================================================================",
     ` ${c.label}`,
@@ -53,6 +57,7 @@ export function localBanner(gatewayUrl: string, workerHealthUrl: string, c: Pick
     "================================================================",
     ` gateway         ${gatewayUrl}   (POST /mcp, /v1/tools/*, /telephony/v1/*, /portal/v1/*)`,
     ` worker health   ${workerHealthUrl}/health/ready`,
+    ` console API     ${consoleUrl}/console/api/v1   (LOCAL FIXTURE workforce sign-in, SYNTHETIC staff)`,
     ` tool catalogue  ${c.catalog.definitions.length} tools, digest ${c.catalog.digest}`,
     ` policy bundle   digest ${c.policy.bundleDigest}`,
     " LOCAL FIXTURE integration tokens (synthetic, local/ci only; refused elsewhere):",
@@ -75,10 +80,13 @@ export async function startLocal(opts: StartLocalOptions = {}): Promise<LocalRun
   const { loops, closers } = workerLoopsFor(container);
   const worker = new Worker({ loops, scheduler: opts.scheduler ?? new TimerLoopScheduler(), clock: container.clock, logger: container.logger, closers });
   const health = await buildWorkerHealthApp(worker, container.logger);
+  const consoleApp = (await buildLocalConsole(container)).app;
   try {
     await container.app.listen({ host: LOOPBACK, port: opts.port ?? 8080 });
     await health.listen({ host: LOOPBACK, port: opts.workerPort ?? 8081 });
+    await consoleApp.listen({ host: LOOPBACK, port: opts.consolePort ?? 8090 });
   } catch (err) {
+    await consoleApp.close().catch(() => undefined);
     await health.close().catch(() => undefined);
     await container.close();
     throw err;
@@ -86,15 +94,18 @@ export async function startLocal(opts: StartLocalOptions = {}): Promise<LocalRun
   worker.start();
   const gatewayUrl = `http://${LOOPBACK}:${(container.app.server.address() as AddressInfo).port}`;
   const workerHealthUrl = `http://${LOOPBACK}:${(health.server.address() as AddressInfo).port}`;
+  const consoleUrl = `http://${LOOPBACK}:${(consoleApp.server.address() as AddressInfo).port}`;
   const out = opts.out ?? ((l: string) => console.log(l));
-  for (const line of localBanner(gatewayUrl, workerHealthUrl, container)) out(line);
+  for (const line of localBanner(gatewayUrl, workerHealthUrl, consoleUrl, container)) out(line);
   return {
     container,
     worker,
     gatewayUrl,
     workerHealthUrl,
+    consoleUrl,
     async close() {
       await worker.stop();
+      await consoleApp.close().catch(() => undefined);
       await health.close().catch(() => undefined);
       await container.close();
     },

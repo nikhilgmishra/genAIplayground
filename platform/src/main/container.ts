@@ -239,7 +239,14 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
   const policy = await loadPolicyForGuard(environment, clock, bootLogger);
   const pinnedDigest = committedCatalogDigest();
   const identityKinds: Record<string, "local_fixture" | "live"> = offline
-    ? { "identity-directory": "local_fixture", "oidc-client-idp": "local_fixture", notifications: "local_fixture" }
+    ? {
+        "identity-directory": "local_fixture",
+        "oidc-client-idp": "local_fixture",
+        notifications: "local_fixture",
+        // The LOCAL console composition (main/console.ts) runs the workforce IdP fixture and local sign-in.
+        "workforce-sso": "local_fixture",
+        "console-local-sign-in": "local_fixture",
+      }
     : {};
   const runtimeKinds: Record<string, "local_fixture" | "live"> = offline ? Object.fromEntries(RUNTIME_COMPONENTS.map((c) => [c, "local_fixture" as const])) : {};
   // Offline: exactly the components wired below (fixture set + identity fixtures + runtime fixtures).

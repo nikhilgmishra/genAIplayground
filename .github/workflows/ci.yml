@@ -72,6 +72,13 @@ jobs:
       - name: Protocol schema drift check
         run: pnpm --filter @vsp/platform schemas:gen -- --check
 
+      - name: Tool catalogue, OpenAPI and resolution-contract drift checks
+        run: |
+          cd platform
+          pnpm exec tsx src/gateway/generate-catalog.ts --check
+          pnpm exec tsx src/gateway/generate-openapi.ts --check
+          pnpm exec tsx src/business/contracts/cli-generate-doc.ts --check
+
       - name: Step Functions ASL drift check
         run: |
           if [[ ! -f platform/src/workflows/generate-asl.ts ]]; then

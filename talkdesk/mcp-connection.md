@@ -34,6 +34,21 @@ resolve `AuthContext`.
   (`platform/src/protocol/tools.ts`) and goes through the pipeline in
   `docs/ARCHITECTURE.md` section 4.
 * No resources, prompts, sampling, file access, shell or arbitrary fetch capability.
+* Published gateway paths (generated description: `schemas/openapi/gateway.openapi.json`,
+  checked in CI by `platform/src/gateway/generate-openapi.ts --check`): `POST /mcp`
+  (stateless Streamable HTTP with JSON responses; `GET` and `DELETE /mcp` answer 405 and no
+  `Mcp-Session-Id` is issued), `GET /v1/tools/catalog` and `POST /v1/tools/{name}/{version}`
+  (`mcp_tools` credential). The caller session reaches the gateway only in the
+  `X-VSP-Session-Ref` header (option A) or as the interaction id in `X-VSP-Interaction-Id`
+  (option B); never in a URL, body or tool argument.
+* Telephony-control operations are published as `POST /telephony/v1/calls` (TC-01) and
+  `/telephony/v1/session/*` (TC-02..TC-08, TC-10..TC-12) with the session reference in the
+  `X-VSP-Session-Ref` header, and the LOCAL FIXTURE transfer-event route as
+  `POST /v1/webhooks/transfer-events` (TC-09, refused outside local/ci until the Talkdesk
+  event authentication is documented). `studio-flow-spec.md` section 3 and
+  `expected-config.yaml` `httpSteps` still list the earlier proposed
+  `/telephony/v1/calls/{sessionRef}/...` form; they are updated together by the package
+  owner (the package validator ties them to each other).
 
 ## 3. Service identities (separate per environment and per integration)
 
@@ -139,6 +154,13 @@ External tool definitions are not versioned within the Talkdesk platform ([S3]).
   (`ToolCatalogManifest.digest`) is pinned in `ReleaseManifest.toolSchemaDigest` and
   `PlatformConfig.toolCatalog.expectedDigest`. In this package the digest is the
   placeholder `TO_BE_PINNED_FROM_RELEASE_MANIFEST`.
+* The repository's committed catalogue is `schemas/tools/catalog.json` (generated from the
+  business tool modules by `platform/src/gateway/generate-catalog.ts`; `--check` fails on
+  drift and the gateway refuses to start when the modules it builds differ from it). It
+  publishes 18 tools, each at version `1.0.0`, matching the versions in
+  `ai-agent-config.yaml`; `get_login_guidance` and `prepare_billing_review` are published
+  but not assigned to an agent in `ai-agent-config.yaml`. Its digest is copied into the
+  release manifest (and then here) by the release process, not by this package.
 * MCP `tools/call` carries a tool name, not a version. The gateway maps each name to the
   single pinned version for the environment. A breaking change ships as a new catalogue
   version (and, where both must coexist, a new tool name), never as a silent schema change

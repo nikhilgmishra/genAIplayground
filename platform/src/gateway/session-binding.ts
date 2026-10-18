@@ -117,7 +117,7 @@ export class SessionBindingResolver {
    * reason codes so the pipeline can fail closed (or continue for SAFETY_AND_HUMAN_ROUTE).
    */
   async resolve(transport: BindingTransport, integration: IntegrationIdentity, argumentSessionRef: string | null): Promise<BindingResult> {
-    let sessionRef: string | null = null;
+    let sessionRef: string | null;
     let expectedCallId: string | undefined;
     // The interaction id is an identifier only (never authority). When the trusted transport
     // supplies it, the session must belong to that call (MB-02), and it lets a sessionless

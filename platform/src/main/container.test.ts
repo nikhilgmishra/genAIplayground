@@ -96,6 +96,27 @@ describe("composition root: deployed environments refuse (OPS-04)", () => {
     expect(drift.violations).toEqual(["TOOL_CATALOG_DRIFT@schemas/tools/catalog.json"]);
   }, 60_000);
 
+  it("[OPS-06] a configured toolCatalog.expectedDigest that differs from the committed catalogue is refused before any database exists", async () => {
+    const { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { CONFIG_DIR } = await import("../config/loader.js");
+    const dir = mkdtempSync(join(tmpdir(), "vsp-config-"));
+    try {
+      cpSync(CONFIG_DIR, dir, { recursive: true });
+      const file = join(dir, "local.json");
+      const cfg = JSON.parse(readFileSync(file, "utf8")) as { toolCatalog: { expectedDigest: string | null } };
+      cfg.toolCatalog.expectedDigest = "0".repeat(64);
+      writeFileSync(file, JSON.stringify(cfg));
+      const createDb = vi.spyOn(PgliteDb, "create");
+      const err = await rejection(buildContainer({ environment: "local", buildBusiness, configDir: dir, env: {}, logger: createMemoryLogger().logger }));
+      expect(err.violations).toEqual(["TOOL_CATALOG_DIGEST_MISMATCH@toolCatalog.expectedDigest"]);
+      expect(createDb).not.toHaveBeenCalled();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it("[SPEC-12.write-fence] VSP_MUTATIONS_ENABLED must be exactly true/false; the fence defaults closed outside local/ci", async () => {
     await expect(buildContainer({ environment: "local", buildBusiness: createStubBusiness().build, env: { VSP_MUTATIONS_ENABLED: "yes" }, logger: createMemoryLogger().logger })).rejects.toThrow("INFRA_ENV_BOOLEAN_INVALID");
   });

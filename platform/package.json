@@ -17,7 +17,16 @@
     "schemas:gen": "tsx src/protocol/generate-schemas.ts",
     "asl:gen": "tsx src/workflows/generate-asl.ts",
     "asl:check": "tsx src/workflows/generate-asl.ts --check",
-    "schemas:check": "tsx src/protocol/generate-schemas.ts --check"
+    "schemas:check": "tsx src/protocol/generate-schemas.ts --check",
+    "catalog:gen": "tsx src/gateway/generate-catalog.ts",
+    "catalog:check": "tsx src/gateway/generate-catalog.ts --check",
+    "openapi:gen": "tsx src/gateway/generate-openapi.ts",
+    "openapi:check": "tsx src/gateway/generate-openapi.ts --check",
+    "contracts:gen": "tsx src/business/contracts/cli-generate-doc.ts",
+    "contracts:check": "tsx src/business/contracts/cli-generate-doc.ts --check",
+    "scenarios:gen": "tsx src/evaluation/generate.ts && tsx src/evaluation/generate-risk.ts",
+    "scenarios:check": "tsx src/evaluation/generate.ts --check && tsx src/evaluation/generate-risk.ts --check",
+    "start:worker": "tsx src/worker/main.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "3.1152.0",

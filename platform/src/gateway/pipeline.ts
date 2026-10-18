@@ -347,7 +347,7 @@ export class ToolPipeline {
 
     // (d) session ------------------------------------------------------------
     const bound = await d.binding.resolve(st.transport, integ.data, argumentSessionRef);
-    let sessionRef: string | null = null;
+    let sessionRef: string | null;
     if (bound.ok) {
       st.ctx = bound.ctx;
       sessionRef = bound.sessionRef;
@@ -749,7 +749,6 @@ export class ToolPipeline {
 
   /** (m) audit, (n) result validation, (o) metrics. */
   private async finish(st: InvocationState, outcome: Outcome, data: Record<string, unknown> | null, speech: SpeechDirective | null): Promise<ToolResult> {
-    const d = this.deps;
     const tool = st.entry ? { name: st.entry.definition.name, version: st.entry.definition.version } : { ...UNKNOWN_TOOL };
     const reasonCode = "reasonCode" in outcome ? outcome.reasonCode : null;
     const auditReadRequired = st.obligations.has("AUDIT_READ") && (outcome.status === "SUCCESS" || outcome.status === "PENDING");
