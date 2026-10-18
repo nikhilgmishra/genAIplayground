@@ -189,7 +189,7 @@ export class OutboxConsumeLoop implements WorkerLoop {
 
   private async alreadyProcessed(tenantId: string, consumer: string, messageId: string): Promise<boolean> {
     const r = await this.opts.db.tx(
-      async (tx) => (await tx.query<{ one: number }>("select 1 as one from consumer_dedup where consumer = $1 and message_id = $2", [consumer, messageId])).rowCount > 0,
+      async (tx) => (await tx.query<{ one: number }>("select 1 as one from consumer_dedup where consumer = $1 and message_id = $2", [consumer, messageId])).rows.length > 0,
       { role: "app_worker", rls: { tenantId } },
     );
     return r;
