@@ -21,6 +21,7 @@ import { BILLING_REVIEW } from "../contracts/index.js";
 import { commitAction, type CommitResult } from "../commit.js";
 import type { InteractionIndex } from "../interactions.js";
 import type { ReauthorizeSpec } from "../policy.js";
+import { issueWorkflowGrant } from "../grants.js";
 import { decideNow } from "../policy.js";
 import { BillingReviewCommitPort } from "../providers.js";
 import { UNKNOWN_CONSENT } from "../shared.js";
@@ -142,8 +143,23 @@ export class BillingService {
     if (!callId) throw new ValidationError("FOLLOW_UP_CALL_UNKNOWN");
     const lang = await tx.query<{ language: string }>("select language from support_interactions where call_id = $1", [callId]);
     const reason = typeof action.change.reasonCategory === "string" ? action.change.reasonCategory : "OTHER";
+    // Durable action grant in the accepting (COMMITTED / consumer dedup) transaction: the review
+    // workflow's later commit, decision notice and outcome notice need it (spec section 7).
+    const grantRef = await issueWorkflowGrant(this.deps, tx, {
+      tenantId: action.tenantId,
+      type: "billing_dispute_review",
+      subjectId: action.subjectId,
+      actorId: action.actorId,
+      sourceRef: action.actionId,
+    });
     const workflow = await this.deps.workflows.start(
-      { tenantId: action.tenantId, type: "billing_dispute_review", correlationId: action.actionId, sourceRecordRefs: [action.actionId, action.target.recordRef], grantRef: null },
+      {
+        tenantId: action.tenantId,
+        type: "billing_dispute_review",
+        correlationId: action.actionId,
+        sourceRecordRefs: grantRef ? [action.actionId, action.target.recordRef, grantRef] : [action.actionId, action.target.recordRef],
+        grantRef,
+      },
       tx,
     );
     const supportRequest = await this.support.createRecord(

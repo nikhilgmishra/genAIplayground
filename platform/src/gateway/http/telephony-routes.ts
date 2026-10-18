@@ -18,7 +18,7 @@
  *  - Every mutation is audited with SESSION_AUDIT_ACTIONS names (binding ref only).
  */
 import { z } from "zod";
-import type { InteractionOutcomeService, HandoffService } from "../../business/contract.js";
+import type { InteractionOutcomeService, HandoffService, SupportRequestService } from "../../business/contract.js";
 import { SESSION_AUDIT_ACTIONS } from "../../business/contract.js";
 import type { DestinationConfig } from "../../config/ports.js";
 import type { AuditHealth } from "../../audit/ports.js";
@@ -43,12 +43,15 @@ import {
   SpeechDirective,
   TransferReason,
 } from "../../protocol/index.js";
-import type { AuthContext, Environment, VersionSet } from "../../protocol/index.js";
+import type { AuthContext, Environment, PreparedAction, VersionSet } from "../../protocol/index.js";
 import type { SafetyPipeline } from "../../safety/pipeline.js";
+import type { SafetyEventRecorder, SafetyIncident } from "../../safety/safety-events.js";
 import type { Clock } from "../../shared/clock.js";
 import { AccessDeniedError, PlatformError, SessionInvalidError } from "../../shared/errors.js";
 import type { ResponseGate, TemplateRegistry, TurnTracker } from "../../voice/ports.js";
-import type { HandoffIndex, PendingActionLookup, SessionLeaseRegistry } from "../call-state.js";
+import type { CallOutcomeTracker, HandoffIndex, SessionLeaseRegistry } from "../call-state.js";
+import type { TransferJourney } from "../../workflows/transfer.js";
+import { journeyOutcome } from "../../workflows/transfer.js";
 import type { GatewayAudit } from "../gateway-audit.js";
 import type { LocalInteractionLookupFixture } from "../session-binding.js";
 import { INTERACTION_ID_HEADER, SESSION_REF_HEADER } from "../session-binding.js";
@@ -185,8 +188,8 @@ export interface TelephonyRouteDeps {
   sessions: ResolvingSessions;
   verification: VerificationService;
   otpEnabled: boolean;
-  actions: ActionService & { describe(tenantId: string, actionId: string): Promise<LedgerEntryView | null> };
-  pendingActions: PendingActionLookup;
+  /** Ledger: TC-07 and TC-11 read the session's actions through listForSession (content-free views). */
+  actions: ActionService & { listForSession(tenantId: string, sessionRef: string): Promise<LedgerEntryView[]> };
   admission: AdmissionController;
   turns: TurnTracker;
   /** Full response gate (with the turn tracker) used to render the confirmation prompt. */
@@ -201,6 +204,19 @@ export interface TelephonyRouteDeps {
   interactionLookup: LocalInteractionLookupFixture | null;
   leases: SessionLeaseRegistry;
   handoffs: HandoffIndex;
+  /** TC-11 evidence: support requests created for or linked to the call (REQUEST_ACCEPTED). */
+  supportRequests?: Pick<SupportRequestService, "listForCall">;
+  /** TC-11 evidence: the call's transfer journey (TRANSFERRED only after CALLER_CONFIRMED_CONNECTED). */
+  journeys?: { get(handoffId: string): Promise<TransferJourney | null> };
+  /** TC-11 evidence: per-call flags the tool pipeline observed (information provided, policy declined). */
+  callOutcomes?: CallOutcomeTracker;
+  /**
+   * Durable, content-free safety evidence (safety_events + audit): validated signal and route
+   * initiation with time to route. Recorded AFTER the route was initiated; never blocks it.
+   */
+  safetyEvents?: Pick<SafetyEventRecorder, "begin" | "recordValidated" | "recordRouteInitiated">;
+  /** TC-07: typed confirmation slot values from the authoritative action (BusinessModule.confirmationSlots). */
+  confirmationSlots?: (action: PreparedAction) => Promise<Record<string, string | number | boolean> | null>;
   versions: VersionSet;
   destinations: readonly DestinationConfig[];
   cohort?: string;
@@ -450,14 +466,18 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
       responses: { 200: { description: "Pending action", schema: PendingConfirmationResponse }, 404: { description: "No pending action: route to a human", schema: ErrorBody }, ...AUTH_ERRORS },
       handler: async (ctx) => {
         const s = await session(ctx);
-        const actionId = await d.pendingActions.pendingActionId(d.tenantId, s.sessionRef);
-        const view = actionId ? await d.actions.describe(d.tenantId, actionId) : null;
-        const action = view?.action;
-        if (!action || action.state !== "PREPARED" || action.sessionGeneration !== s.auth.sessionGeneration || Date.parse(action.expiresAt) <= d.clock.now().getTime()) {
+        // The most recent unexpired PREPARED action of this session and generation (ledger view, never model input).
+        const nowMs = d.clock.now().getTime();
+        const views = await d.actions.listForSession(d.tenantId, s.sessionRef);
+        const action = [...views]
+          .reverse()
+          .map((v) => v.action)
+          .find((a) => a.state === "PREPARED" && a.sessionGeneration === s.auth.sessionGeneration && Date.parse(a.expiresAt) > nowMs);
+        if (!action) {
           return { status: 404, body: { error: { reasonCode: "NO_PENDING_ACTION", requestId: ctx.requestId } } };
         }
         const turnId = d.turns.beginTurn(s.sessionRef, s.auth.sessionGeneration);
-        const promptText = renderConfirmation(d, action, turnId, s.sessionRef, s.auth.sessionGeneration, locale);
+        const promptText = await renderConfirmation(d, action, turnId, s.sessionRef, s.auth.sessionGeneration, locale);
         return {
           status: 200,
           body: {
@@ -576,7 +596,8 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
         const reasonCode = /^[A-Z][A-Z0-9_]{2,63}$/.test(decision.reasonCode) ? decision.reasonCode : "SAFETY_DECISION";
         if (decision.route === "SAFETY_PRIORITY_HUMAN") {
           const validatedAt = d.clock.now();
-          await d.audit.record({ tenantId: d.tenantId, action: SESSION_AUDIT_ACTIONS.safetySignal, outcome: "ALLOWED", sourceComponent: "safety", ctx: s?.auth ?? null, callId, reasonCode, correlationId: ctx.requestId });
+          const incident = beginIncident(d, { callId, generation: s?.auth.sessionGeneration ?? 0, signals: evaluation.signals, decision, locale: ctx.body.locale, correlationId: ctx.requestId });
+          // The route first: nothing that can fail (audit, database) runs before the priority transfer is requested.
           let routed: Awaited<ReturnType<HandoffService["requestSafetyRoute"]>> | null = null;
           try {
             routed = await d.handoff.requestSafetyRoute({ tenantId: d.tenantId, callId, ctx: s?.auth ?? null, signals: evaluation.signals, locale: ctx.body.locale, validatedAt });
@@ -585,6 +606,8 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
             // The independent Studio safety route (SF-S) is the backstop: still answer with the trusted safety destination.
             d.logger.error("gateway.safety.route_request_failed", { reasonCode: err instanceof PlatformError ? err.reasonCode : "UNCLASSIFIED_ERROR" });
           }
+          await recordIncident(d, incident, routed?.transferId ?? null);
+          await d.audit.record({ tenantId: d.tenantId, action: SESSION_AUDIT_ACTIONS.safetySignal, outcome: "ALLOWED", sourceComponent: "safety", ctx: s?.auth ?? null, callId, reasonCode, correlationId: ctx.requestId });
           await d.audit.record({ tenantId: d.tenantId, action: SESSION_AUDIT_ACTIONS.safetyRouteInitiated, outcome: routed ? "PENDING" : "FAILED", sourceComponent: "safety", ctx: s?.auth ?? null, callId, reasonCode: routed ? reasonCode : "SAFETY_ROUTE_REQUEST_FAILED", evidencePointers: routed ? [`handoff:${routed.handoffId}`] : [], correlationId: ctx.requestId });
           return {
             status: 200,
@@ -600,6 +623,7 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
           };
         }
         if (decision.route === "CLINICAL_BOUNDARY_ROUTE") {
+          const incident = beginIncident(d, { callId, generation: s?.auth.sessionGeneration ?? 0, signals: evaluation.signals, decision, clinicalCategories: [...new Set(evaluation.clinicalFindings.map((f) => f.category))], locale: ctx.body.locale, correlationId: ctx.requestId });
           let routed: Awaited<ReturnType<HandoffService["requestHuman"]>> | null = null;
           try {
             routed = await d.handoff.requestHuman({ tenantId: d.tenantId, callId, ctx: s?.auth ?? null, reason: "CLINICAL_QUESTION", language: ctx.body.locale.slice(0, 2), issueCategory: "clinical_question_redirected" });
@@ -607,6 +631,7 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
           } catch (err) {
             d.logger.warn("gateway.clinical.route_request_failed", { reasonCode: err instanceof PlatformError ? err.reasonCode : "UNCLASSIFIED_ERROR" });
           }
+          await recordIncident(d, incident, routed?.transferId ?? null);
           await d.audit.record({ tenantId: d.tenantId, action: "safety.clinical_boundary", outcome: routed ? "PENDING" : "FAILED", sourceComponent: "safety", ctx: s?.auth ?? null, callId, reasonCode, correlationId: ctx.requestId });
           return {
             status: 200,
@@ -672,8 +697,10 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
         const safety = s.auth.riskFlags.includes("SAFETY_ESCALATION_ACTIVE");
         const latest = d.handoffs.latest(s.auth.callId);
         const priority = safety || latest?.priority === "SAFETY" ? "SAFETY" : "STANDARD";
-        const destinationId = latest && (priority === "STANDARD" || latest.priority === "SAFETY") ? latest.destinationId : priority === "SAFETY" ? safetyDestination : standardDestination;
-        return { status: 200, body: { destinationId, handoffId: latest?.handoffId ?? null, supportReference: null, priority } };
+        const useLatest = latest !== null && (priority === "STANDARD" || latest.priority === "SAFETY");
+        const destinationId = useLatest ? latest.destinationId : priority === "SAFETY" ? safetyDestination : standardDestination;
+        const supportReference = useLatest && latest.supportReference && /^SR-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(latest.supportReference) ? latest.supportReference : null;
+        return { status: 200, body: { destinationId, handoffId: useLatest ? latest.handoffId : null, supportReference, priority } };
       },
     }),
     defineRoute({
@@ -702,20 +729,9 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
         d.interactionLookup?.unbind({ tenantId: d.tenantId, integrationId: s.integration.integrationId, interactionId: s.auth.callId });
         let outcome: { outcome: z.infer<typeof Outcome>; reasonCode: string } | null = null;
         try {
-          outcome = await d.outcomes.record({
-            tenantId: d.tenantId,
-            callId: s.auth.callId,
-            contractId: null,
-            evidence: {
-              commitReceiptIds: [],
-              informationProvided: false,
-              requestAccepted: false,
-              transferConnected: false,
-              callerDisconnected: ctx.body.reason === "CALLER_HANGUP",
-              policyDeclined: false,
-              failed: false,
-            },
-          });
+          // ACT-04: every outcome fact is gathered server-side; Studio's end reason is only the hang-up signal.
+          const evidence = await gatherOutcomeEvidence(d, s.sessionRef, s.auth.callId, ctx.body.reason === "CALLER_HANGUP");
+          outcome = await d.outcomes.record({ tenantId: d.tenantId, callId: s.auth.callId, contractId: null, evidence });
         } catch (err) {
           d.logger.warn("gateway.outcome.record_failed", { reasonCode: err instanceof PlatformError ? err.reasonCode : "UNCLASSIFIED_ERROR" });
         }
@@ -728,20 +744,96 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
   return routes as RouteDef<unknown, unknown>[];
 }
 
-/** Renders the confirmation prompt through the response gate from the approved template (null => human). */
-function renderConfirmation(
+/** Validated-signal instant of a safety incident (no I/O; null when no recorder is wired or input is unusable). */
+function beginIncident(
   d: TelephonyRouteDeps,
-  action: { actionId: string; confirmationTemplateId: string; policyDecisionId: string; change: Record<string, unknown> },
+  i: { callId: string; generation: number; signals: SafetyIncidentInputSignals; decision: { route: string; destinationId: string | null; reasonCode: string }; clinicalCategories?: readonly string[] | undefined; locale: string; correlationId: string },
+): SafetyIncident | null {
+  if (!d.safetyEvents) return null;
+  try {
+    return d.safetyEvents.begin({
+      tenantId: d.tenantId,
+      callId: i.callId,
+      sessionGeneration: i.generation,
+      correlationId: i.correlationId,
+      signals: i.signals,
+      decision: i.decision as Parameters<SafetyEventRecorder["begin"]>[0]["decision"],
+      ...(i.clinicalCategories ? { clinicalCategories: i.clinicalCategories as Parameters<SafetyEventRecorder["begin"]>[0]["clinicalCategories"] } : {}),
+      locale: i.locale,
+      afterHours: false,
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Route initiation (time to route) then the validated signal; recording failures never affect the route. */
+async function recordIncident(d: TelephonyRouteDeps, incident: SafetyIncident | null, transferId: string | null): Promise<void> {
+  if (!incident || !d.safetyEvents) return;
+  try {
+    await d.safetyEvents.recordRouteInitiated(incident, { transferId });
+    await d.safetyEvents.recordValidated(incident);
+  } catch (err) {
+    d.logger.warn("gateway.safety.event_not_recorded", { reasonCode: err instanceof PlatformError ? err.reasonCode : "SAFETY_EVENT_NOT_RECORDED" });
+  }
+}
+
+type SafetyIncidentInputSignals = Parameters<SafetyEventRecorder["begin"]>[0]["signals"];
+
+type OutcomeEvidence = Parameters<InteractionOutcomeService["record"]>[0]["evidence"];
+
+/**
+ * TC-11 outcome evidence from server-side records only (ACT-04, SAFE-04):
+ *  - commitReceiptIds: COMMITTED ledger receipts of this session (the outcome service
+ *    re-verifies them against the call's interaction_actions and infers the contract);
+ *  - requestAccepted: a support request of this call with disposition REQUEST_ACCEPTED
+ *    (handoff and safety records are OUTCOME_UNKNOWN and never count);
+ *  - transferConnected / failed: the call's latest transfer journey (TRANSFERRED only
+ *    after CALLER_CONFIRMED_CONNECTED; staffed routes exhausted => failed);
+ *  - informationProvided / policyDeclined: what the tool pipeline observed for the call.
+ * A source that cannot be read contributes nothing (never a guessed success).
+ */
+async function gatherOutcomeEvidence(d: TelephonyRouteDeps, sessionRef: string, callId: string, callerDisconnected: boolean): Promise<OutcomeEvidence> {
+  const views = await d.actions.listForSession(d.tenantId, sessionRef).catch(() => [] as LedgerEntryView[]);
+  const commitReceiptIds = [...new Set(views.filter((v) => v.state === "COMMITTED" && v.receiptId !== null).map((v) => v.receiptId as string))].slice(0, 16);
+  const requests = d.supportRequests ? await d.supportRequests.listForCall(d.tenantId, callId).catch(() => []) : [];
+  const requestAccepted = requests.some((r) => r.disposition === "REQUEST_ACCEPTED");
+  const latest = d.handoffs.latest(callId);
+  const journey = latest && d.journeys ? await d.journeys.get(latest.handoffId).catch(() => null) : null;
+  const journeyResult = journey ? journeyOutcome(journey) : null;
+  const flags = d.callOutcomes?.take(callId) ?? { informationProvided: false, policyDeclined: false };
+  return {
+    commitReceiptIds,
+    informationProvided: flags.informationProvided,
+    requestAccepted,
+    transferConnected: journeyResult === "TRANSFERRED",
+    callerDisconnected,
+    policyDeclined: flags.policyDeclined,
+    failed: journeyResult === "FAILED",
+  };
+}
+
+/**
+ * Renders the confirmation prompt through the response gate from the approved template
+ * (null => human). Slot values come from the business layer's typed view of the
+ * authoritative action (confirmationSlots); without it, only change fields whose names
+ * equal the template's slots are used. A missing value fails the render (route to human).
+ */
+async function renderConfirmation(
+  d: TelephonyRouteDeps,
+  action: PreparedAction,
   turnId: string,
   sessionRef: string,
   generation: number,
   locale: string,
-): string | null {
+): Promise<string | null> {
   const template = d.templates.get(action.confirmationTemplateId, locale);
   if (!template) return null;
   const slots: Record<string, string | number | boolean> = {};
+  const typed = d.confirmationSlots ? await d.confirmationSlots(action).catch(() => null) : undefined;
+  if (typed === null) return null;
   for (const name of Object.keys(template.slots)) {
-    const v = action.change[name];
+    const v = typed !== undefined ? typed[name] : action.change[name];
     if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") slots[name] = v;
   }
   const directive = SpeechDirective.safeParse({

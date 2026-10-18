@@ -5,6 +5,7 @@
  */
 import { createBusinessToolModules } from "../gateway/tools/index.js";
 import type { BuildBusiness, BusinessModule, ToolDeps } from "./contract.js";
+import { confirmationSlotsFor } from "./confirmation.js";
 import { buildConsumers } from "./consumers.js";
 import { RESOLUTION_CONTRACTS } from "./contracts/index.js";
 import { BusinessHandoffService } from "./handoff.js";
@@ -29,6 +30,8 @@ export { BusinessHandoffService, purposeFor, resolveDestination } from "./handof
 export { BusinessOutcomeService, decideOutcome, RESOLVING_ACTION_KINDS } from "./outcomes.js";
 export { InteractionIndex } from "./interactions.js";
 export { ACTION_COMMITTED_CONSUMER } from "./consumers.js";
+export { confirmationSlotsFor } from "./confirmation.js";
+export { grantActionsFor, grantTtlMsFor, issueWorkflowGrant } from "./grants.js";
 export type { BusinessServices } from "./services/types.js";
 export { BUSINESS_TOOL_NAMES, TOOL_DEFINITIONS } from "../gateway/tools/index.js";
 
@@ -81,6 +84,7 @@ export function buildBusinessServices(deps: ToolDeps, opts: BuildBusinessOptions
     supportRequests: support,
     outcomes,
     consumers: buildConsumers(deps, { support, billing, interactions }),
+    confirmationSlots: (action) => confirmationSlotsFor(deps, action),
   };
   return { module, services };
 }

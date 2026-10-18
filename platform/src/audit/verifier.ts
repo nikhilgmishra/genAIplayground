@@ -280,7 +280,7 @@ export class IntegrityVerifier {
           await tx.query<LocalRow>(
             `select event_id, tenant_id, source_stream, sequence::text as sequence, prev_hash, hash, event, occurred_at,
                     correlation_id, call_id, action, outcome, data_class, manifest_id
-               from audit_outbox where source_stream = $1 and sequence > $2 order by sequence limit $3`,
+               from audit_outbox where source_stream = $1 and sequence > $2 order by audit_outbox.sequence limit $3`,
             [sourceStream, after, this.pageSize],
           )
         ).rows;
@@ -412,7 +412,7 @@ export class IntegrityVerifier {
         [sourceStream],
       );
       const rows = await tx.query<{ sequence: unknown; hash: string; event_id: string }>(
-        "select sequence::text as sequence, hash, event_id from audit_outbox where source_stream = $1 and manifest_id is not null order by sequence",
+        "select sequence::text as sequence, hash, event_id from audit_outbox where source_stream = $1 and manifest_id is not null order by audit_outbox.sequence",
         [sourceStream],
       );
       return { manifests: ms.rows, rows: rows.rows };

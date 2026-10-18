@@ -169,12 +169,12 @@ export class BusinessHandoffService implements HandoffService {
     try {
       const journey = await this.deps.transfers.requestTransfer(pkg);
       await this.auditHandoff(pkg, ctx, "handoff.requested", null, initiatedBy);
-      return { handoffId, transferId: journey.currentTransferId, destinationId: pkg.destinationId, journey, speechTemplateId, supportReference: pkg.supportReference };
+      return this.observed(input.callId, "STANDARD", { handoffId, transferId: journey.currentTransferId, destinationId: pkg.destinationId, journey, speechTemplateId, supportReference: pkg.supportReference });
     } catch (err) {
       this.deps.logger.error("handoff.transfer_request_failed", { handoffId, reasonCode: reasonOf(err) });
       await this.auditHandoff(pkg, ctx, "handoff.transfer_failed", reasonOf(err, "TRANSFER_REQUEST_FAILED"), initiatedBy);
       // The independent Studio human route remains available (spec section 3).
-      return { handoffId, transferId: null, destinationId: pkg.destinationId, journey: null, speechTemplateId: "transfer.failed_next_route", supportReference: pkg.supportReference };
+      return this.observed(input.callId, "STANDARD", { handoffId, transferId: null, destinationId: pkg.destinationId, journey: null, speechTemplateId: "transfer.failed_next_route", supportReference: pkg.supportReference });
     }
   }
 
@@ -218,10 +218,20 @@ export class BusinessHandoffService implements HandoffService {
     // initiated, bounded in time, and never fail the route.
     await within(this.auditHandoff(pkg, ctx, journey ? "handoff.safety_requested" : "handoff.safety_transfer_failed", journey ? null : "TRANSFER_REQUEST_FAILED"), STANDARD_CONTEXT_TIMEOUT_MS, undefined);
     await within(this.safetyRecord(ctx, input.tenantId, input.callId, pkg.safetyRoutingReason ?? "HUMAN_INTERVENTION", language), STANDARD_CONTEXT_TIMEOUT_MS, undefined);
-    return { handoffId, transferId: journey?.currentTransferId ?? null, destinationId: journey?.routePlan[journey.routeIndex] ?? destinationId, journey, speechTemplateId: "safety.acknowledgment" };
+    return this.observed(input.callId, "SAFETY", { handoffId, transferId: journey?.currentTransferId ?? null, destinationId: journey?.routePlan[journey.routeIndex] ?? destinationId, journey, speechTemplateId: "safety.acknowledgment" });
   }
 
   // ------------------------------------------------------------------ helpers
+
+  /** Reports the handoff to the composition's observer (per-call handoff index); never affects the route. */
+  private observed(callId: string, priority: "SAFETY" | "STANDARD", result: HandoffResult): HandoffResult {
+    try {
+      this.deps.handoffObserver?.(callId, result, priority);
+    } catch (err) {
+      this.deps.logger.warn("handoff.observer_failed", { handoffId: result.handoffId, reasonCode: reasonOf(err) });
+    }
+    return result;
+  }
 
   /** A context from another call or tenant is ignored (treated as unauthenticated). */
   private usableContext(ctx: AuthContext | null, tenantId: string, callId: string): AuthContext | null {

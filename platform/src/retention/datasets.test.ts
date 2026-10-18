@@ -130,7 +130,7 @@ describe("platform retention datasets", () => {
     expect(await count(db, "console_idempotency")).toBe(1);
   });
 
-  it("[DATA-03][OPS-03][ACT-02] with TEST-ONLY durations: idempotency rows are purged by their full composite key; append-only support records report a required purge path; missing worker privilege is reported, never a silent no-op", async () => {
+  it("[DATA-03][OPS-03][ACT-02] with TEST-ONLY durations: idempotency rows are purged by their full composite key; append-only support records report a required purge path", async () => {
     const { db, job, approveAll } = await setup();
     await approveAll();
     // The same client key under two integrations: only the expired one may go (a live replay record must survive).
@@ -155,13 +155,31 @@ describe("platform retention datasets", () => {
     for (const name of ["support_requests", "support_request_links", "support_interactions", "interaction_actions", "interaction_outcomes"]) {
       expect(byName.get(name), name).toMatchObject({ status: "STRATEGY_BLOCKED", reasonCode: "RETENTION_PURGE_PATH_REQUIRED", deletedCount: 0 });
     }
-    expect(byName.get("console_idempotency")).toMatchObject({ status: "STRATEGY_BLOCKED", reasonCode: "RETENTION_DELETE_PRIVILEGE_MISSING", deletedCount: 0 });
-    expect(await count(db, "console_idempotency")).toBe(1);
+    // Migration 0910 grants app_worker the purge privilege on console_idempotency.
+    expect(byName.get("console_idempotency")).toMatchObject({ status: "DELETED", deletedCount: 1 });
+    expect(await count(db, "console_idempotency")).toBe(0);
     expect(report?.status).toBe("COMPLETED_WITH_UNVERIFIED_COPIES");
     expect(report?.unverifiedCopies.some((u) => u.dataset === "tool_request_idempotency" && u.status === "UNVERIFIABLE")).toBe(true);
     // Deletion evidence is content-free: dataset, counts and digests only.
-    const evidence = await db.tx((tx) => tx.query<{ dataset: string; deleted_count: number }>("select dataset, deleted_count from deletion_records"), { role: "owner" });
-    expect(evidence.rows).toEqual([{ dataset: "tool_request_idempotency", deleted_count: 1 }]);
+    const evidence = await db.tx(
+      (tx) => tx.query<{ dataset: string; deleted_count: number }>("select dataset, deleted_count from deletion_records order by dataset"),
+      { role: "owner" },
+    );
+    expect(evidence.rows).toEqual([
+      { dataset: "console_idempotency", deleted_count: 1 },
+      { dataset: "tool_request_idempotency", deleted_count: 1 },
+    ]);
+  });
+
+  it("[DATA-03][OPS-03] a missing worker delete privilege is reported as STRATEGY_BLOCKED, never a silent no-op", async () => {
+    const { db, job, approveAll } = await setup();
+    await approveAll();
+    await seedConsoleIdempotency(db, 45);
+    await db.exec("revoke delete on console_idempotency from app_worker;");
+    const [report] = await job.run(new Date(NOW));
+    const ci = report?.datasets.find((d) => d.dataset === "console_idempotency");
+    expect(ci).toMatchObject({ status: "STRATEGY_BLOCKED", reasonCode: "RETENTION_DELETE_PRIVILEGE_MISSING", deletedCount: 0 });
+    expect(await count(db, "console_idempotency")).toBe(1);
   });
 
   it("[DATA-03][OPS-03] expired rows that the worker cannot delete (no row-level DELETE policy) make the dataset FAILED, never NOTHING_EXPIRED", async () => {

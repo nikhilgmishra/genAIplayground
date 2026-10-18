@@ -66,6 +66,12 @@ export function decideOutcome(
   return { outcome: "OUTCOME_UNKNOWN", reasonCode: evidence.commitReceiptIds.length > 0 ? "RECEIPT_NOT_VERIFIED" : "NO_SUCCESS_EVIDENCE" };
 }
 
+/** Contract of the call's verified committed actions: a resolving contract first, else the first recorded one. */
+function inferContract(records: readonly { contractId: string | null }[]): string | null {
+  const ids = records.map((r) => r.contractId).filter((c): c is string => c !== null && contractById(c) !== null);
+  return ids.find((c) => (RESOLVING_ACTION_KINDS[c]?.length ?? 0) > 0) ?? ids[0] ?? null;
+}
+
 export class BusinessOutcomeService implements InteractionOutcomeService {
   constructor(
     private readonly deps: ToolDeps,
@@ -77,10 +83,12 @@ export class BusinessOutcomeService implements InteractionOutcomeService {
     if (!p.success) throw new ValidationError("OUTCOME_INPUT_INVALID");
     const input = p.data;
     const callActions = await this.interactions.forCall(input.tenantId, input.callId);
-    const verified = callActions
-      .filter((a) => a.receiptOutcome === "COMMITTED" && a.receiptId !== null && input.evidence.commitReceiptIds.includes(a.receiptId))
-      .map((a) => a.actionKind);
-    const decision = decideOutcome(input.contractId, input.evidence, verified);
+    const verifiedRecords = callActions.filter((a) => a.receiptOutcome === "COMMITTED" && a.receiptId !== null && input.evidence.commitReceiptIds.includes(a.receiptId));
+    const verified = verifiedRecords.map((a) => a.actionKind);
+    // Call end (TC-11) names no contract: infer it from this call's own verified committed actions,
+    // preferring a contract whose success evidence is a commit (never from caller or model input).
+    const contractId = input.contractId ?? inferContract(verifiedRecords);
+    const decision = decideOutcome(contractId, input.evidence, verified);
     const now = this.deps.clock.now();
     const outcomeId = newId("ioc");
     await this.deps.db.tx(
@@ -88,7 +96,7 @@ export class BusinessOutcomeService implements InteractionOutcomeService {
         await tx.query(
           `insert into interaction_outcomes (outcome_id, tenant_id, call_id, contract_id, outcome, reason_code, evidence, recorded_at)
            values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)`,
-          [outcomeId, input.tenantId, input.callId, input.contractId, decision.outcome, decision.reasonCode, JSON.stringify({ ...input.evidence, verifiedCommittedKinds: verified }), iso(now)],
+          [outcomeId, input.tenantId, input.callId, contractId, decision.outcome, decision.reasonCode, JSON.stringify({ ...input.evidence, verifiedCommittedKinds: verified, contractInferred: input.contractId === null && contractId !== null }), iso(now)],
         );
         await this.deps.audit.append(
           tx,
@@ -110,7 +118,7 @@ export class BusinessOutcomeService implements InteractionOutcomeService {
       },
       { role: "app_runtime", rls: { tenantId: input.tenantId } },
     );
-    const intent = input.contractId ? (contractById(input.contractId)?.intent ?? "unknown") : "unknown";
+    const intent = contractId ? (contractById(contractId)?.intent ?? "unknown") : "unknown";
     this.deps.metrics.increment("vsp_interaction_outcomes_total", { outcome: decision.outcome, intent });
     return decision;
   }

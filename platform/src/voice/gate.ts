@@ -27,7 +27,7 @@
  * anything that did not come from this gate.
  */
 import { z } from "zod";
-import type { Logger } from "../observability/ports.js";
+import type { Logger, Metrics } from "../observability/ports.js";
 import { silentLogger } from "../observability/logger.js";
 import { Environment, SpeechDirective } from "../protocol/index.js";
 import type { ResponseClass, SlotValue } from "../protocol/index.js";
@@ -141,17 +141,30 @@ export interface TemplateResponseGateOptions {
   /** Optional second check that the turn is still current in the turn tracker. */
   turnTracker?: TurnTracker;
   logger?: Logger;
+  /** Content-free metrics: vsp_voice_gate_renders_total / vsp_voice_gate_rejections_total (closed label sets). */
+  metrics?: Metrics;
 }
 
 export class TemplateResponseGate implements ResponseGate {
   private readonly registry: CatalogTemplateRegistry;
   private readonly turns: TurnTracker | null;
   private readonly logger: Logger;
+  private readonly metrics: Metrics | null;
 
   constructor(opts: TemplateResponseGateOptions) {
     this.registry = opts.registry;
     this.turns = opts.turnTracker ?? null;
     this.logger = (opts.logger ?? silentLogger).child({ component: "voice_gate" });
+    this.metrics = opts.metrics ?? null;
+  }
+
+  /** Metrics never affect a render decision. */
+  private count(name: "vsp_voice_gate_renders_total" | "vsp_voice_gate_rejections_total", labels: Record<string, string>): void {
+    try {
+      this.metrics?.increment(name, labels);
+    } catch {
+      // A metrics failure is never a reason to speak or to stay silent.
+    }
   }
 
   render(directive: SpeechDirective | unknown, ctx: GateContext): GatedUtterance | GateRejection {
@@ -215,6 +228,7 @@ export class TemplateResponseGate implements ResponseGate {
       }),
     });
     ISSUED.add(result);
+    this.count("vsp_voice_gate_renders_total", { response_class: template.responseClass });
     return result;
   }
 
@@ -272,6 +286,7 @@ export class TemplateResponseGate implements ResponseGate {
       locale: ctx?.locale ?? null,
     });
     ISSUED.add(result);
+    this.count("vsp_voice_gate_rejections_total", { reason: reasonCode, disposition: finalDisposition });
     return result;
   }
 }

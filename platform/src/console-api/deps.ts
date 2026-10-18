@@ -25,10 +25,10 @@ import type { DependencyHealth, OidcClientConfig } from "./contract.js";
 
 /**
  * Staff-initiated retry of an action whose latest console reconciliation returned
- * NOT_FOUND (ACT-03). NOT IMPLEMENTED by the action ledger today: `commit()` needs
- * the caller's live AuthContext and there is no staff entry point (interface
- * change request: ActionService.retryAfterReconcile). Absent => the retry endpoint
- * enforces every gate and then refuses with RETRY_PATH_UNAVAILABLE.
+ * NOT_FOUND (ACT-03). Implemented over the action ledger by LedgerReconciledRetry
+ * (reconciled-retry.ts: LedgerActionService.retryAfterReconcile with the ledger's
+ * latest reconciliation record id). Absent => the retry endpoint enforces every
+ * gate and then refuses with RETRY_PATH_UNAVAILABLE.
  */
 export interface ReconciledRetryPort {
   retryAfterReconcile(input: { tenantId: string; actionId: string; reconciliationId: string; reasonCode: string; staff: StaffActor; correlationId: string }): Promise<CommitReceipt>;

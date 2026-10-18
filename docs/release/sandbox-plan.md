@@ -131,8 +131,8 @@ this synthetic-only phase the reconciliation is recorded but PHI stays disabled
 | CI deploy role (OIDC) | IAM role, no secret | CI pipeline | cloud platform owner |
 | gateway task role, worker task role | IAM roles | ECS tasks | infra module |
 | audit writer role (cross-account) | IAM role | audit shipper | security |
-| `talkdesk-mcp-sandbox` OAuth2 client (custody copy `vsp-sandbox-talkdesk-mcp-client` if required) | OAuth2 client | Talkdesk AI Agent Platform → `/mcp` | identity owner + Talkdesk admin |
-| `talkdesk-studio-sandbox` OAuth2 client (`vsp-sandbox-talkdesk-studio-client`), or static exception hash `vsp-sandbox-talkdesk-studio-bearer-hash` under AR-08 | OAuth2 client | Studio HTTP steps → telephony-control | identity owner + Talkdesk admin |
+| `talkdesk-sandbox` integration, credential `talkdesk-sandbox-mcp` (channel `mcp_tools`; OAuth2 client, custody copy `vsp-sandbox-talkdesk-mcp-client` if required) | OAuth2 client | Talkdesk AI Agent Platform → `/mcp` | identity owner + Talkdesk admin |
+| `talkdesk-sandbox` integration, credential `talkdesk-sandbox-studio` (channel `telephony_control`; OAuth2 client `vsp-sandbox-talkdesk-studio-client`, or static exception hash `vsp-sandbox-talkdesk-studio-bearer-hash` under AR-08) | OAuth2 client | Studio HTTP steps → telephony-control | identity owner + Talkdesk admin |
 | `vsp-sandbox-talkdesk-telephony` | secret | gateway → Talkdesk API (only if documented; BLOCKED) | Talkdesk admin |
 | `vsp-sandbox-salesforce` | secret | gateway → Salesforce sandbox (integration user) | Salesforce admin |
 | `vsp-sandbox-oidc-client-idp`, `vsp-sandbox-oidc-provider-idp` | OIDC client secrets | portal secure-link verification | identity owner |

@@ -56,7 +56,7 @@ import { CATALOG_FILE, buildCatalog, catalogDriftAgainst, loadPinnedCatalogFile 
 import type { PinnedCatalog } from "../gateway/catalog.js";
 import { LocalFixtureTokenAuthenticator } from "../gateway/auth.js";
 import type { IntegrationAuthenticator } from "../gateway/auth.js";
-import { HandoffIndex, PgPendingActionLookup, SessionLeaseRegistry } from "../gateway/call-state.js";
+import { CallOutcomeTracker, HandoffIndex, SessionLeaseRegistry } from "../gateway/call-state.js";
 import { GatewayAudit } from "../gateway/gateway-audit.js";
 import { buildGatewayApp } from "../gateway/http/app.js";
 import { ReadinessProbe, healthRoutes } from "../gateway/http/health-routes.js";
@@ -92,11 +92,12 @@ import { ensurePolicyBundle } from "../policy/ensure-bundle.js";
 import type { Environment, VersionSet } from "../protocol/index.js";
 import { PROTOCOL_VERSION } from "../protocol/index.js";
 import { CircuitBreakerRegistry } from "../resilience/circuit-breaker.js";
-import { DatasetRegistry, SUPPORT_MEMORY_DATASET } from "../retention/registry.js";
+import { createPlatformDatasetRegistry } from "../retention/datasets.js";
 import { RetentionJob } from "../retention/job.js";
 import { RuleBasedSafetySignalDetector } from "../safety/detector.js";
 import { SafetyPipeline } from "../safety/pipeline.js";
 import { DeterministicSafetyRouter } from "../safety/router.js";
+import { SafetyEventRecorder } from "../safety/safety-events.js";
 import type { Clock } from "../shared/clock.js";
 import { iso, systemClock } from "../shared/clock.js";
 import { ConfigurationRejectedError } from "../shared/errors.js";
@@ -105,6 +106,7 @@ import { loadDefaultTemplateRegistry } from "../voice/registry.js";
 import type { TemplateRegistry } from "../voice/ports.js";
 import { InMemoryTurnTracker } from "../voice/turns.js";
 import { PgWorkflowEngine } from "../workflows/engine.js";
+import { PgDurableGrantStore } from "../workflows/grants.js";
 import { createDefaultRegistry } from "../workflows/registry.js";
 import { MemoryTransferStore, TransferCoordinator } from "../workflows/transfer.js";
 
@@ -137,6 +139,12 @@ export interface ContainerOptions {
   rateLimit?: { max: number; timeWindowMs: number } | null;
   /** Directory for the LOCAL FIXTURE audit sink (a fresh temp dir by default, removed on close). */
   auditSinkDir?: string;
+  /**
+   * Process instance id (for example the ECS task id) naming this instance's outbox
+   * dispatcher audit stream (`outbox.<instanceId>`), so instances never contend on one
+   * chain head. Defaults to VSP_INSTANCE_ID, else "local-1".
+   */
+  instanceId?: string;
 }
 
 export interface Container {
@@ -173,6 +181,8 @@ export interface Container {
   fixtures: LocalFixtureSet;
   adapters: AdapterRegistry;
   workflows: PgWorkflowEngine;
+  /** Durable action grants checked by the workflow engine and issued by the business layer (spec section 7). */
+  grants: PgDurableGrantStore;
   transferStore: MemoryTransferStore;
   transfers: TransferCoordinator;
   knowledge: KnowledgeServicePg;
@@ -189,6 +199,7 @@ export interface Container {
   interactionLookup: LocalInteractionLookupFixture;
   leases: SessionLeaseRegistry;
   handoffs: HandoffIndex;
+  callOutcomes: CallOutcomeTracker;
   authenticator: IntegrationAuthenticator;
   retention: RetentionJob;
   app: FastifyInstance;
@@ -322,7 +333,9 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
     const auditShipper = new AuditShipper({ db, sink: auditSink, clock, logger });
     const outbox = new PgOutbox({ clock });
     const publisher = new MemoryPublisherFixture();
-    const dispatcher = new PgOutboxDispatcher({ db, publisher, clock, tenants: tenantIds, audit, logger });
+    const instanceId = opts.instanceId ?? env.VSP_INSTANCE_ID ?? "local-1";
+    if (!/^[A-Za-z0-9_.-]{1,48}$/.test(instanceId)) throw new ConfigurationRejectedError(["INSTANCE_ID_INVALID@VSP_INSTANCE_ID"]);
+    const dispatcher = new PgOutboxDispatcher({ db, publisher, clock, tenants: tenantIds, audit, logger, instanceId });
     const actions = new LedgerActionService({ db, clock, audit, auditHealth, outbox, logger });
     const toolIdempotency = new ToolRequestIdempotency({ db, clock });
 
@@ -335,7 +348,10 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
     });
 
     // Workflows, transfers, knowledge, memory, ops, safety, voice.
-    const workflows = new PgWorkflowEngine({ db, registry: createDefaultRegistry(), audit, clock, logger });
+    // Durable action grants (spec section 7): issued by the business layer inside the accepting
+    // transaction; every guarded workflow transition requires a valid grant for its declared action.
+    const grants = new PgDurableGrantStore({ db, clock, audit, logger });
+    const workflows = new PgWorkflowEngine({ db, registry: createDefaultRegistry(), audit, clock, logger, metrics, grantStore: grants });
     const transferStore = new MemoryTransferStore();
     const transfers = new TransferCoordinator({
       store: transferStore,
@@ -360,12 +376,12 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       );
     }
     const snapshot = await knowledge.snapshot(tenantId);
-    const memory = new SupportMemoryPg({ db, tenantIds, clock, logger });
+    const memory = new SupportMemoryPg({ db, tenantIds, clock, logger, metrics });
     const ops = createOpsServices(config, { db, audit, clock, metrics, logger });
     if (config.ops?.budgets.requireBudget ?? true) await defineLocalIllustrativeBudget(ops, tenantId, environment, clock);
     const safety = new SafetyPipeline();
     const turns = new InMemoryTurnTracker();
-    const responseGate = new TemplateResponseGate({ registry: templates });
+    const responseGate = new TemplateResponseGate({ registry: templates, metrics });
 
     const versions: VersionSet = {
       agentConfig: config.models.active.agentConfig,
@@ -378,6 +394,10 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       schema: PROTOCOL_VERSION,
     };
 
+    // Per-call gateway state (per process): every handoff from any surface is indexed for TC-12 and
+    // TC-11 through the HandoffService observer; the pipeline records outcome evidence flags.
+    const handoffs = new HandoffIndex(clock);
+    const callOutcomes = new CallOutcomeTracker();
     const deps: ToolDeps = {
       tenantId,
       environment,
@@ -417,6 +437,8 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       responseGate,
       versions,
       localFixture: true,
+      grants,
+      handoffObserver: (callId, result, priority) => handoffs.record(callId, result, priority),
     };
 
     // Business module and the pinned catalogue (must match the committed, reviewed file).
@@ -459,11 +481,11 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       localFixture: true,
       routing: routingFromPolicyCatalogue(policy.catalogue),
       mutationsEnabled: infra.mutationsEnabled,
+      callOutcomes,
     });
 
     const authenticator = new LocalFixtureTokenAuthenticator({ environment, tenantId });
     const leases = new SessionLeaseRegistry();
-    const handoffs = new HandoffIndex(clock);
     const gatewayAudit = new GatewayAudit(audit, clock, logger, versions);
     const rateLimit =
       opts.rateLimit !== undefined
@@ -489,10 +511,9 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
           verification,
           otpEnabled: identityConfig.verification.otpEnabled,
           actions,
-          pendingActions: new PgPendingActionLookup(db, clock),
           admission: ops.admission,
           turns,
-          gate: new TemplateResponseGate({ registry: templates, turnTracker: turns }),
+          gate: new TemplateResponseGate({ registry: templates, turnTracker: turns, metrics }),
           templates,
           safety,
           handoff: business.handoff,
@@ -502,6 +523,11 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
           interactionLookup,
           leases,
           handoffs,
+          supportRequests: business.supportRequests,
+          journeys: transfers,
+          callOutcomes,
+          safetyEvents: new SafetyEventRecorder({ db, audit, clock, logger, metrics }),
+          ...(business.confirmationSlots ? { confirmationSlots: business.confirmationSlots } : {}),
           versions,
           destinations: config.destinations,
         }),
@@ -510,7 +536,8 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       ],
     });
 
-    const registry = new DatasetRegistry().register(SUPPORT_MEMORY_DATASET);
+    // Every platform dataset with a retention rule (support memory, support records, idempotency, console ...).
+    const registry = createPlatformDatasetRegistry();
     const retention = new RetentionJob({ db, registry, tenantIds, clock, logger, audit, configRetention: config.retention });
 
     logger.info("container.ready", { environment, reasonCode: "LOCAL_FIXTURE_COMPOSITION", catalogDigest: catalog.digest, policyVersion: policy.policyVersion });
@@ -542,6 +569,7 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       fixtures: fixtureSet,
       adapters: fixtureSet.registry,
       workflows,
+      grants,
       transferStore,
       transfers,
       knowledge,
@@ -558,6 +586,7 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       interactionLookup,
       leases,
       handoffs,
+      callOutcomes,
       authenticator,
       retention,
       app: builtApp,

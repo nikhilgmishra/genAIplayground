@@ -38,3 +38,38 @@ ConfigurationRejectedError before binding any port`).
 | `sessionless-routing.test.ts` | SAFE-02 end to end over this container with the REAL business module: no, expired and revoked sessions over the HTTP tool route and the real MCP SDK client (127.0.0.1); safety/human tools route to an allowlisted destination and are audited, every other tool fails closed | — |
 
 The worker entry point is `platform/src/worker/main.ts`.
+
+## Wiring (wave 4)
+
+* **Workflow engine** with `grantStore: PgDurableGrantStore` (durable action grants, spec section 7)
+  and the shared `metrics` (`vsp_grant_checks_total`). The grant store is also passed to the
+  business layer (`ToolDeps.grants`), which issues a grant inside the transaction that accepts
+  durable work (billing review commit or its reconciled follow-up, partner onboarding, complaint
+  review) and passes the `grantRef` to `WorkflowEngine.start`.
+* **Retention** uses `createPlatformDatasetRegistry()` (support memory, the 0300 support records,
+  tool-request and console idempotency). Migration `0910_worker_privileges.sql` gives `app_worker`
+  key-column SELECT + DELETE (tenant RLS) on `console_idempotency` and INSERT on
+  `durable_action_grants` (the reconciled billing follow-up runs as the worker).
+* **Outbox dispatcher** `instanceId` from `ContainerOptions.instanceId`, else `VSP_INSTANCE_ID`,
+  else `local-1` (audit stream `outbox.<instanceId>`).
+* **Handoff index**: every handoff the HandoffService returns (telephony-control, MCP/HTTP tools
+  with or without a session, console) is recorded through `ToolDeps.handoffObserver`, so TC-12
+  and TC-11 see session-less MCP handoffs too.
+* **Call outcome evidence** (`CallOutcomeTracker`): the pipeline records per call whether an
+  informational read succeeded or a policy decision denied a request; TC-11 combines it with the
+  ledger (`listForSession` COMMITTED receipts), `SupportRequestService.listForCall`
+  (REQUEST_ACCEPTED) and the transfer journey (TRANSFERRED only after caller-confirmed connection).
+* **Safety evidence**: the screening route records `safety_events` (validated signal, route
+  initiation with time to route) through `SafetyEventRecorder`, after the route was requested.
+* **Confirmation prompts** (TC-07) use `BusinessModule.confirmationSlots` (typed slot values from
+  the authoritative prepared action / system of record).
+* **Metrics** reach the response gates (`vsp_voice_gate_*`) and support memory
+  (`vsp_memory_recap_withheld_total`); knowledge ingestion/search counters are emitted by
+  `KnowledgeServicePg` with the container's metrics. The privacy `EgressGuard` and
+  `RedactionService` emit their counters when given `metrics`, but neither is composed here yet.
+* **Console**: `ConsoleApiDeps.reconciledRetry` = `LedgerReconciledRetry(c.actions, c.business.providers)`.
+
+## End-to-end journeys
+
+`platform/test/journeys/` drives this composition over its real HTTP surface (see the README
+there): the nine required demonstration journeys and the injected faults of spec section 16.

@@ -7,13 +7,16 @@
  *   corpus                      validate the whole corpus and print coverage statistics and digest
  *   traceability [...]          docs/REQUIREMENTS_TRACEABILITY.md (see traceability.ts for flags)
  *   manifest --env <env> [...]  evidence/release/release-manifest.<env>.json (see manifest.ts for flags)
+ *   run --group <group> [...]   run a corpus group through the LOCAL FIXTURE LocalConversationDriver
+ *                               (driver/run-corpus.ts) -> evidence/runs/<runId>/
+ *   combine --runs a,b --out n  corpus-wide aggregate -> evidence/evaluation/<n>.summary.json + .report.md
  *
- * Running scenarios needs a ConversationDriver implementation (runner.ts); none
- * ships in this module (the local-stack driver belongs to the gateway/integration
- * module; vendor and PSTN drivers are BLOCKED).
+ * Vendor sandbox and PSTN drivers are BLOCKED (PRQ-004, PRQ-034, PRQ-043); local
+ * fixture results never satisfy sandbox, staging or production gates.
  */
 import { pathToFileURL } from "node:url";
 import { corpusDigest, corpusStats, loadCorpus } from "./corpus.js";
+import { RUN_USAGE, runCorpusCommand } from "./driver/run-corpus.js";
 import { main as generateMain } from "./generate.js";
 import { main as riskMain } from "./generate-risk.js";
 import { main as manifestMain } from "./manifest.js";
@@ -31,6 +34,12 @@ export async function main(argv: readonly string[]): Promise<number> {
       return traceMain(rest);
     case "manifest":
       return manifestMain(rest);
+    case "run":
+    case "combine": {
+      const out = await runCorpusCommand(command, rest);
+      for (const l of out.lines) (out.code === 0 ? console.log : console.error)(l);
+      return out.code;
+    }
     case "corpus": {
       const corpus = loadCorpus();
       const stats = corpusStats(corpus);
@@ -38,7 +47,8 @@ export async function main(argv: readonly string[]): Promise<number> {
       return 0;
     }
     default:
-      console.error("usage: cli.ts <generate|generate-risk|corpus|traceability|manifest> [options]");
+      console.error("usage: cli.ts <generate|generate-risk|corpus|traceability|manifest|run|combine> [options]");
+      console.error(RUN_USAGE);
       return 2;
   }
 }

@@ -28,7 +28,7 @@
  * come from structured source-of-truth tools, never from knowledge.
  */
 import type { Db } from "../db/types.js";
-import type { Logger } from "../observability/ports.js";
+import type { Logger, Metrics } from "../observability/ports.js";
 import { stripControl, stripInvisible } from "../privacy/patterns.js";
 import { sha256Hex } from "../shared/canonical.js";
 import { ValidationError } from "../shared/errors.js";
@@ -57,6 +57,16 @@ export interface SearchDeps {
   embeddingsAvailable: () => Promise<boolean>;
   tuning?: Partial<SearchTuning>;
   allowedLinkDomains?: readonly string[];
+  /** Content-free vsp_knowledge_search_recheck_dropped_total{reason}. */
+  metrics?: Metrics;
+}
+
+function countDropped(deps: SearchDeps, reason: string): void {
+  try {
+    deps.metrics?.increment("vsp_knowledge_search_recheck_dropped_total", { reason });
+  } catch {
+    // Metrics never re-admit a dropped hit.
+  }
 }
 
 export interface RetrievedRow {
@@ -227,12 +237,14 @@ export async function searchKnowledge(deps: SearchDeps, raw: unknown): Promise<S
     if (!verdict.ok) {
       dropped += 1;
       deps.logger.warn("knowledge.search.recheck_dropped", { reasonCode: verdict.reasonCode, intent: input.intent });
+      countDropped(deps, verdict.reasonCode);
       continue;
     }
     const excerpt = buildExcerpt(row.body_sanitized, query, tuning.maxExcerptChars);
     if (detectInjection(excerpt).length > 0 || detectInjection(row.title).length > 0 || sanitizedTextViolations(excerpt, deps.allowedLinkDomains).length > 0) {
       dropped += 1;
       deps.logger.warn("knowledge.search.recheck_dropped", { reasonCode: "RECHECK_EXCERPT_UNSAFE", intent: input.intent });
+      countDropped(deps, "RECHECK_EXCERPT_UNSAFE");
       continue;
     }
     hits.push({

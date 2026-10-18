@@ -188,7 +188,7 @@ export class AuditShipper {
 
       const prev = await tx.query<ManifestRow>(
         `select manifest, status, last_sequence::text as last_sequence, last_hash from audit_manifests
-          where source_stream = $1 order by last_sequence desc limit 1`,
+          where source_stream = $1 order by audit_manifests.last_sequence desc limit 1`,
         [stream],
       );
       const prevRow = prev.rows[0];
@@ -197,7 +197,7 @@ export class AuditShipper {
 
       const rows = await tx.query<OutboxRow>(
         `select sequence::text as sequence, event, hash, manifest_id from audit_outbox
-          where source_stream = $1 and shipped_at is null order by sequence limit $2`,
+          where source_stream = $1 and shipped_at is null order by audit_outbox.sequence limit $2`,
         [stream, this.batchSize],
       );
       if (rows.rows.length === 0) return null;
@@ -258,7 +258,7 @@ export class AuditShipper {
   private async loadRange(tx: Queryable, stream: string, first: number, last: number): Promise<AuditEventType[]> {
     const r = await tx.query<OutboxRow>(
       `select sequence::text as sequence, event, hash, manifest_id from audit_outbox
-        where source_stream = $1 and sequence between $2 and $3 order by sequence`,
+        where source_stream = $1 and sequence between $2 and $3 order by audit_outbox.sequence`,
       [stream, first, last],
     );
     return r.rows.map((row) => this.parseRow(row));
@@ -332,7 +332,7 @@ export class AuditShipper {
       const ms = await tx.query<{ first_sequence: unknown; last_sequence: unknown }>(
         `select first_sequence::text as first_sequence, last_sequence::text as last_sequence from audit_manifests
           where source_stream = $1 and status = 'SHIPPED' and verified_at is not null and last_sequence > $2
-          order by first_sequence`,
+          order by audit_manifests.first_sequence`,
         [stream, through],
       );
       for (const m of ms.rows) {

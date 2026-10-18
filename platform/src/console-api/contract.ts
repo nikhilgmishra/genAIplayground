@@ -257,7 +257,8 @@ export type AuditSourceComponent =
   | "retention"
   | "config";
 
-export type SafetySignalSource = "EXPLICIT_PHRASE" | "SEMANTIC_SIGNAL" | "ASR_UNCERTAIN" | "CALLER_REQUEST" | "HUMAN_INTERVENTION";
+/** FAIL_SAFE: the safety pipeline could not assess an utterance (rule-stage crash or a lexeme-bearing utterance it could not classify) and routed to safety. */
+export type SafetySignalSource = "EXPLICIT_PHRASE" | "SEMANTIC_SIGNAL" | "ASR_UNCERTAIN" | "CALLER_REQUEST" | "HUMAN_INTERVENTION" | "FAIL_SAFE";
 export type SafetyRouteOutcome = "IN_PROGRESS" | "TRANSFERRED" | "CALLER_DISCONNECTED" | "FAILED" | "OUTCOME_UNKNOWN";
 export type OutboxTopic = "support_request.sync" | "workflow.start" | "workflow.signal" | "notification.send" | "audit.ship" | "action.committed";
 export type ApprovalScope = "POLICY_RELEASE" | "KNOWLEDGE_RELEASE";

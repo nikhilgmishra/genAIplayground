@@ -128,7 +128,7 @@ console restricted-reader flag. Still open (owned by other modules):
 
 - outbox: carry `tenantId` on `action.committed` (a definer lookup is used meanwhile).
 - retention: register the `support_requests` dataset.
-- workflows: a durable action grant for `grantRef` (currently null; wiring is the next step).
+- ~~workflows: a durable action grant for `grantRef`~~ — done in wave 4 (below).
 
 ## Tests
 
@@ -139,3 +139,23 @@ npx tsx src/business/contracts/cli-generate-doc.ts --check
 npx tsc -p tsconfig.json --noEmit
 npx eslint src/business src/gateway/tools
 ```
+
+## Wave 4 wiring
+
+* **Durable grants** (`grants.ts`): `issueWorkflowGrant` issues, inside the accepting transaction,
+  a grant whose actions are exactly the workflow definition's declared `grantActions` and whose
+  expiry is the sum of its nonterminal deadlines (ENGINEERING DEFAULT, bounded 1 h..30 d). Subject:
+  the linked account subject; for partner work the partner organization; for an unlinked complaint
+  the support request itself. Used by the billing review follow-up (both the commit hook and the
+  reconciled `action.committed` consumer), partner onboarding and complaint review. Without
+  `ToolDeps.grants` the grantRef stays null and guarded transitions fail closed.
+* **Confirmation slots** (`confirmation.ts`, `BusinessModule.confirmationSlots`): typed values for
+  the TC-07 confirmation template from the prepared action (appointment from/to) or the system of
+  record (invoice issue date); anything missing => null => human route.
+* **Outcomes**: with `contractId: null` (TC-11) the contract is inferred from the call's verified
+  committed actions (a resolving contract first); the evidence row records `contractInferred`.
+* **Handoff observer**: `BusinessHandoffService` reports every returned handoff to
+  `ToolDeps.handoffObserver` (never affects the route).
+* **Port additions** (additive, optional): `SupportRequestService.retryDue` and
+  `repairDeadLetter` (the worker owner can now run the retry sweep; see the journeys README for the
+  missing loop), `ToolDeps.grants`, `ToolDeps.handoffObserver`, `BusinessModule.confirmationSlots`.

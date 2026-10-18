@@ -385,7 +385,7 @@ export function latestVersions(events: readonly AuditEventT[]): VersionSetView |
 /* Safety events                                                             */
 /* ------------------------------------------------------------------------ */
 
-const SignalSources = z.array(z.enum(["EXPLICIT_PHRASE", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN", "CALLER_REQUEST", "HUMAN_INTERVENTION"]));
+const SignalSources = z.array(z.enum(["EXPLICIT_PHRASE", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN", "CALLER_REQUEST", "HUMAN_INTERVENTION", "FAIL_SAFE"]));
 
 /** One content-free view per incident (validated signal, route initiation, latest outcome). */
 export function safetyEventViews(rows: readonly SafetyRow[]): SafetyEventView[] {

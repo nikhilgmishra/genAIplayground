@@ -269,9 +269,18 @@ staging/production).
   endpoint, MFA claim definition or role-group mapping exists (PRQ-036, VQ-IDP-08). The live
   bearer verifier (`WorkforceTokenVerifier.remoteJwks`) and the BLOCKED live directory exist.
 * `reconciliation.retry` enforces every gate (latest unconsumed NOT_FOUND console reconciliation
-  within 10 minutes, ledger back in CONFIRMED) and then answers `503 RETRY_PATH_UNAVAILABLE`:
-  the ledger has no staff-initiated retry entry point (`commit()` needs the caller's live
-  AuthContext). Interface change requested: `ActionService.retryAfterReconcile`.
+  within 10 minutes, ledger back in CONFIRMED), consumes the console reconciliation and then
+  calls `ConsoleApiDeps.reconciledRetry`. The local composition (`main/console.ts`) wires
+  `LedgerReconciledRetry` (`reconciled-retry.ts`): it reads the ledger's LATEST reconciliation
+  record (must be NOT_FOUND and unconsumed) and calls `LedgerActionService.retryAfterReconcile`
+  with that ledger id, the staff ref and the provider port, so the ledger re-checks the row
+  version, the CONFIRMED state, the expiry and the recorded confirmation and commits with the SAME
+  provider idempotency key. Without a port the endpoint still answers `503 RETRY_PATH_UNAVAILABLE`.
+  End to end: `platform/test/journeys/console-retry.test.ts` (UNKNOWN commit -> reconcile
+  NOT_FOUND -> retry COMMITTED, one scheduling effect, a second retry refused).
+* Safety events: the `FAIL_SAFE` signal source (the safety pipeline could not assess an utterance
+  and routed to safety) is part of `SafetySignalSource` in `contract.ts`, `schemas.ts` and the read
+  model; up to six sources per incident.
 * `actions.cancel` for support agents needs a call-ownership source (Talkdesk agent assignment,
   TB-07); without one only supervisors can cancel (fail closed).
 * `calls.transfer` passes the staff-selected allowlisted destination and the initiating staff

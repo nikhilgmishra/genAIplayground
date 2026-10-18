@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMemoryLogger } from "../observability/logger.js";
+import { InMemoryMetrics, createMetricCatalogue } from "../observability/metrics.js";
 import { AccessDeniedError, ConfigurationRejectedError } from "../shared/errors.js";
 import { EgressGuard, urlCarriesSensitivePattern } from "./egress.js";
 import type { EgressDestination, EgressPolicyConfig } from "./egress.js";
@@ -117,5 +118,19 @@ describe("EgressGuard", () => {
     expect(() => g.assertContentFreeTelemetry("egr_otel_local", { event: "x", note: "avery@example.test" })).toThrow("EGRESS_TELEMETRY_NOT_CONTENT_FREE");
     expect(() => g.assertContentFreeTelemetry("egr_crm_record", { event: "x" })).toThrow("EGRESS_NOT_A_TELEMETRY_DESTINATION");
     expect(() => g.assertContentFreeTelemetry("egr_dev_tool", { event: "x" })).toThrow(AccessDeniedError);
+  });
+});
+
+describe("EgressGuard metrics", () => {
+  it("[SPEC-13.metrics][DATA-01] every refused payload is counted by its reason code (vsp_egress_denied_total); allowed egress is not", () => {
+    const metrics = new InMemoryMetrics({ catalogue: createMetricCatalogue({ toolNames: [] }) });
+    const g = new EgressGuard(POLICY, { environment: "local", metrics });
+    const allowed = g.list().find((d) => d.allowedClasses.includes("PHI"));
+    if (allowed) expect(g.check({ destinationId: allowed.destinationId }, "PHI").allowed).toBe(true);
+    const denied = g.check({ destinationId: "egr_unknown_destination" }, "PHI");
+    expect(denied).toMatchObject({ allowed: false, reasonCode: "EGRESS_DESTINATION_UNKNOWN" });
+    expect(() => g.assertAllowed({ destinationId: "egr_unknown_destination" }, "INTERNAL")).toThrow(AccessDeniedError);
+    expect(metrics.counterValue("vsp_egress_denied_total", { reason: "EGRESS_DESTINATION_UNKNOWN" })).toBe(2);
+    expect(metrics.counterValue("vsp_egress_denied_total")).toBe(2);
   });
 });

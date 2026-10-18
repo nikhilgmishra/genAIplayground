@@ -5,20 +5,21 @@
  *   (released at call end). Keyed by sha256 of the bearer reference, never the
  *   bearer. Per process, like InMemorySessionCapacity (multi-instance deployment
  *   needs a shared counter: ops module gap).
- * - HandoffIndex: the latest handoff requested through the gateway for a call,
- *   for TC-12 handoff context. Bounded LRU; opaque ids only.
- * - PendingActionLookup: the current PREPARED action of a session for TC-07.
- *   The ActionService port has no session lookup yet (interface change request
- *   to the actions module: pendingForSession); until then a read-only query of
- *   action_ledger under the tenant's runtime RLS context finds the id and the
- *   ledger's own describe() returns the authoritative record.
+ * - HandoffIndex: the latest handoff requested for a call through ANY surface
+ *   (telephony-control, MCP/HTTP tools with or without a session, console), fed
+ *   by the HandoffService observer, for TC-12 handoff context and TC-11 outcome
+ *   evidence. Bounded LRU; opaque ids only.
+ * - CallOutcomeTracker: per-call flags the gateway observed server-side (an
+ *   informational read succeeded, a policy decision denied a request) for TC-11
+ *   outcome evidence. Bounded LRU; never a caller- or model-supplied value.
+ * TC-07 and TC-11 read the action ledger through ActionService.listForSession.
  */
-import type { Db } from "../db/types.js";
 import { sessionRefHash } from "../identity/keys.js";
 import type { AdmissionDecision } from "../ops/ports.js";
 import type { Clock } from "../shared/clock.js";
 import { iso } from "../shared/clock.js";
 import type { HandoffResult } from "../business/contract.js";
+import type { ToolSafetyClass, ToolStatus } from "../protocol/index.js";
 
 export interface LeaseRecord {
   leaseId: string | null;
@@ -70,6 +71,8 @@ export interface IndexedHandoff {
   transferId: string | null;
   destinationId: string;
   priority: "SAFETY" | "STANDARD";
+  /** Internal support reference created for the handoff (pending synchronization), when one was created. */
+  supportReference: string | null;
   at: string;
 }
 
@@ -80,12 +83,14 @@ export class HandoffIndex {
     private readonly maxEntries = 50_000,
   ) {}
 
-  record(callId: string, result: Pick<HandoffResult, "handoffId" | "transferId" | "destinationId">, priority: "SAFETY" | "STANDARD"): void {
+  record(callId: string, result: Pick<HandoffResult, "handoffId" | "transferId" | "destinationId"> & { supportReference?: string | null }, priority: "SAFETY" | "STANDARD"): void {
     const prior = this.byCall.get(callId);
     // A STANDARD request never displaces an active safety handoff for the same call (SAFE-03).
     if (prior?.priority === "SAFETY" && priority === "STANDARD") return;
+    // The same handoff reported twice (observer and route) keeps the reference it already had.
+    const supportReference = result.supportReference ?? (prior?.handoffId === result.handoffId ? prior.supportReference : null);
     this.byCall.delete(callId);
-    this.byCall.set(callId, { handoffId: result.handoffId, transferId: result.transferId, destinationId: result.destinationId, priority, at: iso(this.clock.now()) });
+    this.byCall.set(callId, { handoffId: result.handoffId, transferId: result.transferId, destinationId: result.destinationId, priority, supportReference, at: iso(this.clock.now()) });
     while (this.byCall.size > this.maxEntries) {
       const oldest = this.byCall.keys().next().value;
       if (oldest === undefined) break;
@@ -98,31 +103,43 @@ export class HandoffIndex {
   }
 }
 
-export interface PendingActionLookup {
-  /** Most recent unexpired PREPARED action id for this session, or null. */
-  pendingActionId(tenantId: string, sessionRef: string): Promise<string | null>;
+export interface CallOutcomeFlags {
+  /** A PUBLIC_READ or PROTECTED_READ tool returned SUCCESS for this call (information was provided). */
+  informationProvided: boolean;
+  /** A policy decision denied a tool request for this call (DECLINED_BY_POLICY evidence). */
+  policyDeclined: boolean;
 }
 
-export class PgPendingActionLookup implements PendingActionLookup {
-  constructor(
-    private readonly db: Db,
-    private readonly clock: Clock,
-  ) {}
+const INFORMATIONAL: ReadonlySet<ToolSafetyClass> = new Set<ToolSafetyClass>(["PUBLIC_READ", "PROTECTED_READ"]);
 
-  async pendingActionId(tenantId: string, sessionRef: string): Promise<string | null> {
-    const hash = sessionRefHash(sessionRef);
-    const rows = await this.db.tx(
-      async (tx) =>
-        (
-          await tx.query<{ action_id: string }>(
-            `select action_id from action_ledger
-              where tenant_id = $1 and session_ref_hash = $2 and state = 'PREPARED' and expires_at > $3
-              order by prepared_at desc, action_id limit 1`,
-            [tenantId, hash, iso(this.clock.now())],
-          )
-        ).rows,
-      { role: "app_runtime", rls: { tenantId } },
-    );
-    return rows[0]?.action_id ?? null;
+/** Server-side per-call observations for TC-11 outcome evidence (ACT-04). Per process, bounded LRU. */
+export class CallOutcomeTracker {
+  private readonly byCall = new Map<string, CallOutcomeFlags>();
+  constructor(private readonly maxEntries = 50_000) {}
+
+  /** Called by the tool pipeline with the final status of every invocation bound to a call. */
+  observe(callId: string, safetyClass: ToolSafetyClass, status: ToolStatus, policyDenied: boolean): void {
+    const informational = status === "SUCCESS" && INFORMATIONAL.has(safetyClass);
+    const declined = status === "POLICY_DENIED" && policyDenied;
+    if (!informational && !declined) return;
+    const prior = this.byCall.get(callId) ?? { informationProvided: false, policyDeclined: false };
+    this.byCall.delete(callId);
+    this.byCall.set(callId, { informationProvided: prior.informationProvided || informational, policyDeclined: prior.policyDeclined || declined });
+    while (this.byCall.size > this.maxEntries) {
+      const oldest = this.byCall.keys().next().value;
+      if (oldest === undefined) break;
+      this.byCall.delete(oldest);
+    }
+  }
+
+  flags(callId: string): CallOutcomeFlags {
+    return { ...(this.byCall.get(callId) ?? { informationProvided: false, policyDeclined: false }) };
+  }
+
+  /** Removes the call's flags (call end). */
+  take(callId: string): CallOutcomeFlags {
+    const f = this.flags(callId);
+    this.byCall.delete(callId);
+    return f;
   }
 }

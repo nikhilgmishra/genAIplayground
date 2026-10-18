@@ -98,3 +98,24 @@ change request.)
   the LOCAL FIXTURE HMAC is accepted, and only in local/ci.
 * Leases, the handoff index and the turn tracker are per process (a multi-task deployment
   needs a shared store).
+
+## Changes in wave 4
+
+* **TC-07** reads the session's ledger entries through `ActionService.listForSession` (no direct
+  SQL); the most recent unexpired PREPARED action of the current generation is rendered. Slot values
+  come from `BusinessModule.confirmationSlots` (typed values from the authoritative action; an
+  appointment change previously always failed to render because its change fields are not the
+  template's slot names, which routed every confirmation to a human).
+* **TC-11** gathers outcome evidence server-side only: COMMITTED receipts from `listForSession`,
+  REQUEST_ACCEPTED support requests from `SupportRequestService.listForCall`, the call's transfer
+  journey (`journeyOutcome`: TRANSFERRED only after CALLER_CONFIRMED_CONNECTED; staffed routes
+  exhausted => failed) and the pipeline's `CallOutcomeTracker` flags (information provided, policy
+  declined). Studio's `reason` is only the hang-up signal. The outcome service infers the contract
+  from the call's verified committed actions.
+* **TC-12** returns the support reference of the indexed handoff. The `HandoffIndex` is fed by the
+  HandoffService observer (`ToolDeps.handoffObserver`), so MCP handoffs with or without a session
+  are indexed.
+* **Utterance screening** records the incident in `safety_events` (`SafetyEventRecorder`) after the
+  priority route was requested (route first, then evidence); the `safety.signal` audit event is
+  now written after the route request as well.
+* `PgPendingActionLookup` was removed (replaced by `listForSession`).

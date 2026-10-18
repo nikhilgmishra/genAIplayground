@@ -21,7 +21,7 @@ import { loadDefaultTemplateRegistry } from "../../voice/registry.js";
 import { InMemoryTurnTracker } from "../../voice/turns.js";
 import { MemoryTransferStore, TransferCoordinator } from "../../workflows/transfer.js";
 import { LocalFixtureTokenAuthenticator } from "../auth.js";
-import { HandoffIndex, PgPendingActionLookup, SessionLeaseRegistry } from "../call-state.js";
+import { HandoffIndex, SessionLeaseRegistry } from "../call-state.js";
 import { GatewayAudit } from "../gateway-audit.js";
 import { buildGatewayApp } from "../http/app.js";
 import { ReadinessProbe, healthRoutes } from "../http/health-routes.js";
@@ -119,7 +119,6 @@ export async function createAppHarness(opts: AppHarnessOptions = {}): Promise<Ap
         verification: h.identity.verification,
         otpEnabled: opts.otpEnabled ?? false,
         actions,
-        pendingActions: new PgPendingActionLookup(h.db, clock),
         admission: h.admission,
         turns,
         gate,

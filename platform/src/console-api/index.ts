@@ -5,6 +5,7 @@
 export * from "./contract.js";
 export { registerConsoleApi, assertConsoleDeps, consoleRuntimeComponents, CONSOLE_LOCAL_SIGN_IN_COMPONENT, WORKFORCE_IDP_COMPONENT, RETRY_RECONCILIATION_MAX_AGE_MS } from "./plugin.js";
 export type { ConsoleApiDeps, ReconciledRetryPort, CallOwnershipSource } from "./deps.js";
+export { LedgerReconciledRetry } from "./reconciled-retry.js";
 export {
   WorkforceTokenVerifier,
   WorkforceTokenPolicy,

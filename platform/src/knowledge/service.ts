@@ -130,7 +130,23 @@ export class KnowledgeServicePg implements KnowledgeService {
       version: outcome.snapshotVersion,
       snapshotDigest: outcome.snapshotDigest,
     });
+    this.countIngest(outcome);
     return outcome;
+  }
+
+  /** Content-free vsp_knowledge_ingest_items_total by result (conflict holds are held_for_review, the rest quarantined). */
+  private countIngest(outcome: IngestOutcome): void {
+    const m = this.opts.metrics;
+    if (!m) return;
+    try {
+      if (outcome.accepted.length > 0) m.increment("vsp_knowledge_ingest_items_total", { result: "accepted" }, outcome.accepted.length);
+      const held = outcome.quarantined.filter((q) => q.reasonCodes.length > 0 && q.reasonCodes.every((c) => c.startsWith("KNOWLEDGE_CONFLICT_"))).length;
+      const quarantined = outcome.quarantined.length - held;
+      if (held > 0) m.increment("vsp_knowledge_ingest_items_total", { result: "held_for_review" }, held);
+      if (quarantined > 0) m.increment("vsp_knowledge_ingest_items_total", { result: "quarantined" }, quarantined);
+    } catch {
+      // Metrics never change an ingestion result.
+    }
   }
 
   async search(input: Parameters<KnowledgeService["search"]>[0]): Promise<KnowledgeHit[]> {
@@ -147,6 +163,7 @@ export class KnowledgeServicePg implements KnowledgeService {
         embeddingsAvailable: () => this.embeddingsAvailable(),
         tuning: this.opts.tuning,
         allowedLinkDomains: this.opts.allowedLinkDomains,
+        ...(this.opts.metrics ? { metrics: this.opts.metrics } : {}),
       },
       input,
     );

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { PgliteDb } from "../db/pglite.js";
 import { OTHER_TENANT_ID, STAFF, TENANT_ID } from "../fixtures/synthetic-world.js";
-import { InMemoryMetrics } from "../observability/metrics.js";
+import { InMemoryMetrics, createMetricCatalogue } from "../observability/metrics.js";
 import type { StaffActor } from "../protocol/index.js";
 import { FakeClock } from "../shared/clock.js";
 import { AccessDeniedError, AuditUnavailableError, ConfigurationRejectedError, ValidationError } from "../shared/errors.js";
@@ -64,6 +64,19 @@ describe("knowledge ingestion pipeline", () => {
     const emb = await db.query<{ n: number }>("select count(*)::int as n from knowledge_embeddings where embedding_model = 'local-hash-embed-v1'");
     expect(emb.rows[0]?.n).toBe(20);
     expect(await svc.snapshot(TENANT_ID)).toEqual({ version: report.snapshotVersion, digest: report.snapshotDigest });
+  });
+
+  it("[SPEC-13.metrics][SPEC-9.knowledge] ingestion results are counted: accepted, quarantined and held for review (vsp_knowledge_ingest_items_total)", async () => {
+    const metrics = new InMemoryMetrics({ catalogue: createMetricCatalogue({ toolNames: [] }) });
+    const { svc } = await setup({ metrics });
+    const corpus = loadLocalCorpus({ set: "adversarial", environment: "local" });
+    const report = await svc.ingest(TENANT_ID, [...corpus.map((c) => c.item as KnowledgeItemInput), knowledgeItemFixture({ sourceId: "faq-metric-accepted" })]);
+    const held = report.quarantined.filter((q) => q.reasonCodes.every((c) => c.startsWith("KNOWLEDGE_CONFLICT_"))).length;
+    expect(held).toBe(2);
+    expect(metrics.counterValue("vsp_knowledge_ingest_items_total", { result: "accepted" })).toBe(report.accepted.length);
+    expect(metrics.counterValue("vsp_knowledge_ingest_items_total", { result: "held_for_review" })).toBe(held);
+    expect(metrics.counterValue("vsp_knowledge_ingest_items_total", { result: "quarantined" })).toBe(report.quarantined.length - held);
+    expect(report.accepted).toContain("faq-metric-accepted");
   });
 
   it("[SAFE-05] adversarial items are quarantined: injection, dial target, hidden HTML instruction, executable content, personal data", async () => {

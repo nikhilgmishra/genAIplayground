@@ -137,7 +137,7 @@ export const AuditSourceComponentS = z.enum([
   "retention",
   "config",
 ]);
-export const SafetySignalSourceS = z.enum(["EXPLICIT_PHRASE", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN", "CALLER_REQUEST", "HUMAN_INTERVENTION"]);
+export const SafetySignalSourceS = z.enum(["EXPLICIT_PHRASE", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN", "CALLER_REQUEST", "HUMAN_INTERVENTION", "FAIL_SAFE"]);
 export const SafetyRouteOutcomeS = z.enum(["IN_PROGRESS", "TRANSFERRED", "CALLER_DISCONNECTED", "FAILED", "OUTCOME_UNKNOWN"]);
 export const OutboxTopicS = z.enum(["support_request.sync", "workflow.start", "workflow.signal", "notification.send", "audit.ship", "action.committed"]);
 export const ApprovalScopeS = z.enum(["POLICY_RELEASE", "KNOWLEDGE_RELEASE"]);
@@ -584,7 +584,7 @@ export const SafetyEventViewS = z.strictObject({
   callId: OpaqueIdS,
   detectedAt: IsoDateTimeS,
   route: SafetyRouteS,
-  signalSources: z.array(SafetySignalSourceS).max(5),
+  signalSources: z.array(SafetySignalSourceS).max(6),
   ruleIds: z.array(z.string().regex(/^[a-z][a-z0-9_.-]{2,80}$/)).max(32),
   strongestStrength: z.enum(["CREDIBLE", "UNRESOLVED"]).nullable(),
   destinationId: DestinationIdS,

@@ -4,6 +4,7 @@ import { createTestDb } from "../db/testing.js";
 import type { PgliteDb } from "../db/pglite.js";
 import { OTHER_TENANT_ID, PEOPLE, TENANT_ID } from "../fixtures/synthetic-world.js";
 import { createMemoryLogger } from "../observability/logger.js";
+import { InMemoryMetrics, createMetricCatalogue } from "../observability/metrics.js";
 import { FakeClock } from "../shared/clock.js";
 import { ValidationError } from "../shared/errors.js";
 import type { MemoryEntry } from "./ports.js";
@@ -46,6 +47,19 @@ const recap = (mem: SupportMemoryPg, over: Partial<Parameters<SupportMemoryPg["r
   mem.recapFor({ tenantId: TENANT_ID, subjectId: AVERY, assurance: "A2", authorizedSubjectId: AVERY, now: new Date(NOW), ...over });
 
 describe("SupportMemoryPg", () => {
+
+  it("[SPEC-13.metrics][DATA-04] every withheld recap is counted by reason (vsp_memory_recap_withheld_total)", async () => {
+    db = await createTestDb({ include: /^07/ });
+    const metrics = new InMemoryMetrics({ catalogue: createMetricCatalogue({ toolNames: [] }) });
+    const mem = new SupportMemoryPg({ db, tenantIds: [TENANT_ID], clock: new FakeClock("2026-10-18T09:00:00.000Z"), metrics });
+    const base = { tenantId: TENANT_ID, subjectId: PEOPLE.avery.subjectId, now: new Date("2026-10-18T09:00:00.000Z") };
+    expect(await mem.recapFor({ ...base, assurance: "A0", authorizedSubjectId: null })).toEqual([]);
+    expect(await mem.recapFor({ ...base, assurance: "A2", authorizedSubjectId: PEOPLE.blake.subjectId })).toEqual([]);
+    expect(await mem.recapFor({ ...base, assurance: "A2", authorizedSubjectId: PEOPLE.avery.subjectId, riskFlags: ["PARTICIPANT_CHANGED"] })).toEqual([]);
+    expect(metrics.counterValue("vsp_memory_recap_withheld_total", { reason: "MEMORY_RECAP_REQUIRES_A2" })).toBe(1);
+    expect(metrics.counterValue("vsp_memory_recap_withheld_total", { reason: "MEMORY_RECAP_SUBJECT_NOT_AUTHORIZED" })).toBe(1);
+    expect(metrics.counterValue("vsp_memory_recap_withheld_total", { reason: "MEMORY_RECAP_RISK_FLAG" })).toBe(1);
+  });
   it("[DATA-04] a verified returning caller (A2, same subject) hears a recap of unexpired entries with provenance labels", async () => {
     const { mem } = await setup();
     const a = await mem.record(entry());

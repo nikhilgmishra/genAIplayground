@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { APPOINTMENTS, INVOICES, SLOTS } from "../fixtures/synthetic-world.js";
 import { createMemoryLogger } from "../observability/logger.js";
+import { InMemoryMetrics, createMetricCatalogue } from "../observability/metrics.js";
 import type { SpeechDirective } from "../protocol/index.js";
 import { FALLBACK_TEMPLATE_ID, TemplateResponseGate, isGateApproved, isGateFallback, postCheck } from "./gate.js";
 import type { GateRejection, GatedUtterance } from "./gate.js";
@@ -281,5 +282,18 @@ describe("postCheck", () => {
     expect(postCheck("You should take more pills.")).toBe("OUTPUT_CLINICAL_CONTENT_PROHIBITED");
     expect(postCheck("")).toBe("OUTPUT_EMPTY");
     expect(postCheck("Let me check that.")).toBeNull();
+  });
+});
+
+describe("TemplateResponseGate metrics", () => {
+  it("[SPEC-13.metrics][ACT-05] renders and refusals are counted with closed labels (vsp_voice_gate_renders_total / vsp_voice_gate_rejections_total)", () => {
+    const metrics = new InMemoryMetrics({ catalogue: createMetricCatalogue({ toolNames: [] }) });
+    const counted = new TemplateResponseGate({ registry, metrics });
+    expect(counted.render(directive(), ctx()).ok).toBe(true);
+    expect(counted.render(directive({ authorizationRef: null }), ctx()).ok).toBe(false);
+    expect(counted.render(directive({ turnId: "turn_synthTurnOther01" }), ctx()).ok).toBe(false);
+    expect(metrics.counterValue("vsp_voice_gate_renders_total", { response_class: "FINANCIAL_FACT" })).toBe(1);
+    expect(metrics.counterValue("vsp_voice_gate_rejections_total", { reason: "AUTHORIZATION_MISSING", disposition: "SPEAK_FALLBACK_AND_ROUTE_HUMAN" })).toBe(1);
+    expect(metrics.counterValue("vsp_voice_gate_rejections_total", { reason: "STALE_TURN", disposition: "DROP_STALE" })).toBe(1);
   });
 });

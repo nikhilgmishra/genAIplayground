@@ -2,6 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { PEOPLE } from "../fixtures/synthetic-world.js";
 import { createMemoryLogger } from "../observability/logger.js";
+import { InMemoryMetrics, createMetricCatalogue } from "../observability/metrics.js";
 import { FakeClock } from "../shared/clock.js";
 import { EgressGuard } from "./egress.js";
 import type { EgressPolicyConfig } from "./egress.js";
@@ -172,6 +173,16 @@ describe("RedactionService", () => {
     const out = await svc.process({ artifactId: "art_synthArtifact000002", text: "my name is Jordan" });
     expect(out.quarantine).toMatchObject({ stored: false, reasonCode: "QUARANTINE_STORE_NOT_APPROVED" });
     expect(store.records).toHaveLength(0);
+  });
+
+  it("[SPEC-13.metrics][DATA-02] redaction outcomes are counted (vsp_redaction_results_total: redacted | quarantined)", async () => {
+    const metrics = new InMemoryMetrics({ catalogue: createMetricCatalogue({ toolNames: [] }) });
+    const egress = new EgressGuard(policy, { environment: "local" });
+    const svc = new RedactionService({ quarantine: new InMemoryQuarantineStoreFixture("egr_quarantine_store"), egress, clock: new FakeClock(), metrics });
+    await svc.process({ artifactId: "art_synthArtifactMetric1", text: "my name is Jordan, my date of birth is 1 2 3" });
+    await svc.process({ artifactId: "art_synthArtifactMetric2", text: "I would like to reschedule my appointment please" });
+    expect(metrics.counterValue("vsp_redaction_results_total", { result: "quarantined" })).toBe(1);
+    expect(metrics.counterValue("vsp_redaction_results_total", { result: "redacted" })).toBe(1);
   });
 
   it("[DATA-02] a successful redaction stays PHI-bearing (not de-identified)", async () => {

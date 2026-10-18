@@ -12,7 +12,7 @@
  * Successful redaction does NOT make the output de-identified: the result keeps
  * the PHI classification of a redacted transcript (classification.ts).
  */
-import type { Logger } from "../observability/ports.js";
+import type { Logger, Metrics } from "../observability/ports.js";
 import { silentLogger } from "../observability/logger.js";
 import type { Clock } from "../shared/clock.js";
 import { iso, systemClock } from "../shared/clock.js";
@@ -77,14 +77,25 @@ export class RedactionService {
       logger?: Logger;
       clock?: Clock;
       defaults?: RedactionContext;
+      /** Content-free metrics: vsp_redaction_results_total{result: redacted | quarantined}. */
+      metrics?: Metrics;
     },
   ) {
     this.logger = deps.logger ?? silentLogger;
     this.clock = deps.clock ?? systemClock;
   }
 
+  private count(result: "redacted" | "quarantined"): void {
+    try {
+      this.deps.metrics?.increment("vsp_redaction_results_total", { result });
+    } catch {
+      // Metrics never change a redaction or quarantine decision.
+    }
+  }
+
   async process(artifact: { artifactId: string; text: string }, ctx: RedactionContext = {}): Promise<ProcessedArtifact> {
     const result = redactText(artifact.text, { ...this.deps.defaults, ...ctx });
+    this.count(result.status === "REDACTED" ? "redacted" : "quarantined");
     if (result.status === "REDACTED") {
       return {
         artifactId: artifact.artifactId,

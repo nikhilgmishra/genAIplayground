@@ -53,6 +53,34 @@ describe("AuditShipper", () => {
     expect((await shipper.runOnce()).batchesShipped).toBe(0);
   });
 
+  it("[OPS-01][SPEC-13.4] streams with 10+ events and 10+ manifests ship and verify in numeric sequence order (regression: text-alias ORDER BY)", async () => {
+    // Sequence values cross the 1 -> 10 -> 100 boundaries where text ordering ("1","10","100","11",...,"2") diverges from numeric ordering.
+    const sink = new LocalFsAuditSinkFixture(root);
+    const verifier = new IntegrityVerifier({ db, sink, clock });
+    await append(105);
+    expect((await verifier.verifyStream(STREAM)).findings).toEqual([]);
+    const shipper = new AuditShipper({ db, sink, clock, batchSize: 7 });
+    let shipped = 0;
+    for (let i = 0; i < 25; i++) {
+      const r = await shipper.runOnce();
+      expect(r.failedStreams).toBe(0);
+      shipped += r.eventsShipped;
+      if (r.batchesShipped === 0) break;
+    }
+    expect(shipped).toBe(105);
+    expect(await countRows(db, "select count(*) as n from audit_outbox where shipped_at is null")).toBe(0);
+    expect((await sink.listManifests(STREAM)).length).toBe(15);
+    const shippedCheck = await verifier.verifyShipped(STREAM, { markVerified: true });
+    expect(shippedCheck.findings).toEqual([]);
+    expect(shippedCheck.lastSequence).toBe(105);
+    // More events after 15 verified manifests: the watermark must advance numerically, not stall at manifest "10".
+    await append(12);
+    for (let i = 0; i < 5; i++) if ((await shipper.runOnce()).batchesShipped === 0) break;
+    expect(await countRows(db, "select count(*) as n from audit_outbox where shipped_at is null")).toBe(0);
+    expect((await verifier.verifyShipped(STREAM)).findings).toEqual([]);
+    expect((await verifier.verifyStream(STREAM)).findings).toEqual([]);
+  });
+
   it("[ACT-02] is idempotent across a crash between put and mark: no duplicate or overlapping objects", async () => {
     const inner = new LocalFsAuditSinkFixture(root);
     const faulty = new FaultInjectingAuditSinkFixture(inner);

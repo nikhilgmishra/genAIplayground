@@ -22,7 +22,7 @@
  */
 import { z } from "zod";
 import { Classification, Environment } from "../protocol/index.js";
-import type { Logger } from "../observability/ports.js";
+import type { Logger, Metrics } from "../observability/ports.js";
 import { silentLogger } from "../observability/logger.js";
 import { AccessDeniedError, ConfigurationRejectedError } from "../shared/errors.js";
 import { CONTENT_FREE_CLASSES, isPhiClass } from "./classification.js";
@@ -118,12 +118,15 @@ export class EgressGuard {
   readonly policyVersion: string;
   private readonly environment: Environment;
   private readonly logger: Logger;
+  private readonly metrics: Metrics | null;
 
-  constructor(config: EgressPolicyConfig, opts: { environment: Environment; logger?: Logger }) {
+  /** `metrics`: content-free vsp_egress_denied_total{reason} for every refused payload. */
+  constructor(config: EgressPolicyConfig, opts: { environment: Environment; logger?: Logger; metrics?: Metrics }) {
     const parsed = EgressPolicyConfig.safeParse(config);
     if (!parsed.success) throw new ConfigurationRejectedError(["EGRESS_CONFIG_INVALID"]);
     this.environment = Environment.parse(opts.environment);
     this.logger = opts.logger ?? silentLogger;
+    this.metrics = opts.metrics ?? null;
     const violations: string[] = [];
     for (const d of parsed.data.destinations) {
       violations.push(...destinationViolations(d, this.environment));
@@ -143,8 +146,22 @@ export class EgressGuard {
     return this.destinations;
   }
 
-  /** Non-throwing evaluation. */
+  private countDenied(reason: string): void {
+    try {
+      this.metrics?.increment("vsp_egress_denied_total", { reason });
+    } catch {
+      // Metrics never turn a denial into an allow.
+    }
+  }
+
+  /** Non-throwing evaluation; every denial is counted (content-free reason code only). */
   check(target: EgressTarget, dataClass: Classification): EgressDecision {
+    const decision = this.evaluate(target, dataClass);
+    if (!decision.allowed) this.countDenied(decision.reasonCode);
+    return decision;
+  }
+
+  private evaluate(target: EgressTarget, dataClass: Classification): EgressDecision {
     const cls = Classification.safeParse(dataClass);
     if (!cls.success) return { allowed: false, reasonCode: "EGRESS_CLASS_INVALID", destinationId: null };
     const resolved = this.resolve(target);
@@ -180,12 +197,17 @@ export class EgressGuard {
   assertContentFreeTelemetry(target: EgressTarget, record: Readonly<Record<string, string | number | boolean | null>>): void {
     const d = this.assertAllowed(target, "INTERNAL");
     if (d.kind !== "TELEMETRY_EXPORTER" && d.kind !== "ANALYTICS_SINK" && d.kind !== "AUDIT_SINK") {
+      this.countDenied("EGRESS_NOT_A_TELEMETRY_DESTINATION");
       throw new AccessDeniedError("EGRESS_NOT_A_TELEMETRY_DESTINATION");
     }
     for (const [key, value] of Object.entries(record)) {
-      if (!/^[a-zA-Z][a-zA-Z0-9_.]{0,63}$/.test(key)) throw new AccessDeniedError("EGRESS_TELEMETRY_KEY_INVALID");
+      if (!/^[a-zA-Z][a-zA-Z0-9_.]{0,63}$/.test(key)) {
+        this.countDenied("EGRESS_TELEMETRY_KEY_INVALID");
+        throw new AccessDeniedError("EGRESS_TELEMETRY_KEY_INVALID");
+      }
       if (typeof value === "string" && (value.length > 256 || detectSensitiveSpans(value).length > 0)) {
         this.logger.warn("privacy.egress.telemetry_blocked", { reasonCode: "EGRESS_TELEMETRY_NOT_CONTENT_FREE", destinationId: d.destinationId });
+        this.countDenied("EGRESS_TELEMETRY_NOT_CONTENT_FREE");
         throw new AccessDeniedError("EGRESS_TELEMETRY_NOT_CONTENT_FREE");
       }
     }

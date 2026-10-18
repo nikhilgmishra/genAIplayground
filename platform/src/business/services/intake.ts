@@ -21,6 +21,7 @@
 import type { AuthContext, IssueCategory, SupportRequest, ToolDefinition, WorkflowType } from "../../protocol/index.js";
 import { AccessDeniedError } from "../../shared/errors.js";
 import type { ToolDeps } from "../contract.js";
+import { issueWorkflowGrant } from "../grants.js";
 import { decideNow } from "../policy.js";
 import { atLeast, auditSessionRef, reasonOf, subjectResource } from "../shared.js";
 import { PgSupportRequestService } from "../support/support-request-service.js";
@@ -208,7 +209,12 @@ export class IntakeService {
     return { supportRequest: await this.support.createRecord(record([])), workflowId: null };
   }
 
-  /** Support request and workflow in ONE transaction, linked both ways (the workflow's source refs hold the SR id). */
+  /**
+   * Support request, durable action grant and workflow in ONE transaction, linked both ways
+   * (the workflow's source refs hold the SR id and the grant id). The grant's subject is the
+   * linked account subject, else the partner's organization, else the support request itself
+   * (see business/grants.ts); its actions are exactly the workflow's declared grant actions.
+   */
   private async withWorkflow(
     tenantId: string,
     type: WorkflowType,
@@ -216,15 +222,23 @@ export class IntakeService {
   ): Promise<{ supportRequest: SupportRequest; workflowId: string }> {
     return this.deps.db.tx(
       async (tx) => {
-        const supportRequest = await this.support.createRecord(build([]), tx);
+        const record = build([]);
+        const supportRequest = await this.support.createRecord(record, tx);
         const existing = await tx.query<{ link_ref: string }>(
           "select link_ref from support_request_links where support_request_id = $1 and link_kind = 'workflow' limit 1",
           [supportRequest.supportRequestId],
         );
-        // Idempotent replay of the same intake: the workflow was started with the original request.
+        // Idempotent replay of the same intake: the workflow (and its grant) was started with the original request.
         if (existing.rows[0]) return { supportRequest, workflowId: existing.rows[0].link_ref };
+        const grantRef = await issueWorkflowGrant(this.deps, tx, {
+          tenantId,
+          type,
+          subjectId: record.subjectRef ?? record.organizationRef ?? supportRequest.supportRequestId,
+          actorId: record.actorRef ?? null,
+          sourceRef: supportRequest.supportRequestId,
+        });
         const workflow = await this.deps.workflows.start(
-          { tenantId, type, correlationId: supportRequest.supportRequestId, sourceRecordRefs: [supportRequest.supportRequestId], grantRef: null },
+          { tenantId, type, correlationId: supportRequest.supportRequestId, sourceRecordRefs: grantRef ? [supportRequest.supportRequestId, grantRef] : [supportRequest.supportRequestId], grantRef },
           tx,
         );
         await this.support.linkInTx(tx, supportRequest, "workflow", workflow.workflowId);

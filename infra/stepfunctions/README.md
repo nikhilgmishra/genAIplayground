@@ -65,11 +65,20 @@ machine role (send) and the worker role (receive/delete). Queue names must not c
   version, the owner queue (and for human tasks the task type and required staff roles) plus
   `taskToken`. Store the Step Functions task token server-side only (encrypted); never log it,
   never put it in a URL, a notification, a console link or a model context.
-* Answer with `SendTaskSuccess` and output **exactly** `{"event": "<EVENT>"}` where `<EVENT>` is
-  a declared transition of that state (recheck tasks answer `{"decision": "ALLOW" | "DENY"}`).
-  Anything else is routed to escalation. Note: if the output lacks the selected field, the
-  `ResultSelector` fails with `States.Runtime`, which Step Functions does not let `Catch` handle;
-  the worker bridge must therefore validate its own output before sending.
+* Answer with `SendTaskSuccess` and output **exactly** `{"event": "<EVENT>", "actorKind": "<KIND>"}`
+  where `<EVENT>` is a declared transition of that state and `<KIND>` is one of the actor kinds the
+  definition declares for that event (`caller`, `system`, `staff` or `external_system`; for example
+  `caller` only for `CALLER_RESPONDED` / `DOCUMENTS_SUBMITTED`, `system` or `external_system` for
+  `SYSTEM_CONFIRMED` / `SYNCED` / `PERMANENT_FAILURE`). Send it only after the SAME signal passed
+  `PgWorkflowEngine.signal` (or `completeHumanTask`) in the platform, which checks the actor kind
+  and, for guarded transitions, the instance's durable action grant for the transition's declared
+  `grantAction`. Each route `Choice` rule requires the event **and** a declared actor kind;
+  `POLICY_CHANGED_PENDING_ACTION` is never routable from a worker answer (only from a recheck
+  decision). Recheck tasks carry the transition's `grantAction` and answer
+  `{"decision": "ALLOW" | "DENY"}`. Anything else is routed to escalation. Note: if the output
+  lacks a selected field, the `ResultSelector` fails with `States.Runtime`, which Step Functions
+  does not let `Catch` handle; the worker bridge must therefore validate its own output before
+  sending.
 * For retryable failures send `SendTaskFailure` with error `Workflow.Retryable`; this consumes the
   state's retry budget (`MaxAttempts`) with full jitter, after which the work escalates.
 * Send `SendTaskHeartbeat` at least every `HeartbeatSeconds` while the work item is open

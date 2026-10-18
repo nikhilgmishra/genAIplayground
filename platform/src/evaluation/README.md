@@ -17,7 +17,7 @@ PRQ-023).
 | `aggregate.ts`, `stats.ts` | Slices, critical-failure listing, production-weight vs oversampled-risk separation, gate status per environment, Clopper-Pearson / rule-of-three bounds |
 | `catalog.ts`, `traceability.ts` | Requirement catalogue loader and `docs/REQUIREMENTS_TRACEABILITY.md` generator |
 | `manifest.ts` | `buildReleaseManifest` / CLI -> `evidence/release/release-manifest.<env>.json` |
-| `cli.ts` | `generate`, `generate-risk`, `corpus`, `traceability`, `manifest` subcommands (`pnpm evidence <cmd>`) |
+| `cli.ts` | `generate`, `generate-risk`, `corpus`, `traceability`, `manifest`, `run`, `combine` subcommands (`pnpm evidence <cmd>`) |
 | `evidence.fixture.ts` | TEST FIXTURES ONLY: ideal evidence and `ScriptedConversationDriverFixture` |
 
 ## ConversationDriver contract (for the local-stack / sandbox driver implementers)
@@ -70,3 +70,22 @@ interface ConversationDriver {
 Fault-plan expectations are additional hard gates. Task completion (tool sequence order, outcome,
 expected commits, support request) is measured separately: a task-only failure is FAIL with MAJOR
 severity and feeds the (proposed) 95 percent goal-completion figure.
+
+## Local conversation driver (`driver/`) — LOCAL FIXTURE
+
+`LocalConversationDriver` implements the `ConversationDriver` port against the full local
+stack, labelled **LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION**. It never reports anything
+but `executionMode: "local_fixture"`.
+
+| File | Responsibility |
+|---|---|
+| `driver/local-stack.ts` | One fresh `buildContainer({environment:"local"})` per call with the REAL business module, FakeClock, memory logger; REAL worker loops run on their own schedule as simulated time passes (`drain`); clients for the public surface only: telephony-control and portal via `fastify.inject`, tools via the HTTP tool route or the MCP SDK client on a 127.0.0.1 listener |
+| `driver/call-session.ts` | Per-call Studio steps (TC-01..TC-11), portal secure-link approval with the LOCAL FIXTURE OIDC provider, tool calls with speech rendered through the `TemplateResponseGate` |
+| `driver/coordinator.ts` | **LOCAL SIMULATED COORDINATOR**: a deterministic keyword-rule stand-in for the Talkdesk conversational layer. NOT a language model and NOT model evaluation. It defers to the backend safety screen and never decides authorization; turns it cannot interpret make the run INCONCLUSIVE |
+| `driver/local-driver.ts` | Fixture sets (open case, shared device, slot conflict, adversarial knowledge) established through the public surface; fault plans mapped to real faults (DB grants revoked, fixture faults, scripted transfers, policy-engine failure); faults it cannot inject are refused (`UNINJECTABLE_FAULTS`) and never simulated as success |
+| `driver/evidence.ts` | `CallEvidence` from authoritative records: ledger rows and fixture effect logs, support requests and their Salesforce trace, transfer journeys, `interaction_outcomes`, egress scans of logs/audit/vendor fixtures, pinned versions; audit event ids count only for streams the platform `IntegrityVerifier` verifies (a numeric-order chain recomputation is kept for attribution only) |
+| `driver/run-corpus.ts` | `pnpm evidence run --group journeys|development|heldout_acceptance|risk [--shard k/n]` -> `evidence/runs/<runId>/`; `pnpm evidence combine --runs a,b --out <name>` -> `evidence/evaluation/<name>.summary.json` + `.report.md` (verdicts per group, split, risk class, variant family; failing hard gates; FAIL list) |
+| `driver/labels.ts`, `driver/personas.ts` | Badges and labels; synthetic personas (fictional 555-01xx caller ids) |
+
+Demo: `pnpm demo` (`platform/src/demo/run-demo.ts`). Load smoke: `platform/test/load` and
+`scripts/load/run-local-load.mts`. Results and numbers: [`docs/TEST_EVIDENCE.md`](../../../docs/TEST_EVIDENCE.md).

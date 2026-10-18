@@ -95,8 +95,10 @@ request for a `SANDBOX_DEPLOYMENT` scope is in the delivery report).
 * **Owner role**: identity_owner.
 * **Scope**: OIDC test clients for client and provider portals, workforce SSO client and
   groups for console roles, synthetic test users with MFA in non-production IdP tenants;
-  two OAuth2 client-credential clients (`talkdesk-mcp-sandbox`, `talkdesk-studio-sandbox`)
-  on the service authorization server.
+  one Talkdesk integration `talkdesk-sandbox` with two per-channel OAuth2 client-credential
+  clients on the service authorization server: `talkdesk-sandbox-mcp` (channel `mcp_tools`) and
+  `talkdesk-sandbox-studio` (channel `telephony_control`). Both map to the single integration id
+  `talkdesk-sandbox`, so a session started by Studio resolves for that tenant's MCP tool calls.
 * **Cost estimate inputs**: `sandbox-cost-inputs.yaml` → `identity.*`.
 * **Rollback**: disable/delete the clients and synthetic users; delete secrets
   (`sandbox-plan.md` §10 steps 2 and 5).

@@ -16,6 +16,7 @@ import { PgBreakGlassGrantSource } from "../console-api/break-glass.js";
 import type { DependencyHealth } from "../console-api/contract.js";
 import type { ConsoleApiDeps } from "../console-api/deps.js";
 import { registerConsoleApi } from "../console-api/plugin.js";
+import { LedgerReconciledRetry } from "../console-api/reconciled-retry.js";
 import { IDP } from "../fixtures/synthetic-world.js";
 import { IntegrationAuthenticationError } from "../gateway/auth.js";
 import type { IntegrationAuthenticator } from "../gateway/auth.js";
@@ -90,7 +91,8 @@ export async function buildLocalConsole(c: Container): Promise<LocalConsole> {
     capacity: c.ops.capacity,
     actions: c.actions,
     providers: c.business.providers,
-    reconciledRetry: null,
+    // ACT-03: staff retry only after the ledger's latest reconciliation returned NOT_FOUND (same idempotency key).
+    reconciledRetry: new LedgerReconciledRetry(c.actions, c.business.providers),
     outbox: c.dispatcher,
     workflows: c.workflows,
     transfers: c.transferStore,

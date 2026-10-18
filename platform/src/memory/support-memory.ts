@@ -31,7 +31,7 @@
  */
 import { z } from "zod";
 import type { Db } from "../db/types.js";
-import type { Logger } from "../observability/ports.js";
+import type { Logger, Metrics } from "../observability/ports.js";
 import { silentLogger } from "../observability/logger.js";
 import { Assurance, IsoDateTime, OpaqueId, RiskFlag } from "../protocol/index.js";
 import type { Clock } from "../shared/clock.js";
@@ -181,6 +181,8 @@ export interface SupportMemoryOptions {
   maxTtlMs?: number | null;
   /** Maximum entries in one recap. */
   recapLimit?: number;
+  /** Content-free vsp_memory_recap_withheld_total{reason} (closed reason set). */
+  metrics?: Metrics;
 }
 
 interface Row {
@@ -281,6 +283,11 @@ export class SupportMemoryPg implements SupportMemory {
     const assurance = Assurance.safeParse(r.assurance);
     const deny = (reasonCode: string): MemoryEntry[] => {
       this.logger.info("memory.recap.withheld", { reasonCode });
+      try {
+        this.opts.metrics?.increment("vsp_memory_recap_withheld_total", { reason: reasonCode });
+      } catch {
+        // Metrics never release a withheld recap.
+      }
       return [];
     };
     if (!assurance.success) return deny("MEMORY_RECAP_ASSURANCE_INVALID");

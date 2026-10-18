@@ -80,6 +80,35 @@ For each module: status, evidence (test command and result reference), blockers,
 ### Evaluation, demo and local start (`platform/src/evaluation`, `platform/src/demo`, `platform/src/main`, `scenarios/`)
 *To be completed by coordinator after integration test run.* PSTN tests: BLOCKED (PRQ-043).
 
+### Evaluation — local conversation driver (`platform/src/evaluation/driver`)
+**IMPLEMENTED_OFFLINE** (LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION). `LocalConversationDriver`
+runs every corpus scenario against a fresh `buildContainer({environment:"local"})` with the real
+business module and real worker loops, over the public telephony-control, portal and tool/MCP
+surfaces only. The conversational layer is the **LOCAL SIMULATED COORDINATOR** (deterministic
+keyword rules; not a language model, not model evaluation). Evidence comes from authoritative
+records (ledger rows, fixture effect logs, support requests and their Salesforce trace, transfer
+journeys, `interaction_outcomes`, egress scans, IntegrityVerifier). Faults it cannot inject
+(`KNOWLEDGE_STALE`, `REGIONAL_FAILOVER`, `REDACTION_FAILURE`) are refused, never simulated.
+Corpus results, counts per split / risk class / variant family and the defects they exposed:
+[`TEST_EVIDENCE.md`](TEST_EVIDENCE.md#evaluation-local-conversation-driver). Vendor sandbox and
+PSTN drivers: BLOCKED (PRQ-004, PRQ-034, PRQ-043); local results never satisfy sandbox, staging
+or production gates.
+
+### Demo (`platform/src/demo`)
+**IMPLEMENTED_OFFLINE**. `pnpm demo` drives the nine journeys through the local driver and prints,
+per step, the tool calls, every caller-heard line with its template id and approval status, and a
+backend snapshot (assurance, ledger, support requests, workflows, transfer, audit count), framed by
+the LOCAL FIXTURE badge. It writes `evidence/demo/<runId>.json` and exits non-zero if any journey
+lacks backend evidence. Results: [`TEST_EVIDENCE.md`](TEST_EVIDENCE.md#demo).
+
+### Load smoke (`platform/test/load`, `scripts/load`)
+**IMPLEMENTED_OFFLINE** as a LOCAL LOOPBACK smoke only (PGlite single connection, NOT the
+vendor/telephone path, NOT capacity evidence). autocannon drives a PUBLIC_READ and a PROTECTED_READ
+tool on a 127.0.0.1 gateway listener; every response body is checked and the final audit state is
+verified. The 400 req/s sustained target is **not met** locally (numbers in
+[`TEST_EVIDENCE.md`](TEST_EVIDENCE.md#load-local-loopback-smoke)); quota and vendor-path load tests
+remain BLOCKED (PRQ-022, PRQ-037).
+
 ### Infrastructure (`infra/terraform`)
 *To be completed by coordinator after integration test run.* Apply in any account: BLOCKED (PRQ-037).
 

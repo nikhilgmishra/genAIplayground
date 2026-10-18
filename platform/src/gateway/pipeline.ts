@@ -147,6 +147,11 @@ export interface ToolPipelineDeps {
   timers?: TimerPort;
   retrySleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   random?: () => number;
+  /**
+   * Server-side per-call outcome evidence (TC-11, ACT-04): told the final status of every
+   * invocation bound to a resolved session. Never fed from caller or model input.
+   */
+  callOutcomes?: { observe(callId: string, safetyClass: ToolSafetyClass, status: ToolStatus, policyDenied: boolean): void };
 }
 
 // ---------------------------------------------------------------------------
@@ -801,6 +806,13 @@ export class ToolPipeline {
       ? parsed.data
       : ToolResult.parse({ ...base, speech: null, status: "PERMANENT_FAILURE", reasonCode: PIPELINE_REASON.TOOL_RESULT_INVALID });
     this.observe(st, result.status, "reasonCode" in result ? result.reasonCode : null);
+    if (st.ctx && st.entry) {
+      try {
+        d.callOutcomes?.observe(st.ctx.callId, st.entry.definition.safetyClass, result.status, st.decision !== null && st.decision.allow === false);
+      } catch {
+        // Outcome evidence is best effort; it never changes the tool result.
+      }
+    }
     return result;
   }
 

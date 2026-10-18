@@ -11,6 +11,7 @@ import type { Outbox } from "../outbox/ports.js";
 import type { PolicyEngine } from "../policy/ports.js";
 import type { SessionService, VerificationService, AssertionService } from "../identity/ports.js";
 import type { WorkflowEngine } from "../workflows/ports.js";
+import type { DurableGrantStore } from "../workflows/grants.js";
 import type { TransferCoordinator, TransferJourney } from "../workflows/transfer.js";
 import type { KnowledgeService } from "../knowledge/ports.js";
 import type { SupportMemory } from "../memory/ports.js";
@@ -37,6 +38,7 @@ import type {
   Environment,
   IssueCategory,
   Outcome,
+  PreparedAction,
   ResolutionContract,
   SupportRequest,
   TransferReason,
@@ -86,6 +88,21 @@ export interface ToolDeps {
   versions: VersionSet;
   /** True when any adapter/store is a local fixture; surfaced as the LOCAL FIXTURE badge. */
   localFixture: boolean;
+  /**
+   * Added (additive, optional): durable action grants (spec section 7). When present, the
+   * business layer issues a narrowly scoped grant inside the transaction that accepts durable
+   * work (billing review, partner onboarding, complaint review) and passes its grantRef to
+   * WorkflowEngine.start. Absent => grantRef null, so every guarded workflow transition is
+   * refused DURABLE_GRANT_MISSING (fail closed).
+   */
+  grants?: DurableGrantStore;
+  /**
+   * Added (additive, optional): notified with every handoff the HandoffService returns
+   * (telephony-control, MCP/HTTP tools with or without a session, console), so the gateway's
+   * per-call handoff index (TC-12, TC-11 outcome evidence) sees every route. Must not throw;
+   * failures are ignored and never affect the route.
+   */
+  handoffObserver?: (callId: string, result: Pick<HandoffResult, "handoffId" | "transferId" | "destinationId" | "supportReference">, priority: "SAFETY" | "STANDARD") => void;
 }
 
 export interface HandoffResult {
@@ -204,6 +221,13 @@ export interface SupportRequestService {
    * first, worker view (includes restricted rows; callers gate disclosure). Bounded.
    */
   listForCall(tenantId: string, callId: string): Promise<SupportRequest[]>;
+  /**
+   * Added (additive, optional): worker sweep that re-enqueues due RETRY_SCHEDULED requests and
+   * stale SYNCING claims (PgSupportRequestService.retryDue). Returns the number re-enqueued.
+   */
+  retryDue?(tenantId: string, limit?: number): Promise<number>;
+  /** Added (additive, optional): audited operator repair of a DEAD_LETTER request (back to PENDING with a fresh sync message). */
+  repairDeadLetter?(tenantId: string, supportRequestId: string, operator: { actorRef: string; reasonCode: string }): Promise<SupportRequest>;
 }
 
 /** Interaction outcomes with evidence rules (RESOLVED needs the contract's success evidence; ACT-04). */
@@ -234,6 +258,12 @@ export interface BusinessModule {
   outcomes: InteractionOutcomeService;
   /** Outbox topic consumers the worker runs (each must be idempotent). */
   consumers: Partial<Record<"support_request.sync" | "action.committed" | "workflow.start" | "workflow.signal" | "notification.send", (messageId: string, payload: Record<string, unknown>) => Promise<void>>>;
+  /**
+   * Added (additive, optional): typed slot values for the confirmation template of a PREPARED
+   * action (TC-07), from the authoritative action and system of record only. null => the
+   * gateway routes to a human instead of speaking an incomplete commitment.
+   */
+  confirmationSlots?: (action: PreparedAction) => Promise<Record<string, string | number | boolean> | null>;
 }
 
 export type BuildBusiness = (deps: ToolDeps) => BusinessModule;
