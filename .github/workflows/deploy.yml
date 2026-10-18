@@ -99,7 +99,7 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Download release artifacts
-        uses: actions/download-artifact@v4 # pin to full commit SHA before production
+        uses: actions/download-artifact@v8 # pin to full commit SHA before production
         with:
           name: release-${{ inputs.release_run_id }}
           run-id: ${{ inputs.release_run_id }}
@@ -245,13 +245,13 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Download reviewed plan
-        uses: actions/download-artifact@v4 # pin to full commit SHA before production
+        uses: actions/download-artifact@v8 # pin to full commit SHA before production
         with:
           name: tfplan-${{ inputs.environment }}-${{ github.run_id }}
           path: infra/terraform/envs/${{ inputs.environment }}/
 
       - name: Download release artifacts
-        uses: actions/download-artifact@v4 # pin to full commit SHA before production
+        uses: actions/download-artifact@v8 # pin to full commit SHA before production
         with:
           name: release-${{ inputs.release_run_id }}
           run-id: ${{ inputs.release_run_id }}
