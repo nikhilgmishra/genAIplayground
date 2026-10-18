@@ -6,7 +6,7 @@
  */
 import type { Db, Queryable } from "../db/types.js";
 import type { AuditHealth, AuditWriter, AuditQuery } from "../audit/ports.js";
-import type { ActionService } from "../actions/ports.js";
+import type { ActionService, ProviderCommitPort } from "../actions/ports.js";
 import type { Outbox } from "../outbox/ports.js";
 import type { PolicyEngine } from "../policy/ports.js";
 import type { SessionService, VerificationService, AssertionService } from "../identity/ports.js";
@@ -32,6 +32,7 @@ import type {
   TelephonyControl,
 } from "../adapters/ports.js";
 import type {
+  ActionKind,
   AuthContext,
   Environment,
   IssueCategory,
@@ -184,6 +185,8 @@ export interface InteractionOutcomeService {
 
 export interface BusinessModule {
   tools: ToolModule[];
+  /** System-of-record commit ports per action kind, used by commit tools and the worker's reconciler. */
+  providers: Partial<Record<ActionKind, ProviderCommitPort>>;
   contracts: ResolutionContract[];
   handoff: HandoffService;
   supportRequests: SupportRequestService;
@@ -193,3 +196,28 @@ export interface BusinessModule {
 }
 
 export type BuildBusiness = (deps: ToolDeps) => BusinessModule;
+
+/**
+ * Audit action names shared by the gateway (writer) and console-api (reader,
+ * e.g. the active-call index and journey timeline). Audit events never carry
+ * the bearer session reference: `sessionRef` holds the non-bearer binding ref
+ * from identity/keys.ts sessionBindingRefFor(). Modules may emit additional
+ * names; these are the ones other modules rely on.
+ */
+export const SESSION_AUDIT_ACTIONS = {
+  started: "session.started",
+  ended: "session.ended",
+  roleSelected: "session.role_selected",
+  consentRecorded: "session.consent_recorded",
+  changed: "session.changed",
+  revoked: "session.revoked",
+  authGateRead: "session.auth_gate_read",
+  verificationBegun: "verification.begun",
+  verificationBound: "verification.bound",
+  verificationFailed: "verification.failed",
+  toolInvoke: "tool.invoke",
+  safetySignal: "safety.signal",
+  safetyRouteInitiated: "safety.route_initiated",
+  confirmationCaptured: "action.confirmation_captured",
+  bargeIn: "turn.barge_in",
+} as const;
