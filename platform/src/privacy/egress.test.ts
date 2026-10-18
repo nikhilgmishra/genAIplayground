@@ -70,7 +70,9 @@ describe("EgressGuard", () => {
     const { logger, records } = createMemoryLogger();
     const g = new EgressGuard(POLICY, { environment: "local", logger });
     expect(() => g.assertAllowed("https://analytics.local.invalid/collect", "PHI")).toThrow("EGRESS_PHI_TO_CONTENT_FREE_DESTINATION");
-    expect(records[0]).toMatchObject({ event: "privacy.egress.denied", fields: { reasonCode: "EGRESS_PHI_TO_CONTENT_FREE_DESTINATION", destinationId: "[redacted]" } });
+    // The configured destination id is a code-defined token; the URL itself is never logged.
+    expect(records[0]).toMatchObject({ event: "privacy.egress.denied", fields: { reasonCode: "EGRESS_PHI_TO_CONTENT_FREE_DESTINATION", destinationId: "egr_analytics" } });
+    expect(JSON.stringify(records)).not.toContain("analytics.local.invalid");
   });
 
   it("[DATA-01] configuration that would let PHI reach a content-free or uncovered destination is rejected", () => {
