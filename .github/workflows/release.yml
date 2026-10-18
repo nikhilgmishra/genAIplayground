@@ -63,7 +63,7 @@ jobs:
           bash scripts/policy.sh build
 
       - name: Configure AWS credentials (OIDC, no long-lived keys)
-        uses: aws-actions/configure-aws-credentials@v4 # pin to full commit SHA before production
+        uses: aws-actions/configure-aws-credentials@v6 # pin to full commit SHA before production
         with:
           role-to-assume: ${{ vars.RELEASE_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
