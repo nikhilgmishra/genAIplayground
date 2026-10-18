@@ -5,7 +5,7 @@
  * a later disclosure and is rechecked.
  */
 import type { VersionedWorkflowDefinition } from "../types.js";
-import { deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
+import { ACTORS, COMMON_EVENT_ACTORS, deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
 
 export const claimInvestigationV1: VersionedWorkflowDefinition = deepFreeze({
   type: "claim_investigation",
@@ -74,4 +74,17 @@ export const claimInvestigationV1: VersionedWorkflowDefinition = deepFreeze({
     WAITING_FOR_HUMAN: { HUMAN_APPROVED: "disclosure" },
   },
   humanTaskRoles: { WAITING_FOR_HUMAN: "claims_specialist" },
+  eventActors: {
+    ...COMMON_EVENT_ACTORS,
+    VALIDATE: ACTORS.SYSTEM,
+    VALIDATION_PASSED: ACTORS.SYSTEM_OR_STAFF,
+    VALIDATION_FAILED: ACTORS.SYSTEM_OR_STAFF,
+    NEEDS_CALLER_INFO: ACTORS.SYSTEM_OR_STAFF,
+    CALLER_RESPONDED: ACTORS.CALLER_RESPONSE,
+    SYSTEM_CONFIRMED: ACTORS.SYSTEM_OR_EXTERNAL,
+    PERMANENT_FAILURE: ACTORS.SYSTEM_OR_EXTERNAL,
+  },
+  grantActions: {
+    WAITING_FOR_HUMAN: { HUMAN_APPROVED: "claim.findings.disclose" },
+  },
 });

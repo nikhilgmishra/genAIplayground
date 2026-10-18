@@ -1,6 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { TIME_ZONE_NAMES, isValidCalendarDate, renderSlotValue, spellOut, validateSlotValue } from "./slots.js";
+import { MATCH_CODE_WORDS, newMatchCode } from "../identity/match-code.js";
+import { TIME_ZONE_NAMES, isValidCalendarDate, isValidMatchCode, renderSlotValue, spellOut, validateSlotValue } from "./slots.js";
 import type { CatalogSlotSpec } from "./slots.js";
 
 const spec = (type: CatalogSlotSpec["type"], extra: Partial<CatalogSlotSpec> = {}): CatalogSlotSpec => ({ type, ...extra });
@@ -60,6 +61,18 @@ describe("slot validation", () => {
     expect(validateSlotValue(spec("enum", { enumValues: ["A"] }), "B").ok).toBe(false);
     expect(validateSlotValue(spec("portal_path"), "/portal/billing/statements").ok).toBe(true);
     for (const bad of ["/admin", "/portal", "/portal/", "/portal//x", "/portal/a?b=c", "/portal/A"]) expect(validateSlotValue(spec("portal_path"), bad).ok, bad).toBe(false);
+  });
+
+  it("[ACT-05] [SPEC-7.transaction-matching] match codes are two distinct words of the identity word list and render as the two words", () => {
+    for (let i = 0; i < 50; i++) expect(validateSlotValue(spec("match_code"), newMatchCode()).ok).toBe(true);
+    const [a, b] = [MATCH_CODE_WORDS[0] as string, MATCH_CODE_WORDS[1] as string];
+    expect(isValidMatchCode(`${a}-${b}`)).toBe(true);
+    expect(renderSlotValue(spec("match_code"), `${a}-${b}`, "en")).toBe(`${a}, ${b}`);
+    expect(renderSlotValue(spec("match_code"), `${a}-${b}`, "es")).toBe(`${a}, ${b}`);
+    for (const bad of [`${a}-${a}`, `${a}-zzzzzz`, `${a} ${b}`, `${a}-${b}-${a}`, `${a.toUpperCase()}-${b}`, "1234-5678", `${a}-`, 42, ""]) {
+      expect(validateSlotValue(spec("match_code"), bad as string).ok, String(bad)).toBe(false);
+    }
+    expect(validateSlotValue(spec("match_code"), "x").ok ? null : (validateSlotValue(spec("match_code"), "x") as { reasonCode: string }).reasonCode).toBe("SLOT_INVALID_MATCH_CODE");
   });
 
   it("[ACT-05] times are HH:MM 24h and render as 12-hour times", () => {

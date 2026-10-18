@@ -12,9 +12,9 @@
  * follow-up idempotently.
  */
 import type { Invoice } from "../../adapters/ports.js";
+import { sha256Hex } from "../../shared/canonical.js";
 import type { Queryable } from "../../db/types.js";
 import type { AuthContext, CommitReceipt, ConsentState, PolicyDecision, PreparedAction, SupportRequest } from "../../protocol/index.js";
-import { sha256Hex, canonicalJson } from "../../shared/canonical.js";
 import { ValidationError } from "../../shared/errors.js";
 import type { ToolDeps } from "../contract.js";
 import { BILLING_REVIEW } from "../contracts/index.js";
@@ -43,17 +43,6 @@ export type BillingReviewPrepareOutcome =
 export type BillingReviewCommitOutcome =
   | { kind: "REQUEST_ACCEPTED"; actionId: string; receiptId: string; supportRequest: SupportRequest | null; workflowId: string | null }
   | Exclude<CommitResult, { kind: "COMMITTED" }>;
-
-/**
- * Digest over the proposed review (kind, target, change, session binding, generation).
- * Policy action billing:submit_review requires an action digest; at preparation time
- * the prepared-action digest does not exist yet, so authorization is evaluated against
- * this proposal digest and re-evaluated against the prepared-action digest at commit.
- * (A dedicated billing:prepare_review catalogue action is requested; see README.)
- */
-export function billingReviewProposalDigest(input: { tenantId: string; sessionBinding: string; generation: number; invoiceId: string; invoiceVersion: string; reasonCategory: string }): string {
-  return sha256Hex(canonicalJson({ v: "vsp.billing_review.proposal.v1", ...input }));
-}
 
 export class BillingService {
   readonly provider: BillingReviewCommitPort;

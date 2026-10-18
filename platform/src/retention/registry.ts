@@ -26,8 +26,13 @@ export class DatasetRegistry {
     if (!DATASET_NAME.test(d.name)) throw new ValidationError("RETENTION_DATASET_NAME_INVALID");
     if (this.datasets.has(d.name)) throw new ValidationError("RETENTION_DATASET_DUPLICATE");
     if (!DataClass.safeParse(d.dataClass).success) throw new ValidationError("RETENTION_DATA_CLASS_INVALID");
-    for (const col of [d.table, d.timestampColumn, d.tenantColumn, d.keyColumn, ...(d.subjectColumn ? [d.subjectColumn] : [])]) quoteIdent(col);
-    if (d.deleteStrategy !== "HARD_DELETE" && d.deleteStrategy !== "CRYPTO_SHRED") throw new ValidationError("RETENTION_STRATEGY_INVALID");
+    for (const col of [d.table, d.timestampColumn, d.tenantColumn, d.keyColumn, ...(d.subjectColumn ? [d.subjectColumn] : []), ...(d.keyColumns ?? [])]) quoteIdent(col);
+    if (d.keyColumns !== undefined) {
+      if (d.keyColumns.length < 2 || d.keyColumns.length > 4 || new Set(d.keyColumns).size !== d.keyColumns.length || d.keyColumns[0] !== d.keyColumn) {
+        throw new ValidationError("RETENTION_KEY_COLUMNS_INVALID");
+      }
+    }
+    if (d.deleteStrategy !== "HARD_DELETE" && d.deleteStrategy !== "CRYPTO_SHRED" && d.deleteStrategy !== "APPEND_ONLY_PURGE_REQUIRED") throw new ValidationError("RETENTION_STRATEGY_INVALID");
     const verifierNames = new Set<string>();
     for (const v of d.derivedCopies) {
       if (!DATASET_NAME.test(v.name) || verifierNames.has(v.name)) throw new ValidationError("RETENTION_VERIFIER_INVALID");
@@ -37,7 +42,7 @@ export class DatasetRegistry {
       if (!VENDOR.test(vc.vendor)) throw new ValidationError("RETENTION_VENDOR_INVALID");
       quoteIdent(vc.refColumn);
     }
-    this.datasets.set(d.name, Object.freeze({ ...d, derivedCopies: [...d.derivedCopies], vendorCopies: [...d.vendorCopies] }));
+    this.datasets.set(d.name, Object.freeze({ ...d, derivedCopies: [...d.derivedCopies], vendorCopies: [...d.vendorCopies], ...(d.keyColumns ? { keyColumns: [...d.keyColumns] } : {}) }));
     return this;
   }
 
@@ -59,6 +64,7 @@ export class DatasetRegistry {
         timestampColumn: d.timestampColumn,
         tenantColumn: d.tenantColumn,
         keyColumn: d.keyColumn,
+        ...(d.keyColumns ? { keyColumns: [...d.keyColumns] } : {}),
         subjectColumn: d.subjectColumn,
         deleteStrategy: d.deleteStrategy,
         derivedCopies: d.derivedCopies.map((v) => ({ name: v.name, kind: v.kind, location: v.location })),

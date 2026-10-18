@@ -56,8 +56,11 @@ export const FIXTURE_SELF_SCOPES: Partial<Record<Role, readonly string[]>> = {
   client: ["appointment:read", "appointment:write", "invoice:read", "billing_review:create", "claim:read", "case:read", "case:create"],
   provider: ["onboarding:read", "case:read", "case:create"],
 };
-/** LOCAL FIXTURE scopes a treating relationship contributes (administrative appointment facts only). */
-export const FIXTURE_TREATING_SCOPES: readonly string[] = ["appointment:read"];
+/**
+ * LOCAL FIXTURE scopes a treating relationship contributes (administrative appointment facts
+ * and open administrative times only; policy actions appointment:read and appointment:list_options).
+ */
+export const FIXTURE_TREATING_SCOPES: readonly string[] = ["appointment:read", "appointment:list_options"];
 
 interface GrantMapping {
   kind: StoredDelegation["kind"];

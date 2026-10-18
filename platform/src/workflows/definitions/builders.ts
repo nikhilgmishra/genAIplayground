@@ -9,10 +9,42 @@
  */
 import type { WorkflowStateName } from "../../protocol/index.js";
 import type { WorkflowStateDefinition } from "../ports.js";
-import { BUSINESS_ROLE_STAFF_MAPPING, type BusinessApprovalRole } from "../types.js";
+import { BUSINESS_ROLE_STAFF_MAPPING, type BusinessApprovalRole, type WorkflowActorKind } from "../types.js";
 
 /** Uniform escalation event name used by every shipped definition. */
 export const ESCALATED = "ESCALATED";
+
+/**
+ * Reviewed actor sets for workflow events (who may send an event through
+ * WorkflowEngine.signal). Least privilege: a caller can only report that they
+ * responded or submitted material; system outcomes come from the trusted
+ * backend or the system of record; human decisions come only from
+ * completeHumanTask; policy-change events are raised by the engine itself.
+ */
+export const ACTORS = Object.freeze({
+  /** Trusted backend (worker, business layer) only. */
+  SYSTEM: Object.freeze(["system"]) as readonly WorkflowActorKind[],
+  /** Trusted backend or an authenticated, authorized staff member (console). */
+  SYSTEM_OR_STAFF: Object.freeze(["system", "staff"]) as readonly WorkflowActorKind[],
+  /** Trusted backend or the authenticated system of record (callback / webhook adapter). */
+  SYSTEM_OR_EXTERNAL: Object.freeze(["system", "external_system"]) as readonly WorkflowActorKind[],
+  /** The authenticated caller reporting their own response, or staff / backend recording it. */
+  CALLER_RESPONSE: Object.freeze(["caller", "staff", "system"]) as readonly WorkflowActorKind[],
+  /** Human-task decisions: staff only, and only through completeHumanTask. */
+  HUMAN_DECISION: Object.freeze(["staff"]) as readonly WorkflowActorKind[],
+  /** Raised by the engine; no actor may send it. */
+  ENGINE_RAISED: Object.freeze([]) as readonly WorkflowActorKind[],
+});
+
+/** Event actor sets shared by every shipped definition that routes these events. */
+export const COMMON_EVENT_ACTORS = Object.freeze({
+  ESCALATED: ACTORS.SYSTEM_OR_STAFF,
+  CANCEL: ACTORS.SYSTEM_OR_STAFF,
+  RETRYABLE_FAILURE: ACTORS.SYSTEM_OR_EXTERNAL,
+  HUMAN_APPROVED: ACTORS.HUMAN_DECISION,
+  HUMAN_REJECTED: ACTORS.HUMAN_DECISION,
+  POLICY_CHANGED_PENDING_ACTION: ACTORS.ENGINE_RAISED,
+});
 
 export function waitState(input: {
   owner: string;

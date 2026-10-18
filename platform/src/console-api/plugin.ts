@@ -24,7 +24,7 @@ import type { AuditEventInput, CommitReceipt, StaffActor, StaffRole } from "../p
 import { PgAuditQuery } from "../audit/query.js";
 import { CONSOLE_LOCAL_SIGN_IN_COMPONENT, WORKFORCE_IDP_ADAPTER_KEY } from "../config/guard.js";
 import { killSwitchBlock } from "../ops/kill-switches.js";
-import { ConfigurationRejectedError, PlatformError } from "../shared/errors.js";
+import { AccessDeniedError, ConfigurationRejectedError, PlatformError } from "../shared/errors.js";
 import { digestOf } from "../shared/canonical.js";
 import { newId } from "../shared/ids.js";
 import { WorkflowRecheckDeniedError } from "../workflows/engine.js";
@@ -625,12 +625,22 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
       const intentId = await auditRequired(ctx, { outcome: "PENDING", reasonCode: body.reason, callId, evidencePointers: [`db://destinations/${body.destinationId}`] });
       // Kill switches never gate the human route; the handoff service owns the transfer (SAFE-04/SAFE-05).
       const language = destination.languages.find((l) => /^[a-z]{2}(-[A-Z]{2})?$/.test(l)) ?? "en";
-      const result = await deps.handoff.requestHuman({ tenantId, callId, ctx: null, reason: body.reason, language, issueCategory: null });
+      // The staff-selected destination is passed through; the handoff service re-checks it against the allowlist (SAFE-05).
+      let result: Awaited<ReturnType<typeof deps.handoff.requestHuman>>;
+      try {
+        result = await deps.handoff.requestHuman({ tenantId, callId, ctx: null, reason: body.reason, language, issueCategory: null, destinationId: destination.destinationId, initiatedBy: { staffId } });
+      } catch (err) {
+        if (err instanceof AccessDeniedError && err.reasonCode === "DESTINATION_NOT_ALLOWLISTED") {
+          await auditBestEffort(ctx, { outcome: "DENIED", reasonCode: "DESTINATION_NOT_ALLOWLISTED", callId, policyDecision: ctx.decision });
+          throw badRequest("DESTINATION_NOT_ALLOWLISTED");
+        }
+        throw err;
+      }
       if (!result.transferId) {
         await auditBestEffort(ctx, { outcome: "PENDING", reasonCode: "TRANSFER_ROUTE_PENDING", callId, policyDecision: ctx.decision, evidencePointers: [`transfer_journey:${result.handoffId}`] });
         throw unavailable("TRANSFER_ROUTE_PENDING", false);
       }
-      // The handoff service resolves the destination from trusted configuration; anything else is a defect (SAFE-05).
+      // The handoff service only ever dials an allowlisted destination; anything else is a defect (SAFE-05).
       if (!deps.destinations.some((d) => d.destinationId === result.destinationId)) throw new ConsoleHttpError(500, "INTERNAL_ERROR");
       const attempt = result.journey?.attempts.find((a) => a.transferId === result.transferId);
       const state: C.TransferState = attempt?.state ?? "REQUESTED";
@@ -650,13 +660,21 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
   register("supportRequests.trace", {
     handle: async (ctx): Promise<C.SupportTraceResponse> => {
       const { tenantId } = ctx.identity;
-      const trace = await deps.supportRequests.trace(tenantId, ctx.params.ref as string);
-      if (!trace || trace.supportRequest.tenantId !== tenantId) throw notFound();
-      const sr = trace.supportRequest;
-      if (sr.restricted) {
+      const ref = ctx.params.ref as string;
+      // Worker-view metadata only decides which gate applies (existence + restricted flag); nothing from it is returned.
+      const meta = await deps.supportRequests.trace(tenantId, ref);
+      if (!meta || meta.supportRequest.tenantId !== tenantId) throw notFound();
+      let restrictedReader = false;
+      if (meta.supportRequest.restricted) {
         // Restricted privacy/safety records need a valid, time-bound, justified break-glass grant approved by someone else.
         await authorizeOrDeny(ctx, [{ action: "restricted_record:view", resource: { type: "restricted_record", tenantId } }]);
+        restrictedReader = true;
       }
+      // The data returned is read as app_console under row-level security; the restricted-reader
+      // setting (app.restricted_reader, migration 0300) is set ONLY after the decision above allowed.
+      const trace = await deps.supportRequests.trace(tenantId, ref, { reader: { kind: "console", restrictedReader } });
+      if (!trace || trace.supportRequest.tenantId !== tenantId || trace.supportRequest.supportRequestId !== meta.supportRequest.supportRequestId) throw notFound();
+      const sr = trace.supportRequest;
       const actions: C.SupportTraceResponse["actions"] = [];
       for (const actionId of trace.actionIds.slice(0, 64)) {
         const v = await deps.actions.describe(tenantId, actionId);
@@ -703,11 +721,11 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
           state: trace.salesforce.syncState,
           attempts: trace.salesforce.attempts,
           lastAttemptAt: trace.salesforce.lastAttemptAt,
-          lastReasonCode: null,
+          lastReasonCode: trace.salesforce.lastReasonCode !== null && /^[A-Z][A-Z0-9_]{2,63}$/.test(trace.salesforce.lastReasonCode) ? trace.salesforce.lastReasonCode : null,
           // Null until Salesforce confirms the upsert; never invented.
           salesforceCaseId: trace.salesforce.caseId,
-          syncedAt: trace.salesforce.syncState === "SYNCED" ? trace.salesforce.lastAttemptAt : null,
-          outboxMessageIds: [],
+          syncedAt: trace.salesforce.syncState === "SYNCED" ? trace.salesforce.syncedAt : null,
+          outboxMessageIds: trace.outboxMessageIds.slice(0, 64),
         },
         actions,
         workflows,
@@ -991,10 +1009,9 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
     handle: async (ctx): Promise<C.ReleasesResponse> => {
       const { tenantId, staffId } = ctx.identity;
       const env = { environment: deps.environment, now: ctx.now };
+      // The endpoint gate (release:view) covers knowledge snapshots; policy bundles additionally need policy:review.
       const canPolicy = (await authorize(deps.policy, ctx.identity, [{ action: "policy:review", resource: { type: "release_candidate", tenantId } }], env)).allowed;
-      const canKnowledge =
-        canPolicy || (await authorize(deps.policy, ctx.identity, [{ action: "knowledge:edit", resource: { type: "release_candidate", tenantId } }], env)).allowed;
-      const submissions = (await releases.list(tenantId, staffId, 50)).filter((s) => (s.kind === "POLICY_BUNDLE" ? canPolicy : canKnowledge));
+      const submissions = (await releases.list(tenantId, staffId, 50)).filter((s) => s.kind !== "POLICY_BUNDLE" || canPolicy);
       const reviews = await releases.reviewsFor(tenantId, staffId, submissions.map((s) => s.releaseId));
       const snapshot = submissions.some((s) => s.kind === "KNOWLEDGE_SNAPSHOT") ? await latestKnowledgeSnapshot(tenantId, staffId) : null;
       const held =

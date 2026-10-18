@@ -9,7 +9,7 @@ import { FakeClock } from "../shared/clock.js";
 import { AccessDeniedError, AuditUnavailableError, ConflictError, DependencyError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
 import { billingDisputeReviewV1 } from "./definitions/index.js";
-import { PgWorkflowEngine, WorkflowRecheckDeniedError, type WorkflowStartInput } from "./engine.js";
+import { PgWorkflowEngine, WorkflowActorNotPermittedError, WorkflowRecheckDeniedError, type WorkflowStartInput } from "./engine.js";
 import { workflowOutcome } from "./outcome.js";
 import type { PreDisclosureRecheck } from "./recheck.js";
 import { createDefaultRegistry, WorkflowDefinitionRegistry } from "./registry.js";
@@ -785,5 +785,160 @@ describe("PgWorkflowEngine: definition version compatibility", () => {
     // Registered definitions are frozen copies.
     const got = registry.get("billing_dispute_review", "1.0.0");
     expect(Object.isFrozen(got?.states.ACCEPTED?.transitions)).toBe(true);
+  });
+});
+
+describe("PgWorkflowEngine: event actor permissions (who may send which event)", () => {
+  type Actor = { kind: "system" | "staff" | "caller" | "external_system"; ref: string | null };
+  type Step = { event: string; actor?: Actor } | { decide: "APPROVE" | "REJECT" };
+  const STAFF_REF = "stf_synthSupervisor01";
+  const CALLER = { kind: "caller" as const, ref: null };
+  const STAFF = { kind: "staff" as const, ref: STAFF_REF };
+  const EXTERNAL = { kind: "external_system" as const, ref: null };
+
+  /**
+   * Per shipped definition: a path (driven by permitted actors) to a state holding a system-only
+   * outcome event, the event a caller must not be able to send there, and an actor that may send it.
+   */
+  const CASES: { type: WorkflowStartInput["type"]; path: Step[]; state: string; forbidden: string; permitted: { event: string; actor: Actor } }[] = [
+    {
+      type: "billing_dispute_review",
+      path: [{ event: "VALIDATE" }, { event: "VALIDATION_PASSED" }, { decide: "APPROVE" }, { event: "COMMIT" }],
+      state: "WAITING_FOR_SYSTEM",
+      forbidden: "SYSTEM_CONFIRMED",
+      permitted: { event: "SYSTEM_CONFIRMED", actor: EXTERNAL },
+    },
+    {
+      type: "provider_document_review",
+      path: [{ event: "VALIDATE" }, { event: "DOCUMENTS_RECEIVED" }, { decide: "APPROVE" }],
+      state: "WAITING_FOR_SYSTEM",
+      forbidden: "SYSTEM_CONFIRMED",
+      permitted: { event: "SYSTEM_CONFIRMED", actor: SYSTEM },
+    },
+    {
+      type: "claim_investigation",
+      path: [{ event: "VALIDATE" }, { event: "VALIDATION_PASSED" }],
+      state: "WAITING_FOR_SYSTEM",
+      forbidden: "SYSTEM_CONFIRMED",
+      permitted: { event: "SYSTEM_CONFIRMED", actor: EXTERNAL },
+    },
+    {
+      type: "partner_onboarding",
+      path: [{ event: "VALIDATE" }, { event: "CONTRACT_VERIFIED" }, { decide: "APPROVE" }, { event: "COMMIT" }],
+      state: "WAITING_FOR_SYSTEM",
+      forbidden: "SYSTEM_CONFIRMED",
+      permitted: { event: "SYSTEM_CONFIRMED", actor: SYSTEM },
+    },
+    { type: "support_request_sync", path: [{ event: "SYNC_STARTED" }], state: "WAITING_FOR_SYSTEM", forbidden: "SYNCED", permitted: { event: "SYNCED", actor: EXTERNAL } },
+    { type: "callback_request", path: [{ event: "VALIDATE" }], state: "VALIDATING", forbidden: "CONSENT_CONFIRMED", permitted: { event: "CONSENT_CONFIRMED", actor: SYSTEM } },
+    { type: "complaint_review", path: [{ event: "VALIDATE" }], state: "VALIDATING", forbidden: "TRIAGED", permitted: { event: "TRIAGED", actor: STAFF } },
+  ];
+
+  let h: Harness;
+  beforeAll(async () => {
+    h = await harness({ recheck: allowRecheck() });
+  });
+  afterAll(async () => h.db.close());
+
+  async function drive(type: WorkflowStartInput["type"], path: Step[]) {
+    let wf = await h.engine.start(startInput({ type }));
+    for (const step of path) {
+      if ("decide" in step) {
+        const task = (await h.engine.openTasks(TENANT_ID, ["supervisor", "support_agent"])).find((t) => t.workflowId === wf.workflowId);
+        if (!task) throw new Error("expected an open task");
+        const issued = await h.engine.issueTaskToken({ tenantId: TENANT_ID, taskId: task.taskId, staff: staffActor("supervisor") });
+        wf = await h.engine.completeHumanTask({ tenantId: TENANT_ID, taskId: task.taskId, taskToken: issued.taskToken, decision: step.decide, staff: staffActor("supervisor") });
+      } else {
+        wf = await h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event: step.event, actor: step.actor ?? SYSTEM });
+      }
+    }
+    return wf;
+  }
+
+  it.each(CASES.map((c) => [c.type, c] as const))(
+    "[AUTH-03][SPEC-9.workflow] %s: a caller cannot send a system outcome; the denial is audited and the instance is unchanged",
+    async (_type, c) => {
+      h.clock.set(START);
+      const wf = await drive(c.type, c.path);
+      expect(wf.state).toBe(c.state);
+      const before = await h.engine.history(TENANT_ID, wf.workflowId);
+
+      const err = await h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event: c.forbidden, actor: CALLER }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(WorkflowActorNotPermittedError);
+      expect(err).toMatchObject({ reasonCode: "ACTOR_NOT_PERMITTED" });
+
+      expect(await h.engine.get(TENANT_ID, wf.workflowId)).toMatchObject({ state: c.state, version: wf.version });
+      expect(await h.engine.history(TENANT_ID, wf.workflowId)).toEqual(before);
+      const denials = (await h.audit.all()).filter((a) => a.action === "workflow.signal.denied" && a.evidencePointers.includes(`workflow:${wf.workflowId}`));
+      expect(denials).toHaveLength(1);
+      expect(denials[0]).toMatchObject({ outcome: "DENIED", reasonCode: "ACTOR_NOT_PERMITTED", dataClass: "SECURITY_AUDIT" });
+
+      // The declared actor still can.
+      const done = await h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event: c.permitted.event, actor: c.permitted.actor });
+      expect(done.state).not.toBe(c.state);
+    },
+  );
+
+  it("[AUTH-03][SPEC-9.workflow] billing_dispute_review: a caller trying SYSTEM_CONFIRMED (even with a dedupe key or expected version) never completes the review", async () => {
+    h.clock.set(START);
+    const wf = await drive("billing_dispute_review", CASES[0]?.path ?? []);
+    for (const extra of [{}, { dedupeKey: "sqs:forged-confirmation" }, { expectedVersion: wf.version }]) {
+      await expect(
+        h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event: "SYSTEM_CONFIRMED", actor: CALLER, ...extra }),
+      ).rejects.toMatchObject({ reasonCode: "ACTOR_NOT_PERMITTED" });
+    }
+    // Staff cannot fabricate a system-of-record confirmation either.
+    await expect(h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event: "SYSTEM_CONFIRMED", actor: STAFF })).rejects.toMatchObject({
+      reasonCode: "ACTOR_NOT_PERMITTED",
+    });
+    expect((await h.engine.get(TENANT_ID, wf.workflowId))?.state).toBe("WAITING_FOR_SYSTEM");
+    expect((await h.engine.history(TENANT_ID, wf.workflowId)).some((e) => e.trigger === "SYSTEM_CONFIRMED")).toBe(false);
+  });
+
+  it("[AUTH-03] system-only events reject staff and caller; the caller may report its own response where declared", async () => {
+    h.clock.set(START);
+    const wf = await h.engine.start(startInput());
+    for (const actor of [CALLER, STAFF, EXTERNAL]) {
+      await expect(h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event: "VALIDATE", actor })).rejects.toMatchObject({
+        reasonCode: "ACTOR_NOT_PERMITTED",
+      });
+    }
+    // A caller cannot cancel, escalate or burn the retry budget.
+    for (const event of ["CANCEL", "ESCALATED", "RETRYABLE_FAILURE"]) {
+      await expect(h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event, actor: CALLER })).rejects.toMatchObject({
+        reasonCode: "ACTOR_NOT_PERMITTED",
+      });
+    }
+    expect(await h.engine.get(TENANT_ID, wf.workflowId)).toMatchObject({ state: "ACCEPTED", version: 1, attempts: 0 });
+    await h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event: "VALIDATE", actor: SYSTEM });
+    const waiting = await h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event: "NEEDS_CALLER_INFO", actor: STAFF });
+    expect(waiting.state).toBe("WAITING_FOR_CALLER");
+    const responded = await h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event: "CALLER_RESPONDED", actor: { kind: "caller", ref: "ses_bnd_synthCallerBinding000000000000000000000000" } });
+    expect(responded.state).toBe("VALIDATING");
+    expect((await h.engine.history(TENANT_ID, wf.workflowId)).at(-1)).toMatchObject({ trigger: "CALLER_RESPONDED", actor: { kind: "caller" } });
+  });
+
+  it("[SPEC-9.human-task][AUTH-03] human-task decisions are accepted only through completeHumanTask, never as a signal from any actor", async () => {
+    h.clock.set(START);
+    const { wf, task } = await toHuman(h);
+    for (const actor of [STAFF, SYSTEM, EXTERNAL, CALLER]) {
+      for (const event of ["HUMAN_APPROVED", "HUMAN_REJECTED"]) {
+        await expect(h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event, actor })).rejects.toMatchObject({
+          reasonCode: "EVENT_RESERVED_FOR_ENGINE",
+        });
+      }
+    }
+    const issued = await h.engine.issueTaskToken({ tenantId: TENANT_ID, taskId: task.taskId, staff: staffActor("agent") });
+    const done = await h.engine.completeHumanTask({ tenantId: TENANT_ID, taskId: task.taskId, taskToken: issued.taskToken, decision: "APPROVE", staff: staffActor("agent") });
+    expect(done.state).toBe("READY_TO_COMMIT");
+    expect((await h.engine.history(TENANT_ID, wf.workflowId)).at(-1)).toMatchObject({ trigger: "HUMAN_APPROVED", actor: { kind: "staff" } });
+  });
+
+  it("[AUTH-03] an event the pinned definition does not declare at all is refused as a transition error, without an actor check leak", async () => {
+    const wf = await h.engine.start(startInput());
+    await expect(h.engine.signal({ tenantId: TENANT_ID, workflowId: wf.workflowId, event: "TRIAGED", actor: SYSTEM })).rejects.toMatchObject({
+      reasonCode: "TRANSITION_NOT_ALLOWED",
+    });
+    expect((await h.engine.get(TENANT_ID, wf.workflowId))?.state).toBe("ACCEPTED");
   });
 });

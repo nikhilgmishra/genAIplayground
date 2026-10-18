@@ -75,6 +75,39 @@ export interface PlatformConfig {
   phi?: { endpointsEnabled: boolean };
   /** Added by the config module: capacity, admission and kill-switch settings (platform/src/ops). */
   ops?: OpsConfig;
+  /**
+   * Added by the gateway module (additive, optional; schema.ts GatewayConfigSchema):
+   * inbound integration authentication and HTTP limits. Absent => local/ci use the
+   * LOCAL FIXTURE integration tokens and every other environment refuses to start
+   * the gateway (GATEWAY_INBOUND_AUTH_NOT_CONFIGURED). Read it through
+   * gatewayConfigOf(), which re-validates it (fail closed).
+   */
+  gateway?: GatewayConfig;
+}
+
+export type GatewayInboundChannel = "mcp_tools" | "telephony_control" | "portal" | "webhook";
+
+/** OAuth2 client-credentials JWT validation for inbound integrations (values from the integration owner; nothing defaulted). */
+export interface GatewayInboundAuth {
+  kind: "oauth2_jwt";
+  issuer: string;
+  audience: string;
+  jwksUri: string;
+  algorithms: ("RS256" | "RS384" | "RS512" | "PS256" | "PS384" | "PS512" | "ES256" | "ES384" | "ES512" | "EdDSA")[];
+  clockToleranceSeconds: number;
+  maxTokenAgeSeconds: number | null;
+  clientIdClaim: "client_id" | "azp" | "sub";
+  /** One integrationId per vendor tenant; its credentials differ by channel (identity binds sessions to the integration). */
+  clients: { clientId: string; integrationId: string; credentialId: string; channels: GatewayInboundChannel[] }[];
+  scopeToChannel: Record<string, GatewayInboundChannel>;
+}
+
+export interface GatewayConfig {
+  inboundAuth: GatewayInboundAuth | null;
+  http?: {
+    bodyLimitBytes: number;
+    rateLimit: { max: number; timeWindowMs: number } | null;
+  };
 }
 
 export interface OpsConfig {

@@ -145,7 +145,7 @@ Human boundary:
 - Service deadline: none
 - After-hours behaviour: `SELF_SERVICE_AVAILABLE`
 - Outcome when the success evidence exists: `INFORMATION_PROVIDED`
-- Served by tools: `get_appointment_options@1.0.0` (`appointment:read`)
+- Served by tools: `get_appointment_options@1.0.0` (`appointment:list_options`)
 
 Exact success evidence:
 
@@ -177,7 +177,7 @@ Human boundary:
 - Service deadline: none
 - After-hours behaviour: `SELF_SERVICE_AVAILABLE`
 - Outcome when the success evidence exists: `RESOLVED`
-- Served by tools: `get_appointment_options@1.0.0` (`appointment:read`), `prepare_appointment_change@1.0.0` (`appointment:prepare_change`), `commit_appointment_change@1.0.0` (`appointment:commit_change`)
+- Served by tools: `get_appointment_options@1.0.0` (`appointment:list_options`), `prepare_appointment_change@1.0.0` (`appointment:prepare_change`), `commit_appointment_change@1.0.0` (`appointment:commit_change`)
 
 Exact success evidence:
 
@@ -214,7 +214,7 @@ Human boundary:
 - Service deadline: none
 - After-hours behaviour: `SELF_SERVICE_AVAILABLE`
 - Outcome when the success evidence exists: `RESOLVED`
-- Served by tools: `get_appointment_options@1.0.0` (`appointment:read`), `prepare_appointment_change@1.0.0` (`appointment:prepare_change`), `commit_appointment_change@1.0.0` (`appointment:commit_change`)
+- Served by tools: `get_appointment_options@1.0.0` (`appointment:list_options`), `prepare_appointment_change@1.0.0` (`appointment:prepare_change`), `commit_appointment_change@1.0.0` (`appointment:commit_change`)
 
 Exact success evidence:
 
@@ -283,7 +283,7 @@ Human boundary:
 - Service deadline: `P7D` (engineering default pending support operations)
 - After-hours behaviour: `INTAKE_AND_CALLBACK`
 - Outcome when the success evidence exists: `REQUEST_ACCEPTED`
-- Served by tools: `prepare_billing_review@1.0.0` (`billing:submit_review`), `submit_billing_review@1.0.0` (`billing:submit_review`)
+- Served by tools: `prepare_billing_review@1.0.0` (`billing:prepare_review`), `submit_billing_review@1.0.0` (`billing:submit_review`)
 
 Exact success evidence:
 

@@ -12,7 +12,7 @@ Spec sections: 3 (Step Functions Standard; no second workflow engine), 9 (durabl
 | File | Purpose |
 |---|---|
 | `ports.ts` | Shared port (unchanged signatures) |
-| `types.ts` | `VersionedWorkflowDefinition` (adds transition guards + business-role documentation), reserved engine events, business-role → staff-role mapping |
+| `types.ts` | `VersionedWorkflowDefinition` (adds transition guards, business-role documentation, per-event actor permissions `eventActors` and durable-grant actions `grantActions`), reserved engine events, business-role → staff-role mapping |
 | `definitions/*.ts` | Versioned (`1.0.0`) definitions for all seven workflow types |
 | `validator.ts` | Definition validator (reason codes only) |
 | `registry.ts` | Registry keyed by type + version; immutable versions; newest-by-semver for new starts |
@@ -20,11 +20,13 @@ Spec sections: 3 (Step Functions Standard; no second workflow engine), 9 (durabl
 | `engine.ts` | `PgWorkflowEngine` — the local durable executor implementing `WorkflowEngine` |
 | `tokens.ts` | Human-task tokens: 256-bit random, SHA-256 at rest, constant-time comparison |
 | `recheck.ts` | Pre-disclosure / material-change recheck hook contract; fails closed when unwired |
+| `grants.ts` | `PgDurableGrantStore` (`DurableGrantStore` port): issue / check / revoke narrowly scoped durable action grants (spec section 7) |
 | `outcome.ts` | Workflow state → `Outcome` mapping (ACT-04) |
 | `asl.ts`, `generate-asl.ts` | ASL generator + CLI writing `infra/stepfunctions/*.asl.json` (`--check` for drift) |
 | `transfer.ts` | Pure transfer transition function, `TransferCoordinator`, `TransferStore` + `MemoryTransferStore` (local fixture) |
 | `notification-policy.ts` | Follow-up notification decision: neutral templates, consent, preferences, verified channel, quiet hours |
 | `../../migrations/0401_workflows.sql` | `workflow_instances`, `workflow_events` (append-only), `workflow_tasks`; RLS; least-privilege grants; due-work scan function |
+| `../../migrations/0402_durable_action_grants.sql` | `durable_action_grants`: opaque grant id, tenant, subject, actor, `actions text[]` (dotted codes), expiry, single revocation, opaque source ref; forced tenant RLS; append-only except one revocation; no PHI columns |
 | `workflow-test-fixtures.ts` | LOCAL TEST FIXTURES (audit writers, recheck, telephony) — tests only |
 
 ### Definitions
@@ -41,6 +43,27 @@ states, unreachable states, trap cycles with no path to a terminal state, reserv
 as transitions, human tasks without valid staff roles or without both decision routes,
 `WAITING_FOR_HUMAN` without a human task, guarded transitions without a
 `POLICY_CHANGED_PENDING_ACTION` route, guards on escalation routes, and role-mapping mismatches.
+It also enforces **event actor permissions** and **durable-grant actions**:
+
+* every event used by any transition, plus `RETRYABLE_FAILURE`, declares the actor kinds
+  (`caller`, `system`, `staff`, `external_system`) that may send it (`EVENT_ACTORS_MISSING`,
+  `EVENT_ACTORS_EMPTY`, `EVENT_ACTOR_UNKNOWN`, `EVENT_ACTOR_DUPLICATE`, `EVENT_ACTORS_UNUSED`);
+* `HUMAN_APPROVED` / `HUMAN_REJECTED` are exactly `["staff"]` (and are still only accepted through
+  `completeHumanTask`); `POLICY_CHANGED_PENDING_ACTION` is `[]` (engine-raised only);
+  `RETRYABLE_FAILURE` may not include `caller`; every escalation event includes `system`;
+* every guarded transition names the grant action it consumes (`GUARD_GRANT_ACTION_MISSING`,
+  `GRANT_ACTION_INVALID`, `GRANT_ACTION_WITHOUT_GUARD`).
+
+Shipped actor sets (`definitions/builders.ts` `ACTORS` / `COMMON_EVENT_ACTORS`): validation,
+commit, consent and sync events are `system` (some also `staff`); system-of-record outcomes
+(`SYSTEM_CONFIRMED`, `SYSTEM_REJECTED`, `PERMANENT_FAILURE`, `SYNCED`) are `system` /
+`external_system`; `CANCEL` and `ESCALATED` are `system` / `staff`; a `caller` may send only
+`CALLER_RESPONDED` and `DOCUMENTS_SUBMITTED`. Shipped grant actions: `billing.review.commit`,
+`billing.review.decision_notice`, `billing.review.outcome_notice`, `callback.outreach`,
+`claim.findings.disclose`, `complaint.response.disclose`, `partner.onboarding.activate`,
+`partner.onboarding.decision_notice`, `provider.documents.record_review`,
+`provider.documents.request_correction`. These are reviewed engineering choices, editable only
+through a new definition version.
 
 ### Role mapping (human tasks)
 
@@ -90,20 +113,46 @@ workforce role is requested below.
   audited (reason code only, never the token).
 * `HUMAN_APPROVED`, `HUMAN_REJECTED` and `POLICY_CHANGED_PENDING_ACTION` are engine-only: `signal`
   refuses them, so a model or caller cannot complete a task by inventing an approval.
+* **Actor permissions**: `signal` loads the pinned definition and refuses an actor kind that the
+  definition does not declare for the event with `WorkflowActorNotPermittedError`
+  (`ACTOR_NOT_PERMITTED`) *before* dedupe, version or state checks; the transaction rolls back (the
+  instance is unchanged) and the denial is audited (`workflow.signal.denied`, `SECURITY_AUDIT`). An
+  event the definition does not declare at all is `TRANSITION_NOT_ALLOWED`. `completeHumanTask`
+  additionally requires the decision event to be declared for `staff`.
 * Guarded transitions (`transitionGuards`: `disclosure` / `material_change`) require a durable
-  action grant and call `PreDisclosureRecheck` with the current context and the policy snapshot
-  version. A deny records `POLICY_CHANGED_PENDING_ACTION` (routed per definition, e.g. back to a
+  action grant. With `PgWorkflowEngineOptions.grantStore` wired, the engine calls
+  `grantStore.check(tenantId, grantRef, grantAction, now, tx)` inside the transition's transaction
+  for the transition's declared `grantActions` entry: an invalid, expired, revoked, mis-scoped or
+  unknown grant takes the **recheck-denied path** (`workflow.grant.denied` audit +
+  `POLICY_CHANGED_PENDING_ACTION`, `WorkflowRecheckDeniedError` with `GRANT_*` reason) and the
+  recheck hook is not called; an unreachable store or malformed answer fails closed with no
+  transition and no policy-change record. An instance **without** a `grantRef` keeps the previous
+  behaviour (`DURABLE_GRANT_MISSING` deny) and reports `GRANT_ABSENT` (log + `vsp_grant_checks_total{result="absent"}`).
+  Without a wired store, `grantRef` is only passed to the recheck hook (previous behaviour) and
+  `GRANT_STORE_UNCONFIGURED` is reported (`result="store_unconfigured"`). The engine then calls
+  `PreDisclosureRecheck` (context now includes `grantAction`) with the current context and the
+  policy snapshot version. A deny records `POLICY_CHANGED_PENDING_ACTION` (routed per definition, e.g. back to a
   human or `CANCELLED` for a callback whose consent was revoked) and throws
   `WorkflowRecheckDeniedError`. A failing or malformed hook fails closed with no transition. An
   allowed recheck under a newer policy version is audited as `POLICY_VERSION_CHANGED`.
 
 ### ASL (Step Functions STANDARD)
 
+The worker answer is now `{"event": "<EVENT>", "actorKind": "<kind>"}`: `ResultSelector` keeps
+both fields and each route `Choice` rule requires the event **and** one of its declared actor kinds
+(`And` of `StringEquals` plus an `Or` over the kinds). A missing field, an undeclared event or a
+non-permitted actor escalates; `POLICY_CHANGED_PENDING_ACTION` is not routable from a worker
+answer (only from a recheck decision); escalation `Pass` states carry `actorKind: "system"`.
+Recheck task messages carry the transition's `grantAction`. (The worker-contract paragraph in
+`infra/stepfunctions/README.md`, which is outside this module's editable paths, still shows the
+previous `{"event"}` answer and needs the same update by its owner.)
+
 See `infra/stepfunctions/README.md` for the document shape, the Terraform placeholders
 (`${system_task_queue_url}`, `${human_task_queue_url}`, `${notify_queue_url}`,
 `${escalation_queue_url}`, `${recheck_queue_url}`), logging/IAM requirements and the worker contract.
 Every document is validated with `asl-validator` in tests; a property test walks the ASL and the
-definition with the same events and requires identical states.
+definition with the same events from permitted actors (identical states required) and checks that
+every non-permitted actor kind escalates.
 
 ### Transfer coordinator
 
@@ -162,6 +211,8 @@ definition with the same events and requires identical states.
 | OPS-02 | continuity routing; never ends call; audit outage tolerated for transfers | `[OPS-02]` |
 | OPS-04 | coordinator refuses fixtures in production | `[OPS-04]` |
 | AUTH-02 / AUTH-05 | tenant-context check in `start`; RLS; staff authority re-validation | `[AUTH-02]`, `[AUTH-05]` |
+| AUTH-03 | per-event actor permissions in definitions, engine and ASL | `engine.test.ts`, `definitions.test.ts`, `asl.test.ts` (`[AUTH-03]`) |
+| SPEC-7.durable-grant | `grants.ts`, migration 0402, engine grant check on guarded transitions | `grants.test.ts` (`[SPEC-7.durable-grant]`) |
 | DATA-01 | constrained columns, no free text, content-free logs | `[DATA-01]` |
 | SPEC-9.* / SPEC-10.* / SPEC-3.* / SPEC-15.phase5 | as described above | tagged tests in all five test files |
 
@@ -172,12 +223,16 @@ cd platform
 npx vitest run src/workflows
 npx tsc -p tsconfig.json --noEmit 2>&1 | grep -E "src/workflows"   # expect no output
 npx eslint src/workflows
-npx tsx src/workflows/generate-asl.ts --check                      # ASL drift check
+npx tsx src/workflows/generate-asl.ts --check                      # ASL drift check (regenerate: drop --check)
 ```
 
 ## Interface change requests (not applied; owned elsewhere)
 
 * `WorkflowEngine.signal` input: add optional `dedupeKey` (implemented as an extended input type).
+* Composition root (`platform/src/main/container.ts`): construct `PgDurableGrantStore` and pass it as
+  `grantStore` (plus `metrics`) to `PgWorkflowEngine`; business layer: issue a grant (inside the
+  accepting transaction, `issue(input, tx)`) with the definition's grant actions and pass its
+  `grantRef` to `workflows.start`.
 * `WorkflowEngine.start` input: add optional `policySnapshotVersion` and `definitionVersion`.
 * `WorkflowEngine`: add `issueTaskToken` (token minting for authenticated console endpoints).
 * `StaffRole`: add a dedicated `billing_specialist` (and similar) role so billing decisions are not
@@ -186,9 +241,13 @@ npx tsx src/workflows/generate-asl.ts --check                      # ASL drift c
 
 ## Known gaps
 
-* The engine does not authorize *which actor kind* may send which event; the calling backend code
-  (gateway, console API, worker) must authorize signals. Per-transition actor constraints are not
-  yet part of the definition schema.
+* The engine authorizes the actor **kind** per event; it cannot prove which caller, staff member or
+  system a `ref` names. The calling backend (gateway, console API, worker) must still establish the
+  actor from server-side state (AUTH-03) before signalling.
+* The grant check does not bind a grant to a specific workflow instance beyond the `grantRef` the
+  trusted backend stored at `start`; the issuer must mint one grant per accepted work item.
+* Grants are not yet issued by the business layer (it starts workflows with `grantRef: null`);
+  the composition root does not yet pass `grantStore` to `PgWorkflowEngine`.
 * The Step Functions worker bridge is not implemented (BLOCKED); in AWS mode the ledger tables would
   be mirrored by that bridge.
 * PGlite is single-connection, so true concurrent-transaction races are exercised only through the

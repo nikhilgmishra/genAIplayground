@@ -86,6 +86,40 @@ describe("shipped workflow definitions", () => {
     }
   });
 
+  it("[AUTH-03][SPEC-9.workflow] every event of every shipped definition declares its actor kinds; human decisions are staff-only and policy-change events engine-only", () => {
+    for (const d of SHIPPED_DEFINITIONS) {
+      const used = new Set(Object.values(d.states).flatMap((s) => Object.keys(s?.transitions ?? {})));
+      for (const event of used) expect(d.eventActors[event], `${d.type}.${event}`).toBeDefined();
+      expect(d.eventActors.RETRYABLE_FAILURE).toEqual(["system", "external_system"]);
+      if (used.has("HUMAN_APPROVED")) expect(d.eventActors.HUMAN_APPROVED).toEqual(["staff"]);
+      if (used.has("HUMAN_REJECTED")) expect(d.eventActors.HUMAN_REJECTED).toEqual(["staff"]);
+      if (used.has("POLICY_CHANGED_PENDING_ACTION")) expect(d.eventActors.POLICY_CHANGED_PENDING_ACTION).toEqual([]);
+    }
+  });
+
+  it("[AUTH-03][SPEC-9.workflow] a caller can only report its own response or submission; never a system outcome, a validation result, a commit or an escalation", () => {
+    const CALLER_EVENTS = new Set(["CALLER_RESPONDED", "DOCUMENTS_SUBMITTED"]);
+    for (const d of SHIPPED_DEFINITIONS) {
+      for (const [event, kinds] of Object.entries(d.eventActors)) {
+        if (kinds.includes("caller")) expect(CALLER_EVENTS.has(event), `${d.type}.${event}`).toBe(true);
+      }
+      for (const e of ["SYSTEM_CONFIRMED", "SYSTEM_REJECTED", "SYNCED", "COMMIT", "CONSENT_CONFIRMED", "ESCALATED", "CANCEL"]) {
+        expect(d.eventActors[e] ?? [], `${d.type}.${e}`).not.toContain("caller");
+      }
+    }
+  });
+
+  it("[SPEC-7.durable-grant] every guarded transition names the narrow durable-grant action it consumes", () => {
+    for (const d of SHIPPED_DEFINITIONS) {
+      for (const [state, byEvent] of Object.entries(d.transitionGuards)) {
+        for (const event of Object.keys(byEvent ?? {})) {
+          expect(d.grantActions[state as WorkflowStateName]?.[event], `${d.type}.${state}.${event}`).toMatch(/^[a-z][a-z0-9_]+(\.[a-z][a-z0-9_]+){1,4}$/);
+        }
+      }
+    }
+    expect(billingDisputeReviewV1.grantActions.READY_TO_COMMIT?.COMMIT).toBe("billing.review.commit");
+  });
+
   it("[SPEC-9.workflow] registered definitions are frozen", () => {
     expect(Object.isFrozen(billingDisputeReviewV1)).toBe(true);
     expect(Object.isFrozen(st(billingDisputeReviewV1, "ACCEPTED").transitions)).toBe(true);
@@ -148,6 +182,26 @@ describe("definition validator", () => {
     ["guard on escalation route", (d) => void (d.transitionGuards.READY_TO_COMMIT = { COMMIT: "material_change", ESCALATED: "disclosure" }), "GUARD_ON_SAFETY_ROUTE"],
     ["guard on unknown transition", (d) => void (d.transitionGuards.ACCEPTED = { NOPE: "disclosure" }), "GUARD_UNKNOWN_TRANSITION"],
     ["role mapping mismatch", (d) => void (d.humanTaskRoles.WAITING_FOR_HUMAN = "partner_manager"), "HUMAN_TASK_ROLE_MAPPING_MISMATCH"],
+    // Event actor permissions (security: who may send which event).
+    ["an event without a declared actor set", (d) => void delete (d.eventActors as Record<string, unknown>).SYSTEM_CONFIRMED, "EVENT_ACTORS_MISSING"],
+    ["no actor set for RETRYABLE_FAILURE", (d) => void delete (d.eventActors as Record<string, unknown>).RETRYABLE_FAILURE, "EVENT_ACTORS_MISSING"],
+    ["an empty actor set for an ordinary event", (d) => void ((d.eventActors as Record<string, string[]>).COMMIT = []), "EVENT_ACTORS_EMPTY"],
+    ["an unknown actor kind", (d) => void ((d.eventActors as Record<string, string[]>).COMMIT = ["model"]), "EVENT_ACTOR_UNKNOWN"],
+    ["a duplicated actor kind", (d) => void ((d.eventActors as Record<string, string[]>).COMMIT = ["system", "system"]), "EVENT_ACTOR_DUPLICATE"],
+    ["an actor set for an unused event", (d) => void ((d.eventActors as Record<string, string[]>).REOPEN = ["staff"]), "EVENT_ACTORS_UNUSED"],
+    ["a caller able to report a human decision", (d) => void ((d.eventActors as Record<string, string[]>).HUMAN_APPROVED = ["staff", "caller"]), "HUMAN_TASK_EVENT_ACTORS_INVALID"],
+    ["a system actor able to report a human decision", (d) => void ((d.eventActors as Record<string, string[]>).HUMAN_REJECTED = ["system"]), "HUMAN_TASK_EVENT_ACTORS_INVALID"],
+    [
+      "a sendable policy-change event",
+      (d) => void ((d.eventActors as Record<string, string[]>).POLICY_CHANGED_PENDING_ACTION = ["system"]),
+      "ENGINE_EVENT_ACTORS_INVALID",
+    ],
+    ["a caller able to burn the retry budget", (d) => void ((d.eventActors as Record<string, string[]>).RETRYABLE_FAILURE = ["system", "caller"]), "RETRY_EVENT_CALLER_FORBIDDEN"],
+    ["an escalation the system cannot raise", (d) => void ((d.eventActors as Record<string, string[]>).ESCALATED = ["staff"]), "ESCALATION_ACTOR_SYSTEM_MISSING"],
+    // Durable action grants (spec section 7) on guarded transitions.
+    ["a guarded transition without a grant action", (d) => void delete d.grantActions.READY_TO_COMMIT, "GUARD_GRANT_ACTION_MISSING"],
+    ["a malformed grant action", (d) => void (d.grantActions.READY_TO_COMMIT = { COMMIT: "Billing Review Commit" }), "GRANT_ACTION_INVALID"],
+    ["a grant action on an unguarded transition", (d) => void (d.grantActions.ACCEPTED = { VALIDATE: "billing.review.validate" }), "GRANT_ACTION_WITHOUT_GUARD"],
   ])("[SPEC-9.workflow] rejects a definition with %s", (_label, fn, code) => {
     const d = mutate(base, fn);
     expect(codes(d)).toContain(code);
@@ -167,6 +221,8 @@ describe("definition validator", () => {
       },
       transitionGuards: {},
       humanTaskRoles: {},
+      eventActors: { VALIDATE: ["system"], BACK: ["system"], ESCALATED: ["system"], RETRYABLE_FAILURE: ["system"] },
+      grantActions: {},
     };
     const c = codes(d);
     expect(c).toContain("NO_PATH_TO_TERMINAL");

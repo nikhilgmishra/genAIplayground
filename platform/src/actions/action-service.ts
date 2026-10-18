@@ -19,6 +19,12 @@
  *   7. tx2: COMMITTED + receipt + audit "action.commit.succeeded" + outbox "action.committed" +
  *      hooks, atomically. The receipt is returned only after tx2 commits. If tx2 fails, the
  *      action is UNKNOWN (or stays COMMITTING after a crash) and the caller never sees success.
+ *
+ * Every reconciliation appends a durable record (action_reconciliations, migration 0101) in the
+ * same transaction as the ledger transition it causes. A staff-initiated retry
+ * (retryAfterReconcile) is allowed only against the latest NOT_FOUND record of a still-confirmed,
+ * unexpired action at exactly the recorded row version, reuses the SAME provider idempotency key,
+ * consumes the record (single use) and is audited with the staff actor.
  */
 import { z } from "zod";
 import type { AuditHealth, AuditWriter } from "../audit/ports.js";
@@ -76,7 +82,18 @@ import {
 } from "./digest.js";
 import type { LedgerRow, StoredConfirmation } from "./ledger-row.js";
 import { LEDGER_COLUMNS, rowConfirmation, rowReceipt, rowState, rowToAction, toDate, toIsoOrNull } from "./ledger-row.js";
-import type { ActionService, CommitDeps, PrepareInput, ProviderCommitPort, ProviderCommitResult, ProviderLookupResult } from "./ports.js";
+import type {
+  ActionService,
+  CommitDeps,
+  LedgerEntryView,
+  PrepareInput,
+  ProviderCommitPort,
+  ProviderCommitResult,
+  ProviderLookupResult,
+  ReconcileWithResult,
+  ReconciliationView,
+  RetryAfterReconcileInput,
+} from "./ports.js";
 import { ActionReason as R, STATE_CHANGE_PROVIDER_REASONS } from "./reasons.js";
 
 // ---------------------------------------------------------------- configuration
@@ -123,24 +140,15 @@ export interface LedgerActionServiceOptions {
   onCommitted?: CommittedHook;
 }
 
-/** Console/worker view of a ledger entry (opaque references and codes only). */
-export interface LedgerEntryView {
-  action: PreparedActionT;
-  stateReason: string | null;
-  receipt: CommitReceiptT | null;
-  confirmedAt: string | null;
-  confirmationMethod: StoredConfirmation["method"] | null;
-  commitAttempts: number;
-  committingSince: string | null;
-  reconcileAttempts: number;
-  lastReconciledAt: string | null;
-  providerIdempotencyKey: string;
-  rowVersion: number;
-}
+/** Console/worker view of a ledger entry (opaque references and codes only). Defined on the port. */
+export type { LedgerEntryView } from "./ports.js";
 
 // ---------------------------------------------------------------- schemas and constants
 
 const ActionId = opaqueIdWithPrefix("act");
+const ReconciliationId = opaqueIdWithPrefix("rcn");
+const StaffRef = z.string().regex(/^stf_[A-Za-z0-9_-]{8,64}$/);
+const BINDING_REF = /^ses_bnd_[A-Za-z0-9_-]{43}$/;
 const TenantId = z.string().regex(/^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$/);
 const CommitInput = z.strictObject({ actionId: ActionId, digest: Sha256Hex });
 
@@ -180,6 +188,28 @@ const PENDING_STATES: readonly ActionState[] = ["PREPARED", "CONFIRMED"];
 
 type Scope = { tenantId: string; role: "app_runtime" | "app_worker" };
 
+/** What initiated a reconciliation (stored on the durable record). */
+type ReconTrigger = "RECONCILE" | "COMMIT_RETRY" | "RECONCILE_WITH_RESULT";
+type ReconOutcome = { receipt: CommitReceiptT; reconciliationId: string; result: ReconcileWithResult["result"] };
+
+interface ReconciliationRow {
+  reconciliation_id: string;
+  action_id: string;
+  seq: number;
+  trigger: ReconTrigger;
+  lookup_performed: boolean;
+  result: ReconcileWithResult["result"];
+  ledger_state_after: ActionState;
+  ledger_row_version: number;
+  receipt_id: string | null;
+  audit_event_id: string | null;
+  reconciled_at: Date | string;
+  retry_consumed_at: Date | string | null;
+}
+
+const RECONCILIATION_COLUMNS = `reconciliation_id, action_id, seq, trigger, lookup_performed, result, ledger_state_after, ledger_row_version,
+  receipt_id, audit_event_id, reconciled_at, retry_consumed_at`;
+
 interface LedgerPatch {
   state?: ActionState;
   stateReason?: string | null;
@@ -200,6 +230,8 @@ interface Rejection {
   auditAction: string;
   turnId?: string | null;
   policy?: PolicyDecisionT | null;
+  /** Staff actor of an operator path (recorded instead of the caller actor). */
+  actorRef?: string | null;
 }
 
 interface AuditParams {
@@ -215,6 +247,24 @@ interface AuditParams {
 }
 
 const isUniqueViolation = (e: unknown): boolean => typeof e === "object" && e !== null && (e as { code?: unknown }).code === "23505";
+
+function toReconciliationView(r: ReconciliationRow): ReconciliationView {
+  return {
+    reconciliationId: r.reconciliation_id,
+    actionId: r.action_id,
+    seq: r.seq,
+    trigger: r.trigger,
+    lookupPerformed: r.lookup_performed,
+    result: r.result,
+    ledgerStateAfter: r.ledger_state_after,
+    ledgerRowVersion: r.ledger_row_version,
+    receiptId: r.receipt_id,
+    auditEventId: r.audit_event_id,
+    reconciledAt: toIsoOrNull(r.reconciled_at) ?? "",
+    retryConsumed: r.retry_consumed_at !== null,
+    retryConsumedAt: toIsoOrNull(r.retry_consumed_at),
+  };
+}
 
 function buildPrepareSchema(cfg: ActionLedgerConfig) {
   return z.strictObject({
@@ -481,17 +531,21 @@ export class LedgerActionService implements ActionService {
 
   // ------------------------------------------------------------ invalidate / expire / cancel
 
-  async invalidatePending(sessionRef: string, reasonCode: string): Promise<number> {
+  async invalidatePending(sessionRef: string, reasonCode: string, tenantId?: string): Promise<number> {
     if (!SessionRef.safeParse(sessionRef).success) throw new ValidationError("SESSION_REF_INVALID");
     const reason = parseOrThrow(ReasonCode, reasonCode, R.INVALID_REASON_CODE);
     const hash = sessionRefHash(sessionRef);
-    const tenants = await this.db.tx(
-      async (tx) =>
-        (await tx.query<{ tenant_id: string }>("select distinct tenant_id from action_locator where session_ref_hash = $1", [hash])).rows.map(
-          (r) => r.tenant_id,
-        ),
-      { role: "app_worker" },
-    );
+    // With a tenant the operation stays inside that tenant's RLS context (no cross-tenant locator read).
+    const tenants =
+      tenantId !== undefined
+        ? [parseOrThrow(TenantId, tenantId, R.INVALID_AUTH_CONTEXT)]
+        : await this.db.tx(
+            async (tx) =>
+              (await tx.query<{ tenant_id: string }>("select distinct tenant_id from action_locator where session_ref_hash = $1", [hash])).rows.map(
+                (r) => r.tenant_id,
+              ),
+            { role: "app_worker" },
+          );
     let count = 0;
     for (const tenantId of tenants) {
       count += await this.transitionMany(
@@ -598,7 +652,7 @@ export class LedgerActionService implements ActionService {
           throw new ConflictError(R.COMMIT_IN_PROGRESS, R.COMMIT_IN_PROGRESS, true);
         }
         // ACT-03: reconcile by provider idempotency key before any retry.
-        const reconciled = await this.reconcileRow(scope, row, deps.provider, deps.onCommitted);
+        const reconciled = (await this.reconcileRow(scope, row, deps.provider, deps.onCommitted, "COMMIT_RETRY")).receipt;
         if (reconciled.outcome === "NOT_STARTED") continue;
         return reconciled;
       }
@@ -698,14 +752,33 @@ export class LedgerActionService implements ActionService {
       throw err;
     }
 
+    return this.executeClaimed(scope, committing, action, deps.provider, deps.onCommitted, null);
+  }
+
+  /**
+   * Steps 5-7 of the commit protocol for an action whose commit slot this caller holds
+   * (state COMMITTING with `committing.commit_attempt_id`): optimistic concurrency against the
+   * system of record, the provider call with the action's stable idempotency key, and outcome
+   * recording. Shared by the caller commit path and the staff retry after a NOT_FOUND
+   * reconciliation (`actorRef` = the staff member, recorded on every audit event).
+   */
+  private async executeClaimed(
+    scope: Scope,
+    committing: LedgerRow,
+    action: PreparedActionT,
+    provider: ProviderCommitPort,
+    hook: CommittedHook | undefined,
+    actorRef: string | null,
+  ): Promise<CommitReceiptT> {
+    const rejected = actorRef ? "action.retry_after_reconcile.rejected" : "action.commit.rejected";
     const committingAction = rowToAction(committing);
 
     // Optimistic concurrency against the system of record while this action holds the record slot.
     let current: unknown;
     try {
-      current = await deps.provider.currentVersion(committingAction);
+      current = await provider.currentVersion(committingAction);
     } catch {
-      await this.revertNotStarted(scope, committing, R.PROVIDER_VERSION_UNAVAILABLE);
+      await this.revertNotStarted(scope, committing, R.PROVIDER_VERSION_UNAVAILABLE, actorRef);
       throw new DependencyError(R.PROVIDER_VERSION_UNAVAILABLE, "NOT_STARTED");
     }
     if (current !== action.target.beforeVersion) {
@@ -713,73 +786,211 @@ export class LedgerActionService implements ActionService {
         error: new ConflictError(R.STATE_CHANGED),
         transition: { to: "INVALIDATED", from: ["COMMITTING"] },
         auditAction: rejected,
+        actorRef,
       });
     }
 
     let raw: unknown;
     try {
-      raw = await deps.provider.commit(committingAction, committing.provider_idempotency_key);
+      raw = await provider.commit(committingAction, committing.provider_idempotency_key);
     } catch (err) {
       if (err instanceof DependencyError && err.outcome === "NOT_STARTED") {
         // Provably not sent: return to CONFIRMED; any bounded retry reuses the same provider key.
-        await this.revertNotStarted(scope, committing, R.PROVIDER_NOT_STARTED);
+        await this.revertNotStarted(scope, committing, R.PROVIDER_NOT_STARTED, actorRef);
         throw new DependencyError(R.PROVIDER_NOT_STARTED, "NOT_STARTED", true);
       }
       if (err instanceof DependencyError && err.outcome === "FAILED") {
         raw = { outcome: "FAILED", reasonCode: err.reasonCode, permanent: !err.retryable };
       } else {
         // Ambiguous timeout or unexpected exception: the effect may have happened (ACT-03).
-        return this.markUnknown(scope, committing, err instanceof DependencyError ? R.COMMIT_OUTCOME_UNKNOWN : R.PROVIDER_EXCEPTION);
+        return this.markUnknown(scope, committing, err instanceof DependencyError ? R.COMMIT_OUTCOME_UNKNOWN : R.PROVIDER_EXCEPTION, actorRef);
       }
     }
 
     const committed = CommittedResult.safeParse(raw);
     if (!committed.success) {
       const failed = FailedResult.safeParse(raw);
-      if (!failed.success) return this.markUnknown(scope, committing, R.PROVIDER_RESPONSE_INVALID);
+      if (!failed.success) return this.markUnknown(scope, committing, R.PROVIDER_RESPONSE_INVALID, actorRef);
       if (STATE_CHANGE_PROVIDER_REASONS.has(failed.data.reasonCode)) {
         return this.reject(committing, scope, {
           error: new ConflictError(R.STATE_CHANGED),
           transition: { to: "INVALIDATED", from: ["COMMITTING"] },
           auditAction: rejected,
+          actorRef,
         });
       }
       const reason = ReasonCode.safeParse(failed.data.reasonCode).success ? failed.data.reasonCode : R.PROVIDER_REJECTED;
-      return this.markFailed(scope, committing, reason);
+      return this.markFailed(scope, committing, reason, actorRef);
     }
 
     try {
-      return await this.recordCommitted(scope, committing.action_id, committed.data, { reconciled: false, hook: deps.onCommitted });
+      return (await this.recordCommitted(scope, committing.action_id, committed.data, { reconciled: false, hook, actorRef })).receipt;
     } catch (err) {
       this.logger.error("action.commit.recording_failed", {
         actionId: committing.action_id,
         reasonCode: err instanceof PlatformError ? err.reasonCode : "UNEXPECTED_ERROR",
       });
-      return this.markUnknown(scope, committing, R.COMMIT_RECORDING_FAILED);
+      return this.markUnknown(scope, committing, R.COMMIT_RECORDING_FAILED, actorRef);
     }
   }
 
   // ------------------------------------------------------------ reconcile
 
-  async reconcile(actionId: string, provider: ProviderCommitPort): Promise<CommitReceiptT> {
+  async reconcile(actionId: string, provider: ProviderCommitPort, tenantId?: string): Promise<CommitReceiptT> {
     const id = parseOrThrow(ActionId, actionId, R.INVALID_COMMIT_INPUT);
-    const tenantId = await this.db.tx(
-      async (tx) => (await tx.query<{ tenant_id: string }>("select tenant_id from action_locator where action_id = $1", [id])).rows[0]?.tenant_id ?? null,
-      { role: "app_worker" },
-    );
-    if (!tenantId) throw new AccessDeniedError(R.ACTION_NOT_FOUND);
-    const scope: Scope = { tenantId, role: "app_worker" };
+    const tenant =
+      tenantId !== undefined
+        ? parseOrThrow(TenantId, tenantId, R.INVALID_AUTH_CONTEXT)
+        : await this.db.tx(
+            async (tx) => (await tx.query<{ tenant_id: string }>("select tenant_id from action_locator where action_id = $1", [id])).rows[0]?.tenant_id ?? null,
+            { role: "app_worker" },
+          );
+    if (!tenant) throw new AccessDeniedError(R.ACTION_NOT_FOUND);
+    const scope: Scope = { tenantId: tenant, role: "app_worker" };
     const row = await this.load(scope, id);
     if (!row) throw new AccessDeniedError(R.ACTION_NOT_FOUND);
-    return this.reconcileRow(scope, row, provider, undefined);
+    return (await this.reconcileRow(scope, row, provider, undefined, "RECONCILE")).receipt;
   }
 
-  private async reconcileRow(scope: Scope, row: LedgerRow, provider: ProviderCommitPort, hook: CommittedHook | undefined): Promise<CommitReceiptT> {
+  /**
+   * Tenant-scoped reconciliation returning the durable reconciliation record (written in the same
+   * transaction as the ledger transition) and its result. `receipt` is the authoritative COMMITTED
+   * receipt, or null for NOT_FOUND / UNKNOWN (no commit evidence exists for those results).
+   */
+  async reconcileWithResult(tenantId: string, actionId: string, provider: ProviderCommitPort): Promise<ReconcileWithResult> {
+    const tenant = parseOrThrow(TenantId, tenantId, R.INVALID_AUTH_CONTEXT);
+    const id = parseOrThrow(ActionId, actionId, R.INVALID_COMMIT_INPUT);
+    const scope: Scope = { tenantId: tenant, role: "app_worker" };
+    const row = await this.load(scope, id);
+    if (!row) throw new AccessDeniedError(R.ACTION_NOT_FOUND);
+    const out = await this.reconcileRow(scope, row, provider, undefined, "RECONCILE_WITH_RESULT");
+    return { receipt: out.result === "COMMITTED" ? out.receipt : null, reconciliationId: out.reconciliationId, result: out.result };
+  }
+
+  /** Latest durable reconciliation record of an action (content-free), or null. */
+  async latestReconciliation(tenantId: string, actionId: string): Promise<ReconciliationView | null> {
+    const tenant = parseOrThrow(TenantId, tenantId, R.INVALID_AUTH_CONTEXT);
+    const id = parseOrThrow(ActionId, actionId, R.INVALID_COMMIT_INPUT);
+    const row = await this.db.tx((tx) => this.latestReconciliationRow(tx, id), { role: "app_worker", rls: { tenantId: tenant } });
+    return row ? toReconciliationView(row) : null;
+  }
+
+  /**
+   * Staff-initiated retry after a NOT_FOUND reconciliation (spec section 8, ACT-03). Allowed only when
+   *  - `input.reconciliationId` is the LATEST reconciliation of the action, its result is NOT_FOUND and
+   *    it has not been consumed by an earlier retry (single use);
+   *  - the ledger row is still exactly at the row version recorded by that reconciliation, in state
+   *    CONFIRMED (a NOT_FOUND reconciliation only returns an action to CONFIRMED while the caller's
+   *    confirmation was still fresh) with the caller's original confirmation recorded;
+   *  - the preparation has not expired.
+   * Never on COMMITTED or UNKNOWN. The provider is called with the SAME idempotency key as every earlier
+   * attempt, so a duplicate effect is impossible on a deduplicating provider and an in-doubt outcome is
+   * again UNKNOWN (reconciled first). Every step is audited with the staff actor; the console API
+   * authenticates and authorizes the staff member (workforce SSO, MFA, console policy) before calling.
+   */
+  async retryAfterReconcile(tenantId: string, actionId: string, input: RetryAfterReconcileInput, provider: ProviderCommitPort): Promise<CommitReceiptT> {
+    const tenant = parseOrThrow(TenantId, tenantId, R.INVALID_AUTH_CONTEXT);
+    const id = parseOrThrow(ActionId, actionId, R.INVALID_COMMIT_INPUT);
+    const reconciliationId = parseOrThrow(ReconciliationId, input?.reconciliationId, R.INVALID_COMMIT_INPUT);
+    const reason = parseOrThrow(ReasonCode.refine((c) => !/\d{4,}/.test(c)), input?.reasonCode, R.INVALID_REASON_CODE);
+    const staffRef = parseOrThrow(StaffRef, input?.staffRef, R.INVALID_AUTH_CONTEXT);
+    if (!provider || typeof provider.commit !== "function") throw new ValidationError(R.INVALID_COMMIT_INPUT);
+    const scope: Scope = { tenantId: tenant, role: "app_worker" };
+    const rejected = "action.retry_after_reconcile.rejected";
+
+    const row = await this.load(scope, id);
+    if (!row) throw new AccessDeniedError(R.ACTION_NOT_FOUND);
+    const latest = await this.db.tx((tx) => this.latestReconciliationRow(tx, id), { role: scope.role, rls: { tenantId: tenant } });
+    const refuse = (error: PlatformError, transition?: Rejection["transition"]) => this.reject(row, scope, { error, transition, auditAction: rejected, actorRef: staffRef });
+    if (!latest || latest.reconciliation_id !== reconciliationId) return refuse(new ConflictError("RECONCILIATION_NOT_LATEST"));
+    if (latest.result !== "NOT_FOUND") return refuse(new ConflictError("RECONCILIATION_RESULT_NOT_RETRYABLE"));
+    if (latest.retry_consumed_at !== null) return refuse(new ConflictError("RECONCILIATION_ALREADY_CONSUMED"));
+    const state = rowState(row);
+    if (state === "COMMITTED") return refuse(new ConflictError("ACTION_ALREADY_COMMITTED"));
+    if (row.row_version !== latest.ledger_row_version) return refuse(new ConflictError("ACTION_CHANGED_SINCE_RECONCILIATION"));
+    if (state !== "CONFIRMED") return refuse(new ConflictError(R.ACTION_NOT_COMMITTABLE));
+    const now = this.clock.now();
+    if (now.getTime() >= toDate(row.expires_at).getTime()) return refuse(new ConflictError(R.PREPARATION_EXPIRED), { to: "EXPIRED", from: ["CONFIRMED"] });
+    if (rowConfirmation(row) === null || row.confirmed_at === null) return refuse(new ConflictError("CONFIRMATION_NOT_RECORDED"));
+    const action = rowToAction(row);
+    if (!verifyActionDigest(action)) {
+      this.logger.error("action.ledger.integrity_violation", { actionId: row.action_id });
+      return refuse(new AccessDeniedError(R.LEDGER_INTEGRITY_VIOLATION));
+    }
+
+    // OPS-01: block before any provider call when durable evidence cannot be written.
+    await this.auditHealth.assertCanAcceptConsequential();
+
+    // tx1: re-verify under locks, consume the reconciliation (single use) and claim the commit slot.
+    const attemptId = newId("cat");
+    let committing: LedgerRow;
+    try {
+      committing = await this.db.tx(
+        async (tx) => {
+          const locked = await this.lockRow(tx, row.action_id);
+          if (!locked || locked.row_version !== row.row_version || rowState(locked) !== "CONFIRMED") {
+            throw new ConflictError(R.CONCURRENT_MODIFICATION, R.CONCURRENT_MODIFICATION, true);
+          }
+          const t = this.clock.now();
+          if (t.getTime() >= toDate(locked.expires_at).getTime()) throw new ConflictError(R.PREPARATION_EXPIRED);
+          const current = await this.latestReconciliationRow(tx, locked.action_id, true);
+          if (!current || current.reconciliation_id !== reconciliationId || current.result !== "NOT_FOUND" || current.retry_consumed_at !== null) {
+            throw new ConflictError("RECONCILIATION_NOT_LATEST");
+          }
+          const target = action.target;
+          const busy = await tx.query(
+            `select 1 from action_ledger where tenant_id = $1 and target ->> 'system' = $2 and target ->> 'recordRef' = $3
+               and state in ('COMMITTING', 'UNKNOWN') and action_id <> $4 limit 1`,
+            [locked.tenant_id, target.system, target.recordRef, locked.action_id],
+          );
+          if (busy.rowCount > 0) throw new ConflictError(R.RECORD_COMMIT_IN_PROGRESS, R.RECORD_COMMIT_IN_PROGRESS, true);
+          const consumed = await tx.query(
+            `update action_reconciliations set retry_consumed_at = $2, retry_consumed_by = $3, retry_reason = $4
+             where reconciliation_id = $1 and retry_consumed_at is null`,
+            [reconciliationId, iso(t), staffRef, reason],
+          );
+          if (consumed.rowCount !== 1) throw new ConflictError("RECONCILIATION_ALREADY_CONSUMED");
+          const updated = await this.patch(
+            tx,
+            locked,
+            { state: "COMMITTING", stateReason: null, commitAttemptId: attemptId, committingSince: iso(t), incrementCommitAttempts: true },
+            t,
+          );
+          if (!updated) throw new ConflictError(R.CONCURRENT_MODIFICATION, R.CONCURRENT_MODIFICATION, true);
+          await this.appendAudit(tx, updated, {
+            action: "action.retry_after_reconcile.started",
+            outcome: "PENDING",
+            reasonCode: reason,
+            actorRef: staffRef,
+            evidence: [`reconciliation:${reconciliationId}`],
+          });
+          return updated;
+        },
+        { role: scope.role, rls: { tenantId: scope.tenantId } },
+      );
+    } catch (err) {
+      if (isUniqueViolation(err)) throw new ConflictError(R.RECORD_COMMIT_IN_PROGRESS, R.RECORD_COMMIT_IN_PROGRESS, true);
+      throw err;
+    }
+    this.logger.info("action.retry_after_reconcile.started", { actionId: id, reasonCode: reason });
+    return this.executeClaimed(scope, committing, action, provider, undefined, staffRef);
+  }
+
+  private async reconcileRow(scope: Scope, row: LedgerRow, provider: ProviderCommitPort, hook: CommittedHook | undefined, trigger: ReconTrigger): Promise<ReconOutcome> {
     const state = rowState(row);
     if (state === "COMMITTED") {
       const receipt = rowReceipt(row);
       if (!receipt) throw new ConflictError(R.LEDGER_INTEGRITY_VIOLATION);
-      return receipt;
+      // Recorded without a lookup: the ledger already holds authoritative evidence.
+      const reconciliationId = await this.db.tx(
+        async (tx) => {
+          const locked = await this.lockRow(tx, row.action_id);
+          if (!locked) throw new AccessDeniedError(R.ACTION_NOT_FOUND);
+          return this.insertReconciliation(tx, locked, { trigger, lookupPerformed: false, result: "COMMITTED", receiptId: receipt.receiptId, auditEventId: receipt.auditEventId });
+        },
+        { role: scope.role, rls: { tenantId: scope.tenantId } },
+      );
+      return { receipt, reconciliationId, result: "COMMITTED" };
     }
     if (state !== "UNKNOWN" && state !== "COMMITTING") throw new ConflictError(R.ACTION_NOT_RECONCILABLE);
     if (state === "COMMITTING" && !this.isStaleCommitting(row, this.clock.now())) throw new ConflictError(R.COMMIT_IN_PROGRESS, R.COMMIT_IN_PROGRESS, true);
@@ -792,17 +1003,21 @@ export class LedgerActionService implements ActionService {
         return parsed.success ? parsed.data : null;
       })
       .catch(() => null);
-    if (lookup?.outcome === "COMMITTED") return this.recordCommitted(scope, row.action_id, lookup, { reconciled: true, hook });
-    if (lookup?.outcome === "NOT_FOUND") return this.recordNotFound(scope, row);
-    return this.recordInconclusive(scope, row);
+    if (lookup?.outcome === "COMMITTED") {
+      const out = await this.recordCommitted(scope, row.action_id, lookup, { reconciled: true, hook, reconciliation: trigger, actorRef: null });
+      if (out.reconciliationId === null) throw new ConflictError(R.LEDGER_INTEGRITY_VIOLATION);
+      return { receipt: out.receipt, reconciliationId: out.reconciliationId, result: "COMMITTED" };
+    }
+    if (lookup?.outcome === "NOT_FOUND") return this.recordNotFound(scope, row, trigger);
+    return this.recordInconclusive(scope, row, trigger);
   }
 
-  private async recordNotFound(scope: Scope, row: LedgerRow): Promise<CommitReceiptT> {
+  private async recordNotFound(scope: Scope, row: LedgerRow, trigger: ReconTrigger): Promise<ReconOutcome> {
     return this.db.tx(
       async (tx) => {
         const locked = await this.lockRow(tx, row.action_id);
         if (!locked) throw new AccessDeniedError(R.ACTION_NOT_FOUND);
-        if (rowState(locked) === "COMMITTED") return rowReceipt(locked) ?? this.integrityFailure();
+        if (rowState(locked) === "COMMITTED") return this.alreadyCommitted(tx, locked, trigger);
         if (locked.row_version !== row.row_version) throw new ConflictError(R.CONCURRENT_MODIFICATION, R.CONCURRENT_MODIFICATION, true);
         const now = this.clock.now();
         // Provider has no record for the key: treat as NOT_STARTED. Back to CONFIRMED only while
@@ -822,18 +1037,19 @@ export class LedgerActionService implements ActionService {
         );
         if (!updated) throw new ConflictError(R.CONCURRENT_MODIFICATION, R.CONCURRENT_MODIFICATION, true);
         const ev = await this.appendAudit(tx, updated, { action: "action.reconciled", outcome: "RECONCILED", reasonCode: R.PROVIDER_NOT_FOUND });
-        return this.transientReceipt(updated, "NOT_STARTED", ev.eventId, true);
+        const reconciliationId = await this.insertReconciliation(tx, updated, { trigger, lookupPerformed: true, result: "NOT_FOUND", receiptId: null, auditEventId: ev.eventId });
+        return { receipt: this.transientReceipt(updated, "NOT_STARTED", ev.eventId, true), reconciliationId, result: "NOT_FOUND" as const };
       },
       { role: scope.role, rls: { tenantId: scope.tenantId } },
     );
   }
 
-  private async recordInconclusive(scope: Scope, row: LedgerRow): Promise<CommitReceiptT> {
+  private async recordInconclusive(scope: Scope, row: LedgerRow, trigger: ReconTrigger): Promise<ReconOutcome> {
     return this.db.tx(
       async (tx) => {
         const locked = await this.lockRow(tx, row.action_id);
         if (!locked) throw new AccessDeniedError(R.ACTION_NOT_FOUND);
-        if (rowState(locked) === "COMMITTED") return rowReceipt(locked) ?? this.integrityFailure();
+        if (rowState(locked) === "COMMITTED") return this.alreadyCommitted(tx, locked, trigger);
         if (locked.row_version !== row.row_version) throw new ConflictError(R.CONCURRENT_MODIFICATION, R.CONCURRENT_MODIFICATION, true);
         const now = this.clock.now();
         const updated = await this.patch(
@@ -844,10 +1060,43 @@ export class LedgerActionService implements ActionService {
         );
         if (!updated) throw new ConflictError(R.CONCURRENT_MODIFICATION, R.CONCURRENT_MODIFICATION, true);
         const ev = await this.appendAudit(tx, updated, { action: "action.reconcile.inconclusive", outcome: "UNKNOWN", reasonCode: R.RECONCILE_INCONCLUSIVE });
-        return this.transientReceipt(updated, "UNKNOWN", ev.eventId, true);
+        const reconciliationId = await this.insertReconciliation(tx, updated, { trigger, lookupPerformed: true, result: "UNKNOWN", receiptId: null, auditEventId: ev.eventId });
+        return { receipt: this.transientReceipt(updated, "UNKNOWN", ev.eventId, true), reconciliationId, result: "UNKNOWN" as const };
       },
       { role: scope.role, rls: { tenantId: scope.tenantId } },
     );
+  }
+
+  /** A concurrent path committed first: the ledger's authoritative receipt wins and is what gets recorded. */
+  private async alreadyCommitted(tx: Queryable, locked: LedgerRow, trigger: ReconTrigger): Promise<ReconOutcome> {
+    const receipt = rowReceipt(locked) ?? this.integrityFailure();
+    const reconciliationId = await this.insertReconciliation(tx, locked, { trigger, lookupPerformed: true, result: "COMMITTED", receiptId: receipt.receiptId, auditEventId: receipt.auditEventId });
+    return { receipt, reconciliationId, result: "COMMITTED" };
+  }
+
+  /** Appends the durable reconciliation record inside the caller's transaction (the ledger row is locked). */
+  private async insertReconciliation(
+    tx: Queryable,
+    row: LedgerRow,
+    r: { trigger: ReconTrigger; lookupPerformed: boolean; result: ReconcileWithResult["result"]; receiptId: string | null; auditEventId: string | null },
+  ): Promise<string> {
+    const reconciliationId = newId("rcn");
+    const auditEventId = r.auditEventId !== null && /^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$/.test(r.auditEventId) ? r.auditEventId : null;
+    await tx.query(
+      `insert into action_reconciliations (reconciliation_id, tenant_id, action_id, seq, trigger, lookup_performed, result, ledger_state_after,
+         ledger_row_version, receipt_id, audit_event_id, reconciled_at)
+       values ($1, $2, $3, (select coalesce(max(seq), 0) + 1 from action_reconciliations where action_id = $3), $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [reconciliationId, row.tenant_id, row.action_id, r.trigger, r.lookupPerformed, r.result, row.state, row.row_version, r.receiptId, auditEventId, iso(this.clock.now())],
+    );
+    return reconciliationId;
+  }
+
+  private async latestReconciliationRow(tx: Queryable, actionId: string, forUpdate = false): Promise<ReconciliationRow | null> {
+    const r = await tx.query<ReconciliationRow>(
+      `select ${RECONCILIATION_COLUMNS} from action_reconciliations where action_id = $1 order by seq desc limit 1${forUpdate ? " for update" : ""}`,
+      [actionId],
+    );
+    return r.rows[0] ?? null;
   }
 
   // ------------------------------------------------------------ queries
@@ -863,12 +1112,49 @@ export class LedgerActionService implements ActionService {
     const tenant = parseOrThrow(TenantId, tenantId, R.INVALID_AUTH_CONTEXT);
     const id = parseOrThrow(ActionId, actionId, R.INVALID_COMMIT_INPUT);
     const row = await this.load({ tenantId: tenant, role: "app_worker" }, id);
-    if (!row) return null;
+    return row ? this.viewOf(row, this.clock.now()) : null;
+  }
+
+  /**
+   * Every action bound to a session, in any state, oldest first (bounded to 200), content-free.
+   * `sessionRef` may be the bearer session ref (hashed here, never stored) or the non-bearer binding
+   * ref (`ses_bnd_…`) carried by PreparedAction.sessionRef. Runs in the tenant's RLS context.
+   */
+  async listForSession(tenantId: string, sessionRef: string): Promise<LedgerEntryView[]> {
+    const tenant = parseOrThrow(TenantId, tenantId, R.INVALID_AUTH_CONTEXT);
+    let hash: string;
+    if (typeof sessionRef === "string" && BINDING_REF.test(sessionRef)) {
+      hash = Buffer.from(sessionRef.slice("ses_bnd_".length), "base64url").toString("hex");
+      if (!/^[a-f0-9]{64}$/.test(hash) || bindingRefFromHash(hash) !== sessionRef) throw new ValidationError("SESSION_REF_INVALID");
+    } else {
+      if (!SessionRef.safeParse(sessionRef).success) throw new ValidationError("SESSION_REF_INVALID");
+      hash = sessionRefHash(sessionRef);
+    }
+    const rows = await this.db.tx(
+      async (tx) =>
+        (
+          await tx.query<LedgerRow>(
+            `select ${LEDGER_COLUMNS} from action_ledger where tenant_id = $1 and session_ref_hash = $2
+             order by prepared_at, action_id limit 200`,
+            [tenant, hash],
+          )
+        ).rows,
+      { role: "app_runtime", rls: { tenantId: tenant } },
+    );
+    const now = this.clock.now();
+    return rows.map((r) => this.viewOf(r, now));
+  }
+
+  private viewOf(row: LedgerRow, now: Date): LedgerEntryView {
     const confirmation = rowConfirmation(row);
+    const action = this.effective(rowToAction(row), now);
+    const receipt = rowReceipt(row);
     return {
-      action: this.effective(rowToAction(row), this.clock.now()),
+      action,
+      state: action.state,
       stateReason: row.state_reason,
-      receipt: rowReceipt(row),
+      receipt,
+      receiptId: receipt?.outcome === "COMMITTED" ? receipt.receiptId : null,
       confirmedAt: toIsoOrNull(row.confirmed_at),
       confirmationMethod: confirmation?.method ?? null,
       commitAttempts: row.commit_attempts,
@@ -905,14 +1191,19 @@ export class LedgerActionService implements ActionService {
     scope: Scope,
     actionId: string,
     result: Extract<ProviderCommitResult, { outcome: "COMMITTED" }>,
-    opts: { reconciled: boolean; hook: CommittedHook | undefined },
-  ): Promise<CommitReceiptT> {
+    opts: { reconciled: boolean; hook: CommittedHook | undefined; reconciliation?: ReconTrigger; actorRef?: string | null },
+  ): Promise<{ receipt: CommitReceiptT; reconciliationId: string | null }> {
     return this.db.tx(
       async (tx) => {
         const locked = await this.lockRow(tx, actionId);
         if (!locked) throw new AccessDeniedError(R.ACTION_NOT_FOUND);
         const state = rowState(locked);
-        if (state === "COMMITTED") return rowReceipt(locked) ?? this.integrityFailure();
+        if (state === "COMMITTED") {
+          const existing = rowReceipt(locked) ?? this.integrityFailure();
+          if (!opts.reconciliation) return { receipt: existing, reconciliationId: null };
+          const out = await this.alreadyCommitted(tx, locked, opts.reconciliation);
+          return { receipt: out.receipt, reconciliationId: out.reconciliationId };
+        }
         if (state === "FAILED" || state === "PREPARED") {
           this.logger.error("action.ledger.provider_contradiction", { actionId, state });
           throw new ConflictError(R.LEDGER_PROVIDER_CONTRADICTION);
@@ -935,6 +1226,7 @@ export class LedgerActionService implements ActionService {
           reasonCode: reason,
           evidence: [`receipt:${receiptId}`],
           afterHash: evidence.hash,
+          actorRef: opts.actorRef ?? null,
         });
         const receipt = CommitReceipt.parse({
           receiptId,
@@ -969,6 +1261,8 @@ export class LedgerActionService implements ActionService {
           key: `${target.system}:${target.recordRef}`,
           payload: {
             actionId,
+            // Consumers set their RLS context from it (no cross-tenant lookup needed).
+            tenantId: updated.tenant_id,
             kind: updated.kind,
             receiptId,
             auditEventId: auditEvent.eventId,
@@ -977,19 +1271,22 @@ export class LedgerActionService implements ActionService {
           },
           dedupeKey: `action.committed:${actionId}`,
         });
+        const reconciliationId = opts.reconciliation
+          ? await this.insertReconciliation(tx, updated, { trigger: opts.reconciliation, lookupPerformed: true, result: "COMMITTED", receiptId, auditEventId: auditEvent.eventId })
+          : null;
         const committedAction = rowToAction(updated);
         if (this.serviceHook) await this.serviceHook(tx, committedAction, receipt);
         if (opts.hook && opts.hook !== this.serviceHook) await opts.hook(tx, committedAction, receipt);
-        return receipt;
+        return { receipt, reconciliationId };
       },
       { role: scope.role, rls: { tenantId: scope.tenantId } },
-    ).then((receipt) => {
-      this.logger.info(opts.reconciled ? "action.reconciled.committed" : "action.committed", { actionId, receiptId: receipt.receiptId });
-      return receipt;
+    ).then((out) => {
+      this.logger.info(opts.reconciled ? "action.reconciled.committed" : "action.committed", { actionId, receiptId: out.receipt.receiptId });
+      return out;
     });
   }
 
-  private async markUnknown(scope: Scope, committing: LedgerRow, reason: string): Promise<CommitReceiptT> {
+  private async markUnknown(scope: Scope, committing: LedgerRow, reason: string, actorRef: string | null = null): Promise<CommitReceiptT> {
     try {
       return await this.db.tx(
         async (tx) => {
@@ -1002,7 +1299,7 @@ export class LedgerActionService implements ActionService {
           const now = this.clock.now();
           const updated = await this.patch(tx, locked, { state: "UNKNOWN", stateReason: reason }, now);
           if (!updated) throw new DependencyError(R.COMMIT_OUTCOME_UNKNOWN, "UNKNOWN");
-          const ev = await this.appendAudit(tx, updated, { action: "action.commit.unknown", outcome: "UNKNOWN", reasonCode: reason });
+          const ev = await this.appendAudit(tx, updated, { action: "action.commit.unknown", outcome: "UNKNOWN", reasonCode: reason, actorRef });
           this.logger.warn("action.commit.unknown", { actionId: committing.action_id, reasonCode: reason });
           return this.transientReceipt(updated, "UNKNOWN", ev.eventId, false);
         },
@@ -1017,7 +1314,7 @@ export class LedgerActionService implements ActionService {
     }
   }
 
-  private async markFailed(scope: Scope, committing: LedgerRow, reason: string): Promise<CommitReceiptT> {
+  private async markFailed(scope: Scope, committing: LedgerRow, reason: string, actorRef: string | null = null): Promise<CommitReceiptT> {
     try {
       return await this.db.tx(
         async (tx) => {
@@ -1029,7 +1326,7 @@ export class LedgerActionService implements ActionService {
           const now = this.clock.now();
           const updated = await this.patch(tx, locked, { state: "FAILED", stateReason: reason, committingSince: null }, now);
           if (!updated) throw new DependencyError(reason, "FAILED");
-          const ev = await this.appendAudit(tx, updated, { action: "action.commit.failed", outcome: "FAILED", reasonCode: reason });
+          const ev = await this.appendAudit(tx, updated, { action: "action.commit.failed", outcome: "FAILED", reasonCode: reason, actorRef });
           return this.transientReceipt(updated, "FAILED", ev.eventId, false);
         },
         { role: scope.role, rls: { tenantId: scope.tenantId } },
@@ -1043,7 +1340,7 @@ export class LedgerActionService implements ActionService {
   }
 
   /** Provably-not-sent attempt goes back to CONFIRMED. If this cannot be recorded, it stays COMMITTING (safe). */
-  private async revertNotStarted(scope: Scope, committing: LedgerRow, reason: string): Promise<void> {
+  private async revertNotStarted(scope: Scope, committing: LedgerRow, reason: string, actorRef: string | null = null): Promise<void> {
     try {
       await this.db.tx(
         async (tx) => {
@@ -1051,7 +1348,7 @@ export class LedgerActionService implements ActionService {
           if (!locked || rowState(locked) !== "COMMITTING" || locked.commit_attempt_id !== committing.commit_attempt_id) return;
           const now = this.clock.now();
           const updated = await this.patch(tx, locked, { state: "CONFIRMED", stateReason: reason, committingSince: null }, now);
-          if (updated) await this.appendAudit(tx, updated, { action: "action.commit.not_started", outcome: "FAILED", reasonCode: reason });
+          if (updated) await this.appendAudit(tx, updated, { action: "action.commit.not_started", outcome: "FAILED", reasonCode: reason, actorRef });
         },
         { role: scope.role, rls: { tenantId: scope.tenantId } },
       );
@@ -1228,6 +1525,7 @@ export class LedgerActionService implements ActionService {
               reasonCode: ReasonCode.safeParse(rej.error.reasonCode).success ? rej.error.reasonCode : null,
               turnId: rej.turnId ?? null,
               policy: rej.policy ?? null,
+              actorRef: rej.actorRef ?? null,
             });
           }
         },

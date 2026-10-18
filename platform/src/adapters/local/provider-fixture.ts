@@ -31,6 +31,7 @@ const toOnboarding = (o: StoredOnboarding): OnboardingStatus => ({
   stage: o.stage,
   missingDocumentTypes: [...o.missingDocumentTypes],
   asOf: o.asOf,
+  organizationId: o.organizationId ?? null,
 });
 
 const toRemittance = (r: StoredRemittance): Remittance => ({

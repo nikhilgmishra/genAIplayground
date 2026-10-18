@@ -8,6 +8,7 @@
  * with month names, 12-hour times, named time zones, amounts from integer
  * minor units, and optional spelling of names and codes.
  */
+import { MATCH_CODE_PATTERN, MATCH_CODE_WORDS } from "../identity/match-code.js";
 import type { SlotValue } from "../protocol/index.js";
 import type { SlotType } from "./ports.js";
 
@@ -50,6 +51,15 @@ const PORTAL_PATH_RE = /^\/portal(\/[a-z0-9-]{1,40}){1,6}$/;
 const MAX_MONEY_MINOR = 1_000_000_000;
 const MAX_COUNT = 100_000;
 
+const MATCH_WORDS: ReadonlySet<string> = new Set(MATCH_CODE_WORDS);
+
+/** A match code: exactly two DISTINCT words of the identity module's fixed list joined by "-". */
+export function isValidMatchCode(value: string): boolean {
+  if (!MATCH_CODE_PATTERN.test(value)) return false;
+  const [a, b] = value.split("-") as [string, string];
+  return a !== b && MATCH_WORDS.has(a) && MATCH_WORDS.has(b);
+}
+
 const fail = (reasonCode: string): SlotCheck => ({ ok: false, reasonCode });
 const OK: SlotCheck = { ok: true };
 
@@ -89,6 +99,8 @@ export function validateSlotValue(spec: CatalogSlotSpec, value: SlotValue | unde
       return typeof value === "string" && SPELLED_CODE_RE.test(value) ? OK : fail("SLOT_INVALID_SPELLED_CODE");
     case "portal_path":
       return typeof value === "string" && value.startsWith("/portal/") && PORTAL_PATH_RE.test(value) ? OK : fail("SLOT_INVALID_PORTAL_PATH");
+    case "match_code":
+      return typeof value === "string" && isValidMatchCode(value) ? OK : fail("SLOT_INVALID_MATCH_CODE");
     default:
       return fail("SLOT_TYPE_UNKNOWN");
   }
@@ -158,6 +170,9 @@ export function renderSlotValue(spec: CatalogSlotSpec, value: SlotValue, lang: S
       return spellOut(String(value), lang);
     case "portal_path":
       return renderPortalPath(String(value), lang);
+    case "match_code":
+      // The two words with a pause between them; the same words are shown in the portal.
+      return String(value).split("-").join(", ");
     default:
       return "";
   }

@@ -4,7 +4,15 @@
  * selects the response and the route after any signal. No diagnosis,
  * screening, severity scoring or inference of mental state from voice.
  */
-export type SafetySignalSource = "EXPLICIT_PHRASE" | "SEMANTIC_SIGNAL" | "ASR_UNCERTAIN" | "CALLER_REQUEST" | "HUMAN_INTERVENTION";
+import type { RiskFlag, TransferReason } from "../protocol/index.js";
+
+/**
+ * FAIL_SAFE: raised by the system itself because an input could not be assessed (malformed or
+ * oversize input, a malformed signal, a failed detection stage). It is always UNRESOLVED and
+ * always routes to the safety human (fail safe; never silently ignored). It is distinct from
+ * ASR_UNCERTAIN (recognizer uncertainty) so dashboards and handoff packages can tell them apart.
+ */
+export type SafetySignalSource = "EXPLICIT_PHRASE" | "SEMANTIC_SIGNAL" | "ASR_UNCERTAIN" | "CALLER_REQUEST" | "HUMAN_INTERVENTION" | "FAIL_SAFE";
 
 export interface SafetySignal {
   source: SafetySignalSource;
@@ -40,6 +48,19 @@ export interface SafetyDecision {
   requiresAuthentication: false;
   destinationId: string | null;
   reasonCode: string;
+  /**
+   * Optional extended fields (all set by DeterministicSafetyRouter; absent from older callers'
+   * decisions). Callers must persist safety mode for the rest of the call when entered.
+   */
+  enterSafetyMode?: boolean;
+  /** Session risk flag to set (SAFETY_ESCALATION_ACTIVE) when safety mode is entered; null otherwise. */
+  riskFlagToSet?: RiskFlag | null;
+  /** Unsupported locale: add the interpreter accommodation to the handoff. */
+  interpreterRequired?: boolean;
+  /** Transfer reason for the handoff (SAFETY_PRIORITY / CLINICAL_QUESTION); null when no transfer. */
+  transferReason?: TransferReason | null;
+  /** Never automated: a human safety responder owns any external emergency coordination. */
+  externalEmergencyConferencing?: "NOT_AUTOMATED_HUMAN_OWNED";
 }
 
 export interface SafetyRouter {

@@ -12,11 +12,11 @@ acknowledgement; block consequential actions when durable evidence cannot be wri
 
 | Piece | File | Notes |
 |---|---|---|
-| Migrations | `migrations/0100_action_ledger.sql`, `0105_tool_request_idempotency.sql` | RLS enabled **and forced**, tenant policies for `app_runtime` and `app_worker`, no DELETE for runtime, state-machine trigger, partial unique index |
+| Migrations | `migrations/0100_action_ledger.sql`, `0101_action_reconciliations.sql`, `0105_tool_request_idempotency.sql` | RLS enabled **and forced**, tenant policies for `app_runtime` and `app_worker`, no DELETE for runtime, state-machine trigger, partial unique index; append-only reconciliation records with a one-time retry consumption |
 | `computeActionDigest` (pure) | `digest.ts` | sha256 over canonical JSON of every `PreparedAction` field except `digest`/`state`. The field list comes from the protocol schema |
 | Session binding | `digest.ts` | The ledger stores only `sha256(sessionRef)`. `PreparedAction.sessionRef` returned by this module is the non-bearer **binding ref** `ses_bnd_<base64url(sha256)>` |
 | Stable provider key | `digest.ts` `providerIdempotencyKeyFor` | Derived from the action id. The same key is used on every attempt and every reconciliation |
-| `LedgerActionService` (`ActionService` port) | `action-service.ts` | prepare / confirm / invalidatePending / commit / reconcile / get / listNeedingReconciliation, plus `describe`, `expireDue`, `cancelPending` |
+| `LedgerActionService` (`ActionService` port) | `action-service.ts` | prepare / confirm / invalidatePending / commit / reconcile / get / listNeedingReconciliation, plus (optional on the port) `listForSession`, `reconcileWithResult`, `retryAfterReconcile`, `latestReconciliation`, `describe`, `cancelPending`, and `expireDue` |
 | `ToolRequestIdempotency` | `tool-idempotency.ts` | reserve / complete(InTx) / release / lookup / record / purgeExpired. Rejects a request-hash mismatch |
 
 ### Commit protocol (as built)
@@ -77,6 +77,35 @@ network calls.
     - `UNKNOWN` (or the lookup throws): stays/becomes `UNKNOWN`.
 
     Compensation is never automatic.
+
+    Every reconciliation (worker `reconcile`, the commit path's reconcile-first step, an operator
+    `reconcileWithResult`) appends a durable `action_reconciliations` row **in the same
+    transaction** as the ledger transition: trigger, result (`COMMITTED` / `NOT_FOUND` /
+    `UNKNOWN`), ledger state and row version after it, receipt id, audit event id.
+13. `reconcileWithResult(tenantId, actionId, provider)` → `{ receipt, reconciliationId, result }`:
+    tenant-scoped (no locator); `receipt` is the authoritative `COMMITTED` receipt, otherwise null.
+14. `retryAfterReconcile(tenantId, actionId, { reconciliationId, reasonCode, staffRef }, provider)`:
+    staff-initiated retry. Allowed only when the reconciliation is the **latest** for the action,
+    its result is `NOT_FOUND`, it has not been consumed, the ledger row is still at exactly the
+    recorded row version in `CONFIRMED` (a `NOT_FOUND` reconciliation only returns an action to
+    `CONFIRMED` while the caller's confirmation was still fresh), the preparation is unexpired and
+    the caller's original confirmation is recorded. Never on `COMMITTED` or `UNKNOWN`
+    (`RECONCILIATION_RESULT_NOT_RETRYABLE`); other refusals: `RECONCILIATION_NOT_LATEST`,
+    `RECONCILIATION_ALREADY_CONSUMED`, `ACTION_ALREADY_COMMITTED`,
+    `ACTION_CHANGED_SINCE_RECONCILIATION`, `ACTION_NOT_COMMITTABLE`, `PREPARATION_EXPIRED`
+    (also expires the action). Refusals are audited (`action.retry_after_reconcile.rejected`)
+    with the staff actor and make no provider call. tx1 consumes the reconciliation (single use)
+    and claims the commit slot together; the provider is called with the **same** idempotency key,
+    and outcomes are recorded exactly as on the caller path (`UNKNOWN` again is reconciled first).
+    Every audit event carries the staff actor. Authentication and authorization of the staff
+    member (workforce SSO, MFA, console policy) is the console API's job before calling.
+15. `listForSession(tenantId, sessionRef)`: every action bound to the session (bearer **or**
+    `ses_bnd_` binding ref), any state (effective expiry applied), oldest first, at most 200,
+    as `LedgerEntryView` (now with `state` and `receiptId`), tenant RLS (`app_runtime`). The
+    bearer is hashed, never stored or returned.
+16. `reconcile(actionId, provider, tenantId?)` and `invalidatePending(sessionRef, reasonCode,
+    tenantId?)`: with `tenantId` the operation runs inside that tenant only and skips the
+    cross-tenant `action_locator` read; old call sites without it keep working.
 
 ### Database-enforced controls (defence in depth)
 
@@ -143,6 +172,8 @@ without changing state. A redelivered identical confirmation is idempotent.
   sessions with `sessionBindingRef(ctx.sessionRef) === action.sessionRef`.
 - Never put a returned PreparedAction's internals into model context beyond what the tool
   output schema allows.
+- The staff retry needs no caller `AuthContext` and never accepts a session bearer; the console
+  API wires it (`ConsoleApiDeps.reconciledRetry`) after its own gates.
 - `commit` outcomes:
   - Returns a `COMMITTED`, `UNKNOWN` or `FAILED` receipt.
   - Throws `DependencyError(…, "NOT_STARTED")` (retryable) or `DependencyError(…, "UNKNOWN")`.

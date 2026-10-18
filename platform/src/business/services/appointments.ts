@@ -71,7 +71,12 @@ export class AppointmentService {
     return { appointments, slots };
   }
 
-  async prepare(auth: AuthContext, decision: PolicyDecision, input: { appointmentId: string | null; startsAt: string; modality: Slot["modality"] | null }): Promise<PrepareOutcome> {
+  /**
+   * The offered option is re-resolved from AUTHORITATIVE availability: startsAt (plus the
+   * optional modality and the optional opaque slotId from get_appointment_options) must
+   * match exactly one open slot. A slotId never selects a slot on its own.
+   */
+  async prepare(auth: AuthContext, decision: PolicyDecision, input: { appointmentId: string | null; startsAt: string; modality: Slot["modality"] | null; slotId?: string | null }): Promise<PrepareOutcome> {
     const subjectId = auth.subjectId;
     if (!subjectId) return { kind: "NOT_ELIGIBLE", reasonCode: "SUBJECT_REQUIRED" };
     const s = this.deps.adapters.scheduling;
@@ -84,7 +89,8 @@ export class AppointmentService {
       if (from.status !== "SCHEDULED") return { kind: "NOT_ELIGIBLE", reasonCode: "APPOINTMENT_NOT_RESCHEDULABLE" };
     }
     const slots = await s.listSlots({ subjectId, appointmentId: input.appointmentId, fromDate: day, toDate: day });
-    const matches = slots.filter((x) => sameInstant(x.startsAt, input.startsAt) && (input.modality === null || x.modality === input.modality));
+    const slotId = input.slotId ?? null;
+    const matches = slots.filter((x) => sameInstant(x.startsAt, input.startsAt) && (input.modality === null || x.modality === input.modality) && (slotId === null || x.slotId === slotId));
     if (matches.length === 0) return { kind: "SLOT_UNAVAILABLE" };
     if (matches.length > 1) return { kind: "OPTION_AMBIGUOUS" };
     const slot = matches[0] as Slot;

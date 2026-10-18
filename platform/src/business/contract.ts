@@ -112,6 +112,15 @@ export interface HandoffService {
     language: string;
     issueCategory: IssueCategory | null;
     accommodations?: ("interpreter" | "relay_service" | "slower_speech" | "repeat_on_request" | "tty")[];
+    /**
+     * Added (additive, optional): a staff-selected destination for a console-initiated
+     * transfer. It must be an entry of the trusted DestinationConfig allowlist (SAFE-05),
+     * otherwise the request is refused with AccessDeniedError DESTINATION_NOT_ALLOWLISTED
+     * and nothing is dialled. Never set from caller, model or tool input.
+     */
+    destinationId?: string | null;
+    /** Added (additive, optional): the staff member who initiated the transfer from the console (audited as the actor). */
+    initiatedBy?: { staffId: string } | null;
   }): Promise<HandoffResult>;
   /**
    * Safety route: stops administrative work, invalidates pending mutations,
@@ -130,10 +139,32 @@ export interface HandoffService {
 
 export interface SupportRequestTrace {
   supportRequest: SupportRequest;
-  salesforce: { caseId: string | null; syncState: SupportRequest["syncState"]; lastAttemptAt: string | null; attempts: number };
+  salesforce: {
+    caseId: string | null;
+    syncState: SupportRequest["syncState"];
+    lastAttemptAt: string | null;
+    attempts: number;
+    /** Added (additive): reason code of the last synchronization attempt (null when none failed). */
+    lastReasonCode: string | null;
+    /** Added (additive): when Salesforce confirmed the upsert (null until then; never invented). */
+    syncedAt: string | null;
+  };
   actionIds: string[];
   workflowIds: string[];
   auditEventIds: string[];
+  /** Added (additive): ids of this request's "support_request.sync" outbox messages, oldest first. */
+  outboxMessageIds: string[];
+}
+
+/**
+ * Added (additive): which database view a trace reads. Default (absent) is the worker
+ * view (app_worker; includes restricted rows) used by operator tooling. The console view
+ * reads the request as app_console under row-level security: restricted (privacy /
+ * safety) rows are visible only when `restrictedReader` is true, which the console API
+ * sets ONLY for staff whose restricted_record:view decision allowed (break-glass).
+ */
+export interface SupportRequestTraceOptions {
+  reader?: { kind: "console"; restrictedReader: boolean };
 }
 
 export interface SupportRequestService {
@@ -165,9 +196,14 @@ export interface SupportRequestService {
   handleSyncMessage(messageId: string, payload: Record<string, unknown>): Promise<{ duplicate: boolean; syncState: SupportRequest["syncState"] }>;
   get(tenantId: string, supportRequestId: string): Promise<SupportRequest | null>;
   getByReference(tenantId: string, referenceNumber: string): Promise<SupportRequest | null>;
-  trace(tenantId: string, referenceNumber: string): Promise<SupportRequestTrace | null>;
+  trace(tenantId: string, referenceNumber: string, options?: SupportRequestTraceOptions): Promise<SupportRequestTrace | null>;
   /** Reconciliation dashboard / operator repair data. */
   listUnsynced(tenantId: string, limit: number): Promise<SupportRequest[]>;
+  /**
+   * Added (additive): support requests created for (or later linked to) one call, oldest
+   * first, worker view (includes restricted rows; callers gate disclosure). Bounded.
+   */
+  listForCall(tenantId: string, callId: string): Promise<SupportRequest[]>;
 }
 
 /** Interaction outcomes with evidence rules (RESOLVED needs the contract's success evidence; ACT-04). */

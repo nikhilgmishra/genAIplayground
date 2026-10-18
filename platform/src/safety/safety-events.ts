@@ -118,10 +118,11 @@ const SOURCE_LABEL: Record<SafetySignalSource, string> = {
   EXPLICIT_PHRASE: "explicit_phrase",
   SEMANTIC_SIGNAL: "semantic",
   ASR_UNCERTAIN: "uncertain_asr",
+  FAIL_SAFE: "fail_safe",
   CALLER_REQUEST: "caller_request",
   HUMAN_INTERVENTION: "human_intervention",
 };
-const SOURCE_ORDER: readonly SafetySignalSource[] = ["HUMAN_INTERVENTION", "EXPLICIT_PHRASE", "CALLER_REQUEST", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN"];
+const SOURCE_ORDER: readonly SafetySignalSource[] = ["HUMAN_INTERVENTION", "EXPLICIT_PHRASE", "CALLER_REQUEST", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN", "FAIL_SAFE"];
 const DESTINATION_RE = /^dst_[a-z0-9_]{2,40}$/;
 const REASON_RE = /^[A-Z][A-Z0-9_]{2,63}$/;
 const TURN_RE = /^turn_[A-Za-z0-9_-]{4,64}$/;

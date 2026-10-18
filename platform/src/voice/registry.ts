@@ -35,7 +35,7 @@ export const MAX_SAFETY_TEMPLATE_TEXT_CHARS = 160;
 export const CLINICAL_REVIEW_MARKER = "[PENDING CLINICAL SAFETY LEAD APPROVAL]";
 export const LEGAL_REVIEW_MARKER = "[PENDING LEGAL APPROVAL]";
 
-const SlotType = z.enum(["date", "time", "time_zone", "money_minor_usd", "person_display_name", "support_reference", "enum", "count", "spelled_code", "portal_path"]);
+const SlotType = z.enum(["date", "time", "time_zone", "money_minor_usd", "person_display_name", "support_reference", "enum", "count", "spelled_code", "portal_path", "match_code"]);
 
 const SlotSpecSchema = z.strictObject({
   type: SlotType,

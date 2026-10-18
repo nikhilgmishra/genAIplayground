@@ -117,6 +117,12 @@ role_matrix := [
 	["access_review:perform", "security_admin", "supervisor"],
 	["secret:rotate", "security_admin", "deployment_operator"],
 	["break_glass:request", "support_agent", "auditor"],
+	["operations:overview", "safety_responder", "auditor"],
+	["budget:view", "deployment_operator", "support_agent"],
+	["kill_switch:view", "security_admin", "safety_responder"],
+	["reconciliation:view", "supervisor", "support_agent"],
+	["human_task:view", "support_agent", "safety_responder"],
+	["release:view", "knowledge_editor", "supervisor"],
 ]
 
 test_each_console_action_allowed_for_its_role if {
@@ -133,6 +139,46 @@ test_each_console_action_denied_for_other_role if {
 		d.allow == false
 		"ROLE_NOT_PERMITTED" in d.reasonCodes
 	}
+}
+
+# Dedicated console read actions (least privilege; none mutates, so the auditor taint never applies).
+console_read_role_sets := {
+	"console:session": {"auditor", "deployment_operator", "knowledge_editor", "policy_approver", "safety_responder", "security_admin", "support_agent", "supervisor"},
+	"operations:overview": {"deployment_operator", "safety_responder", "security_admin", "support_agent", "supervisor"},
+	"budget:view": {"deployment_operator", "security_admin", "supervisor"},
+	"kill_switch:view": {"deployment_operator", "security_admin", "supervisor"},
+	"reconciliation:view": {"supervisor"},
+	"human_task:view": {"support_agent", "supervisor"},
+	"release:view": {"auditor", "knowledge_editor", "policy_approver", "security_admin"},
+}
+
+role_allowed(set, r) if r in set
+
+role_allowed(set, r) := false if not r in set
+
+test_console_read_actions_exact_role_sets if {
+	every action, allowed_roles in console_read_role_sets {
+		data.vsp.catalogue.console.actions[action].mutates == false
+		every r, _ in staff_ids {
+			d := decide(creq(action, staff(r)))
+			expected := role_allowed(allowed_roles, r)
+			d.allow == expected
+		}
+	}
+}
+
+test_console_session_for_every_staff_role_but_never_without_mfa if {
+	every r, _ in staff_ids {
+		allowed(creq("console:session", staff(r)), ["ALLOW_STAFF_ROLE"], ["AUDIT_ADMIN_ACTION"])
+		denied(with_staff(creq("console:session", staff(r)), {"mfa": false}), ["STAFF_MFA_REQUIRED"])
+	}
+	denied(object.union(creq("console:session", staff("supervisor")), {"origin": "conversational_agent"}), ["ORIGIN_NOT_PERMITTED"])
+}
+
+test_console_read_actions_never_mutate_anything_for_auditor if {
+	allowed(creq("release:view", staff("auditor")), ["ALLOW_STAFF_ROLE"], ["AUDIT_ADMIN_ACTION"])
+	denied(creq("reconciliation:view", staff("auditor")), ["ROLE_NOT_PERMITTED"])
+	allowed(creq("reconciliation:view", staff("supervisor")), ["ALLOW_STAFF_ROLE"], ["AUDIT_ADMIN_ACTION", "AUDIT_READ"])
 }
 
 test_audit_search_obligations if allowed(creq("audit:search", staff("auditor")), ["ALLOW_STAFF_ROLE"], ["AUDIT_ADMIN_ACTION", "AUDIT_READ"])

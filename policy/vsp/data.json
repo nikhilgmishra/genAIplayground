@@ -173,6 +173,27 @@
             {"id": "treating_provider", "grantReason": "ALLOW_TREATING_PROVIDER", "roles": ["provider"], "factTypes": ["treating_provider"], "target": "subject", "requireAuthSubject": false, "scope": "appointment:read", "minAssurance": "A2", "purposes": ["caller_self_service", "delegated_practice_administration"], "classifications": ["PHI"]}
           ]
         },
+        "appointment:list_options": {
+          "description": "Upcoming appointments and open administrative times with opaque slot ids (no clinical matching): own records; representative or treating provider only with scope appointment:list_options.",
+          "class": "PROTECTED_READ",
+          "intent": "appointment_lookup",
+          "killSwitchClass": "STANDARD",
+          "minAssurance": "A2",
+          "protected": true,
+          "roles": ["client", "personal_representative", "provider"],
+          "purposes": ["caller_self_service", "delegated_practice_administration", "durable_follow_up", "representative_access"],
+          "classifications": ["PHI"],
+          "resourceTypes": ["appointment", "appointment_options"],
+          "integrations": ["scheduling"],
+          "requiresActionDigest": false,
+          "fieldMask": ["appointmentId", "modality", "providerDisplayName", "slotId", "startsAt", "status", "timeZone"],
+          "obligations": ["AUDIT_READ"],
+          "access": [
+            {"id": "self", "grantReason": "ALLOW_SELF", "roles": ["client"], "factTypes": ["self"], "target": "subject", "requireAuthSubject": true, "scope": null, "minAssurance": "A2", "purposes": ["caller_self_service", "durable_follow_up"], "classifications": ["PHI"]},
+            {"id": "representative", "grantReason": "ALLOW_REPRESENTATIVE", "roles": ["personal_representative"], "factTypes": ["legal_representative", "parental_authority"], "target": "subject", "requireAuthSubject": false, "scope": "appointment:list_options", "minAssurance": "A2", "purposes": ["durable_follow_up", "representative_access"], "classifications": ["PHI"]},
+            {"id": "treating_provider", "grantReason": "ALLOW_TREATING_PROVIDER", "roles": ["provider"], "factTypes": ["treating_provider"], "target": "subject", "requireAuthSubject": false, "scope": "appointment:list_options", "minAssurance": "A2", "purposes": ["caller_self_service", "delegated_practice_administration"], "classifications": ["PHI"]}
+          ]
+        },
         "appointment:prepare_change": {
           "description": "Prepare an appointment create or reschedule for the client's own appointment. Produces a pending action that must be confirmed.",
           "class": "PREPARE_MUTATION",
@@ -229,6 +250,25 @@
           "access": [
             {"id": "self", "grantReason": "ALLOW_SELF", "roles": ["client"], "factTypes": ["self"], "target": "subject", "requireAuthSubject": true, "scope": null, "minAssurance": "A2", "purposes": ["caller_self_service", "durable_follow_up"], "classifications": ["FINANCIAL", "PHI"]},
             {"id": "representative", "grantReason": "ALLOW_REPRESENTATIVE", "roles": ["personal_representative"], "factTypes": ["legal_representative", "parental_authority"], "target": "subject", "requireAuthSubject": false, "scope": "invoice:read", "minAssurance": "A2", "purposes": ["durable_follow_up", "representative_access"], "classifications": ["FINANCIAL", "PHI"]}
+          ]
+        },
+        "billing:prepare_review": {
+          "description": "Prepare a billing review of the client's own invoice: a pending action that must be confirmed and is submitted only with billing:submit_review. Never a refund, waiver or coverage decision.",
+          "class": "PREPARE_MUTATION",
+          "intent": "billing_dispute",
+          "killSwitchClass": "WRITE",
+          "minAssurance": "A2",
+          "protected": true,
+          "roles": ["client"],
+          "purposes": ["caller_self_service"],
+          "classifications": ["FINANCIAL", "PHI"],
+          "resourceTypes": ["billing_review", "invoice"],
+          "integrations": ["billing"],
+          "requiresActionDigest": false,
+          "fieldMask": ["reviewId", "status", "supportReference"],
+          "obligations": ["REQUIRE_CONFIRMATION"],
+          "access": [
+            {"id": "self", "grantReason": "ALLOW_SELF", "roles": ["client"], "factTypes": ["self"], "target": "subject", "requireAuthSubject": true, "scope": null, "minAssurance": "A2", "purposes": ["caller_self_service"], "classifications": ["FINANCIAL", "PHI"]}
           ]
         },
         "billing:submit_review": {
@@ -506,6 +546,13 @@
           "secret:rotate": {"description": "Trigger a secret rotation (values are never displayed).", "roles": ["security_admin"], "assignedRoles": [], "scopeRoles": null, "mutates": true, "prohibited": false, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": []},
           "break_glass:request": {"description": "Request time-bound emergency access. A request grants nothing until someone else approves it.", "roles": ["deployment_operator", "knowledge_editor", "policy_approver", "safety_responder", "security_admin", "support_agent", "supervisor"], "assignedRoles": [], "scopeRoles": null, "mutates": true, "prohibited": false, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": []},
           "break_glass:approve": {"description": "Approve another staff member's break-glass request. Never self-approved.", "roles": ["security_admin"], "assignedRoles": [], "scopeRoles": null, "mutates": true, "prohibited": false, "requiresBreakGlass": false, "forbidSelfInitiated": true, "obligations": []},
+          "console:session": {"description": "Console session for the caller's own identity (who am I, sign out); no record-level data.", "roles": ["auditor", "deployment_operator", "knowledge_editor", "policy_approver", "safety_responder", "security_admin", "support_agent", "supervisor"], "assignedRoles": [], "scopeRoles": null, "mutates": false, "prohibited": false, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": []},
+          "operations:overview": {"description": "Operational health overview: queue, admission and continuity state as counts only; no record-level data.", "roles": ["deployment_operator", "safety_responder", "security_admin", "support_agent", "supervisor"], "assignedRoles": [], "scopeRoles": null, "mutates": false, "prohibited": false, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": []},
+          "budget:view": {"description": "View budgets and their consumption (read-only; defining a budget needs budget:define).", "roles": ["deployment_operator", "security_admin", "supervisor"], "assignedRoles": [], "scopeRoles": null, "mutates": false, "prohibited": false, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": []},
+          "kill_switch:view": {"description": "View kill-switch state (read-only; changes need kill_switch:engage or kill_switch:release for the scope).", "roles": ["deployment_operator", "security_admin", "supervisor"], "assignedRoles": [], "scopeRoles": null, "mutates": false, "prohibited": false, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": []},
+          "reconciliation:view": {"description": "View the reconciliation queue of ambiguous outcomes (identifiers and states only; reconcile and retry need operation:retry_reconciled).", "roles": ["supervisor"], "assignedRoles": [], "scopeRoles": null, "mutates": false, "prohibited": false, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": ["AUDIT_READ"]},
+          "human_task:view": {"description": "View durable human tasks for the staff member's queues (deciding needs human_task:decide).", "roles": ["support_agent", "supervisor"], "assignedRoles": [], "scopeRoles": null, "mutates": false, "prohibited": false, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": ["AUDIT_READ"]},
+          "release:view": {"description": "View release candidates under review (provenance and digests only); policy bundle items additionally need policy:review.", "roles": ["auditor", "knowledge_editor", "policy_approver", "security_admin"], "assignedRoles": [], "scopeRoles": null, "mutates": false, "prohibited": false, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": []},
           "db:raw_query": {"description": "Raw database queries are never exposed by the console (spec section 16).", "roles": [], "assignedRoles": [], "scopeRoles": null, "mutates": true, "prohibited": true, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": []},
           "secret:view": {"description": "Shared secrets are never displayed by the console (spec section 16).", "roles": [], "assignedRoles": [], "scopeRoles": null, "mutates": false, "prohibited": true, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": []},
           "transcript:download_unrestricted": {"description": "Unrestricted transcript downloads are never exposed (spec section 16).", "roles": [], "assignedRoles": [], "scopeRoles": null, "mutates": false, "prohibited": true, "requiresBreakGlass": false, "forbidSelfInitiated": false, "obligations": []},

@@ -30,6 +30,7 @@ export const stubSupportRequests: SupportRequestService = {
   getByReference: refuse,
   trace: refuse,
   listUnsynced: refuse,
+  listForCall: refuse,
 };
 
 export interface StubBusiness {

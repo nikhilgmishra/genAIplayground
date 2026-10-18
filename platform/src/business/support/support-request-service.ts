@@ -54,7 +54,7 @@ import { addMs, iso } from "../../shared/clock.js";
 import { sha256Hex } from "../../shared/canonical.js";
 import { AccessDeniedError, ConflictError, DependencyError, PlatformError, ValidationError } from "../../shared/errors.js";
 import { newId, newSupportReference } from "../../shared/ids.js";
-import type { SupportRequestService, SupportRequestTrace } from "../contract.js";
+import type { SupportRequestService, SupportRequestTrace, SupportRequestTraceOptions } from "../contract.js";
 import { UNKNOWN_CONSENT, atLeast, auditSessionRef, consentStatusCode, durationMs, reasonOf } from "../shared.js";
 import { assembleSummary } from "./summaries.js";
 
@@ -539,30 +539,84 @@ export class PgSupportRequestService implements SupportRequestService {
     };
   }
 
-  /** Operator trace (worker view, includes restricted records). */
-  async trace(tenantId: string, referenceNumber: string): Promise<SupportRequestTrace | null> {
+  /**
+   * Operator trace. Default: worker view (app_worker, includes restricted records). The
+   * console view reads the request and its links as app_console under row-level security;
+   * the transaction is marked as a restricted-record reader (app.restricted_reader, migration
+   * 0300) ONLY when the caller says the staff member's restricted_record:view decision
+   * allowed. A row RLS hides returns null (fail closed). Outbox message ids are sync
+   * metadata (ids only) read as app_worker after the request itself was visible.
+   */
+  async trace(tenantId: string, referenceNumber: string, options: SupportRequestTraceOptions = {}): Promise<SupportRequestTrace | null> {
     if (!OpaqueId.safeParse(tenantId).success || !SupportReference.safeParse(referenceNumber).success) return null;
-    const r = await this.db.tx((q) => q.query<SrRow>(`select ${SR_COLUMNS} from support_requests where reference_number = $1`, [referenceNumber]), {
-      role: "app_worker",
-      rls: { tenantId },
-    });
-    const row = r.rows[0];
-    if (!row) return null;
+    const consoleView = options.reader?.kind === "console";
+    const restrictedReader = consoleView && options.reader?.restrictedReader === true;
+    type TraceRow = SrRow & { last_sync_reason: string | null; synced_at: Date | string | null };
+    const read = await this.db.tx(
+      async (q) => {
+        if (restrictedReader) await q.query("select set_config('app.restricted_reader', 'on', true)");
+        const r = await q.query<TraceRow>(`select ${SR_COLUMNS}, last_sync_reason, synced_at from support_requests where reference_number = $1`, [referenceNumber]);
+        const row = r.rows[0];
+        if (!row) return null;
+        const links = await q.query<{ link_kind: string; link_ref: string }>(
+          "select link_kind, link_ref from support_request_links where support_request_id = $1 order by created_at, link_id",
+          [row.support_request_id],
+        );
+        return { row, links: links.rows };
+      },
+      { role: consoleView ? "app_console" : "app_worker", rls: { tenantId } },
+    );
+    if (!read) return null;
+    const { row } = read;
     const sr = this.rowToRequest(row);
-    const links = await this.linkedRefs(tenantId, sr.supportRequestId);
+    const links = {
+      actionIds: read.links.filter((x) => x.link_kind === "action").map((x) => x.link_ref),
+      workflowIds: read.links.filter((x) => x.link_kind === "workflow").map((x) => x.link_ref),
+    };
+    const outbox = await this.db.tx(
+      (q) =>
+        q.query<{ message_id: string }>("select message_id from outbox_messages where topic = 'support_request.sync' and key = $1 order by created_at, message_id limit 64", [
+          `sr:${sr.supportRequestId}`,
+        ]),
+      { role: "app_worker", rls: { tenantId } },
+    );
     let auditEventIds: string[] = [];
     if (this.auditQuery) {
       const correlations = [sr.supportRequestId, ...links.actionIds, ...links.workflowIds];
       const events = (await Promise.all(correlations.map((c) => this.auditQuery!.search({ tenantId, correlationId: c, limit: 100 }).catch(() => [])))).flat();
       auditEventIds = [...new Set(events.map((e) => e.eventId))];
     }
+    const lastReasonCode = row.last_sync_reason !== null && /^[A-Z][A-Z0-9_]{2,63}$/.test(row.last_sync_reason) ? row.last_sync_reason : null;
     return {
       supportRequest: sr,
-      salesforce: { caseId: sr.salesforceCaseId, syncState: sr.syncState, lastAttemptAt: toIso(row.last_sync_attempt_at), attempts: row.sync_attempts },
+      salesforce: {
+        caseId: sr.salesforceCaseId,
+        syncState: sr.syncState,
+        lastAttemptAt: toIso(row.last_sync_attempt_at),
+        attempts: row.sync_attempts,
+        lastReasonCode,
+        syncedAt: sr.syncState === "SYNCED" ? toIso(row.synced_at) : null,
+      },
       actionIds: links.actionIds,
       workflowIds: links.workflowIds,
       auditEventIds,
+      outboxMessageIds: outbox.rows.map((x) => x.message_id),
     };
+  }
+
+  /** Requests created for, or later linked to, one call (worker view: includes restricted rows; callers gate disclosure). */
+  async listForCall(tenantId: string, callId: string): Promise<SupportRequestT[]> {
+    if (!OpaqueId.safeParse(tenantId).success || !OpaqueId.safeParse(callId).success) return [];
+    const r = await this.db.tx(
+      (q) =>
+        q.query<SrRow>(
+          `select ${SR_COLUMNS} from support_requests where call_id = $1 or source_call_ids @> jsonb_build_array($1::text)
+            order by created_at, support_request_id limit 50`,
+          [callId],
+        ),
+      { role: "app_worker", rls: { tenantId } },
+    );
+    return r.rows.map((row) => this.rowToRequest(row));
   }
 
   /** Reconciliation dashboard / operator repair data (worker view). */

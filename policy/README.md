@@ -17,8 +17,8 @@ production readiness.
 | `vsp/authz.rego` | Caller-facing entrypoint `vsp/authz/decision` |
 | `vsp/console.rego` | Workforce console entrypoint `vsp/console/decision` |
 | `vsp/lib.rego` | WASM-safe helpers: pure-Rego RFC 3339 parser (canonical `YYYY-MM-DDTHH:MM:SS.sssZ` only), assurance ranks |
-| `vsp/*_test.rego` | `opa test` unit tests (211) and SYNTHETIC fixtures; excluded from the bundle |
-| `golden/probes.json` | 723 golden decision probes generated from a declarative matrix (`platform/src/policy/golden-matrix.ts`) |
+| `vsp/*_test.rego` | `opa test` unit tests (223) and SYNTHETIC fixtures; excluded from the bundle |
+| `golden/probes.json` | 889 golden decision probes generated from a declarative matrix (`platform/src/policy/golden-matrix.ts`) |
 | `golden/approved-expansions.json` | Approved access expansions (`[]`; entries `{probeId, approvedBy, approvalId, reason}`) |
 | `build/` | Build output (gitignored): `bundle.tar.gz`, `policy.wasm`, `data.json`, `.manifest`, `bundle.sha256`, `sources.sha256` |
 
@@ -104,8 +104,8 @@ Per action: `class`, `intent`, `killSwitchClass` (`EXEMPT` / `STANDARD` / `WRITE
 | PUBLIC_READ (A0, PUBLIC only) | `public:read`, `login_help:read` (never credential reset) |
 | INTAKE | `intake:create`, `complaint:create`, `support_request:create` (A0 unlinked; A2 self/representative when linked to a subject), `partner_intake:create` (A2 partner affiliation, organization only) |
 | VERIFICATION (A0) | `verification:begin` (generic status only; no account-existence disclosure) |
-| PROTECTED_READ (A2) | `appointment:read` (self, representative, treating provider with scope), `invoice:read` (self, representative), `claim:read` (self), `onboarding:read` (provider self, practice delegate/member with scope), `remittance:read` (practice delegate/member for exactly that organization), `case:read` (self; organization cases via practice or partner, INTERNAL only) |
-| PREPARE / COMMIT_MUTATION (A2, writes switch) | `appointment:prepare_change`, `appointment:commit_change` (digest + `REQUIRE_CONFIRMATION`), `billing:submit_review` (digest + confirmation; never a refund decision) |
+| PROTECTED_READ (A2) | `appointment:read` (self, representative, treating provider with scope), `appointment:list_options` (same paths, scope `appointment:list_options`; mask adds the opaque `slotId`), `invoice:read` (self, representative), `claim:read` (self), `onboarding:read` (provider self, practice delegate/member with scope), `remittance:read` (practice delegate/member for exactly that organization), `case:read` (self; organization cases via practice or partner, INTERNAL only) |
+| PREPARE / COMMIT_MUTATION (A2, writes switch) | `appointment:prepare_change`, `appointment:commit_change` (digest + `REQUIRE_CONFIRMATION`), `billing:prepare_review` (client self, no digest, `REQUIRE_CONFIRMATION`), `billing:submit_review` (digest + confirmation; never a refund decision) |
 | HUMAN_BOUNDARY (always deny, `REQUIRE_HUMAN`) | `account:change_payout_destination`, `account:change_tax_info`, `credentialing:decide`, `clinical_record:read`, `identity:recover`, `credential:reset` |
 
 Resource types accepted per action are listed in the catalogue (e.g. `appointment`,
@@ -123,20 +123,25 @@ mutating action; `policy:approve` and `break_glass:approve` can never be self-ap
 someone else) and never adds a role; `db:raw_query`, `secret:view`,
 `transcript:download_unrestricted`, `audit:modify`, `audit:delete`, `break_glass:self_grant` are
 prohibited for everyone. Kill-switch roles mirror `platform/src/ops/staff-authz.ts`. Every
-console decision, allowed or denied, carries `AUDIT_ADMIN_ACTION`.
+console decision, allowed or denied, carries `AUDIT_ADMIN_ACTION`. Dedicated read actions
+(non-mutating, least privilege, equal to the console endpoint roles): `console:session` (every
+staff role), `operations:overview` (support agent, supervisor, safety responder, deployment
+operator, security admin), `budget:view` and `kill_switch:view` (supervisor, security admin,
+deployment operator), `reconciliation:view` (supervisor), `human_task:view` (support agent,
+supervisor), `release:view` (auditor, knowledge editor, policy approver, security admin).
 
 ## Golden probes and the "no silent expansion" gate (spec section 14)
 
-* `golden/probes.json` is generated from a declarative matrix: 27 allowed base requests and 519
-  perturbations of them (up to 20 each: expiry, revocation, tenant, kill switches, consent, risk
-  flags, assurance, role, relationships, verification secret, production), 69 explicit cases and
-  108 console probes (723 in total; 520 expect deny).
+* `golden/probes.json` is generated from a declarative matrix: allowed base requests and their
+  perturbations (up to 20 each: expiry, revocation, tenant, kill switches, consent, risk flags,
+  assurance, role, relationships, verification secret, production), explicit cases and console
+  probes (889 in total for bundle `2026.10.18-1`; run `golden-generate.ts` for the counts).
   Expectations are declared intent, written independently of the Rego.
 * `platform/src/policy/golden.test.ts` evaluates every probe through the WASM engine and fails on
   any mismatch; a probe whose expectation is deny that now allows (or a wider field mask, or a
   dropped obligation) fails as **SILENT_EXPANSION** unless it is listed in
   `approved-expansions.json` with an approval id that exists in `approvals/` with scope
-  `POLICY_RELEASE`. It also checks native `opa eval` and WASM agree on all 723 probes.
+  `POLICY_RELEASE`. It also checks native `opa eval` and WASM agree on every probe.
 * `golden-generate.ts --update` refuses (exit 2, nothing written) to flip deny -> allow, widen a
   mask, drop an obligation, remove a probe or rewrite a deny probe's input without such an entry.
 * `golden-gate.test.ts` builds deliberately weakened bundles (consent rule removed, field mask

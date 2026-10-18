@@ -29,6 +29,8 @@ export interface RecheckContext {
   guard: TransitionGuard;
   /** Durable action grant (narrow authorization) the workflow was started with. */
   grantRef: string;
+  /** Grant action this transition consumes (VersionedWorkflowDefinition.grantActions), e.g. "billing.review.commit". */
+  grantAction?: string;
   sourceRecordRefs: readonly string[];
   /** Policy version snapshotted when the workflow was accepted (null if none was recorded). */
   policySnapshotVersion: string | null;

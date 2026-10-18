@@ -16,7 +16,7 @@ export {
   providerDocumentReviewV1,
   supportRequestSyncV1,
 };
-export { ESCALATED, deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
+export { ACTORS, COMMON_EVENT_ACTORS, ESCALATED, deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
 
 /**
  * Every shipped definition version. Old versions stay in this list after a new

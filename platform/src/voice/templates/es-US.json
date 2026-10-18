@@ -126,6 +126,29 @@
       }
     },
     {
+      "templateId": "verification.secure_link_match_code",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "Para proteger su información, uso un enlace seguro. Si los datos coinciden con una cuenta, se envió un enlace al medio de contacto que ya está registrado. Cuando lo abra, compruebe que muestre las palabras {matchCode} antes de aprobar.",
+      "slots": {
+        "matchCode": {
+          "type": "match_code"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "PENDING_NATIVE_SPEAKER_REVIEW",
+        "purpose": "Secure link verification prompt with the two-word match code the portal shows (explicit transaction matching, spec section 7). Generic: identical for zero, one or many matches.",
+        "notes": "The match code is generated for every request, eligible or not, so it reveals nothing about account existence; it is not a secret and grants nothing (identity/match-code.ts). Pending support operations and identity owner review.",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
       "templateId": "verification.otp_sent",
       "version": "0.1.0-draft",
       "responseClass": "GENERIC_STATUS",

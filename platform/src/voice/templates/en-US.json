@@ -126,6 +126,29 @@
       }
     },
     {
+      "templateId": "verification.secure_link_match_code",
+      "version": "0.1.0-draft",
+      "responseClass": "GENERIC_STATUS",
+      "text": "To protect your information, I use a secure link. If the details match an account, a link has been sent to the contact method already on file. When you open it, check that it shows the words {matchCode} before you approve.",
+      "slots": {
+        "matchCode": {
+          "type": "match_code"
+        }
+      },
+      "approval": {
+        "status": "DRAFT",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "support_operations",
+        "reviewMarker": "[DRAFT - PENDING SUPPORT OPERATIONS REVIEW]",
+        "languageReview": "SOURCE_LOCALE",
+        "purpose": "Secure link verification prompt with the two-word match code the portal shows (explicit transaction matching, spec section 7). Generic: identical for zero, one or many matches.",
+        "notes": "The match code is generated for every request, eligible or not, so it reveals nothing about account existence; it is not a secret and grants nothing (identity/match-code.ts). Pending support operations and identity owner review.",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
       "templateId": "verification.otp_sent",
       "version": "0.1.0-draft",
       "responseClass": "GENERIC_STATUS",

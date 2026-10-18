@@ -7,7 +7,7 @@
  * of this definition.
  */
 import type { VersionedWorkflowDefinition } from "../types.js";
-import { deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
+import { ACTORS, COMMON_EVENT_ACTORS, deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
 
 export const callbackRequestV1: VersionedWorkflowDefinition = deepFreeze({
   type: "callback_request",
@@ -64,4 +64,16 @@ export const callbackRequestV1: VersionedWorkflowDefinition = deepFreeze({
     WAITING_FOR_CALLER: { CALLER_RESPONDED: "disclosure" },
   },
   humanTaskRoles: { WAITING_FOR_HUMAN: "callback_agent" },
+  eventActors: {
+    ...COMMON_EVENT_ACTORS,
+    VALIDATE: ACTORS.SYSTEM,
+    // Consent is established from the consent registry by the trusted backend, never by a caller statement.
+    CONSENT_CONFIRMED: ACTORS.SYSTEM,
+    CONSENT_MISSING: ACTORS.SYSTEM,
+    CALLER_RESPONDED: ACTORS.CALLER_RESPONSE,
+  },
+  grantActions: {
+    VALIDATING: { CONSENT_CONFIRMED: "callback.outreach" },
+    WAITING_FOR_CALLER: { CALLER_RESPONDED: "callback.outreach" },
+  },
 });

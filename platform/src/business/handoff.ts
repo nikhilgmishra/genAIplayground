@@ -3,8 +3,10 @@
  *
  * - Neither route requires authentication: ctx may be null (unknown / invalid session).
  * - The destination comes ONLY from the trusted DestinationConfig allowlist, chosen by
- *   purpose and language (unsupported languages go to the interpreter destination).
- *   No input of this service can carry a destination.
+ *   purpose and language (unsupported languages go to the interpreter destination). The
+ *   only exception is a console-initiated transfer, whose staff-selected destinationId
+ *   must itself be an allowlisted entry (anything else is refused, nothing dialled);
+ *   caller, model and tool input can never carry one.
  * - The HandoffPackage is strict and template-assembled: assurance and its limits, the
  *   authorized subject (A2+ only), consent, receipts, pending and unresolved work, the
  *   support reference, language, accommodations and the safety routing reason. Clinical
@@ -17,7 +19,8 @@
  * - The handoff id is deterministic per call and priority, so a repeated request returns
  *   the active journey instead of dialling twice.
  */
-import { HandoffPackage, meetsAssurance } from "../protocol/index.js";
+import { HandoffPackage, OpaqueId, meetsAssurance } from "../protocol/index.js";
+import { AccessDeniedError, ValidationError } from "../shared/errors.js";
 import type { AuthContext, HandoffPackage as HandoffPackageT, IssueCategory, TransferReason } from "../protocol/index.js";
 import type { DestinationConfig } from "../config/ports.js";
 import type { SafetySignal } from "../safety/ports.js";
@@ -127,7 +130,16 @@ export class BusinessHandoffService implements HandoffService {
     const ctx = this.usableContext(input.ctx, input.tenantId, input.callId);
     const language = normalizeLanguage(input.language);
     const purpose = purposeFor(input.reason, input.issueCategory);
-    const resolved = resolveDestination(this.deps.destinations, purpose, language);
+    const initiatedBy = input.initiatedBy ?? null;
+    if (initiatedBy !== null && !OpaqueId.safeParse(initiatedBy.staffId).success) throw new ValidationError("HANDOFF_INITIATOR_INVALID");
+    // A staff-selected destination (console) must be in the trusted allowlist (SAFE-05); nothing else can name one.
+    const requested = input.destinationId ?? null;
+    const chosen = requested === null ? null : this.deps.destinations.find((d) => d.destinationId === requested);
+    if (requested !== null && !chosen) {
+      this.deps.logger.warn("handoff.destination_refused", { reasonCode: "DESTINATION_NOT_ALLOWLISTED" });
+      throw new AccessDeniedError("DESTINATION_NOT_ALLOWLISTED");
+    }
+    const resolved = chosen ? { destination: chosen, interpreter: !supports(chosen, language) } : resolveDestination(this.deps.destinations, purpose, language);
     const accommodations = new Set<Accommodation>(input.accommodations ?? []);
     if (!resolved) {
       this.deps.logger.error("handoff.no_destination", { reasonCode: "DESTINATION_NOT_CONFIGURED" });
@@ -156,11 +168,11 @@ export class BusinessHandoffService implements HandoffService {
       input.reason === "CLINICAL_QUESTION" ? "clinical.boundary" : accommodations.has("interpreter") ? "language.interpreter_route" : "transfer.in_progress";
     try {
       const journey = await this.deps.transfers.requestTransfer(pkg);
-      await this.auditHandoff(pkg, ctx, "handoff.requested", null);
+      await this.auditHandoff(pkg, ctx, "handoff.requested", null, initiatedBy);
       return { handoffId, transferId: journey.currentTransferId, destinationId: pkg.destinationId, journey, speechTemplateId, supportReference: pkg.supportReference };
     } catch (err) {
       this.deps.logger.error("handoff.transfer_request_failed", { handoffId, reasonCode: reasonOf(err) });
-      await this.auditHandoff(pkg, ctx, "handoff.transfer_failed", reasonOf(err, "TRANSFER_REQUEST_FAILED"));
+      await this.auditHandoff(pkg, ctx, "handoff.transfer_failed", reasonOf(err, "TRANSFER_REQUEST_FAILED"), initiatedBy);
       // The independent Studio human route remains available (spec section 3).
       return { handoffId, transferId: null, destinationId: pkg.destinationId, journey: null, speechTemplateId: "transfer.failed_next_route", supportReference: pkg.supportReference };
     }
@@ -384,17 +396,18 @@ export class BusinessHandoffService implements HandoffService {
     }
   }
 
-  private async auditHandoff(pkg: HandoffPackageT, ctx: AuthContext | null, action: string, reasonCode: string | null): Promise<void> {
+  /** A console-initiated transfer is audited with the staff member as the actor (sourceComponent console). */
+  private async auditHandoff(pkg: HandoffPackageT, ctx: AuthContext | null, action: string, reasonCode: string | null, initiatedBy: { staffId: string } | null = null): Promise<void> {
     try {
       await this.deps.audit.appendStandalone(
         buildAuditInput(
           {
             tenantId: pkg.tenantId,
             correlationId: pkg.handoffId,
-            sourceComponent: "gateway",
+            sourceComponent: initiatedBy ? "console" : "gateway",
             action,
             outcome: reasonCode ? "FAILED" : "PENDING",
-            actorRef: ctx?.actorId ?? null,
+            actorRef: initiatedBy?.staffId ?? ctx?.actorId ?? null,
             subjectRef: pkg.authorizedSubjectRef,
             role: ctx?.selectedRole ?? null,
             callId: pkg.callId,
@@ -402,7 +415,7 @@ export class BusinessHandoffService implements HandoffService {
             sessionGeneration: pkg.sessionGeneration,
             assurance: pkg.assurance,
             versions: this.deps.versions,
-            evidencePointers: [`handoff:${pkg.handoffId}`],
+            evidencePointers: [`handoff:${pkg.handoffId}`, `db://destinations/${pkg.destinationId}`],
             reasonCode,
           },
           this.deps.clock,

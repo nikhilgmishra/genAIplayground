@@ -21,7 +21,8 @@
       "TimeoutSeconds": 3600,
       "HeartbeatSeconds": 900,
       "ResultSelector": {
-        "event.$": "$.event"
+        "event.$": "$.event",
+        "actorKind.$": "$.actorKind"
       },
       "ResultPath": "$.signal",
       "Retry": [
@@ -57,7 +58,7 @@
     },
     "ACCEPTED__Route": {
       "Type": "Choice",
-      "Comment": "Route the worker-reported event; undeclared events escalate.",
+      "Comment": "Route the worker-reported event from a permitted actor kind; anything else escalates.",
       "Choices": [
         {
           "Not": {
@@ -67,18 +68,65 @@
           "Next": "ACCEPTED__InvalidSignalEscalation"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "CANCEL",
+          "Not": {
+            "Variable": "$.signal.actorKind",
+            "IsPresent": true
+          },
+          "Next": "ACCEPTED__InvalidSignalEscalation"
+        },
+        {
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "CANCEL"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "staff"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "system"
+                }
+              ]
+            }
+          ],
           "Next": "CANCELLED"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "ESCALATED",
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "ESCALATED"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "staff"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "system"
+                }
+              ]
+            }
+          ],
           "Next": "WAITING_FOR_HUMAN"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "VALIDATE",
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "VALIDATE"
+            },
+            {
+              "Variable": "$.signal.actorKind",
+              "StringEquals": "system"
+            }
+          ],
           "Next": "VALIDATING"
         }
       ],
@@ -88,6 +136,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "DEADLINE_EXCEEDED"
       },
       "ResultPath": "$.signal",
@@ -97,6 +146,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "RETRY_BUDGET_EXHAUSTED"
       },
       "ResultPath": "$.signal",
@@ -106,6 +156,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "INVALID_SIGNAL"
       },
       "ResultPath": "$.signal",
@@ -170,7 +221,8 @@
       "TimeoutSeconds": 14400,
       "HeartbeatSeconds": 3600,
       "ResultSelector": {
-        "event.$": "$.event"
+        "event.$": "$.event",
+        "actorKind.$": "$.actorKind"
       },
       "ResultPath": "$.signal",
       "Retry": [
@@ -206,7 +258,7 @@
     },
     "VALIDATING__Route": {
       "Type": "Choice",
-      "Comment": "Route the worker-reported event; undeclared events escalate.",
+      "Comment": "Route the worker-reported event from a permitted actor kind; anything else escalates.",
       "Choices": [
         {
           "Not": {
@@ -216,18 +268,73 @@
           "Next": "VALIDATING__InvalidSignalEscalation"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "CANCEL",
+          "Not": {
+            "Variable": "$.signal.actorKind",
+            "IsPresent": true
+          },
+          "Next": "VALIDATING__InvalidSignalEscalation"
+        },
+        {
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "CANCEL"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "staff"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "system"
+                }
+              ]
+            }
+          ],
           "Next": "CANCELLED"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "ESCALATED",
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "ESCALATED"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "staff"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "system"
+                }
+              ]
+            }
+          ],
           "Next": "WAITING_FOR_HUMAN"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "TRIAGED",
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "TRIAGED"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "staff"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "system"
+                }
+              ]
+            }
+          ],
           "Next": "WAITING_FOR_HUMAN"
         }
       ],
@@ -237,6 +344,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "DEADLINE_EXCEEDED"
       },
       "ResultPath": "$.signal",
@@ -246,6 +354,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "RETRY_BUDGET_EXHAUSTED"
       },
       "ResultPath": "$.signal",
@@ -255,6 +364,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "INVALID_SIGNAL"
       },
       "ResultPath": "$.signal",
@@ -323,7 +433,8 @@
       "TimeoutSeconds": 432000,
       "HeartbeatSeconds": 3600,
       "ResultSelector": {
-        "event.$": "$.event"
+        "event.$": "$.event",
+        "actorKind.$": "$.actorKind"
       },
       "ResultPath": "$.signal",
       "Retry": [
@@ -359,7 +470,7 @@
     },
     "WAITING_FOR_HUMAN__Route": {
       "Type": "Choice",
-      "Comment": "Route the worker-reported event; undeclared events escalate.",
+      "Comment": "Route the worker-reported event from a permitted actor kind; anything else escalates.",
       "Choices": [
         {
           "Not": {
@@ -369,34 +480,100 @@
           "Next": "WAITING_FOR_HUMAN__InvalidSignalEscalation"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "CANCEL",
+          "Not": {
+            "Variable": "$.signal.actorKind",
+            "IsPresent": true
+          },
+          "Next": "WAITING_FOR_HUMAN__InvalidSignalEscalation"
+        },
+        {
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "CANCEL"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "staff"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "system"
+                }
+              ]
+            }
+          ],
           "Next": "CANCELLED"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "ESCALATED",
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "ESCALATED"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "staff"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "system"
+                }
+              ]
+            }
+          ],
           "Next": "WAITING_FOR_HUMAN"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "HUMAN_APPROVED",
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "HUMAN_APPROVED"
+            },
+            {
+              "Variable": "$.signal.actorKind",
+              "StringEquals": "staff"
+            }
+          ],
           "Next": "WAITING_FOR_HUMAN__Recheck_HUMAN_APPROVED"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "HUMAN_REJECTED",
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "HUMAN_REJECTED"
+            },
+            {
+              "Variable": "$.signal.actorKind",
+              "StringEquals": "staff"
+            }
+          ],
           "Next": "VALIDATING"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "NEEDS_CALLER_INFO",
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "NEEDS_CALLER_INFO"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "staff"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "system"
+                }
+              ]
+            }
+          ],
           "Next": "WAITING_FOR_CALLER"
-        },
-        {
-          "Variable": "$.signal.event",
-          "StringEquals": "POLICY_CHANGED_PENDING_ACTION",
-          "Next": "WAITING_FOR_HUMAN"
         }
       ],
       "Default": "WAITING_FOR_HUMAN__InvalidSignalEscalation"
@@ -405,6 +582,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "DEADLINE_EXCEEDED"
       },
       "ResultPath": "$.signal",
@@ -414,6 +592,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "RETRY_BUDGET_EXHAUSTED"
       },
       "ResultPath": "$.signal",
@@ -423,6 +602,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "INVALID_SIGNAL"
       },
       "ResultPath": "$.signal",
@@ -470,7 +650,7 @@
     },
     "WAITING_FOR_HUMAN__Recheck_HUMAN_APPROVED": {
       "Type": "Task",
-      "Comment": "Recheck consent, representation, account state and current policy before this disclosure.",
+      "Comment": "Check the durable action grant for complaint.response.disclose, then recheck consent, representation, account state and current policy before this disclosure.",
       "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
       "Parameters": {
         "QueueUrl": "${recheck_queue_url}",
@@ -483,6 +663,7 @@
           "event": "HUMAN_APPROVED",
           "toState": "COMPLETED",
           "guard": "disclosure",
+          "grantAction": "complaint.response.disclose",
           "taskToken.$": "$$.Task.Token"
         }
       },
@@ -552,7 +733,8 @@
       "TimeoutSeconds": 864000,
       "HeartbeatSeconds": 3600,
       "ResultSelector": {
-        "event.$": "$.event"
+        "event.$": "$.event",
+        "actorKind.$": "$.actorKind"
       },
       "ResultPath": "$.signal",
       "Retry": [
@@ -588,7 +770,7 @@
     },
     "WAITING_FOR_CALLER__Route": {
       "Type": "Choice",
-      "Comment": "Route the worker-reported event; undeclared events escalate.",
+      "Comment": "Route the worker-reported event from a permitted actor kind; anything else escalates.",
       "Choices": [
         {
           "Not": {
@@ -598,18 +780,77 @@
           "Next": "WAITING_FOR_CALLER__InvalidSignalEscalation"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "CALLER_RESPONDED",
+          "Not": {
+            "Variable": "$.signal.actorKind",
+            "IsPresent": true
+          },
+          "Next": "WAITING_FOR_CALLER__InvalidSignalEscalation"
+        },
+        {
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "CALLER_RESPONDED"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "caller"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "staff"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "system"
+                }
+              ]
+            }
+          ],
           "Next": "WAITING_FOR_HUMAN"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "CANCEL",
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "CANCEL"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "staff"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "system"
+                }
+              ]
+            }
+          ],
           "Next": "CANCELLED"
         },
         {
-          "Variable": "$.signal.event",
-          "StringEquals": "ESCALATED",
+          "And": [
+            {
+              "Variable": "$.signal.event",
+              "StringEquals": "ESCALATED"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "staff"
+                },
+                {
+                  "Variable": "$.signal.actorKind",
+                  "StringEquals": "system"
+                }
+              ]
+            }
+          ],
           "Next": "WAITING_FOR_HUMAN"
         }
       ],
@@ -619,6 +860,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "DEADLINE_EXCEEDED"
       },
       "ResultPath": "$.signal",
@@ -628,6 +870,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "RETRY_BUDGET_EXHAUSTED"
       },
       "ResultPath": "$.signal",
@@ -637,6 +880,7 @@
       "Type": "Pass",
       "Result": {
         "event": "ESCALATED",
+        "actorKind": "system",
         "cause": "INVALID_SIGNAL"
       },
       "ResultPath": "$.signal",

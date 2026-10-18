@@ -9,7 +9,7 @@
 import { z } from "zod";
 import { ApprovalScope, DestinationId, Environment, OpaqueId, Sha256Hex, VersionLabel } from "../protocol/index.js";
 import { ValidationError } from "../shared/errors.js";
-import type { PlatformConfig } from "./ports.js";
+import type { GatewayConfig, PlatformConfig } from "./ports.js";
 
 /** Secret reference: AWS ARN (secretsmanager / kms / ssm), labelled local fixture, or a repository file (public keys only). */
 export const SECRET_REF_PATTERN =
@@ -118,7 +118,7 @@ export const GatewayConfigSchema = z.strictObject({
     })
     .optional(),
 });
-export type GatewayConfig = z.infer<typeof GatewayConfigSchema>;
+export type ParsedGatewayConfig = z.infer<typeof GatewayConfigSchema>;
 
 export const PlatformConfigSchema = z
   .strictObject({
@@ -187,6 +187,8 @@ type AssertAssignable<_A extends B, B> = true;
 export type SchemaMatchesPorts = [
   AssertAssignable<Omit<ParsedPlatformConfig, "$comment">, PlatformConfig>,
   AssertAssignable<PlatformConfig, Omit<ParsedPlatformConfig, "$comment">>,
+  AssertAssignable<ParsedGatewayConfig, GatewayConfig>,
+  AssertAssignable<GatewayConfig, ParsedGatewayConfig>,
 ];
 
 /** Thrown when configuration fails strict parsing. Issues are "path:code" only, never values. */
@@ -211,12 +213,12 @@ export function parsePlatformConfig(raw: unknown): PlatformConfig {
 }
 
 /**
- * Typed accessor for the optional `gateway` section (kept out of the PlatformConfig
- * port so existing consumers are unaffected). Returns null when absent; throws
- * ConfigInvalidError when present but malformed (fail closed).
+ * Typed accessor for the optional `gateway` section (PlatformConfig.gateway).
+ * Returns null when absent; re-validates and throws ConfigInvalidError when
+ * present but malformed (fail closed, e.g. a config object built in code).
  */
 export function gatewayConfigOf(config: PlatformConfig): GatewayConfig | null {
-  const raw = (config as PlatformConfig & { gateway?: unknown }).gateway;
+  const raw: unknown = config.gateway;
   if (raw === undefined) return null;
   const r = GatewayConfigSchema.safeParse(raw);
   if (!r.success) throw new ConfigInvalidError(r.error.issues.map((i) => `gateway.${i.path.map(safeSegment).join(".") || "$"}:${i.code}`));

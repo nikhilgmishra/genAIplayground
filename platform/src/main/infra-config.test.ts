@@ -5,6 +5,8 @@
 import { describe, expect, it } from "vitest";
 import { InfrastructureEnvRejectedError, loadInfrastructureEnv, loadPlatformConfig } from "../config/loader.js";
 import { ConfigInvalidError, gatewayConfigOf, parsePlatformConfig } from "../config/schema.js";
+import * as configModule from "../config/index.js";
+import type { GatewayConfig, PlatformConfig } from "../config/index.js";
 
 describe("infrastructure environment variables", () => {
   it("[OPS-04][SPEC-12.write-fence] VSP_ENVIRONMENT is required and strict; the write fence defaults closed outside local/ci; PORT is validated", () => {
@@ -57,5 +59,19 @@ describe("optional gateway configuration section", () => {
     const hs = base();
     hs.gateway = { inboundAuth: { ...(cfg.gateway as { inboundAuth: object }).inboundAuth, algorithms: ["HS256"] } };
     expect(() => parsePlatformConfig(hs)).toThrow(ConfigInvalidError);
+  });
+});
+
+describe("config module surface (ICR: typed PlatformConfig.gateway and index exports)", () => {
+  it("[OPS-04][SPEC-8.oauth2] the config index exports loadInfrastructureEnv and gatewayConfigOf; PlatformConfig.gateway is typed and still re-validated", () => {
+    expect(configModule.loadInfrastructureEnv).toBe(loadInfrastructureEnv);
+    expect(configModule.gatewayConfigOf).toBe(gatewayConfigOf);
+    expect(configModule.InfrastructureEnvRejectedError).toBe(InfrastructureEnvRejectedError);
+    const cfg: PlatformConfig = loadPlatformConfig({ environment: "local", env: {} }).config;
+    const typed: GatewayConfig = { inboundAuth: null, http: { bodyLimitBytes: 65_536, rateLimit: null } };
+    expect(gatewayConfigOf({ ...cfg, gateway: typed })).toEqual(typed);
+    // A section built in code that bypassed the schema still fails closed.
+    const forged = { ...cfg, gateway: { ...typed, http: { bodyLimitBytes: 1, rateLimit: null } } };
+    expect(() => gatewayConfigOf(forged)).toThrow(ConfigInvalidError);
   });
 });

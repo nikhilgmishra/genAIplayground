@@ -249,6 +249,8 @@ interface InvocationState {
   ctx: AuthContext | null;
   /** Non-bearer binding ref for audit (never the bearer). */
   bindingRef: string | null;
+  /** When no session resolved: the call id from the trusted transport binding (audit evidence only, never authority). */
+  transportCallId: string | null;
   decision: PolicyDecision | null;
   obligations: Set<string>;
   idempotencyKey: string | null;
@@ -288,6 +290,7 @@ export class ToolPipeline {
       entry: null,
       ctx: null,
       bindingRef: null,
+      transportCallId: null,
       decision: null,
       obligations: new Set(),
       idempotencyKey: typeof inv?.idempotencyKey === "string" && IDEMPOTENCY_KEY.test(inv.idempotencyKey) ? inv.idempotencyKey : null,
@@ -354,6 +357,7 @@ export class ToolPipeline {
       st.bindingRef = sessionBindingRefFor(bound.sessionRef);
     } else {
       st.bindingRef = bindingRefOrNull(bound.sessionRef);
+      st.transportCallId = bound.callId;
       if (!isSafety) {
         return this.finish(st, bound.retryable ? { status: "RETRYABLE_FAILURE", reasonCode: bound.reasonCode, retryAfterMs: 1000 } : { status: "POLICY_DENIED", reasonCode: bound.reasonCode }, null, null);
       }
@@ -816,7 +820,7 @@ export class ToolPipeline {
           actorRef: ctx?.actorId ?? null,
           subjectRef: ctx?.subjectId ?? null,
           role: ctx?.selectedRole ?? null,
-          callId: ctx?.callId ?? null,
+          callId: ctx?.callId ?? st.transportCallId,
           sessionRef: st.bindingRef,
           sessionGeneration: ctx?.sessionGeneration ?? null,
           turnId: st.turnId,

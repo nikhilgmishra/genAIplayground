@@ -12,11 +12,15 @@
  *    exists offline (labelled local_fixture); a real classifier is BLOCKED
  *    pending an approved model, approved data path and evaluation evidence.
  *  - HUMAN_INTERVENTION: humanInterventionSignal() for staff-raised concerns.
+ *  - FAIL_SAFE: failSafeSignal() for inputs that could not be assessed
+ *    (malformed / oversize input, malformed signal, failed rule stage, failed
+ *    semantic stage on an utterance with a partial risk lexeme). Always
+ *    UNRESOLVED, always the safety route.
  *
  * Detection is never claimed complete or infallible. Signals carry stable rule
  * ids and closed-set attributes only; the caller's words are never stored,
  * returned or logged (DATA-01). Malformed input fails safe to an UNRESOLVED
- * signal (human route), never to "no signal".
+ * FAIL_SAFE signal (human route), never to "no signal".
  */
 import { z } from "zod";
 import type { Logger } from "../observability/ports.js";
@@ -58,7 +62,7 @@ import type { NormalizedSentence } from "./text.js";
 // Signal schema and locale handling
 // ---------------------------------------------------------------------------
 
-export const SafetySignalSourceSchema = z.enum(["EXPLICIT_PHRASE", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN", "CALLER_REQUEST", "HUMAN_INTERVENTION"]);
+export const SafetySignalSourceSchema = z.enum(["EXPLICIT_PHRASE", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN", "CALLER_REQUEST", "HUMAN_INTERVENTION", "FAIL_SAFE"]);
 export const LOCALE_RE = /^([a-z]{2,3}(-[A-Z]{2}|-[0-9]{3})?|und)$/;
 export const RULE_ID_RE = /^[a-z][a-z0-9_.-]{2,80}$/;
 
@@ -217,9 +221,13 @@ export function dedupeSignals(signals: readonly SafetySignal[]): SafetySignal[] 
   return [...out.values()];
 }
 
-/** Content-free fail-safe signal: routes to a human when input cannot be assessed. */
+/**
+ * Content-free fail-safe signal (source FAIL_SAFE, always UNRESOLVED): routes to the safety
+ * human when an input could not be assessed (malformed / oversize input, malformed signal,
+ * failed detection stage). Never silently ignored.
+ */
 export function failSafeSignal(ruleId: string, locale = "und"): SafetySignal {
-  return signal("ASR_UNCERTAIN", ruleId, "UNRESOLVED", canonicalLocale(locale));
+  return signal("FAIL_SAFE", ruleId, "UNRESOLVED", canonicalLocale(locale));
 }
 
 /**
@@ -317,6 +325,11 @@ export class RuleBasedSafetySignalDetector implements SafetySignalDetector {
       masked,
       text,
     };
+  }
+
+  /** @internal Coverage for an utterance whose rule stage failed (no assessment happened). */
+  coverageFor(locale: string): DetectionCoverage {
+    return this.coverage(canonicalLocale(locale), false, false);
   }
 
   private coverage(locale: string, asrLowConfidence: boolean, riskLexemePresent: boolean): DetectionCoverage {
@@ -438,7 +451,16 @@ export class CompositeSafetySignalDetector implements SafetySignalDetector {
   }
 
   analyze(input: SafetyDetectionInput): SafetyAnalysis {
-    const run = this.rules.run(input);
+    let run: RuleRun;
+    try {
+      run = this.rules.run(input);
+    } catch {
+      // The rule stage itself failed: the utterance could not be assessed. Fail safe.
+      this.logger.warn("safety.rules.failed", { reasonCode: "SAFETY_RULE_STAGE_FAILED" });
+      const locale = canonicalLocale((input as { locale?: unknown } | null | undefined)?.locale);
+      const coverage = this.rules.coverageFor(locale);
+      return { signals: [failSafeSignal(DETECTOR_RULE_IDS.stageFailed, locale)], coverage: { ...coverage, semanticDetector: this.semantic ? { detectorId: this.semantic.detectorId, kind: this.semantic.kind, degraded: true } : null } };
+    }
     const { coverage } = run.analysis;
     const signals = [...run.analysis.signals];
     let degraded = false;
@@ -451,9 +473,8 @@ export class CompositeSafetySignalDetector implements SafetySignalDetector {
       } catch {
         degraded = true;
         this.logger.warn("safety.semantic.failed", { reasonCode: "SEMANTIC_DETECTOR_FAILED", method: this.semantic.detectorId });
-        if (coverage.riskLexemePresent) {
-          signals.push(signal("SEMANTIC_SIGNAL", DETECTOR_RULE_IDS.semanticUnavailable, "UNRESOLVED", coverage.locale));
-        }
+        // The semantic stage could not assess an utterance that carries a partial risk lexeme: fail safe.
+        if (coverage.riskLexemePresent) signals.push(failSafeSignal(DETECTOR_RULE_IDS.semanticUnavailable, coverage.locale));
       }
     }
     return {

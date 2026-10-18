@@ -18,14 +18,25 @@ import {
   codePointLength,
   compareConfig,
   compareOpenApi,
+  loadGatewayOpenApi,
   loadSyntheticDestinations,
+  loadToolCatalog,
   loadYaml,
   parseYaml,
   readText,
   sha256Hex,
   toObservationTemplate,
 } from "./lib.mjs";
-import { findPhoneViolations, findSecretMatches, findUnqualifiedClaims, packageFiles, runChecks, toolsByAgent } from "./validate-package.mjs";
+import {
+  catalogAssignmentViolations,
+  findPhoneViolations,
+  findSecretMatches,
+  findUnqualifiedClaims,
+  packageFiles,
+  publishedStepViolations,
+  runChecks,
+  toolsByAgent,
+} from "./validate-package.mjs";
 
 const agentCfg = loadYaml(path.join(TALKDESK_DIR, "ai-agent-config.yaml"));
 const expected = loadYaml(path.join(TALKDESK_DIR, "expected-config.yaml"));
@@ -76,6 +87,24 @@ describe("tools", () => {
   it("[SPEC-8.tools] tool assignment covers exactly the spec tool list with semver versions", () => {
     const names = new Set([...toolsByAgent(agentCfg).values()].flat());
     assert.deepEqual([...names].sort(), [...REQUIRED_TOOLS].sort());
+  });
+
+  it("[OPS-06] [SPEC-8.tools] every pinned catalogue tool (incl. get_login_guidance, prepare_billing_review) is assigned to exactly one agent at its pinned version", () => {
+    const catalog = loadToolCatalog();
+    assert.ok(catalog.some((t) => t.name === "get_login_guidance") && catalog.some((t) => t.name === "prepare_billing_review"));
+    assert.deepEqual(catalogAssignmentViolations(agentCfg, catalog), []);
+    const billing = agentCfg.agents.find((a) => a.id === "vsp_billing_claims").allowedTools.map((x) => x.name);
+    assert.ok(billing.indexOf("prepare_billing_review") < billing.indexOf("submit_billing_review"), "prepare precedes submit");
+    // Negative controls: a tool listed twice, a missing tool and a version mismatch are all reported.
+    const twice = structuredClone(agentCfg);
+    twice.coordinator.allowedTools.push({ name: "get_invoice_status", version: "1.0.0" });
+    assert.match(catalogAssignmentViolations(twice, catalog).join("|"), /get_invoice_status must be assigned to exactly one/);
+    const missing = structuredClone(agentCfg);
+    missing.coordinator.allowedTools = missing.coordinator.allowedTools.filter((x) => x.name !== "get_login_guidance");
+    assert.match(catalogAssignmentViolations(missing, catalog).join("|"), /catalogue tool without an agent: get_login_guidance/);
+    const version = structuredClone(agentCfg);
+    version.agents[0].allowedTools[0].version = "9.9.9";
+    assert.ok(catalogAssignmentViolations(version, catalog).some((m) => m.includes("catalogue pins")));
   });
 
   it("[SAFE-02] safety and human tools are available to every LLM agent", () => {
@@ -247,6 +276,32 @@ describe("drift check", () => {
     const r = compareOpenApi(steps, openapi);
     assert.equal(r.find((x) => x.operationId === "telephony.startCall").status, "OPENAPI_MATCH");
     assert.equal(r.find((x) => x.operationId === "telephony.authGate").status, "OPENAPI_MISSING");
+  });
+
+  it("[SPEC-15.drift] [SPEC-6.no-phi-in-urls] Studio HTTP steps equal the gateway's published OpenAPI: paths, operation ids, header-only session reference", () => {
+    const openapi = loadGatewayOpenApi();
+    assert.deepEqual(publishedStepViolations(tc.studio.httpSteps, openapi), []);
+    assert.ok(compareOpenApi(tc.studio.httpSteps, openapi).every((r) => r.status === "OPENAPI_MATCH"));
+    for (const s of tc.studio.httpSteps) assert.ok(!s.path.includes("{sessionRef}"), `${s.ref} keeps the session reference out of the URL`);
+    assert.equal(tc.studio.httpSteps.find((s) => s.ref === "TC-09").operationId, "webhooks.transferEvents");
+    // Negative controls: the earlier proposed URL form and a dropped header are reported.
+    const old = structuredClone(tc.studio.httpSteps);
+    old.find((s) => s.ref === "TC-04").path = "/telephony/v1/calls/{sessionRef}/auth-gate";
+    old.find((s) => s.ref === "TC-12").sessionRefHeader = "NONE";
+    const bad = publishedStepViolations(old, openapi).join("|");
+    assert.match(bad, /TC-04 GET \/telephony\/v1\/calls\/\{sessionRef\}\/auth-gate differs/);
+    assert.match(bad, /TC-12 sessionRefHeader differs/);
+    assert.match(publishedStepViolations(old.filter((s) => s.ref !== "TC-07"), openapi).join("|"), /published TC-07 missing/);
+  });
+
+  it("[AUTH-03] [SPEC-7.session-binding] one integrationId per Talkdesk tenant: MCP and telephony-control credentials differ by channel only", () => {
+    const id = tc.mcpConnection.integrationId;
+    assert.equal(tc.mcpConnection.channel, "mcp_tools");
+    for (const s of tc.studio.httpSteps) {
+      assert.equal(s.integrationId, id, s.ref);
+      assert.equal(s.channel, s.ref === "TC-09" ? "webhook" : "telephony_control", s.ref);
+    }
+    assert.match(doc("mcp-connection.md"), /One `integrationId` per Talkdesk tenant/);
   });
 
   it("[SPEC-15.drift] the template keeps identifier keys and asks for guardrail text rather than its hash", () => {

@@ -49,6 +49,24 @@ describe("appointment options and reschedule", () => {
     }
   });
 
+  it("[ACT-01] [SPEC-16.reschedule] options carry the opaque slot id (appointment:list_options mask); prepare binds an offered slot id and refuses one that does not match", async () => {
+    const { auth } = await verifiedAvery();
+    const r = expectDone(await h.invoke("get_appointment_options", auth, { appointmentId: avery.appointmentId, fromDate: "2026-10-20", toDate: "2026-10-31" }));
+    expect(r.decision.fieldMask).toEqual(["appointmentId", "modality", "providerDisplayName", "slotId", "startsAt", "status", "timeZone"]);
+    const masked = r.masked as { appointments: { slotId: string | null; status: string; startsAt: string }[] };
+    expect(masked.appointments.filter((a) => a.status === "SCHEDULED").every((a) => a.slotId === null)).toBe(true);
+    const offered = masked.appointments.filter((a) => a.status === "OPEN");
+    expect(offered.map((a) => a.slotId)).toContain(slot1.slotId);
+    expect(offered.find((a) => a.slotId === slot1.slotId)?.startsAt).toBe(slot1.startsAt);
+
+    const bound = expectDone(await h.invoke("prepare_appointment_change", auth, { appointmentId: avery.appointmentId, startsAt: slot1.startsAt, modality: null, slotId: slot1.slotId }));
+    expect(bound.outcome.status).toBe("SUCCESS");
+    if (bound.outcome.status === "SUCCESS") expect((bound.outcome.data as { change: { slotId: string } }).change.slotId).toBe(slot1.slotId);
+    // A slot id that does not belong to the authoritative open slot at that time selects nothing.
+    const mismatch = expectDone(await h.invoke("prepare_appointment_change", auth, { appointmentId: avery.appointmentId, startsAt: slot1.startsAt, modality: null, slotId: slot2.slotId }));
+    expect(mismatch.outcome).toMatchObject({ status: "PERMANENT_FAILURE", reasonCode: "SLOT_UNAVAILABLE" });
+  });
+
   it("[AUTH-02] an A0 caller is denied appointment options (no protected read before verification)", async () => {
     const { ctx } = await h.startCall();
     const r = await h.invoke("get_appointment_options", ctx, { appointmentId: avery.appointmentId, fromDate: "2026-10-20", toDate: "2026-10-31" });

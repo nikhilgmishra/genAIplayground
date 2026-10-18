@@ -12,6 +12,8 @@ export interface OutboxMessageInput {
 
 export interface OutboxMessage extends OutboxMessageInput {
   messageId: string;
+  /** Tenant the message was enqueued for (the transaction's RLS tenant); consumers set their RLS context from it. */
+  tenantId: string;
   attempts: number;
   createdAt: string;
 }
@@ -34,4 +36,6 @@ export interface OutboxDispatcher {
 /** Consumer-side deduplication: the handler's effects and the dedupe record commit atomically. */
 export interface ConsumerDedup {
   processOnce<T>(consumer: string, messageId: string, handler: (tx: Queryable) => Promise<T>): Promise<{ duplicate: boolean; result: T | null }>;
+  /** Read-only pre-check inside the tenant's RLS context: has `consumer` already processed `messageId`? */
+  isProcessed(tenantId: string, consumer: string, messageId: string): Promise<boolean>;
 }

@@ -20,9 +20,11 @@ import { metrics as otelMetrics } from "@opentelemetry/api";
 import type { Attributes, Counter, Gauge, Histogram, Meter } from "@opentelemetry/api";
 import {
   AuditSourceComponent,
+  DataClass,
   IssueCategory,
   KillSwitchScope,
   Outcome,
+  ResponseClass,
   RiskFlag,
   Role,
   ToolStatus,
@@ -197,7 +199,109 @@ const QUOTAS = [
   "workflow_executions",
 ] as const;
 const BACKLOGS = ["outbox", "reconciliation", "dead_letter", "crm_sync", "human_tasks", "audit_shipping"] as const;
-const SAFETY_SIGNAL_SOURCES = ["explicit_phrase", "semantic", "uncertain_asr", "caller_request", "human_intervention"] as const;
+const SAFETY_SIGNAL_SOURCES = ["explicit_phrase", "semantic", "uncertain_asr", "caller_request", "human_intervention", "fail_safe"] as const;
+/** Before-speech response gate rejection reasons (platform/src/voice/gate.ts and slot / post-render checks). */
+export const VOICE_GATE_REJECTION_REASONS = [
+  "GATE_CONTEXT_INVALID",
+  "DIRECTIVE_INVALID",
+  "STALE_GENERATION",
+  "STALE_TURN",
+  "TEMPLATE_NOT_FOUND",
+  "TEMPLATE_VERSION_MISMATCH",
+  "RESPONSE_CLASS_MISMATCH",
+  "TEMPLATE_NOT_APPROVED",
+  "AUTHORIZATION_MISSING",
+  "AUTHORIZATION_NOT_CURRENT",
+  "SOURCE_REFERENCE_MISSING",
+  "SLOT_UNEXPECTED",
+  "SLOT_SPEC_MISSING",
+  "SLOT_MISSING",
+  "SLOT_TYPE_UNKNOWN",
+  "SLOT_INVALID_COUNT",
+  "SLOT_INVALID_DATE",
+  "SLOT_INVALID_ENUM",
+  "SLOT_INVALID_MONEY",
+  "SLOT_INVALID_PERSON_NAME",
+  "SLOT_INVALID_PORTAL_PATH",
+  "SLOT_INVALID_SPELLED_CODE",
+  "SLOT_INVALID_SUPPORT_REFERENCE",
+  "SLOT_INVALID_TIME",
+  "SLOT_INVALID_TIME_ZONE",
+  "OUTPUT_CLINICAL_CONTENT_PROHIBITED",
+  "OUTPUT_CONTROL_CHARACTERS",
+  "OUTPUT_EMPTY",
+  "OUTPUT_RENDER_ARTIFACT",
+  "OUTPUT_TOO_LONG",
+  "OUTPUT_UNRESOLVED_PLACEHOLDER",
+  "PROTECTED_SEGMENT_NOT_GATED",
+  "SEGMENT_NOT_GATED",
+  "SPEECH_QUEUE_FULL",
+  "TURN_LISTENER_FAILED",
+] as const;
+export const VOICE_GATE_DISPOSITIONS = ["SPEAK_FALLBACK_AND_ROUTE_HUMAN", "ROUTE_HUMAN_WITHOUT_SPEECH", "DROP_STALE"] as const;
+
+/** Egress guard denial reasons (platform/src/privacy/egress.ts; EGRESS_ALLOWED is not a denial). */
+export const EGRESS_DENIAL_REASONS = [
+  "EGRESS_CLASS_INVALID",
+  "EGRESS_CLASS_NOT_APPROVED_FOR_DESTINATION",
+  "EGRESS_CONFIG_INVALID",
+  "EGRESS_DESTINATION_UNKNOWN",
+  "EGRESS_DESTINATION_VIOLATES_HARD_RULE",
+  "EGRESS_ENVIRONMENT_NOT_APPROVED",
+  "EGRESS_NOT_A_TELEMETRY_DESTINATION",
+  "EGRESS_PHI_NOT_APPROVED_FOR_DESTINATION",
+  "EGRESS_PHI_TO_CONTENT_FREE_DESTINATION",
+  "EGRESS_RESTRICTED_TO_CONTENT_FREE_DESTINATION",
+  "EGRESS_TELEMETRY_KEY_INVALID",
+  "EGRESS_TELEMETRY_NOT_CONTENT_FREE",
+  "EGRESS_URL_CONTAINS_SENSITIVE_PATTERN",
+  "EGRESS_URL_INSECURE",
+  "EGRESS_URL_INVALID",
+  "EGRESS_URL_USERINFO_FORBIDDEN",
+] as const;
+
+/** Retention copy locations and vendors (platform/src/retention). */
+export const RETENTION_COPY_LOCATIONS = ["DERIVED_TABLE", "INDEX", "CACHE", "BACKUP", "VENDOR"] as const;
+export const RETENTION_VENDORS = ["talkdesk", "salesforce", "speech_vendor", "model_provider", "notifications"] as const;
+
+/** Knowledge search post-retrieval recheck drop reasons (platform/src/knowledge/search.ts). */
+export const KNOWLEDGE_RECHECK_DROP_REASONS = [
+  "RECHECK_TENANT_MISMATCH",
+  "RECHECK_NOT_SERVABLE",
+  "RECHECK_NOT_YET_EFFECTIVE",
+  "RECHECK_EXPIRED",
+  "RECHECK_INTENT_NOT_PERMITTED",
+  "RECHECK_LANGUAGE_MISMATCH",
+  "RECHECK_JURISDICTION_MISMATCH",
+  "RECHECK_AUDIENCE_NOT_PERMITTED",
+  "RECHECK_CONTENT_DIGEST_MISMATCH",
+  "RECHECK_EXCERPT_UNSAFE",
+] as const;
+
+/** Support-memory recap withholding reasons (platform/src/memory/support-memory.ts). */
+export const MEMORY_RECAP_WITHHELD_REASONS = [
+  "MEMORY_RECAP_ASSURANCE_INVALID",
+  "MEMORY_RECAP_REQUIRES_A2",
+  "MEMORY_RECAP_SUBJECT_NOT_AUTHORIZED",
+  "MEMORY_RECAP_RISK_FLAG",
+] as const;
+
+/** Worker loop names (platform/src/worker/loops.ts); closed so a loop name can never carry data. */
+export const WORKER_LOOP_NAMES = [
+  "outbox.dispatch",
+  "outbox.consume",
+  "actions.reconcile",
+  "actions.expire",
+  "tools.idempotency_purge",
+  "audit.ship",
+  "workflows.tick",
+  "transfers.sweep",
+  "retention.run",
+  "telephony.local_fixture_delivery",
+] as const;
+
+/** Durable action grant check results (platform/src/workflows/grants.ts reason codes, lower-cased) plus engine-side gaps. */
+export const GRANT_CHECK_RESULTS = ["valid", "invalid_input", "not_found", "expired", "revoked", "action_not_permitted", "absent", "store_unconfigured"] as const;
 
 // ---------------------------------------------------------------------------
 // Catalogue
@@ -375,6 +479,41 @@ export function createMetricCatalogue(ext: CatalogueExtensions = {}): MetricCata
     def("vsp_bulkhead_rejections_total", "counter", "1", "resilience", "Bulkhead rejections", { dependency: DEPENDENCY_IDS, reason: ["BULKHEAD_FULL", "BULKHEAD_QUEUE_TIMEOUT", "CALLER_ABORTED"] }),
     def("vsp_bulkhead_active", "gauge", "1", "resilience", "Calls executing inside a bulkhead", { dependency: DEPENDENCY_IDS }),
     def("vsp_bulkhead_queued", "gauge", "1", "resilience", "Calls waiting for a bulkhead slot", { dependency: DEPENDENCY_IDS }),
+    // --- voice: before-speech response gate (ACT-05) -----------------------
+    def("vsp_voice_gate_renders_total", "counter", "1", "voice_experience", "Utterances rendered by the before-speech response gate", { response_class: ResponseClass.options }),
+    def("vsp_voice_gate_rejections_total", "counter", "1", "voice_experience", "Utterances refused by the before-speech response gate (fallback, human route or stale drop)", {
+      reason: VOICE_GATE_REJECTION_REASONS,
+      disposition: VOICE_GATE_DISPOSITIONS,
+    }),
+    // --- privacy: redaction and egress (DATA-01) ----------------------------
+    def("vsp_redaction_results_total", "counter", "1", "audit", "Redaction outcomes (quarantined artifacts are withheld from broad access)", { result: ["redacted", "quarantined"] }),
+    def("vsp_egress_denied_total", "counter", "1", "audit", "Payloads refused by the egress guard", { reason: EGRESS_DENIAL_REASONS }),
+    // --- retention (DATA-03) -------------------------------------------------
+    def("vsp_retention_deleted_total", "counter", "1", "audit", "Rows deleted by the retention job under an approved policy", { data_class: DataClass.options }),
+    def("vsp_retention_classes_blocked", "gauge", "1", "audit", "Data classes the retention job could not execute (1 per blocked class and reason)", {
+      data_class: DataClass.options,
+      reason: ["BLOCKED_RETENTION_UNSET", "BLOCKED_RETENTION_CONFIG_MISMATCH"],
+    }),
+    def("vsp_retention_unverified_copies", "gauge", "1", "audit", "Derived copies not verified absent after the last retention run", {
+      location: RETENTION_COPY_LOCATIONS,
+      status: ["LEFTOVERS_FOUND", "UNVERIFIABLE"],
+    }),
+    def("vsp_vendor_deletion_requests_pending", "gauge", "1", "audit", "Vendor deletion requests awaiting vendor action (vendor APIs are BLOCKED)", { vendor: RETENTION_VENDORS }),
+    // --- knowledge and memory -------------------------------------------------
+    def("vsp_knowledge_ingest_items_total", "counter", "1", "knowledge", "Knowledge items by ingestion result", { result: ["accepted", "quarantined", "held_for_review"] }),
+    def("vsp_knowledge_search_recheck_dropped_total", "counter", "1", "knowledge", "Retrieved knowledge hits dropped by the post-retrieval recheck", { reason: KNOWLEDGE_RECHECK_DROP_REASONS }),
+    def("vsp_memory_recap_withheld_total", "counter", "1", "knowledge", "Support-memory recaps withheld", { reason: MEMORY_RECAP_WITHHELD_REASONS }),
+    // --- worker loops ----------------------------------------------------------
+    def("vsp_worker_loop_runs_total", "counter", "1", "resilience", "Worker loop runs by result", { loop: WORKER_LOOP_NAMES, result: ["ok", "failed"] }),
+    def("vsp_worker_loop_errors_total", "counter", "1", "resilience", "Worker loop runs that reported a failure", { loop: WORKER_LOOP_NAMES }),
+    def("vsp_worker_loop_processed_total", "counter", "1", "resilience", "Items handled by worker loops", { loop: WORKER_LOOP_NAMES }),
+    def("vsp_worker_loop_lag_ms", "histogram", "ms", "resilience", "Delay of a loop run behind its schedule (start minus previous start plus interval)", { loop: WORKER_LOOP_NAMES }),
+    def("vsp_worker_loop_duration_ms", "histogram", "ms", "resilience", "Worker loop run duration", { loop: WORKER_LOOP_NAMES }),
+    // --- durable action grants (workflows) --------------------------------
+    def("vsp_grant_checks_total", "counter", "1", "audit", "Durable action grant checks on guarded workflow transitions", {
+      result: GRANT_CHECK_RESULTS,
+      guard: ["disclosure", "material_change"],
+    }),
     // --- metrics pipeline self-observation -------------------------------
     def("vsp_metric_label_rejections_total", "counter", "1", "resilience", "Label values collapsed to other or undeclared keys dropped", { action: ["collapsed_to_other", "key_dropped"] }),
   ];

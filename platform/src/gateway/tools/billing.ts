@@ -1,6 +1,6 @@
 /**
- * get_invoice_status (invoice:read), prepare_billing_review / submit_billing_review
- * (billing:submit_review) and get_claim_status (claim:read).
+ * get_invoice_status (invoice:read), prepare_billing_review (billing:prepare_review),
+ * submit_billing_review (billing:submit_review) and get_claim_status (claim:read).
  *
  * Financial facts come from authoritative fields only (integer minor units, line
  * codes, dates); no coverage decision, fee waiver or refund promise is ever produced.
@@ -9,7 +9,7 @@
  */
 import { z } from "zod";
 import type { ClaimStatus, Invoice } from "../../adapters/ports.js";
-import { BILLING_REVIEW_REASONS, billingReviewProposalDigest } from "../../business/services/billing.js";
+import { BILLING_REVIEW_REASONS } from "../../business/services/billing.js";
 import type { BusinessServices } from "../../business/services/types.js";
 import { auditSessionRef, subjectResource, unresolvableResource } from "../../business/shared.js";
 import { speechFor } from "../../business/speech.js";
@@ -126,18 +126,9 @@ export function prepareBillingReviewTool(s: BusinessServices): ToolModule<z.infe
     output: ReviewPrepareOutput,
     purpose: () => "caller_self_service",
     async resolveResource(auth, input) {
+      // The invoice's real subject (authoritative billing lookup); billing:prepare_review needs no digest.
       const inv = await s.billing.invoice(input.invoiceId);
-      const binding = auditSessionRef(auth);
-      if (!inv || !binding) return unresolvableResource(auth, "billing_review", "FINANCIAL", "0".repeat(64));
-      const proposal = billingReviewProposalDigest({
-        tenantId: auth.tenantId,
-        sessionBinding: binding,
-        generation: auth.sessionGeneration,
-        invoiceId: inv.invoiceId,
-        invoiceVersion: inv.version,
-        reasonCategory: input.reasonCategory,
-      });
-      return subjectResource(auth, "billing_review", inv.subjectId, "FINANCIAL", proposal);
+      return inv ? subjectResource(auth, "billing_review", inv.subjectId, "FINANCIAL") : unresolvableResource(auth, "billing_review", "FINANCIAL");
     },
     async execute(ctx, input) {
       try {

@@ -7,18 +7,16 @@
  *      for this server-established staff identity and resource.
  * Handlers then apply the finer per-scope / per-task / per-release rules.
  *
- * Mapping notes. The policy catalogue (policy/vsp/data.json, owned by the policy
- * module) has no dedicated read action for several console views. Where none
- * exists the endpoint is mapped to the closest catalogue action(s) whose role set
- * covers the endpoint's roles; mapping a READ to a MUTATING catalogue action is
- * strictly tighter (it additionally applies the auditor read-only taint). A
- * request for dedicated read actions is filed as an interface change request
- * (see README "Policy mapping").
+ * Mapping notes. Every read view maps to a dedicated, non-mutating catalogue
+ * action with a least-privilege role set (policy/vsp/data.json console actions
+ * console:session, operations:overview, budget:view, kill_switch:view,
+ * reconciliation:view, human_task:view, release:view); mutations keep their
+ * mutating actions (auditor read-only taint applies). See README "Policy mapping".
  */
 import type { ConsoleBreakGlass, ConsoleDecision, ConsoleDecisionInput } from "../policy/console.js";
 import { buildConsoleInput } from "../policy/console.js";
 import type { Environment, StaffRole } from "../protocol/index.js";
-import { ENDPOINT_ROLES, KILL_SWITCH_SCOPES } from "./contract.js";
+import { ENDPOINT_ROLES } from "./contract.js";
 import type { AuthenticatedEndpointKey, KillSwitchScope } from "./contract.js";
 
 /** Server-established console identity (verified token + staff directory + break-glass record). */
@@ -53,8 +51,8 @@ export interface PolicyCheck {
   };
 }
 
-/** Catalogue actions that together cover every staff role, for identity-only endpoints (me, logout). */
-const SESSION_ACTIONS = ["journey:inspect", "audit:search", "policy:review", "knowledge:edit", "budget:define"] as const;
+/** Identity-only endpoints (me, logout): every staff role holds console:session (MFA, origin and tenant still apply). */
+const SESSION_ACTIONS = ["console:session"] as const;
 
 /**
  * Default console catalogue action(s) per endpoint (any one allowing suffices).
@@ -63,7 +61,7 @@ const SESSION_ACTIONS = ["journey:inspect", "audit:search", "policy:review", "kn
 export const ENDPOINT_POLICY_ACTIONS: Readonly<Record<AuthenticatedEndpointKey, readonly string[]>> = {
   "auth.logout": SESSION_ACTIONS,
   me: SESSION_ACTIONS,
-  overview: ["journey:inspect", "budget:define"],
+  overview: ["operations:overview"],
   "calls.list": ["journey:inspect"],
   "calls.get": ["journey:inspect"],
   "calls.transfer": ["call:transfer"],
@@ -72,20 +70,19 @@ export const ENDPOINT_POLICY_ACTIONS: Readonly<Record<AuthenticatedEndpointKey, 
   "actions.pending": ["pending_action:review"],
   /** support_agent only via assignedRoles when the call is assigned to them; supervisor via roles. */
   "actions.cancel": ["pending_action:cancel"],
-  "reconciliation.list": ["pending_action:review"],
+  "reconciliation.list": ["reconciliation:view"],
   "reconciliation.reconcile": ["operation:retry_reconciled"],
   "reconciliation.retry": ["operation:retry_reconciled"],
   "outbox.requeue": ["dlq:repair"],
-  "workflows.tasks": ["human_task:decide"],
+  "workflows.tasks": ["human_task:view"],
   "workflows.decision": ["human_task:decide"],
   "safetyEvents.list": ["safety_event:view"],
-  /** Per item: POLICY_BUNDLE needs policy:review; KNOWLEDGE_SNAPSHOT needs policy:review or knowledge:edit. */
-  "releases.list": ["policy:review", "knowledge:edit"],
+  /** Endpoint gate release:view; per item POLICY_BUNDLE additionally needs policy:review. */
+  "releases.list": ["release:view"],
   /** Per kind: POLICY_BUNDLE -> policy:approve (initiator = submitter); KNOWLEDGE_SNAPSHOT -> knowledge:submit_release. */
   "releases.review": ["policy:approve", "knowledge:submit_release"],
-  "budgets.list": ["budget:define"],
-  /** Allowed when the staff member may operate a kill switch of at least one scope. */
-  "killSwitches.list": ["kill_switch:engage"],
+  "budgets.list": ["budget:view"],
+  "killSwitches.list": ["kill_switch:view"],
   /** engage / release with the requested scope. */
   "killSwitches.set": ["kill_switch:engage", "kill_switch:release"],
   "audit.search": ["audit:search"],
@@ -121,9 +118,6 @@ export const ENDPOINT_RESOURCE_TYPES: Readonly<Record<AuthenticatedEndpointKey, 
 
 /** Default checks for an endpoint (tenant-scoped resource, no scope / initiator / assignee). */
 export function defaultChecks(endpoint: AuthenticatedEndpointKey, tenantId: string): PolicyCheck[] {
-  if (endpoint === "killSwitches.list") {
-    return KILL_SWITCH_SCOPES.map((scope) => ({ action: "kill_switch:engage", resource: { type: "kill_switch", tenantId, killSwitchScope: scope } }));
-  }
   return ENDPOINT_POLICY_ACTIONS[endpoint].map((action) => ({ action, resource: { type: ENDPOINT_RESOURCE_TYPES[endpoint], tenantId } }));
 }
 

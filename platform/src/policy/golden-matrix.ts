@@ -89,6 +89,9 @@ const emeryExpired = fact("legal_representative", P.emery.actorId, P.blake.subje
   validUntil: "2026-06-30T23:59:59.000Z",
   constraints: ["AUTHORIZATION_EXPIRED"],
 });
+/** Treating relationship and renewed proxy that explicitly grant the dedicated options scope. */
+const treatingOptions = fact("treating_provider", P.morgan.actorId, P.avery.subjectId, null, ["appointment:list_options"], "enrollment_system");
+const emeryOptions = fact("legal_representative", P.emery.actorId, P.blake.subjectId, null, ["appointment:list_options"], "legal_authority_registry");
 const danaParental = fact("parental_authority", P.dana.actorId, P.casey.subjectId, null, [...grant("gnt_synthDanaCaseyParental01").scopes], "legal_authority_registry", {
   constraints: ["MINOR_CONFIDENTIALITY_REVIEW"],
 });
@@ -167,6 +170,11 @@ const BASES: BaseCase[] = [
   { key: "practice_case_read", description: "practice staff reads an organization case", tags: ["SPEC-4.case"], traits: PROTECTED_READ, input: req("case:read", "delegated_practice_administration", riley(), resource("support_case", null, NORTH, "INTERNAL"), [rileyDelegate]), allowReasons: ["ALLOW_PRACTICE_DELEGATION"] },
   { key: "partner_case_read", description: "partner reads an organization case (INTERNAL only)", tags: ["SPEC-4.partner"], traits: PROTECTED_READ, input: req("case:read", "partner_administration", quinn(), resource("support_case", null, ACME, "INTERNAL"), [quinnAffiliation]), allowReasons: ["ALLOW_PARTNER_AFFILIATION"] },
   { key: "client_support_request_with_subject", description: "verified client creates a support request linked to self", tags: ["SPEC-7.assurance-tiers"], traits: PROTECTED_INTAKE, input: req("support_request:create", "caller_self_service", avery(), resource("support_request", P.avery.subjectId, null, "PHI"), [selfFact(P.avery)]), allowReasons: ["ALLOW_SELF"] },
+  { key: "representative_support_request_with_subject", description: "representative with current authority (scope support_request:create) creates a request linked to the represented subject", tags: ["AUTH-05", "SPEC-4.audience"], traits: PROTECTED_INTAKE, input: req("support_request:create", "representative_access", emery(), resource("support_request", P.blake.subjectId, null, "PHI"), [emeryRenewed]), allowReasons: ["ALLOW_REPRESENTATIVE"] },
+  { key: "client_prepare_billing_review", description: "client prepares a billing review of own invoice (pending, confirmation required; never a refund decision)", tags: ["ACT-01", "SPEC-4.invoice"], traits: MUTATION, input: req("billing:prepare_review", "caller_self_service", avery(), resource("billing_review", P.avery.subjectId, null, "FINANCIAL"), [selfFact(P.avery)]), allowReasons: ["ALLOW_SELF"] },
+  { key: "client_list_appointment_options", description: "client lists own appointments and open times with slot ids", tags: ["AUTH-02", "SPEC-4.appointment"], traits: PROTECTED_READ, input: req("appointment:list_options", "caller_self_service", avery(), resource("appointment_options", P.avery.subjectId, null, "PHI"), [selfFact(P.avery)]), allowReasons: ["ALLOW_SELF"] },
+  { key: "treating_provider_list_options", description: "treating provider lists the treated client's appointment options (scope appointment:list_options)", tags: ["AUTH-05", "SPEC-4.appointment"], traits: PROTECTED_READ, input: req("appointment:list_options", "caller_self_service", morgan(), resource("appointment", P.avery.subjectId, null, "PHI"), [selfFact(P.morgan), treatingOptions, morganMember]), allowReasons: ["ALLOW_TREATING_PROVIDER"] },
+  { key: "representative_list_options", description: "representative with current authority (scope appointment:list_options) lists appointment options", tags: ["AUTH-05", "SPEC-4.appointment"], traits: PROTECTED_READ, input: req("appointment:list_options", "representative_access", emery(), resource("appointment", P.blake.subjectId, null, "PHI"), [emeryOptions]), allowReasons: ["ALLOW_REPRESENTATIVE"] },
 ];
 
 function baseInput(key: string): PolicyInput {
@@ -355,6 +363,18 @@ const EXPLICIT: ExplicitCase[] = [
     input: withKs(withResource(withAuth(baseInput("client_prepare_change"), { expiresAt: EARLIER, riskFlags: ["FRAUD_REVIEW", "SAFETY_ESCALATION_ACTIVE"], consentAutomatedProcessing: "DECLINED" }), { tenantId: OTHER_TENANT_ID }), { aiAdmission: true, writes: true }),
     expect: { allow: false, reasons: ["CONSENT_DECLINED_ALTERNATIVE_ROUTE", "KILL_SWITCH_AI_ADMISSION", "KILL_SWITCH_WRITES", "RISK_FRAUD_REVIEW", "SAFETY_MODE_MUTATIONS_REVOKED", "SESSION_INVALID", "TENANT_MISMATCH"] },
   },
+  { key: "list_options_treating_provider_read_scope_only", description: "a treating relationship granting only appointment:read does not reach appointment options", tags: ["AUTH-05", "SPEC-4.appointment"], input: { ...baseInput("treating_provider_appointment_read"), action: "appointment:list_options" }, expect: { allow: false, reasons: ["SCOPE_NOT_GRANTED"] } },
+  { key: "list_options_representative_read_scope_only", description: "a proxy granting only appointment:read does not reach appointment options", tags: ["AUTH-05", "SPEC-4.appointment"], input: { ...baseInput("representative_appointment_read"), action: "appointment:list_options" }, expect: { allow: false, reasons: ["SCOPE_NOT_GRANTED"] } },
+  { key: "list_options_other_client", description: "client asks for another client's appointment options", tags: ["AUTH-05", "SPEC-4.appointment"], input: withResource(baseInput("client_list_appointment_options"), { subjectId: P.blake.subjectId }), expect: { allow: false, reasons: ["RELATIONSHIP_NOT_ESTABLISHED"] } },
+  { key: "list_options_unverified", description: "unverified caller asks for appointment options", tags: ["AUTH-01", "AUTH-02"], input: req("appointment:list_options", "caller_self_service", anonAuth(), resource("appointment_options", P.avery.subjectId, null, "PHI"), []), expect: { allow: false, reasons: ["ASSURANCE_INSUFFICIENT", "RELATIONSHIP_NOT_ESTABLISHED", "ROLE_NOT_SELECTED"] } },
+  { key: "prepare_billing_review_other_client", description: "client prepares a billing review of another client's invoice", tags: ["AUTH-05", "ACT-01"], input: withResource(baseInput("client_prepare_billing_review"), { subjectId: P.blake.subjectId }), expect: { allow: false, reasons: ["RELATIONSHIP_NOT_ESTABLISHED"] } },
+  {
+    key: "prepare_billing_review_representative",
+    description: "a representative cannot prepare a billing review (client self only)",
+    tags: ["AUTH-05", "ACT-01"],
+    input: req("billing:prepare_review", "caller_self_service", emery(), resource("billing_review", P.blake.subjectId, null, "FINANCIAL"), [fact("legal_representative", P.emery.actorId, P.blake.subjectId, null, ["billing:prepare_review"], "legal_authority_registry")]),
+    expect: { allow: false, reasons: ["RELATIONSHIP_NOT_ESTABLISHED", "ROLE_NOT_PERMITTED"] },
+  },
 ];
 
 // ------------------------------------------------------------ console matrix ----
@@ -395,8 +415,8 @@ interface ConsoleBase {
   key: string;
   action: string;
   allowedRole: StaffRole;
-  /** A role that must be denied, and the reasons. */
-  deniedRole: StaffRole;
+  /** A role that must be denied, and the reasons (null when every staff role holds the action). */
+  deniedRole: StaffRole | null;
   deniedReasons: string[];
   resource?: Partial<ConsoleDecisionInput["resource"]>;
   allowReasons?: string[];
@@ -418,6 +438,14 @@ const CONSOLE_BASES: ConsoleBase[] = [
   { key: "secret_rotate", action: "secret:rotate", allowedRole: "security_admin", deniedRole: "auditor", deniedReasons: ["AUDITOR_READ_ONLY", "ROLE_NOT_PERMITTED"], tags: ["SPEC-7.staff-separation"] },
   { key: "break_glass_approve", action: "break_glass:approve", allowedRole: "security_admin", deniedRole: "support_agent", deniedReasons: ["ROLE_NOT_PERMITTED"], resource: { initiatorStaffId: staffId("supervisor") }, tags: ["SPEC-7.break-glass"] },
   { key: "restricted_record_view", action: "restricted_record:view", allowedRole: "supervisor", deniedRole: "support_agent", deniedReasons: ["ROLE_NOT_PERMITTED"], breakGlass: true, allowReasons: ["ALLOW_BREAK_GLASS", "ALLOW_STAFF_ROLE"], tags: ["SPEC-7.break-glass"] },
+  // Dedicated console read actions (least privilege per endpoint).
+  { key: "console_session", action: "console:session", allowedRole: "auditor", deniedRole: null, deniedReasons: [], tags: ["SPEC-13.console", "SPEC-7.staff-mfa"] },
+  { key: "operations_overview", action: "operations:overview", allowedRole: "safety_responder", deniedRole: "auditor", deniedReasons: ["ROLE_NOT_PERMITTED"], tags: ["SPEC-13.console"] },
+  { key: "budget_view", action: "budget:view", allowedRole: "deployment_operator", deniedRole: "support_agent", deniedReasons: ["ROLE_NOT_PERMITTED"], tags: ["SPEC-13.console"] },
+  { key: "kill_switch_view", action: "kill_switch:view", allowedRole: "security_admin", deniedRole: "safety_responder", deniedReasons: ["ROLE_NOT_PERMITTED"], tags: ["SPEC-13.kill-switch"] },
+  { key: "reconciliation_view", action: "reconciliation:view", allowedRole: "supervisor", deniedRole: "support_agent", deniedReasons: ["ROLE_NOT_PERMITTED"], tags: ["ACT-03", "SPEC-13.console"] },
+  { key: "human_task_view", action: "human_task:view", allowedRole: "support_agent", deniedRole: "safety_responder", deniedReasons: ["ROLE_NOT_PERMITTED"], tags: ["SPEC-13.console"] },
+  { key: "release_view", action: "release:view", allowedRole: "auditor", deniedRole: "supervisor", deniedReasons: ["ROLE_NOT_PERMITTED"], tags: ["SPEC-14.policy-expansion", "SPEC-13.console"] },
 ];
 
 interface ConsolePerturbation {
@@ -468,6 +496,13 @@ const CONSOLE_EXPLICIT: ConsoleExplicit[] = [
   { key: "kill_switch_scope_missing", description: "kill switch change without a scope", tags: ["SPEC-13.kill-switch"], input: consoleReq("kill_switch:engage", "security_admin"), expect: { allow: false, reasons: ["KILL_SWITCH_SCOPE_REQUIRED", "ROLE_NOT_PERMITTED"] } },
   { key: "kill_switch_model_version_deploy_operator", description: "deployment operator may switch model versions", tags: ["SPEC-13.kill-switch"], input: consoleReq("kill_switch:release", "deployment_operator", { killSwitchScope: "MODEL_VERSION" }), expect: { allow: true, reasons: ["ALLOW_STAFF_ROLE"] } },
   { key: "pending_action_cancel_other", description: "support agent cannot cancel another agent's handoff", tags: ["SPEC-7.staff-separation"], input: consoleReq("pending_action:cancel", "support_agent", { assignedStaffId: staffId("supervisor") }), expect: { allow: false, reasons: ["ROLE_NOT_PERMITTED"] } },
+  { key: "release_view_knowledge_editor", description: "knowledge editor views release candidates (policy bundles additionally need policy:review)", tags: ["SPEC-13.console"], input: consoleReq("release:view", "knowledge_editor"), expect: { allow: true, reasons: ["ALLOW_STAFF_ROLE"] } },
+  { key: "reconciliation_view_auditor", description: "auditor cannot view the reconciliation queue", tags: ["SPEC-7.staff-separation", "ACT-03"], input: consoleReq("reconciliation:view", "auditor"), expect: { allow: false, reasons: ["ROLE_NOT_PERMITTED"] } },
+  { key: "budget_view_auditor", description: "auditor cannot view budgets", tags: ["SPEC-7.staff-separation"], input: consoleReq("budget:view", "auditor"), expect: { allow: false, reasons: ["ROLE_NOT_PERMITTED"] } },
+  { key: "kill_switch_view_knowledge_editor", description: "knowledge editor cannot view kill switches", tags: ["SPEC-7.staff-separation", "SPEC-13.kill-switch"], input: consoleReq("kill_switch:view", "knowledge_editor"), expect: { allow: false, reasons: ["ROLE_NOT_PERMITTED"] } },
+  { key: "operations_overview_policy_approver", description: "policy approver has no operations overview", tags: ["SPEC-7.staff-separation"], input: consoleReq("operations:overview", "policy_approver"), expect: { allow: false, reasons: ["ROLE_NOT_PERMITTED"] } },
+  { key: "human_task_view_auditor", description: "auditor cannot view human task queues", tags: ["SPEC-7.staff-separation"], input: consoleReq("human_task:view", "auditor"), expect: { allow: false, reasons: ["ROLE_NOT_PERMITTED"] } },
+  { key: "console_session_other_tenant", description: "console session check against another tenant", tags: ["SPEC-7.organization-isolation"], input: consoleReq("console:session", "support_agent", { tenantId: OTHER_TENANT_ID }), expect: { allow: false, reasons: ["TENANT_MISMATCH"] } },
 ];
 
 // ------------------------------------------------------------------ generate ----
@@ -529,15 +564,17 @@ export function generateProbes(catalogue: PolicyCatalogue): GoldenProbe[] {
     if (b.breakGlass) base = withBg(base, VALID_BREAK_GLASS);
     const allowReasons = b.allowReasons ?? ["ALLOW_STAFF_ROLE"];
     probes.push({ id: `console.${b.key}.base`, entrypoint: "console", description: `${b.action} by ${b.allowedRole}`, tags: b.tags, expected: consoleExpectation(catalogue, b.action, { allow: true, reasons: allowReasons }), input: base });
-    const other = consoleReq(b.action, b.deniedRole, b.resource ?? {});
-    probes.push({
-      id: `console.${b.key}.role_${b.deniedRole}`,
-      entrypoint: "console",
-      description: `${b.action} by ${b.deniedRole} (role separation)`,
-      tags: uniqTags(["SPEC-7.staff-separation"], b.tags),
-      expected: consoleExpectation(catalogue, b.action, { allow: false, reasons: b.deniedReasons }),
-      input: b.breakGlass ? withBg(other, VALID_BREAK_GLASS) : other,
-    });
+    if (b.deniedRole !== null) {
+      const other = consoleReq(b.action, b.deniedRole, b.resource ?? {});
+      probes.push({
+        id: `console.${b.key}.role_${b.deniedRole}`,
+        entrypoint: "console",
+        description: `${b.action} by ${b.deniedRole} (role separation)`,
+        tags: uniqTags(["SPEC-7.staff-separation"], b.tags),
+        expected: consoleExpectation(catalogue, b.action, { allow: false, reasons: b.deniedReasons }),
+        input: b.breakGlass ? withBg(other, VALID_BREAK_GLASS) : other,
+      });
+    }
     for (const p of CONSOLE_PERTURBATIONS) {
       probes.push({
         id: `console.${b.key}.${p.key}`,

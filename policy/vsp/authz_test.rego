@@ -574,6 +574,74 @@ test_billing_review_not_for_provider if {
 	denied(x, ["RELATIONSHIP_NOT_ESTABLISHED", "ROLE_NOT_PERMITTED"])
 }
 
+# --------------------------------------------------- billing:prepare_review ----
+
+avery_prepare_review := fx.req(
+	"billing:prepare_review", "caller_self_service",
+	fx.auth(fx.avery.actor, "client", fx.avery.subject, null, "A2"),
+	fx.resource("billing_review", fx.avery.subject, null, "FINANCIAL"),
+	[fx.self_fact(fx.avery)],
+)
+
+test_billing_prepare_review_self_allowed_confirmation_required if {
+	allowed(avery_prepare_review, ["ALLOW_SELF"])
+	d := decide(avery_prepare_review)
+	d.obligations == ["REQUIRE_CONFIRMATION"]
+	d.fieldMask == ["reviewId", "status", "supportReference"]
+}
+
+test_billing_prepare_review_needs_no_digest_but_is_a_write if {
+	allowed(fx.with_resource(avery_prepare_review, {"type": "invoice"}), ["ALLOW_SELF"])
+	denied(fx.with_ks(avery_prepare_review, {"writes": true}), ["KILL_SWITCH_WRITES"])
+	denied(fx.with_ks(avery_prepare_review, {"intents": ["billing_dispute"]}), ["KILL_SWITCH_INTENT"])
+	denied(fx.with_auth(avery_prepare_review, {"riskFlags": ["SAFETY_ESCALATION_ACTIVE"]}), ["SAFETY_MODE_MUTATIONS_REVOKED"])
+}
+
+test_auth05_billing_prepare_review_other_client_or_representative_denied if {
+	denied(fx.with_resource(avery_prepare_review, {"subjectId": fx.blake.subject}), ["RELATIONSHIP_NOT_ESTABLISHED"])
+	x := object.union(avery_prepare_review, {"auth": fx.emery_rep_appt.auth, "relationships": [fx.rep_fact(fx.emery, fx.blake, ["billing:prepare_review"])], "resource": fx.resource("billing_review", fx.blake.subject, null, "FINANCIAL")})
+	denied(x, ["RELATIONSHIP_NOT_ESTABLISHED", "ROLE_NOT_PERMITTED"])
+}
+
+test_billing_prepare_review_below_a2_denied if denied(fx.with_auth(avery_prepare_review, {"assurance": "A1"}), ["ASSURANCE_INSUFFICIENT"])
+
+# ------------------------------------------------- appointment:list_options ----
+
+avery_options := fx.req(
+	"appointment:list_options", "caller_self_service",
+	fx.auth(fx.avery.actor, "client", fx.avery.subject, null, "A2"),
+	fx.resource("appointment_options", fx.avery.subject, null, "PHI"),
+	[fx.self_fact(fx.avery)],
+)
+
+test_appointment_list_options_self_includes_slot_id if {
+	allowed(avery_options, ["ALLOW_SELF"])
+	d := decide(avery_options)
+	d.obligations == ["AUDIT_READ"]
+	d.fieldMask == ["appointmentId", "modality", "providerDisplayName", "slotId", "startsAt", "status", "timeZone"]
+}
+
+test_appointment_read_mask_still_has_no_slot_id if not "slotId" in decide(fx.avery_appt).fieldMask
+
+test_appointment_list_options_treating_provider_needs_its_own_scope if {
+	base := object.union(fx.morgan_treating_appt, {"action": "appointment:list_options"})
+	denied(base, ["SCOPE_NOT_GRANTED"])
+	scoped := object.union(base, {"relationships": [fx.fact("treating_provider", fx.morgan.actor, fx.avery.subject, null, ["appointment:list_options"], "enrollment_system")]})
+	allowed(scoped, ["ALLOW_TREATING_PROVIDER"])
+}
+
+test_appointment_list_options_representative_needs_its_own_scope if {
+	base := object.union(fx.emery_rep_appt, {"action": "appointment:list_options"})
+	denied(base, ["SCOPE_NOT_GRANTED"])
+	scoped := object.union(base, {"relationships": [fx.rep_fact(fx.emery, fx.blake, ["appointment:list_options"])]})
+	allowed(scoped, ["ALLOW_REPRESENTATIVE"])
+}
+
+test_auth05_appointment_list_options_unrelated_denied if {
+	denied(fx.with_resource(avery_options, {"subjectId": fx.blake.subject}), ["RELATIONSHIP_NOT_ESTABLISHED"])
+	denied(expired_session(avery_options), ["SESSION_INVALID"])
+}
+
 # ----------------------------------------------------------------- claim ----
 
 test_claim_self_allowed if allowed(fx.avery_claim, ["ALLOW_SELF"])

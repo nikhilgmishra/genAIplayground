@@ -33,6 +33,8 @@ function normalize(def: WorkflowDefinition | VersionedWorkflowDefinition): Versi
     description: v.description ?? "",
     transitionGuards: v.transitionGuards ?? {},
     humanTaskRoles: v.humanTaskRoles ?? {},
+    eventActors: v.eventActors ?? {},
+    grantActions: v.grantActions ?? {},
   }) as VersionedWorkflowDefinition;
   return deepFreeze(copy);
 }

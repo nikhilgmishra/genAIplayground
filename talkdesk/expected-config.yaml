@@ -217,80 +217,108 @@ tenantConfiguration:
       - id: menu.confirmation
         keys: { "1": CONFIRM, "2": CANCEL, "0": HUMAN }
         noInput: NOT_CONFIRMED
+    # Paths as PUBLISHED by the gateway (schemas/openapi/gateway.openapi.json; drift-check --openapi
+    # compares them). The bearer session reference travels only in the X-VSP-Session-Ref header
+    # (never in a URL); X-VSP-Interaction-Id binds the session to the current call. Tenant
+    # behaviour of every step is UNVERIFIED. One integrationId per Talkdesk tenant: the
+    # telephony_control credential differs from the mcp_tools credential by channel only.
     httpSteps:
       - operationId: telephony.startCall
         ref: TC-01
         method: POST
         path: /telephony/v1/calls
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: NONE
+        status: PUBLISHED_BY_GATEWAY
       - operationId: telephony.recordConsent
         ref: TC-02
         method: POST
-        path: /telephony/v1/calls/{sessionRef}/consent
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED
+        path: /telephony/v1/session/consent
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
       - operationId: telephony.selectRole
         ref: TC-03
         method: POST
-        path: /telephony/v1/calls/{sessionRef}/role
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED
+        path: /telephony/v1/session/role
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
       - operationId: telephony.authGate
         ref: TC-04
         method: GET
-        path: /telephony/v1/calls/{sessionRef}/auth-gate
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED
+        path: /telephony/v1/session/auth-gate
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
       - operationId: telephony.admission
         ref: TC-05
         method: GET
-        path: /telephony/v1/calls/{sessionRef}/admission
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED
+        path: /telephony/v1/session/admission
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
       - operationId: telephony.submitOtp
         ref: TC-06
         method: POST
-        path: /telephony/v1/calls/{sessionRef}/otp
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED_DISABLED_UNTIL_TB03
+        path: /telephony/v1/session/otp
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_DISABLED_UNTIL_TB03
       - operationId: telephony.pendingConfirmation
         ref: TC-07
         method: GET
-        path: /telephony/v1/calls/{sessionRef}/pending-confirmation
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED_DISABLED_UNTIL_TB02
+        path: /telephony/v1/session/pending-confirmation
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_DISABLED_UNTIL_TB02
       - operationId: telephony.confirmAction
         ref: TC-08
         method: POST
-        path: /telephony/v1/calls/{sessionRef}/actions/{actionId}/confirm
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED_DISABLED_UNTIL_TB02
-      - operationId: telephony.transferEvent
+        path: /telephony/v1/session/actions/{actionId}/confirm
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_DISABLED_UNTIL_TB02
+      - operationId: webhooks.transferEvents
         ref: TC-09
         method: POST
-        path: /telephony/v1/transfers/{transferRef}/events
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED_DISABLED_UNTIL_TB07
+        path: /v1/webhooks/transfer-events
+        integrationId: talkdesk-sandbox
+        channel: webhook                       # event authentication undocumented (TB-09): LOCAL FIXTURE HMAC only, refused outside local/ci
+        sessionRefHeader: NONE
+        status: LOCAL_FIXTURE_ONLY_UNTIL_TB07_TB09
       - operationId: telephony.applyChange
         ref: TC-10
         method: POST
-        path: /telephony/v1/calls/{sessionRef}/change
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED
+        path: /telephony/v1/session/change
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
       - operationId: telephony.endCall
         ref: TC-11
         method: POST
-        path: /telephony/v1/calls/{sessionRef}/end
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED
+        path: /telephony/v1/session/end
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
       - operationId: telephony.handoffContext
         ref: TC-12
         method: GET
-        path: /telephony/v1/calls/{sessionRef}/handoff
-        integrationId: talkdesk-studio-sandbox
-        status: PROPOSED
-
+        path: /telephony/v1/session/handoff
+        integrationId: talkdesk-sandbox
+        channel: telephony_control
+        sessionRefHeader: X-VSP-Session-Ref
+        status: PUBLISHED_BY_GATEWAY
   aiAgent:
     agents: [vsp_coordinator, vsp_scheduling, vsp_billing_claims, vsp_provider_partner, vsp_intake]
     deterministicSkills: [vsp_verification_skill, vsp_confirmation_skill]
@@ -307,11 +335,11 @@ tenantConfiguration:
       onAnyLimit: EXIT_TO_STUDIO
     toolsByAgent:
       - id: vsp_coordinator
-        tools: [request_human_transfer, request_safety_route, search_approved_runbook, get_authorized_case_status]
+        tools: [request_human_transfer, request_safety_route, search_approved_runbook, get_login_guidance]
       - id: vsp_scheduling
         tools: [request_human_transfer, request_safety_route, get_appointment_options, prepare_appointment_change, commit_appointment_change]
       - id: vsp_billing_claims
-        tools: [request_human_transfer, request_safety_route, get_invoice_status, submit_billing_review, get_claim_status]
+        tools: [request_human_transfer, request_safety_route, get_invoice_status, prepare_billing_review, submit_billing_review, get_claim_status]
       - id: vsp_provider_partner
         tools: [request_human_transfer, request_safety_route, get_provider_onboarding_status, get_remittance_status, submit_partner_intake]
       - id: vsp_intake
@@ -326,7 +354,8 @@ tenantConfiguration:
     host: UNKNOWN
     transport: streamable_http
     authMethod: oauth2_client_credentials
-    integrationId: talkdesk-mcp-sandbox
+    integrationId: talkdesk-sandbox            # same integrationId as the telephony_control credential (mcp-connection.md section 3)
+    channel: mcp_tools
     sessionBindingMode: UNDECIDED            # trusted_header | server_to_server_lookup | tool_argument_lookup_exception (mcp-connection.md section 5)
     toolCatalogDigest: TO_BE_PINNED_FROM_RELEASE_MANIFEST
     dynamicToolRegistration: false

@@ -12,17 +12,25 @@
  *    the message BODY to the trusted worker and never appears in any URL.
  *    TimeoutSeconds comes from the state's ISO-8601 deadline; HeartbeatSeconds
  *    is derived from it so a dead worker fleet surfaces as an escalation.
- *  - The worker answers SendTaskSuccess with exactly {"event": "<EVENT>"};
- *    ResultSelector keeps only that field and ResultPath "$.signal" stores it,
- *    so no payload accumulates in execution state.
- *  - A Choice state routes on $.signal.event to the declared transitions.
- *    Missing or undeclared events go to the escalation path (never dropped).
+ *  - The worker answers SendTaskSuccess with exactly
+ *    {"event": "<EVENT>", "actorKind": "<caller|system|staff|external_system>"},
+ *    after the trusted backend has applied the same signal through
+ *    PgWorkflowEngine.signal / completeHumanTask (actor permission, recheck and
+ *    ledger mirroring). ResultSelector keeps only those two fields and
+ *    ResultPath "$.signal" stores them, so no payload accumulates in execution state.
+ *  - A Choice state routes on $.signal.event AND $.signal.actorKind to the
+ *    declared transitions: an event is accepted only from the actor kinds the
+ *    definition declares for it (eventActors). Missing fields, undeclared events
+ *    and non-permitted actors go to the escalation path (never dropped).
+ *    Engine-raised events (POLICY_CHANGED_PENDING_ACTION) are not routable from
+ *    a worker answer at all; only a recheck decision reaches that route.
  *  - Retry uses the state's retry budget as MaxAttempts with FULL jitter.
  *    Catch routes timeouts and exhausted retries to escalation states that
  *    notify the escalation owner queue and then follow the declared
  *    escalation transition.
  *  - Guarded transitions (disclosure / material change) pass through a recheck
- *    task before the target; a deny follows POLICY_CHANGED_PENDING_ACTION.
+ *    task before the target (its message names the durable-grant action the
+ *    transition consumes); a deny follows POLICY_CHANGED_PENDING_ACTION.
  *  - Terminal states are Succeed (COMPLETED, CANCELLED) or Fail (FAILED).
  *  - Queue URLs are Terraform templatefile placeholders such as
  *    "${human_task_queue_url}" (see ASL_PLACEHOLDERS / infra/stepfunctions/README.md).
@@ -31,7 +39,7 @@ import { WorkflowStateName } from "../protocol/index.js";
 import { sha256Hex } from "../shared/canonical.js";
 import { durationSeconds } from "./duration.js";
 import type { WorkflowStateDefinition } from "./ports.js";
-import { POLICY_CHANGED_PENDING_ACTION, type TransitionGuard, type VersionedWorkflowDefinition } from "./types.js";
+import { POLICY_CHANGED_PENDING_ACTION, type TransitionGuard, type VersionedWorkflowDefinition, type WorkflowActorKind } from "./types.js";
 
 export const STATE_MACHINE_TYPE = "STANDARD" as const;
 
@@ -130,7 +138,7 @@ function taskState(def: VersionedWorkflowDefinition, state: WorkflowStateName, s
   };
   const hb = heartbeatFor(timeout);
   if (hb !== null) task.HeartbeatSeconds = hb;
-  task.ResultSelector = { "event.$": "$.event" };
+  task.ResultSelector = { "event.$": "$.event", "actorKind.$": "$.actorKind" };
   task.ResultPath = "$.signal";
   task.Retry = [
     {
@@ -150,17 +158,32 @@ function taskState(def: VersionedWorkflowDefinition, state: WorkflowStateName, s
   return task;
 }
 
+/** Choice condition accepting `event` only from the declared actor kinds (fail closed: none declared => no condition). */
+export function eventActorCondition(event: string, kinds: readonly WorkflowActorKind[]): AslState | null {
+  if (kinds.length === 0) return null;
+  const actor =
+    kinds.length === 1
+      ? { Variable: "$.signal.actorKind", StringEquals: kinds[0] }
+      : { Or: [...kinds].sort().map((k) => ({ Variable: "$.signal.actorKind", StringEquals: k })) };
+  return { And: [{ Variable: "$.signal.event", StringEquals: event }, actor] };
+}
+
 function routeState(def: VersionedWorkflowDefinition, state: WorkflowStateName, s: WorkflowStateDefinition): AslState {
   const guards = def.transitionGuards[state] ?? {};
-  const choices: AslState[] = [{ Not: { Variable: "$.signal.event", IsPresent: true }, Next: name.invalid(state) }];
+  const choices: AslState[] = [
+    { Not: { Variable: "$.signal.event", IsPresent: true }, Next: name.invalid(state) },
+    { Not: { Variable: "$.signal.actorKind", IsPresent: true }, Next: name.invalid(state) },
+  ];
   for (const event of Object.keys(s.transitions).sort()) {
     const target = s.transitions[event];
     if (target === undefined) continue;
-    choices.push({ Variable: "$.signal.event", StringEquals: event, Next: guards[event] ? name.recheck(state, event) : target });
+    const condition = eventActorCondition(event, def.eventActors[event] ?? []);
+    if (!condition) continue;
+    choices.push({ ...condition, Next: guards[event] ? name.recheck(state, event) : target });
   }
   return {
     Type: "Choice",
-    Comment: "Route the worker-reported event; undeclared events escalate.",
+    Comment: "Route the worker-reported event from a permitted actor kind; anything else escalates.",
     Choices: choices,
     Default: name.invalid(state),
   };
@@ -171,7 +194,8 @@ function escalationStates(def: VersionedWorkflowDefinition, state: WorkflowState
   if (!esc) throw new Error("ESCALATION_ROUTE_MISSING");
   const pass = (cause: string): AslState => ({
     Type: "Pass",
-    Result: { event: esc.event, cause },
+    // The escalation itself is a system action (the validator requires "system" for every escalation event).
+    Result: { event: esc.event, actorKind: "system", cause },
     ResultPath: "$.signal",
     Next: name.notify(state),
   });
@@ -218,11 +242,11 @@ function recheckStates(
   return {
     [name.recheck(state, event)]: {
       Type: "Task",
-      Comment: `Recheck consent, representation, account state and current policy before this ${guard.replace("_", " ")}.`,
+      Comment: `Check the durable action grant for ${def.grantActions[state]?.[event] ?? "UNDECLARED"}, then recheck consent, representation, account state and current policy before this ${guard.replace("_", " ")}.`,
       Resource: WAIT_FOR_TOKEN,
       Parameters: {
         QueueUrl: placeholder("recheck_queue_url"),
-        MessageBody: { ...baseBody(def, state), event, toState: target, guard, "taskToken.$": "$$.Task.Token" },
+        MessageBody: { ...baseBody(def, state), event, toState: target, guard, grantAction: def.grantActions[state]?.[event] ?? null, "taskToken.$": "$$.Task.Token" },
       },
       TimeoutSeconds: o.recheckTimeoutSeconds,
       ResultSelector: { "decision.$": "$.decision" },

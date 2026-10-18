@@ -176,29 +176,51 @@ Finer rules the server enforces:
 
 ### Policy mapping
 
-The policy catalogue (`policy/vsp/data.json`, policy module) has no dedicated read action for
-several views, so endpoints are mapped to the closest catalogue action(s) whose roles cover the
-endpoint; mapping a read to a mutating action is strictly tighter (auditor taint applies).
+Every read view maps to a dedicated, non-mutating console catalogue action whose role set
+equals the endpoint's `ENDPOINT_ROLES` (checked by `policy-alignment.test.ts`); mutations keep
+their mutating actions (auditor read-only taint applies).
 
 | Endpoint | Console policy action(s) (any one) |
 |---|---|
-| `me`, `auth.logout` | `journey:inspect`, `audit:search`, `policy:review`, `knowledge:edit`, `budget:define` (together they cover every role) |
-| `overview` | `journey:inspect`, `budget:define` |
+| `me`, `auth.logout` | `console:session` (every staff role) |
+| `overview` | `operations:overview` |
 | `calls.list`, `calls.get`, `supportRequests.trace` | `journey:inspect`; restricted support requests additionally `restricted_record:view` (break-glass) |
 | `calls.transfer` | `call:transfer` |
-| `actions.pending`, `reconciliation.list` | `pending_action:review` |
+| `actions.pending` | `pending_action:review` |
+| `reconciliation.list` | `reconciliation:view` (supervisor) |
 | `actions.cancel` | `pending_action:cancel` (supervisor; support_agent only when the call is assigned to them) |
 | `reconciliation.reconcile`, `reconciliation.retry` | `operation:retry_reconciled` |
 | `outbox.requeue` | `dlq:repair` |
-| `workflows.tasks`, `workflows.decision` | `human_task:decide` |
+| `workflows.tasks` | `human_task:view` |
+| `workflows.decision` | `human_task:decide` |
 | `safetyEvents.list` | `safety_event:view` |
-| `releases.list` | per item: `policy:review` (policy bundles), `policy:review` or `knowledge:edit` (knowledge snapshots) |
+| `releases.list` | `release:view`; per item, policy bundles additionally `policy:review` |
 | `releases.review` | `policy:approve` with initiator = submitter (policy bundles), `knowledge:submit_release` (knowledge snapshots) |
-| `budgets.list` | `budget:define` |
-| `killSwitches.list` | `kill_switch:engage` for any scope |
+| `budgets.list` | `budget:view` |
+| `killSwitches.list` | `kill_switch:view` |
 | `killSwitches.set` | `kill_switch:engage` / `kill_switch:release` with the requested scope |
 | `audit.search` | `audit:search` |
 | `destinations.list` | `journey:inspect`, `policy:review` |
+
+### Restricted support requests and the trace
+
+* The worker-view trace decides only which gate applies (existence and the restricted flag);
+  nothing from it is returned. A restricted request needs `restricted_record:view` (valid
+  break-glass approved by someone else).
+* The returned data is read through `SupportRequestService.trace(..., { reader: { kind:
+  "console", restrictedReader } })`: as `app_console` under row-level security, with
+  `app.restricted_reader = 'on'` (migration 0300) set in that transaction ONLY after the
+  `restricted_record:view` decision allowed. A row RLS hides answers 404.
+* `sync.lastReasonCode`, `sync.syncedAt` and `sync.outboxMessageIds` come from the business
+  trace (`last_sync_reason`, `synced_at`, the request's `support_request.sync` outbox ids).
+
+### Console-initiated transfers
+
+`calls.transfer` passes the staff-selected destination (`destinationId`, already checked
+against the allowlist here) and `initiatedBy {staffId}` to `HandoffService.requestHuman`,
+which re-checks the allowlist (refusal: `400 DESTINATION_NOT_ALLOWLISTED`, nothing dialled)
+and audits the staff member as the actor. A different dialled destination (coordinator
+fallback) is still reported as `TRANSFER_DESTINATION_SUBSTITUTED`.
 
 ### Audit (OPS-01)
 
@@ -252,9 +274,10 @@ staging/production).
   AuthContext). Interface change requested: `ActionService.retryAfterReconcile`.
 * `actions.cancel` for support agents needs a call-ownership source (Talkdesk agent assignment,
   TB-07); without one only supervisors can cancel (fail closed).
-* `calls.transfer` goes through `HandoffService.requestHuman`, which resolves the destination
-  from trusted configuration by reason; a staff-selected allowlisted destination cannot be
-  passed yet (interface change requested), so a substitution is reported and audited.
+* `calls.transfer` passes the staff-selected allowlisted destination and the initiating staff
+  member (see "Console-initiated transfers"); the plugin's tests use the labelled
+  `HandoffServiceFixture`, and `platform/src/main/console.test.ts` exercises the real
+  business layer for the restricted trace.
 * No rate limiting on the auth endpoints in this plugin (composition root / gateway).
 * No `join` endpoint: the supported Talkdesk join control is unverified (TB-07);
   `CallDetailResponse.controls.join` reports availability only.

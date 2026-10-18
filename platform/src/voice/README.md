@@ -40,6 +40,7 @@ Slot types and how they render:
 | `count` | Count | Number |
 | `spelled_code` | Letters and digits | Spelled out |
 | `portal_path` | Must start with `/portal/` | Readable path |
+| `match_code` | Two distinct words of the identity module's match-code list (`identity/match-code.ts`), joined by `-` | The two words with a pause (`maple, otter`); used by the DRAFT template `verification.secure_link_match_code` so the caller can compare it with the portal. Not a secret. |
 
 ### Gate order (fail closed, before the first audible segment)
 

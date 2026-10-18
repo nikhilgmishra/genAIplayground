@@ -24,3 +24,15 @@ injectable: `TimerLoopScheduler` (no overlap, unref'd timers) for processes,
 
 Health (`worker.ts`): `GET /health/live`; `GET /health/ready` is 503 until every loop has
 run, and when a loop failed three times in a row or has not run within three intervals.
+
+Metrics (content-free, closed label enums; `platform/src/observability/metrics.ts`):
+`workerLoopsFor` wraps every loop in `MeteredLoop`, which emits through the container's
+`Metrics` port `vsp_worker_loop_runs_total{loop,result}`, `vsp_worker_loop_errors_total{loop}`,
+`vsp_worker_loop_processed_total{loop}`, `vsp_worker_loop_lag_ms{loop}` (start delay behind the
+previous start plus the interval) and `vsp_worker_loop_duration_ms{loop}`. `RetentionLoop` also
+emits `vsp_retention_deleted_total{data_class}`, `vsp_retention_classes_blocked{data_class,reason}`,
+`vsp_retention_unverified_copies{location,status}` and
+`vsp_vendor_deletion_requests_pending{vendor}` (`RetentionJob.pendingVendorDeletions()`). A
+failing metrics sink never affects a loop. The `outbox.consume` dedup pre-check uses
+`ConsumerDedup.isProcessed(tenantId, consumer, messageId)` (tenant RLS) and messages carry
+`tenantId`.

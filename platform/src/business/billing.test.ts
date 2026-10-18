@@ -3,7 +3,8 @@
  * invoice explanation, hosted payment page, billing review (REQUEST_ACCEPTED) and claims.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { CLAIMS, INVOICES, PEOPLE } from "../fixtures/synthetic-world.js";
+import { CLAIMS, INVOICES, PEOPLE, TENANT_ID } from "../fixtures/synthetic-world.js";
+import { staffActor } from "../ops/testing.js";
 import { loadDefaultTemplateRegistry } from "../voice/registry.js";
 import { createBusinessHarness, expectDone, type BusinessHarness } from "./testing/harness.js";
 
@@ -159,6 +160,21 @@ describe("billing review", () => {
     const n = await h.db.tx(async (q) => Number((await q.query<{ n: number }>("select count(*)::int as n from workflow_instances")).rows[0]?.n), { role: "owner" });
     expect(n).toBe(1);
     expect((await h.services.interactions.get(auth.tenantId, actionId))?.receiptOutcome).toBe("COMMITTED");
+  });
+
+  it("[ACT-01] [SPEC-13.kill-switches] prepare_billing_review is authorized by the dedicated billing:prepare_review action (no digest borrowed); the writes switch stops it", async () => {
+    expect(h.tool("prepare_billing_review").definition.permissions).toEqual(["billing:prepare_review"]);
+    expect(h.tool("submit_billing_review").definition.permissions).toEqual(["billing:submit_review"]);
+    const avery = await verified();
+    const resource = await h.tool("prepare_billing_review").resolveResource(avery, { invoiceId: inv.invoiceId, reasonCategory: "OTHER" });
+    expect(resource).toMatchObject({ type: "billing_review", subjectId: PEOPLE.avery.subjectId, actionDigest: null });
+    const p = expectDone(await h.invoke("prepare_billing_review", avery, { invoiceId: inv.invoiceId, reasonCategory: "OTHER" }));
+    expect(p.decision.fieldMask).toEqual(["reviewId", "status", "supportReference"]);
+    expect(p.decision.obligations).toEqual(["REQUIRE_CONFIRMATION"]);
+    await h.ops.killSwitches.set({ tenantId: TENANT_ID, scope: "WRITES", target: "*", engaged: true, reason: "INCIDENT_UNSAFE_OUTPUT", staff: staffActor("supervisor") });
+    const stopped = await h.invoke("prepare_billing_review", avery, { invoiceId: inv.invoiceId, reasonCategory: "OTHER" });
+    expect(stopped.stage).toBe("policy");
+    if (stopped.stage === "policy") expect(stopped.decision.reasonCodes).toContain("KILL_SWITCH_WRITES");
   });
 
   it("[AUTH-05] a client cannot prepare a billing review for another client's invoice even with its valid id", async () => {

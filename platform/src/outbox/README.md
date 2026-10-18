@@ -14,11 +14,19 @@ repair flow) and section 12 (bounded retries with jitter, no retries on top of r
 |---|---|---|
 | Migration | `migrations/0110_outbox.sql` | `outbox_messages` and `consumer_dedup`. RLS enabled and forced, tenant policies for `app_runtime` and `app_worker`. No DELETE grants. Guard trigger: immutable content, `DISPATCHED` is final, `DEAD` can only be requeued |
 | `PgOutbox` (`Outbox` port) | `outbox.ts` | `enqueue(tx, msg)` inside the caller's transaction, under the tenant from `app_tenant()` (fails closed without one). `ON CONFLICT (tenant_id, dedupe_key) DO NOTHING` returns the original id. Payloads are restricted to opaque references and codes (no free text, phone- or DOB-like values, bounded size and depth) |
-| `PgOutboxDispatcher` (`OutboxDispatcher` port) | `dispatcher.ts` | `runOnce`: see below. `listDead()` and `requeueDead(messageId)` provide operator repair, audited in the same transaction when an `AuditWriter` is configured (fails closed) |
+| `PgOutboxDispatcher` (`OutboxDispatcher` port) | `dispatcher.ts` | `runOnce`: see below. `listDead()` and `requeueDead(messageId)` provide operator repair, audited in the same transaction when an `AuditWriter` is configured (fails closed). Audit events go to the **per-instance stream** `auditStreamName("outbox", instanceId)` (option `instanceId`, e.g. the ECS task id; default a random opaque id per dispatcher), exposed as `dispatcher.auditStream`, so dispatcher instances never contend on one chain head |
 | `computeBackoffMs` (pure) | `dispatcher.ts` | Exponential backoff with equal jitter. `random` is injectable for deterministic tests |
-| `PgConsumerDedup` (`ConsumerDedup` port) | `consumer-dedup.ts` | Inserts the dedupe row and runs the handler in ONE transaction. A duplicate is skipped. A handler failure rolls back both, so redelivery retries. `processOnceForTenant` serves multi-tenant consumers |
+| `PgConsumerDedup` (`ConsumerDedup` port) | `consumer-dedup.ts` | Inserts the dedupe row and runs the handler in ONE transaction. A duplicate is skipped. A handler failure rolls back both, so redelivery retries. `processOnceForTenant` serves multi-tenant consumers. `isProcessed(tenantId, consumer, messageId)` (on the port) is a read-only pre-check inside the tenant's RLS context, used by worker consumers that run their handler outside the dedupe transaction |
 | `MemoryPublisherFixture` | `memory-publisher.fixture.ts` | **LOCAL FIXTURE** (`kind: "local_fixture"`). Records deliveries. Failure injection: throw, fail-all, fail-message. `duplicateEveryDelivery` and `redeliverAll()` simulate at-least-once delivery |
 | `SqsPublisher` | `sqs-publisher.ts` | **live** (`kind: "live"`). Documented `SendMessageBatch` (AWS SDK v3) with at most 10 entries per batch. FIFO queues get `MessageGroupId` = key and a stable `MessageDeduplicationId` = sha256 of the dedupe key. Per-entry `Failed` entries, omitted entries and batch exceptions all map to failed ids. Rejects malformed queue URLs and FIFO mismatches |
+
+### Messages carry the tenant
+
+`OutboxMessage.tenantId` is the tenant the message was enqueued for (the enqueuing transaction's
+RLS tenant). Publishers and consumers receive it with every message (`DispatchedOutboxMessage`
+is now an alias of `OutboxMessage`), and the SQS envelope carries it. The ledger's
+`action.committed` payload also carries `tenantId` (opaque), so consumers no longer need a
+cross-tenant lookup to set their RLS context.
 
 ### `runOnce`
 

@@ -143,6 +143,14 @@ export interface OnboardingStatus {
   stage: "APPLICATION_RECEIVED" | "DOCUMENTS_PENDING" | "CREDENTIALING_IN_REVIEW" | "CONTRACTING" | "ACTIVE" | "ON_HOLD";
   missingDocumentTypes: ("LICENSE" | "MALPRACTICE_INSURANCE" | "W9" | "DEA" | "BOARD_CERTIFICATION")[];
   asOf: string;
+  /**
+   * Added (additive, optional): the practice ORGANIZATION the provider network records
+   * this onboarding under (authoritative provider -> practice mapping). null / absent =
+   * no practice (independent provider, or the system does not say): a practice-path
+   * request then has no organization to match and policy denies it (fail closed).
+   * Never taken from caller input.
+   */
+  organizationId?: string | null;
 }
 export interface Remittance {
   remittanceId: string;

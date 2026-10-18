@@ -44,6 +44,17 @@ Status: **IMPLEMENTED_OFFLINE**. No policy release is approved (PRQ-031).
   `appointment:prepare`; `human:request`, not `handoff:request`; `billing:submit_review`; public
   FAQ search is `public:read`). Resource `type` values must be one of the action's
   `resourceTypes`.
+* Added in bundle `2026.10.18-1` (NEW actions; no existing mask widened, no deny flipped,
+  `approved-expansions.json` stays `[]`): `billing:prepare_review` (PREPARE_MUTATION, A2
+  client self, `invoice` / `billing_review`, mask `reviewId, status, supportReference`,
+  `REQUIRE_CONFIRMATION`, writes switch), `appointment:list_options` (PROTECTED_READ, A2;
+  self, or representative / treating provider with scope `appointment:list_options`; mask
+  adds `slotId`; `AUDIT_READ`) and the console read actions `console:session`,
+  `operations:overview`, `budget:view`, `kill_switch:view`, `reconciliation:view`,
+  `human_task:view`, `release:view` (non-mutating, least-privilege role sets equal to the
+  console endpoint roles). Golden probes: 889 (positive base, perturbation and explicit
+  negative probes for each); `--gate` against the previous committed `probes.json` reports
+  0 expansions.
 * Relationships come from `RelationshipDirectory.relationshipsFor(actorId, selectedRole)`,
   including the `self` fact (source `identity_provider`); self paths do not require a scope,
   delegated/representative/treating paths require the action name as scope.

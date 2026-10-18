@@ -5,7 +5,7 @@
  * supervisors (partner_manager mapping).
  */
 import type { VersionedWorkflowDefinition } from "../types.js";
-import { deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
+import { ACTORS, COMMON_EVENT_ACTORS, deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
 
 export const partnerOnboardingV1: VersionedWorkflowDefinition = deepFreeze({
   type: "partner_onboarding",
@@ -85,4 +85,18 @@ export const partnerOnboardingV1: VersionedWorkflowDefinition = deepFreeze({
     READY_TO_COMMIT: { COMMIT: "material_change" },
   },
   humanTaskRoles: { WAITING_FOR_HUMAN: "partner_manager" },
+  eventActors: {
+    ...COMMON_EVENT_ACTORS,
+    VALIDATE: ACTORS.SYSTEM,
+    CONTRACT_VERIFIED: ACTORS.SYSTEM_OR_STAFF,
+    CONTRACT_NOT_FOUND: ACTORS.SYSTEM_OR_STAFF,
+    CALLER_RESPONDED: ACTORS.CALLER_RESPONSE,
+    COMMIT: ACTORS.SYSTEM,
+    SYSTEM_CONFIRMED: ACTORS.SYSTEM_OR_EXTERNAL,
+    PERMANENT_FAILURE: ACTORS.SYSTEM_OR_EXTERNAL,
+  },
+  grantActions: {
+    WAITING_FOR_HUMAN: { HUMAN_REJECTED: "partner.onboarding.decision_notice" },
+    READY_TO_COMMIT: { COMMIT: "partner.onboarding.activate" },
+  },
 });

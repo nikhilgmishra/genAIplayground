@@ -110,7 +110,9 @@ describe("dispatcher", () => {
     expect(await d.runOnce()).toEqual({ dispatched: 2, failed: 0, deadLettered: 0 });
     expect(publisher.deliveries.map((x) => x.message.messageId).sort()).toEqual([...ids].sort());
     expect(await d.runOnce()).toEqual({ dispatched: 0, failed: 0, deadLettered: 0 });
-    expect((publisher.deliveries[0]?.message as OutboxMessage & { tenantId: string }).tenantId).toBe(TENANT_ID);
+    // OutboxMessage carries the tenant so consumers can set their RLS context.
+    const delivered: OutboxMessage | undefined = publisher.deliveries[0]?.message;
+    expect(delivered?.tenantId).toBe(TENANT_ID);
   });
 
   it("[SPEC-12.3] failures back off exponentially with deterministic jitter and dead-letter after max attempts", async () => {
@@ -146,6 +148,10 @@ describe("dispatcher", () => {
     expect(await d.requeueDead(id, { actorRef: "stf_synthSupervisor01", reasonCode: "OPERATOR_REQUEUE" })).toBe(true);
     expect(await d.requeueDead(id)).toBe(false);
     expect((await fixtureAuditRows(db, id)).map((r) => r.action)).toEqual(["outbox.requeue"]);
+    // Per-instance audit stream (no shared chain head across dispatcher instances).
+    const streams = await db.tx((tx) => tx.query<{ stream: string }>("select stream from test_fixture_audit_events where correlation_id = $1", [id]), { role: "owner" });
+    expect(streams.rows.map((r) => r.stream)).toEqual([d.auditStream]);
+    expect(d.auditStream).toMatch(/^outbox\.odi_[a-z0-9_-]+$/);
     expect(await d.runOnce()).toEqual({ dispatched: 1, failed: 0, deadLettered: 0 });
     expect(await d.listDead()).toEqual([]);
   });
@@ -270,6 +276,16 @@ describe("dispatcher", () => {
   });
 });
 
+describe("dispatcher audit stream", () => {
+  it("[OPS-01] each dispatcher instance audits on its own stream auditStreamName('outbox', instanceId)", () => {
+    const a = dispatcherWith(publisher, { instanceId: "ECS Task 7F3A" });
+    const b = dispatcherWith(publisher, { instanceId: "task-0b12" });
+    expect(a.auditStream).toBe("outbox.ecs-task-7f3a");
+    expect(b.auditStream).toBe("outbox.task-0b12");
+    expect(dispatcherWith(publisher).auditStream).not.toBe(dispatcherWith(publisher).auditStream);
+  });
+});
+
 describe("consumer dedup", () => {
   it("[ACT-02] duplicate delivery is skipped; the dedupe row and the handler's effects commit atomically", async () => {
     const dedup = new PgConsumerDedup({ db, clock, tenantId: TENANT_ID });
@@ -297,6 +313,18 @@ describe("consumer dedup", () => {
       }),
     ).rejects.toThrow("downstream unavailable");
     expect((await dedup.processOnce("billing-consumer", "msg_synthMessage00000002", async () => "ok")).duplicate).toBe(false);
+  });
+
+  it("[ACT-02][AUTH-05] isProcessed is a tenant-scoped read-only pre-check", async () => {
+    const dedup = new PgConsumerDedup({ db, clock, tenantId: TENANT_ID });
+    expect(await dedup.isProcessed(TENANT_ID, "worker.action.committed", "msg_synthMessage00000009")).toBe(false);
+    await dedup.processOnce("worker.action.committed", "msg_synthMessage00000009", async () => null);
+    expect(await dedup.isProcessed(TENANT_ID, "worker.action.committed", "msg_synthMessage00000009")).toBe(true);
+    expect(await dedup.isProcessed(TENANT_ID, "worker.notification.send", "msg_synthMessage00000009")).toBe(false);
+    // Another tenant's context never sees the dedupe row.
+    expect(await dedup.isProcessed(OTHER_TENANT_ID, "worker.action.committed", "msg_synthMessage00000009")).toBe(false);
+    await expect(dedup.isProcessed("not a tenant", "worker.action.committed", "msg_synthMessage00000009")).rejects.toThrow("CONSUMER_TENANT_INVALID");
+    await expect(dedup.isProcessed(TENANT_ID, "Bad Consumer", "msg_synthMessage00000009")).rejects.toThrow("CONSUMER_NAME_INVALID");
   });
 
   it("[SPEC-8.3] consumers require a tenant context and validate names", async () => {

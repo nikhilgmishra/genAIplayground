@@ -13,7 +13,8 @@
  *   requests. Their `summary` / `nextStep` carry CANARY strings so tests can
  *   prove the console never returns them.
  */
-import type { HandoffResult, HandoffService, SupportRequestService, SupportRequestTrace } from "../../business/contract.js";
+import type { HandoffResult, HandoffService, SupportRequestService, SupportRequestTrace, SupportRequestTraceOptions } from "../../business/contract.js";
+import { AccessDeniedError } from "../../shared/errors.js";
 import type { DestinationConfig } from "../../config/ports.js";
 import { CALLS, PEOPLE, TENANT_ID } from "../../fixtures/synthetic-world.js";
 import type { SupportRequest, TransferReason } from "../../protocol/index.js";
@@ -42,7 +43,7 @@ const PURPOSE_BY_REASON: Readonly<Record<TransferReason, DestinationConfig["purp
 export class HandoffServiceFixture implements HandoffService {
   readonly kind = "local_fixture" as const;
   readonly label = BUSINESS_STUB_LABEL;
-  readonly requests: { callId: string; reason: TransferReason; authenticated: boolean }[] = [];
+  readonly requests: { callId: string; reason: TransferReason; authenticated: boolean; destinationId: string | null; initiatedBy: string | null }[] = [];
 
   constructor(
     private readonly coordinator: TransferCoordinator,
@@ -51,9 +52,15 @@ export class HandoffServiceFixture implements HandoffService {
   ) {}
 
   async requestHuman(input: Parameters<HandoffService["requestHuman"]>[0]): Promise<HandoffResult> {
-    this.requests.push({ callId: input.callId, reason: input.reason, authenticated: input.ctx !== null });
+    this.requests.push({ callId: input.callId, reason: input.reason, authenticated: input.ctx !== null, destinationId: input.destinationId ?? null, initiatedBy: input.initiatedBy?.staffId ?? null });
     const purpose = PURPOSE_BY_REASON[input.reason];
-    const destination = this.destinations.find((d) => d.purpose === purpose) ?? this.destinations.find((d) => d.purpose === "STANDARD_SUPPORT");
+    // Mirrors the port: a staff-selected destination must be allowlisted (SAFE-05).
+    const requested = input.destinationId ?? null;
+    if (requested !== null && !this.destinations.some((d) => d.destinationId === requested)) throw new AccessDeniedError("DESTINATION_NOT_ALLOWLISTED");
+    const destination =
+      (requested !== null ? this.destinations.find((d) => d.destinationId === requested) : undefined) ??
+      this.destinations.find((d) => d.purpose === purpose) ??
+      this.destinations.find((d) => d.purpose === "STANDARD_SUPPORT");
     if (!destination) return { handoffId: newId("hnd"), transferId: null, destinationId: "dst_unconfigured", journey: null, speechTemplateId: "transfer.failed_next_route" };
     const handoffId = newId("hnd");
     const journey = await this.coordinator.requestTransfer({
@@ -102,10 +109,26 @@ const VERSIONS = {
 export class SupportRequestServiceFixture implements SupportRequestService {
   readonly kind = "local_fixture" as const;
   readonly label = BUSINESS_STUB_LABEL;
-  private readonly byRef = new Map<string, { sr: SupportRequest; actionIds: string[]; workflowIds: string[]; auditEventIds: string[]; attempts: number; lastAttemptAt: string | null }>();
+  private readonly byRef = new Map<
+    string,
+    { sr: SupportRequest; actionIds: string[]; workflowIds: string[]; auditEventIds: string[]; attempts: number; lastAttemptAt: string | null; lastReasonCode: string | null; outboxMessageIds: string[] }
+  >();
+  /** Every trace read with its view, so tests can prove when the restricted-reader flag was set. */
+  readonly traceReads: { referenceNumber: string; reader: "worker" | "console"; restrictedReader: boolean }[] = [];
 
   /** Adds a SYNTHETIC support request with canary free-text fields. */
-  seed(input: { referenceNumber: string; restricted?: boolean; callId?: string; actionIds?: string[]; workflowIds?: string[]; auditEventIds?: string[]; now: Date; syncState?: SupportRequest["syncState"] }): SupportRequest {
+  seed(input: {
+    referenceNumber: string;
+    restricted?: boolean;
+    callId?: string;
+    actionIds?: string[];
+    workflowIds?: string[];
+    auditEventIds?: string[];
+    now: Date;
+    syncState?: SupportRequest["syncState"];
+    lastReasonCode?: string | null;
+    outboxMessageIds?: string[];
+  }): SupportRequest {
     const sr: SupportRequest = {
       supportRequestId: newId("srq"),
       referenceNumber: input.referenceNumber,
@@ -134,7 +157,16 @@ export class SupportRequestServiceFixture implements SupportRequestService {
       createdAt: iso(input.now),
       updatedAt: iso(input.now),
     };
-    this.byRef.set(sr.referenceNumber, { sr, actionIds: input.actionIds ?? [], workflowIds: input.workflowIds ?? [], auditEventIds: input.auditEventIds ?? [], attempts: 0, lastAttemptAt: null });
+    this.byRef.set(sr.referenceNumber, {
+      sr,
+      actionIds: input.actionIds ?? [],
+      workflowIds: input.workflowIds ?? [],
+      auditEventIds: input.auditEventIds ?? [],
+      attempts: 0,
+      lastAttemptAt: null,
+      lastReasonCode: input.lastReasonCode ?? null,
+      outboxMessageIds: input.outboxMessageIds ?? [],
+    });
     return sr;
   }
 
@@ -156,16 +188,33 @@ export class SupportRequestServiceFixture implements SupportRequestService {
     return v && v.sr.tenantId === tenantId ? structuredClone(v.sr) : null;
   }
 
-  async trace(tenantId: string, referenceNumber: string): Promise<SupportRequestTrace | null> {
+  /** Emulates the database views: the console view hides restricted rows unless the restricted-reader flag is set (RLS). */
+  async trace(tenantId: string, referenceNumber: string, options: SupportRequestTraceOptions = {}): Promise<SupportRequestTrace | null> {
+    const consoleView = options.reader?.kind === "console";
+    const restrictedReader = consoleView && options.reader?.restrictedReader === true;
+    this.traceReads.push({ referenceNumber, reader: consoleView ? "console" : "worker", restrictedReader });
     const v = this.byRef.get(referenceNumber);
     if (!v || v.sr.tenantId !== tenantId) return null;
+    if (consoleView && v.sr.restricted && !restrictedReader) return null;
     return {
       supportRequest: structuredClone(v.sr),
-      salesforce: { caseId: v.sr.salesforceCaseId, syncState: v.sr.syncState, lastAttemptAt: v.lastAttemptAt, attempts: v.attempts },
+      salesforce: {
+        caseId: v.sr.salesforceCaseId,
+        syncState: v.sr.syncState,
+        lastAttemptAt: v.lastAttemptAt,
+        attempts: v.attempts,
+        lastReasonCode: v.lastReasonCode,
+        syncedAt: v.sr.syncState === "SYNCED" ? v.lastAttemptAt : null,
+      },
       actionIds: [...v.actionIds],
       workflowIds: [...v.workflowIds],
       auditEventIds: [...v.auditEventIds],
+      outboxMessageIds: [...v.outboxMessageIds],
     };
+  }
+
+  async listForCall(tenantId: string, callId: string): Promise<SupportRequest[]> {
+    return [...this.byRef.values()].filter((v) => v.sr.tenantId === tenantId && v.sr.sourceCallIds.includes(callId)).map((v) => structuredClone(v.sr));
   }
 
   async listUnsynced(tenantId: string, limit: number): Promise<SupportRequest[]> {

@@ -8,10 +8,23 @@ export {
   SECRET_REF_PATTERN,
   ConfigInvalidError,
   parsePlatformConfig,
+  GatewayConfigSchema,
+  GatewayInboundAuthSchema,
+  gatewayConfigOf,
 } from "./schema.js";
-export type { ParsedPlatformConfig } from "./schema.js";
-export { loadPlatformConfig, applyEnvOverrides, allowedOverrideNames, ConfigOverrideRejectedError, CONFIG_DIR, REPO_ROOT, ENV_OVERRIDE_PREFIX } from "./loader.js";
-export type { LoadConfigOptions, LoadedConfig } from "./loader.js";
+export type { ParsedPlatformConfig, ParsedGatewayConfig } from "./schema.js";
+export {
+  loadPlatformConfig,
+  applyEnvOverrides,
+  allowedOverrideNames,
+  ConfigOverrideRejectedError,
+  CONFIG_DIR,
+  REPO_ROOT,
+  ENV_OVERRIDE_PREFIX,
+  loadInfrastructureEnv,
+  InfrastructureEnvRejectedError,
+} from "./loader.js";
+export type { LoadConfigOptions, LoadedConfig, InfrastructureEnv } from "./loader.js";
 export {
   approvalSigningPayload,
   verifyApprovalSignature,

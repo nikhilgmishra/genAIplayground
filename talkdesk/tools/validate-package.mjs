@@ -17,7 +17,9 @@ import {
   REQUIRED_TOOLS,
   TALKDESK_DIR,
   codePointLength,
+  loadGatewayOpenApi,
   loadSyntheticDestinations,
+  loadToolCatalog,
   loadYaml,
   readText,
   sha256Hex,
@@ -101,6 +103,64 @@ function allToolEntries(cfg) {
     ...(cfg.agents ?? []).flatMap((a) => a.allowedTools ?? []),
     ...(cfg.deterministicSkills ?? []).flatMap((s) => s.allowedTools ?? []),
   ];
+}
+
+/**
+ * Every pinned catalogue tool is configured at its pinned version and assigned to exactly ONE
+ * agent or deterministic skill; the always-available tools go to every agent (alwaysAvailableTools)
+ * and are listed nowhere else. Returns violation messages (empty = consistent).
+ */
+export function catalogAssignmentViolations(agentCfg, catalog) {
+  const out = [];
+  const pinned = new Map(catalog.map((t) => [t.name, t.version]));
+  const configured = new Map(allToolEntries(agentCfg).map((t) => [t.name, String(t.version)]));
+  for (const n of pinned.keys()) if (!configured.has(n)) out.push(`catalogue tool without an agent: ${n}`);
+  for (const n of configured.keys()) if (!pinned.has(n)) out.push(`configured tool not in schemas/tools/catalog.json: ${n}`);
+  for (const [n, v] of configured) if (pinned.has(n) && pinned.get(n) !== v) out.push(`${n} configured at ${v}, catalogue pins ${pinned.get(n)}`);
+  const owners = new Map();
+  const own = (id, list) => {
+    for (const t of list ?? []) owners.set(t.name, [...(owners.get(t.name) ?? []), id]);
+  };
+  own(agentCfg.coordinator.id, agentCfg.coordinator.allowedTools);
+  for (const a of agentCfg.agents ?? []) own(a.id, a.allowedTools);
+  for (const sk of agentCfg.deterministicSkills ?? []) own(sk.id, sk.allowedTools);
+  for (const name of pinned.keys()) {
+    const ids = owners.get(name) ?? [];
+    if (ALWAYS_AVAILABLE_TOOLS.includes(name)) {
+      if (ids.length !== 0) out.push(`${name} is always available; do not also list it under ${ids.join(", ")}`);
+    } else if (ids.length !== 1) out.push(`${name} must be assigned to exactly one agent or skill (found: ${ids.join(", ") || "none"})`);
+  }
+  return out;
+}
+
+/**
+ * Studio HTTP steps equal what the gateway publishes (x-talkdesk-ref operations): method,
+ * path, operation id and whether the X-VSP-Session-Ref header is declared; every published
+ * Talkdesk operation is listed. Returns violation messages (empty = consistent).
+ */
+export function publishedStepViolations(httpSteps, openapi) {
+  const out = [];
+  const published = new Map();
+  for (const [p, ops] of Object.entries(openapi?.paths ?? {})) {
+    for (const [m, op] of Object.entries(ops)) {
+      if (op && typeof op === "object" && typeof op["x-talkdesk-ref"] === "string") published.set(op["x-talkdesk-ref"], { method: m.toUpperCase(), path: p, op });
+    }
+  }
+  const listed = new Set();
+  for (const s of httpSteps ?? []) {
+    listed.add(s.ref);
+    const pub = published.get(s.ref);
+    if (!pub) {
+      out.push(`${s.ref} is not published by the gateway OpenAPI`);
+      continue;
+    }
+    if (pub.method !== s.method || pub.path !== s.path) out.push(`${s.ref} ${s.method} ${s.path} differs from published ${pub.method} ${pub.path}`);
+    if (pub.op.operationId !== s.operationId) out.push(`${s.ref} operationId ${s.operationId} differs from published ${pub.op.operationId}`);
+    const headers = (pub.op.parameters ?? []).filter((x) => x.in === "header").map((x) => x.name);
+    if ((s.sessionRefHeader === "X-VSP-Session-Ref") !== headers.includes("X-VSP-Session-Ref")) out.push(`${s.ref} sessionRefHeader differs from the published headers`);
+  }
+  for (const ref of published.keys()) if (!listed.has(ref)) out.push(`published ${ref} missing from expected-config httpSteps`);
+  return out;
 }
 
 /** Ids defined as the first cell of a markdown table row, e.g. "| VQ-TD-01 | ...". */
@@ -206,6 +266,13 @@ export function runChecks() {
       versions.set(t.name, t.version);
     }
     return `${names.size} tools`;
+  });
+
+  check("tools.catalogAssignment", () => {
+    const catalog = loadToolCatalog();
+    const bad = catalogAssignmentViolations(agentCfg, catalog);
+    assert(bad.length === 0, bad.join("; "));
+    return `${catalog.length} catalogue tools, each assigned once`;
   });
 
   check("tools.alwaysAvailable", () => {
@@ -332,8 +399,29 @@ export function runChecks() {
       assert(row, `studio-flow-spec.md section 3 lacks ${s.ref}`);
       assert(row.includes(`\`${s.operationId}\``), `${s.ref} operation id differs`);
       assert(row.includes(`\`${s.method} ${s.path}\``), `${s.ref} method/path differs from the spec table`);
-      assert(s.integrationId === "talkdesk-studio-sandbox", `${s.ref} must use the telephony_control identity`);
+      assert(!/[{]sessionRef[}]/.test(s.path), `${s.ref} must not carry the session reference in its URL`);
     }
+  });
+
+  check("identity.oneIntegrationPerTenant", () => {
+    // The session service resolves a session only for the integration that started it, so the
+    // MCP and telephony-control credentials of one Talkdesk tenant share one integrationId.
+    const id = tc.mcpConnection.integrationId;
+    assert(typeof id === "string" && /^[a-z0-9-]{3,64}$/.test(id), "mcpConnection.integrationId must be an integration id");
+    assert(tc.mcpConnection.channel === "mcp_tools", "mcpConnection.channel must be mcp_tools");
+    for (const s of tc.studio.httpSteps) {
+      assert(s.integrationId === id, `${s.ref} integrationId ${s.integrationId} differs from the MCP integration ${id}`);
+      const channel = s.ref === "TC-09" ? "webhook" : "telephony_control";
+      assert(s.channel === channel, `${s.ref} must use the ${channel} channel`);
+    }
+    return id;
+  });
+
+  check("studio.httpStepsPublished", () => {
+    const doc = loadGatewayOpenApi();
+    const bad = publishedStepViolations(tc.studio.httpSteps, doc);
+    assert(bad.length === 0, bad.join("; "));
+    return `${tc.studio.httpSteps.length} steps equal the published Talkdesk operations`;
   });
 
   // ---- cross references -------------------------------------------------------

@@ -20,14 +20,20 @@
  *    (required role, MFA, unexpired break-glass) is re-validated at completion.
  *    HUMAN_APPROVED / HUMAN_REJECTED can only be produced by completeHumanTask,
  *    so a model or caller cannot complete a task by inventing an approval.
- *  - Guarded (disclosure / material change) transitions run the recheck hook;
- *    a deny records POLICY_CHANGED_PENDING_ACTION and blocks the change.
+ *  - Every event is accepted only from the actor kinds the pinned definition
+ *    declares for it (eventActors); anything else is refused with
+ *    ACTOR_NOT_PERMITTED, audited, and leaves the instance unchanged.
+ *  - Guarded (disclosure / material change) transitions require the instance's
+ *    durable action grant to be valid for the transition's declared action
+ *    (grantActions; when a DurableGrantStore is wired) and then run the recheck
+ *    hook; a deny records POLICY_CHANGED_PENDING_ACTION and blocks the change.
  */
 import { z } from "zod";
 import type { AuditWriter } from "../audit/ports.js";
 import type { Db, Queryable } from "../db/types.js";
 import { silentLogger } from "../observability/logger.js";
-import type { Logger } from "../observability/ports.js";
+import { noopMetrics } from "../observability/metrics.js";
+import type { Logger, Metrics } from "../observability/ports.js";
 import {
   OpaqueId,
   StaffActor,
@@ -49,6 +55,7 @@ import { addMs, iso, type Clock } from "../shared/clock.js";
 import { AccessDeniedError, ConflictError, DependencyError, PlatformError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
 import { durationSeconds } from "./duration.js";
+import type { DurableGrantStore } from "./grants.js";
 import type { HumanTask, WorkflowEngine, WorkflowInstance, WorkflowStateDefinition } from "./ports.js";
 import { RecheckResultSchema, unconfiguredRecheck, type PreDisclosureRecheck, type RecheckResult } from "./recheck.js";
 import type { WorkflowDefinitionRegistry } from "./registry.js";
@@ -132,6 +139,17 @@ export interface TickReport {
   failures: { tenantId: string; workflowId: string; reasonCode: string }[];
 }
 
+/**
+ * The actor kind is not declared as permitted for this event by the instance's
+ * pinned definition (VersionedWorkflowDefinition.eventActors). Nothing changes;
+ * the denial is audited.
+ */
+export class WorkflowActorNotPermittedError extends AccessDeniedError {
+  constructor() {
+    super("ACTOR_NOT_PERMITTED");
+  }
+}
+
 /** Thrown after a denied recheck has been durably recorded as POLICY_CHANGED_PENDING_ACTION. */
 export class WorkflowRecheckDeniedError extends AccessDeniedError {
   constructor(
@@ -148,7 +166,17 @@ export interface PgWorkflowEngineOptions {
   audit: AuditWriter;
   clock: Clock;
   recheck?: PreDisclosureRecheck;
+  /**
+   * Durable action grants (spec section 7). When wired, every guarded transition of an
+   * instance with a grantRef requires check(...).valid for the transition's declared action
+   * (VersionedWorkflowDefinition.grantActions); an invalid, expired or revoked grant takes the
+   * recheck-denied path (POLICY_CHANGED_PENDING_ACTION). When absent, grantRef is only passed
+   * to the recheck hook (previous behaviour) and the gap is reported (GRANT_STORE_UNCONFIGURED).
+   */
+  grantStore?: DurableGrantStore;
   logger?: Logger;
+  /** Content-free metrics (vsp_grant_checks_total). */
+  metrics?: Metrics;
   /**
    * Lifetime of an issued task token (bounded by the task's own expiry).
    * Engineering default 900 s pending security approval of the final value.
@@ -305,6 +333,18 @@ function auditOutcomeFor(state: WorkflowStateName): AuditOutcome {
   return "PENDING";
 }
 
+const GrantCheckResultSchema = z.strictObject({ valid: z.boolean(), reasonCode: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/) });
+
+/** vsp_grant_checks_total result label per grant-store reason code (closed set; anything else is "other"). */
+const GRANT_RESULT_LABEL: Readonly<Record<string, string>> = Object.freeze({
+  GRANT_VALID: "valid",
+  GRANT_INPUT_INVALID: "invalid_input",
+  GRANT_NOT_FOUND: "not_found",
+  GRANT_EXPIRED: "expired",
+  GRANT_REVOKED: "revoked",
+  GRANT_ACTION_NOT_PERMITTED: "action_not_permitted",
+});
+
 interface TransitionSpec {
   trigger: string;
   toState: WorkflowStateName;
@@ -332,7 +372,9 @@ export class PgWorkflowEngine implements WorkflowEngine {
   private readonly audit: AuditWriter;
   private readonly clock: Clock;
   private readonly recheckHook: PreDisclosureRecheck;
+  private readonly grantStore: DurableGrantStore | null;
   private readonly logger: Logger;
+  private readonly metrics: Metrics;
   private readonly taskTokenTtlMs: number;
   private readonly tickBatchSize: number;
 
@@ -343,7 +385,9 @@ export class PgWorkflowEngine implements WorkflowEngine {
     this.audit = opts.audit;
     this.clock = opts.clock;
     this.recheckHook = opts.recheck ?? unconfiguredRecheck;
+    this.grantStore = opts.grantStore ?? null;
     this.logger = (opts.logger ?? silentLogger).child({ component: "workflow_engine" });
+    this.metrics = opts.metrics ?? noopMetrics;
     const ttl = opts.taskTokenTtlSeconds ?? 900;
     if (!Number.isInteger(ttl) || ttl < 30 || ttl > 86_400) throw new ValidationError("TASK_TOKEN_TTL_INVALID");
     this.taskTokenTtlMs = ttl * 1000;
@@ -441,52 +485,67 @@ export class PgWorkflowEngine implements WorkflowEngine {
       throw new AccessDeniedError("EVENT_RESERVED_FOR_ENGINE");
     }
     const now = this.clock.now();
-    const result = await this.db.tx<SignalResult>(
-      async (tx) => {
-        const row = await this.lockInstance(tx, input.workflowId);
-        if (!row) throw new AccessDeniedError("WORKFLOW_NOT_FOUND");
-        const dedupeKey = input.dedupeKey ?? (input.expectedVersion !== undefined ? `v${input.expectedVersion}:${input.event}` : null);
-        if (dedupeKey !== null) {
-          const dup = await tx.query("select 1 from workflow_events where workflow_id = $1 and dedupe_key = $2", [row.workflow_id, dedupeKey]);
-          if (dup.rows.length > 0) return { kind: "duplicate", instance: toInstance(row) };
-        }
-        if (input.expectedVersion !== undefined && input.expectedVersion !== row.row_version) {
-          throw new ConflictError("WORKFLOW_VERSION_CONFLICT");
-        }
-        if (TERMINAL_STATES.has(row.state)) throw new ValidationError("WORKFLOW_TERMINAL");
-        const def = this.definitionFor(row);
-        const sdef = this.stateDef(def, row.state);
-
-        if (input.event === RETRYABLE_FAILURE) {
-          return { kind: "applied", instance: await this.applyRetry(tx, row, def, sdef, input.actor, dedupeKey, now) };
-        }
-
-        const target = sdef.transitions[input.event];
-        if (target === undefined) throw new ValidationError("TRANSITION_NOT_ALLOWED");
-        const isEscalation = sdef.escalation !== null && input.event === sdef.escalation.event;
-
-        const guard = def.transitionGuards[row.state]?.[input.event];
-        if (guard) {
-          const decision = await this.runRecheck(tx, row, def, guard, input.event, target, input.actor, now);
-          if (!decision.allow) {
-            const denied = await this.recordPolicyChange(tx, row, def, sdef, input.actor, decision.reasonCode, now);
-            return { kind: "recheck_denied", instance: denied, reasonCode: decision.reasonCode };
+    let result: SignalResult;
+    try {
+      result = await this.db.tx<SignalResult>(
+        async (tx) => {
+          const row = await this.lockInstance(tx, input.workflowId);
+          if (!row) throw new AccessDeniedError("WORKFLOW_NOT_FOUND");
+          const def = this.definitionFor(row);
+          // Actor permission first (before dedupe, version or state checks reveal anything): the pinned
+          // definition declares which actor kinds may send each event. Undeclared events cannot be sent at all.
+          const permitted = def.eventActors[input.event];
+          if (permitted === undefined) throw new ValidationError("TRANSITION_NOT_ALLOWED");
+          if (!permitted.includes(input.actor.kind)) throw new WorkflowActorNotPermittedError();
+          const dedupeKey = input.dedupeKey ?? (input.expectedVersion !== undefined ? `v${input.expectedVersion}:${input.event}` : null);
+          if (dedupeKey !== null) {
+            const dup = await tx.query("select 1 from workflow_events where workflow_id = $1 and dedupe_key = $2", [row.workflow_id, dedupeKey]);
+            if (dup.rows.length > 0) return { kind: "duplicate", instance: toInstance(row) };
           }
-        }
+          if (input.expectedVersion !== undefined && input.expectedVersion !== row.row_version) {
+            throw new ConflictError("WORKFLOW_VERSION_CONFLICT");
+          }
+          if (TERMINAL_STATES.has(row.state)) throw new ValidationError("WORKFLOW_TERMINAL");
+          const sdef = this.stateDef(def, row.state);
 
-        const { instance: applied } = await this.applyTransition(tx, row, def, {
-          trigger: input.event,
-          toState: target,
-          actor: input.actor,
-          reasonCode: isEscalation ? "MANUAL_ESCALATION" : null,
-          dedupeKey,
-          now,
-          escalation: isEscalation && sdef.escalation ? { ownerQueue: sdef.escalation.ownerQueue } : undefined,
-        });
-        return { kind: "applied", instance: applied };
-      },
-      { role: "app_runtime", rls: { tenantId: input.tenantId } },
-    );
+          if (input.event === RETRYABLE_FAILURE) {
+            return { kind: "applied", instance: await this.applyRetry(tx, row, def, sdef, input.actor, dedupeKey, now) };
+          }
+
+          const target = sdef.transitions[input.event];
+          if (target === undefined) throw new ValidationError("TRANSITION_NOT_ALLOWED");
+          const isEscalation = sdef.escalation !== null && input.event === sdef.escalation.event;
+
+          const guard = def.transitionGuards[row.state]?.[input.event];
+          if (guard) {
+            const decision = await this.runRecheck(tx, row, def, guard, input.event, target, input.actor, now);
+            if (!decision.allow) {
+              const denied = await this.recordPolicyChange(tx, row, def, sdef, input.actor, decision.reasonCode, now);
+              return { kind: "recheck_denied", instance: denied, reasonCode: decision.reasonCode };
+            }
+          }
+
+          const { instance: applied } = await this.applyTransition(tx, row, def, {
+            trigger: input.event,
+            toState: target,
+            actor: input.actor,
+            reasonCode: isEscalation ? "MANUAL_ESCALATION" : null,
+            dedupeKey,
+            now,
+            escalation: isEscalation && sdef.escalation ? { ownerQueue: sdef.escalation.ownerQueue } : undefined,
+          });
+          return { kind: "applied", instance: applied };
+        },
+        { role: "app_runtime", rls: { tenantId: input.tenantId } },
+      );
+    } catch (err) {
+      if (err instanceof WorkflowActorNotPermittedError) {
+        // Security evidence; the transaction rolled back, so the instance is unchanged.
+        await this.auditDenial(input.tenantId, input.workflowId, "workflow.signal.denied", err.reasonCode, input.actor.ref, null);
+        this.logger.warn("workflow.signal.denied", { workflowId: input.workflowId, eventCode: input.event, kind: input.actor.kind, reasonCode: err.reasonCode });
+      }
+      throw err;
+    }
     if (result.kind === "recheck_denied") throw new WorkflowRecheckDeniedError(result.reasonCode, result.instance);
     return result.instance;
   }
@@ -575,6 +634,8 @@ export class PgWorkflowEngine implements WorkflowEngine {
           if (!sdef.humanTask || sdef.humanTask.taskType !== task.task_type) throw new AccessDeniedError("TASK_STALE");
 
           const event = input.decision === "APPROVE" ? HUMAN_APPROVED : HUMAN_REJECTED;
+          // Defence in depth: the pinned definition must declare the decision as a staff event.
+          if (!(def.eventActors[event] ?? []).includes("staff")) throw new WorkflowActorNotPermittedError();
           const target = sdef.transitions[event];
           if (target === undefined) throw new ValidationError("TRANSITION_NOT_ALLOWED");
 
@@ -1026,7 +1087,37 @@ export class PgWorkflowEngine implements WorkflowEngine {
     now: Date,
   ): Promise<RecheckResult> {
     // Later disclosure or material change after the call requires the narrowly scoped durable grant.
-    if (row.grant_ref === null) return { allow: false, reasonCode: "DURABLE_GRANT_MISSING" };
+    if (row.grant_ref === null) {
+      this.metrics.increment("vsp_grant_checks_total", { result: "absent", guard });
+      this.logger.warn("workflow.grant.absent", { workflowId: row.workflow_id, eventCode: event, reasonCode: "GRANT_ABSENT" });
+      return { allow: false, reasonCode: "DURABLE_GRANT_MISSING" };
+    }
+    const grantAction = def.grantActions[row.state]?.[event];
+    if (grantAction === undefined) throw new ValidationError("GRANT_ACTION_UNDECLARED"); // the validator prevents this; fail closed
+    if (this.grantStore) {
+      const grant = await this.checkGrant(tx, row, grantAction, now);
+      this.metrics.increment("vsp_grant_checks_total", { result: GRANT_RESULT_LABEL[grant.reasonCode] ?? "other", guard });
+      if (!grant.valid) {
+        await this.appendAudit(tx, {
+          row,
+          action: "workflow.grant.denied",
+          outcome: "DENIED",
+          reasonCode: grant.reasonCode,
+          actorRef: actor.ref,
+          role: null,
+          now,
+          evidence: [`workflow:${row.workflow_id}`, `grant:${row.grant_ref}`],
+          beforeHash: null,
+          afterHash: null,
+          idempotencyKey: null,
+        });
+        this.logger.warn("workflow.grant.denied", { workflowId: row.workflow_id, eventCode: event, reasonCode: grant.reasonCode });
+        return { allow: false, reasonCode: grant.reasonCode };
+      }
+    } else {
+      this.metrics.increment("vsp_grant_checks_total", { result: "store_unconfigured", guard });
+      this.logger.warn("workflow.grant.unverified", { workflowId: row.workflow_id, eventCode: event, reasonCode: "GRANT_STORE_UNCONFIGURED" });
+    }
     let raw: unknown;
     try {
       raw = await this.recheckHook.recheck({
@@ -1039,6 +1130,7 @@ export class PgWorkflowEngine implements WorkflowEngine {
         event,
         guard,
         grantRef: row.grant_ref,
+        grantAction,
         sourceRecordRefs: [...row.source_record_refs],
         policySnapshotVersion: row.policy_snapshot_version,
         actor,
@@ -1078,6 +1170,24 @@ export class PgWorkflowEngine implements WorkflowEngine {
           : null,
     });
     return decision;
+  }
+
+  /** Grant check inside the transition's transaction; an unreadable store or malformed answer fails closed (no transition). */
+  private async checkGrant(tx: Queryable, row: InstanceRow, action: string, now: Date): Promise<{ valid: boolean; reasonCode: string }> {
+    const store = this.grantStore;
+    if (!store || row.grant_ref === null) throw new ValidationError("GRANT_STORE_UNCONFIGURED");
+    let raw: unknown;
+    try {
+      raw = await store.check(row.tenant_id, row.grant_ref, action, now, tx);
+    } catch (err) {
+      if (err instanceof PlatformError) throw err;
+      throw new DependencyError("GRANT_STORE_UNAVAILABLE", "NOT_STARTED");
+    }
+    const parsed = GrantCheckResultSchema.safeParse(raw);
+    if (!parsed.success) throw new DependencyError("GRANT_CHECK_RESULT_INVALID", "NOT_STARTED");
+    // Only an explicit GRANT_VALID is valid; anything else is a denial even if `valid` were true.
+    if (parsed.data.valid && parsed.data.reasonCode !== "GRANT_VALID") return { valid: false, reasonCode: "GRANT_CHECK_RESULT_INCONSISTENT" };
+    return parsed.data;
   }
 
   private async recordPolicyChange(

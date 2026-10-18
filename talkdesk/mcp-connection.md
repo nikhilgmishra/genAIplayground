@@ -46,9 +46,8 @@ resolve `AuthContext`.
   `X-VSP-Session-Ref` header, and the LOCAL FIXTURE transfer-event route as
   `POST /v1/webhooks/transfer-events` (TC-09, refused outside local/ci until the Talkdesk
   event authentication is documented). `studio-flow-spec.md` section 3 and
-  `expected-config.yaml` `httpSteps` still list the earlier proposed
-  `/telephony/v1/calls/{sessionRef}/...` form; they are updated together by the package
-  owner (the package validator ties them to each other).
+  `expected-config.yaml` `httpSteps` list exactly these published paths; the package
+  validator ties them to each other and to `schemas/openapi/gateway.openapi.json`.
 
 ## 3. Service identities (separate per environment and per integration)
 
@@ -59,13 +58,21 @@ credential to `IntegrationIdentity` (`platform/src/protocol/auth.ts`).
 
 | integrationId | channel | Direction | Auth method | Credential custody | Secret name (owner creates, only if custody copy needed) | Owner |
 |---|---|---|---|---|---|---|
-| `talkdesk-mcp-sandbox` | `mcp_tools` | inbound: AI Agent Platform → gateway `/mcp` | `oauth2_client_credentials` (preferred) | client secret issued by the authorization server and entered in the Talkdesk MCP connection; the gateway validates access tokens against the issuer JWKS and holds **no** secret | `vsp-sandbox-talkdesk-mcp-client` | identity owner + Talkdesk admin |
-| `talkdesk-studio-sandbox` | `telephony_control` | inbound: Studio HTTP steps → gateway telephony-control operations | `oauth2_client_credentials` if Studio HTTP steps support it (VQ-TD-22); else static exception AR-08 | as above; for a static exception the gateway stores only a hash | `vsp-sandbox-talkdesk-studio-client`, or `vsp-sandbox-talkdesk-studio-bearer-hash` under AR-08 | identity owner + Talkdesk admin |
+| `talkdesk-sandbox` (credential `talkdesk-sandbox-mcp`) | `mcp_tools` | inbound: AI Agent Platform → gateway `/mcp` | `oauth2_client_credentials` (preferred) | client secret issued by the authorization server and entered in the Talkdesk MCP connection; the gateway validates access tokens against the issuer JWKS and holds **no** secret | `vsp-sandbox-talkdesk-mcp-client` | identity owner + Talkdesk admin |
+| `talkdesk-sandbox` (credential `talkdesk-sandbox-studio`) | `telephony_control` | inbound: Studio HTTP steps → gateway telephony-control operations | `oauth2_client_credentials` if Studio HTTP steps support it (VQ-TD-22); else static exception AR-08 | as above; for a static exception the gateway stores only a hash | `vsp-sandbox-talkdesk-studio-client`, or `vsp-sandbox-talkdesk-studio-bearer-hash` under AR-08 | identity owner + Talkdesk admin |
 | `talkdesk-telephony` (adapter id in `platform/config/sandbox.json`) | — | outbound: gateway → Talkdesk API | only if Talkdesk documents an API for the needed operation (interaction lookup, transfer; VQ-TD-23, VQ-TD-33) | Secrets Manager | `vsp-sandbox-talkdesk-telephony` | BLOCKED until a documented API exists; Studio-side routing is the default |
 | `talkdesk-mcp-staging`, `talkdesk-mcp-production` | `mcp_tools` | inbound | as above | separate clients per environment | separate names | not requested in Phase 2 |
 
 Rules:
 
+* **One `integrationId` per Talkdesk tenant.** The session service binds a call session to
+  the integration that started it (TC-01, `telephony_control`) and resolves it only for the
+  same `integrationId` with a channel in {`mcp_tools`, `telephony_control`, `portal`}
+  (platform/src/identity). The two Talkdesk credentials therefore share `talkdesk-sandbox`
+  and differ only by channel and credential id; in `gateway.inboundAuth.clients` (config
+  schema) each OAuth2 client maps to `integrationId: talkdesk-sandbox` with its own
+  `credentialId` and exactly one channel. Two different integration ids would make every
+  MCP tool call fail to resolve the session Studio started.
 * A `telephony_control` credential presented on `/mcp` is rejected; an `mcp_tools`
   credential presented on telephony-control operations is rejected.
 * A sandbox credential is rejected by staging and production gateways (environment
@@ -215,7 +222,7 @@ must not depend on violating. Reason codes are defined by the gateway module.
 
 1. Confirm AR-01 and AR-02 approvals exist; confirm the sandbox gateway health check
    passes and the catalogue digest matches the release manifest.
-2. Identity owner issues the `talkdesk-mcp-sandbox` OAuth2 client (custody copy, if
+2. Identity owner issues the `talkdesk-sandbox` MCP OAuth2 client (custody copy, if
    required, under the secret name above) and hands the client secret to the Talkdesk
    admin through the approved secret-sharing mechanism (never chat, email or tickets).
 3. Talkdesk admin creates the MCP connection in the AI Agent Platform (UI path to be

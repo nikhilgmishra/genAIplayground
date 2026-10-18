@@ -3,8 +3,8 @@
 Status: **IMPLEMENTED_OFFLINE**. Everything here runs and is tested over PGlite, the OPA
 WASM policy bundle, the identity services and LOCAL FIXTURE adapters with SYNTHETIC data.
 Nothing has been connected to Talkdesk, a real IdP, a vendor sandbox or production, and
-nothing here claims HIPAA compliance or production readiness. `tools/` is owned by the
-business module (tool definitions and execution); this module owns everything around it.
+nothing here claims HIPAA compliance or production readiness. `tools/` holds the business
+tool modules (definitions and execution); the pipeline owns everything around them.
 
 ## Files
 
@@ -34,7 +34,11 @@ business module (tool definitions and execution); this module owns everything ar
 (b) catalogue lookup by exact name + pinned version (MCP: name only, single pinned version) →
 (c) arguments: byte bound, no server-established identity fields anywhere, strict schema →
 (d) session from the trusted binding only; failure denies protected tools, while
-`SAFETY_AND_HUMAN_ROUTE` tools continue without a session (`executeWithoutSession`, SAFE-02) →
+`SAFETY_AND_HUMAN_ROUTE` tools continue without a session (`executeWithoutSession`, SAFE-02:
+`request_human_transfer` and `request_safety_route` call the HandoffService with `ctx: null`
+and the call id from the trusted transport binding; without a trusted call id they answer
+`PERMANENT_FAILURE CALL_UNIDENTIFIED_USE_STUDIO_ROUTE`; no speech without a session; the
+`tool.invoke` audit event carries the session reason code and the transport call id) →
 (e) regional write fence (`VSP_MUTATIONS_ENABLED`) →
 (f) kill-switch snapshot (unreadable fails closed) →
 (g) admission (budgets, capacity, load shedding; safety/human always admitted) →
@@ -58,6 +62,28 @@ npx tsx src/gateway/generate-openapi.ts [--check]   # schemas/openapi/gateway.op
 
 (`platform/package.json` is not owned by this module; script aliases are an interface
 change request.)
+
+## Tests of note
+
+* `../main/sessionless-routing.test.ts` — SAFE-02 end to end over the LOCAL container with
+  the real business module: no, an expired and a revoked session, over the HTTP tool route
+  and the real MCP SDK client on 127.0.0.1; both routing tools route to an allowlisted
+  destination and are audited; every other catalogue tool fails closed with the session
+  reason code and has no effect.
+
+## Changes after wave 2
+
+* Tool permissions: `get_appointment_options` → `appointment:list_options` (options carry
+  the opaque `slotId`; `prepare_appointment_change` accepts an optional `slotId`),
+  `prepare_billing_review` → `billing:prepare_review` (no proposal digest any more).
+* `submit_complaint` output gains `linkedToAccount`; `create_support_request` resolves a
+  representative's link to the represented subject (purpose `representative_access`);
+  `get_provider_onboarding_status` uses the provider record's practice organization.
+* `begin_verification` speaks the secure-link match code through the DRAFT template
+  `verification.secure_link_match_code` (voice slot type `match_code`).
+* The tool catalogue was regenerated (`TOOL_CATALOG_VERSION` `2026-10-18.2`).
+* A denied invocation without a session records the transport call id in its `tool.invoke`
+  audit event (evidence only, never authority).
 
 ## BLOCKED / UNKNOWN
 

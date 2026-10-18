@@ -72,11 +72,11 @@ describe("row-level security", () => {
       (tx) =>
         tx.query<{ relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean }>(
           `select relname, relrowsecurity, relforcerowsecurity from pg_class
-           where relname in ('action_ledger', 'action_locator', 'tool_request_idempotency', 'outbox_messages', 'consumer_dedup') order by relname`,
+           where relname in ('action_ledger', 'action_locator', 'action_reconciliations', 'tool_request_idempotency', 'outbox_messages', 'consumer_dedup') order by relname`,
         ),
       { role: "owner" },
     );
-    expect(r.rows).toHaveLength(5);
+    expect(r.rows).toHaveLength(6);
     for (const row of r.rows) {
       expect(row.relrowsecurity).toBe(true);
       expect(row.relforcerowsecurity).toBe(true);
@@ -95,6 +95,8 @@ describe("least privilege", () => {
       ["app_worker", "outbox_messages"],
       ["app_worker", "consumer_dedup"],
       ["app_runtime", "tool_request_idempotency"],
+      ["app_runtime", "action_reconciliations"],
+      ["app_worker", "action_reconciliations"],
     ] as const) {
       const msg = await failure(h.db.tx((tx) => tx.query(`delete from ${table} where true`), { role, rls: { tenantId: TENANT_ID } }));
       expect(msg, `${role} delete ${table}`).toMatch(/permission denied/);

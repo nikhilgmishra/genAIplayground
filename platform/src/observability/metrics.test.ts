@@ -40,7 +40,45 @@ const DASHBOARD_COVERAGE: Record<string, string[]> = {
   "audit-export completeness": ["vsp_audit_export_completeness_ratio"],
 };
 
+/** Catalogue entries requested by the module reports (interface change requests), with their label keys. */
+const REQUESTED_METRICS: Record<string, string[]> = {
+  vsp_voice_gate_renders_total: ["response_class"],
+  vsp_voice_gate_rejections_total: ["disposition", "reason"],
+  vsp_retention_deleted_total: ["data_class"],
+  vsp_retention_classes_blocked: ["data_class", "reason"],
+  vsp_retention_unverified_copies: ["location", "status"],
+  vsp_vendor_deletion_requests_pending: ["vendor"],
+  vsp_redaction_results_total: ["result"],
+  vsp_egress_denied_total: ["reason"],
+  vsp_knowledge_ingest_items_total: ["result"],
+  vsp_knowledge_search_recheck_dropped_total: ["reason"],
+  vsp_memory_recap_withheld_total: ["reason"],
+  vsp_safety_time_to_routing_ms: ["signal_source"],
+  vsp_worker_loop_runs_total: ["loop", "result"],
+  vsp_worker_loop_errors_total: ["loop"],
+  vsp_worker_loop_processed_total: ["loop"],
+  vsp_worker_loop_lag_ms: ["loop"],
+  vsp_worker_loop_duration_ms: ["loop"],
+  vsp_grant_checks_total: ["guard", "result"],
+};
+
 describe("metric catalogue", () => {
+  it("[SPEC-13.metrics][DATA-01] the catalogue entries requested by the module reports exist with closed label enums", () => {
+    for (const [name, keys] of Object.entries(REQUESTED_METRICS)) {
+      const d = DEFAULT_METRIC_CATALOGUE.get(name);
+      expect(d, name).toBeDefined();
+      expect(Object.keys(d?.labels ?? {}).sort(), name).toEqual([...keys].sort());
+    }
+    const m = new InMemoryMetrics();
+    m.increment("vsp_worker_loop_runs_total", { loop: "Synthetic Person 555 0101", result: "ok" });
+    m.increment("vsp_egress_denied_total", { reason: "EGRESS_URL_INSECURE" });
+    m.increment("vsp_safety_signals_total", { signal_source: "fail_safe" });
+    expect(m.counterValue("vsp_worker_loop_runs_total", { loop: OTHER_LABEL_VALUE, result: "ok" })).toBe(1);
+    expect(m.counterValue("vsp_egress_denied_total", { reason: "EGRESS_URL_INSECURE" })).toBe(1);
+    expect(m.counterValue("vsp_safety_signals_total", { signal_source: "fail_safe" })).toBe(1);
+    expect(JSON.stringify(m.allSeries())).not.toContain("555");
+  });
+
   it("[SPEC-13.dashboards] covers every operational dashboard listed in spec section 13", () => {
     for (const [dashboard, names] of Object.entries(DASHBOARD_COVERAGE)) {
       for (const name of names) expect(DEFAULT_METRIC_CATALOGUE.has(name), `${dashboard}: ${name}`).toBe(true);

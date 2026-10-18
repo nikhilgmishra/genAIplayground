@@ -5,7 +5,7 @@
  * repair task and only an operator can close it as FAILED.
  */
 import type { VersionedWorkflowDefinition } from "../types.js";
-import { deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
+import { ACTORS, COMMON_EVENT_ACTORS, deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
 
 export const supportRequestSyncV1: VersionedWorkflowDefinition = deepFreeze({
   type: "support_request_sync",
@@ -41,4 +41,14 @@ export const supportRequestSyncV1: VersionedWorkflowDefinition = deepFreeze({
   },
   transitionGuards: {},
   humanTaskRoles: { WAITING_FOR_HUMAN: "crm_repair_operator" },
+  eventActors: {
+    ESCALATED: COMMON_EVENT_ACTORS.ESCALATED,
+    RETRYABLE_FAILURE: COMMON_EVENT_ACTORS.RETRYABLE_FAILURE,
+    HUMAN_APPROVED: COMMON_EVENT_ACTORS.HUMAN_APPROVED,
+    HUMAN_REJECTED: COMMON_EVENT_ACTORS.HUMAN_REJECTED,
+    SYNC_STARTED: ACTORS.SYSTEM,
+    SYNCED: ACTORS.SYSTEM_OR_EXTERNAL,
+    PERMANENT_FAILURE: ACTORS.SYSTEM_OR_EXTERNAL,
+  },
+  grantActions: {},
 });

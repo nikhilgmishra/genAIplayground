@@ -36,11 +36,11 @@ export const OUTBOX_ENVELOPE_SCHEMA = "vsp.outbox.v1";
 const QUEUE_URL = /^https:\/\/sqs\.[a-z]{2}(-gov)?-[a-z]+-\d\.amazonaws\.com\/\d{12}\/[A-Za-z0-9_-]{1,75}(\.fifo)?$/;
 
 /** Message body: opaque envelope; payload is already restricted to opaque references at enqueue. */
-export function outboxEnvelope(m: OutboxMessage & { tenantId?: string }): string {
+export function outboxEnvelope(m: OutboxMessage): string {
   return JSON.stringify({
     schema: OUTBOX_ENVELOPE_SCHEMA,
     messageId: m.messageId,
-    tenantId: m.tenantId ?? null,
+    tenantId: m.tenantId,
     topic: m.topic,
     key: m.key,
     dedupeKey: m.dedupeKey,

@@ -483,6 +483,7 @@ export const DETECTOR_RULE_IDS = {
   inputInvalid: "input.invalid.fail_safe",
   inputOversize: "input.oversize.fail_safe",
   signalMalformed: "signal.malformed.fail_safe",
+  stageFailed: "rules.stage_failed.fail_safe",
 } as const;
 
 export const ALL_RULE_IDS: ReadonlySet<string> = new Set([...PHRASE_RULES.map((r) => r.ruleId), ...Object.values(DETECTOR_RULE_IDS)]);

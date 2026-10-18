@@ -2,10 +2,12 @@
  * get_provider_onboarding_status (onboarding:read), get_remittance_status
  * (remittance:read) and submit_partner_intake (partner_intake:create).
  *
- * - Onboarding: the provider record is the resource subject. The provider network port
- *   exposes no authoritative provider -> practice mapping, so a practice-staff request for
- *   another provider resolves without an organization and policy denies it (fail closed;
- *   interface change request filed for ProviderSystem).
+ * - Onboarding: the provider record is the resource subject and, when the provider network
+ *   records one, its practice ORGANIZATION (OnboardingStatus.organizationId, authoritative;
+ *   never caller input) is the resource organization. The provider's own record matches the
+ *   self path; delegated practice staff match the practice path only for providers of the
+ *   practice they hold an onboarding:read delegation for. A record without a practice
+ *   resolves without an organization, so a practice-path request is denied (fail closed).
  * - Remittance: the resource is the practice ORGANIZATION (own practice by default); a
  *   practice the caller holds no delegation for is denied by policy.
  * - Partner intake: the partner's server-established organization only; no input can
@@ -58,7 +60,8 @@ export function getProviderOnboardingStatusTool(s: BusinessServices): ToolModule
       const providerId = input.providerId ?? auth.subjectId;
       if (!providerId) return unresolvableResource(auth, "provider_onboarding", "INTERNAL");
       const record = await s.deps.adapters.provider.getOnboardingStatus(providerId);
-      return record ? subjectResource(auth, "provider_onboarding", record.providerId, "INTERNAL") : unresolvableResource(auth, "provider_onboarding", "INTERNAL");
+      if (!record) return unresolvableResource(auth, "provider_onboarding", "INTERNAL");
+      return { ...subjectResource(auth, "provider_onboarding", record.providerId, "INTERNAL"), organizationId: record.organizationId ?? null };
     },
     async execute(ctx, input) {
       try {

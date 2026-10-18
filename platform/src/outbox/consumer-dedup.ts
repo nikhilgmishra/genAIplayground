@@ -34,6 +34,20 @@ export class PgConsumerDedup implements ConsumerDedup {
     return this.processOnceForTenant(this.opts.tenantId, consumer, messageId, handler);
   }
 
+  /**
+   * Read-only pre-check (worker consumers that run their handler outside the dedupe transaction).
+   * Runs in the tenant's RLS context, so another tenant's dedupe rows are invisible.
+   */
+  async isProcessed(tenantId: string, consumer: string, messageId: string): Promise<boolean> {
+    if (!TenantId.safeParse(tenantId).success) throw new ValidationError("CONSUMER_TENANT_INVALID");
+    if (!Consumer.safeParse(consumer).success) throw new ValidationError("CONSUMER_NAME_INVALID");
+    if (!MessageId.safeParse(messageId).success) throw new ValidationError("CONSUMER_MESSAGE_ID_INVALID");
+    return this.opts.db.tx(
+      async (tx) => (await tx.query<{ one: number }>("select 1 as one from consumer_dedup where consumer = $1 and message_id = $2", [consumer, messageId])).rows.length > 0,
+      { role: this.opts.role ?? "app_worker", rls: { tenantId } },
+    );
+  }
+
   async processOnceForTenant<T>(
     tenantId: string,
     consumer: string,

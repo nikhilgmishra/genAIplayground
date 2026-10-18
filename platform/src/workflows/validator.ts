@@ -3,7 +3,9 @@
  * a deadline, a retry budget and an escalation route; every state is reachable;
  * every transition targets a defined state; every nonterminal state can still
  * reach a terminal state; human-task states declare the staff roles that may
- * decide them; guarded transitions have a POLICY_CHANGED_PENDING_ACTION route.
+ * decide them; guarded transitions have a POLICY_CHANGED_PENDING_ACTION route
+ * and a durable-grant action; every event declares which actor kinds may send
+ * it (human-task decisions: staff only; policy-change events: nobody).
  *
  * Issues are reason codes only (no free text) so they can be logged safely.
  */
@@ -16,15 +18,20 @@ import {
   BUSINESS_ROLE_STAFF_MAPPING,
   DEFINITION_VERSION_RE,
   EVENT_NAME_RE,
+  GRANT_ACTION_RE,
   HUMAN_APPROVED,
   HUMAN_REJECTED,
+  HUMAN_TASK_EVENTS,
   OWNER_QUEUE_RE,
   POLICY_CHANGED_PENDING_ACTION,
   RESERVED_UNDECLARABLE_EVENTS,
+  RETRYABLE_FAILURE,
   TASK_TYPE_RE,
   TERMINAL_STATES,
+  WORKFLOW_ACTOR_KINDS,
   type BusinessApprovalRole,
   type VersionedWorkflowDefinition,
+  type WorkflowActorKind,
 } from "./types.js";
 
 export const MAX_RETRY_BUDGET = 10;
@@ -59,6 +66,8 @@ const DefinitionShape = z.strictObject({
   description: z.string().max(400).optional(),
   transitionGuards: z.record(z.string().max(64), z.record(z.string().max(64), z.string().max(32))).optional(),
   humanTaskRoles: z.record(z.string().max(64), z.string().max(64)).optional(),
+  eventActors: z.record(z.string().max(64), z.array(z.string().max(32)).max(8)).optional(),
+  grantActions: z.record(z.string().max(64), z.record(z.string().max(64), z.string().max(160))).optional(),
 });
 
 type StateShape = z.infer<typeof StateShape>;
@@ -100,7 +109,9 @@ export function validateDefinition(def: WorkflowDefinition | VersionedWorkflowDe
   }
 
   checkGuards(d.transitionGuards ?? {}, states, issues);
+  checkGrantActions(d.grantActions ?? {}, d.transitionGuards ?? {}, issues);
   checkHumanTaskRoles(d.humanTaskRoles ?? {}, states, issues);
+  checkEventActors(d.eventActors ?? {}, states, issues);
 
   return { ok: issues.length === 0, issues };
 }
@@ -200,6 +211,61 @@ function checkGuards(guards: Record<string, Record<string, string>>, states: Map
         issues.push({ code: "GUARD_ON_SAFETY_ROUTE", state: stateName, event });
       }
     }
+  }
+}
+
+/** Every guarded transition names the durable-grant action it consumes; grant actions exist only on guarded transitions. */
+function checkGrantActions(grants: Record<string, Record<string, string>>, guards: Record<string, Record<string, string>>, issues: DefinitionIssue[]): void {
+  for (const [stateName, byEvent] of Object.entries(guards)) {
+    for (const event of Object.keys(byEvent)) {
+      if (grants[stateName]?.[event] === undefined) issues.push({ code: "GUARD_GRANT_ACTION_MISSING", state: stateName, event });
+    }
+  }
+  for (const [stateName, byEvent] of Object.entries(grants)) {
+    for (const [event, action] of Object.entries(byEvent)) {
+      if (!GRANT_ACTION_RE.test(action) || /\d{4,}/.test(action)) issues.push({ code: "GRANT_ACTION_INVALID", state: stateName, event });
+      if (guards[stateName]?.[event] === undefined) issues.push({ code: "GRANT_ACTION_WITHOUT_GUARD", state: stateName, event });
+    }
+  }
+}
+
+/**
+ * Actor permissions per event (fail closed: an event without a declared actor
+ * set can never be sent). Human-task decisions are staff-only and engine-raised
+ * policy-change events are sendable by nobody; escalation must stay available
+ * to the system actor (deadline sweeper and the ASL escalation path).
+ */
+function checkEventActors(actors: Record<string, string[]>, states: Map<string, StateShape>, issues: DefinitionIssue[]): void {
+  const used = new Set<string>();
+  for (const s of states.values()) for (const event of Object.keys(s.transitions)) used.add(event);
+  for (const event of [...used].sort()) {
+    if (actors[event] === undefined) issues.push({ code: "EVENT_ACTORS_MISSING", event });
+  }
+  if (actors[RETRYABLE_FAILURE] === undefined) issues.push({ code: "EVENT_ACTORS_MISSING", event: RETRYABLE_FAILURE });
+  const known = new Set<string>(WORKFLOW_ACTOR_KINDS);
+  for (const [event, set] of Object.entries(actors)) {
+    if (!EVENT_NAME_RE.test(event)) issues.push({ code: "EVENT_ACTORS_EVENT_INVALID" });
+    if (!used.has(event) && event !== RETRYABLE_FAILURE) issues.push({ code: "EVENT_ACTORS_UNUSED", event });
+    const seen = new Set<string>();
+    for (const kind of set) {
+      if (!known.has(kind)) issues.push({ code: "EVENT_ACTOR_UNKNOWN", event });
+      if (seen.has(kind)) issues.push({ code: "EVENT_ACTOR_DUPLICATE", event });
+      seen.add(kind);
+    }
+    if (HUMAN_TASK_EVENTS.has(event)) {
+      if (set.length !== 1 || set[0] !== "staff") issues.push({ code: "HUMAN_TASK_EVENT_ACTORS_INVALID", event });
+    } else if (event === POLICY_CHANGED_PENDING_ACTION) {
+      if (set.length !== 0) issues.push({ code: "ENGINE_EVENT_ACTORS_INVALID", event });
+    } else if (set.length === 0) {
+      issues.push({ code: "EVENT_ACTORS_EMPTY", event });
+    }
+    // A caller must never be able to burn a retry budget and force an escalation.
+    if (event === RETRYABLE_FAILURE && set.includes("caller")) issues.push({ code: "RETRY_EVENT_CALLER_FORBIDDEN", event });
+  }
+  for (const [name, s] of states) {
+    if (!s.escalation) continue;
+    const set = actors[s.escalation.event];
+    if (set !== undefined && !(set as WorkflowActorKind[]).includes("system")) issues.push({ code: "ESCALATION_ACTOR_SYSTEM_MISSING", state: name, event: s.escalation.event });
   }
 }
 

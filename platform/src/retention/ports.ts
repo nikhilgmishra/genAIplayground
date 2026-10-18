@@ -10,7 +10,13 @@ export type DeleteStrategy =
   /** Row deletion in the primary store, with derived-copy verification and vendor requests. */
   | "HARD_DELETE"
   /** Per-record key destruction. BLOCKED: needs a per-record KMS key design and approval. */
-  | "CRYPTO_SHRED";
+  | "CRYPTO_SHRED"
+  /**
+   * The owning store is append-only by design (a trigger refuses DELETE for every role, e.g. the
+   * 03xx support records). BLOCKED: deletion needs a reviewed purge path (owner-approved migration)
+   * once counsel sets a duration; the job reports STRATEGY_BLOCKED, never a silent failure.
+   */
+  | "APPEND_ONLY_PURGE_REQUIRED";
 
 export type CopyLocation = "DERIVED_TABLE" | "INDEX" | "CACHE" | "BACKUP" | "VENDOR";
 
@@ -42,8 +48,13 @@ export interface RetentionDataset {
   /** Column the retention period is measured from (e.g. created_at). */
   timestampColumn: string;
   tenantColumn: string;
-  /** Opaque primary key column. */
+  /** Opaque primary key column (for a composite key: the first identifying column; see keyColumns). */
   keyColumn: string;
+  /**
+   * Composite primary key columns, in order (e.g. tenant-scoped idempotency tables). When set, rows
+   * are matched on the whole tuple and the evidence key is the columns joined with "/".
+   */
+  keyColumns?: readonly string[];
   /** Subject column for subject-scoped legal holds; null when the dataset has none. */
   subjectColumn: string | null;
   deleteStrategy: DeleteStrategy;

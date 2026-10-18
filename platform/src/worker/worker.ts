@@ -23,6 +23,7 @@ import {
   AuditShipLoop,
   LocalConsumerQueueFixture,
   LocalTelephonyDeliveryLoop,
+  MeteredLoop,
   OutboxConsumeLoop,
   OutboxDispatchLoop,
   RetentionLoop,
@@ -145,7 +146,7 @@ export interface WorkerIntervals {
 export function workerLoopsFor(c: Container, intervals: WorkerIntervals = {}): { loops: WorkerLoop[]; closers: (() => void)[]; queue: LocalConsumerQueueFixture } {
   const queue = new LocalConsumerQueueFixture(c.publisher, c.clock);
   const telephony = new LocalTelephonyDeliveryLoop(c.fixtures.telephony, c.transferStore, c.transfers, intervals.telephonyDeliveryMs);
-  const loops: WorkerLoop[] = [
+  const raw: WorkerLoop[] = [
     new OutboxDispatchLoop(c.dispatcher, intervals.dispatchMs),
     new OutboxConsumeLoop({ db: c.db, clock: c.clock, logger: c.logger, queue, consumers: c.business.consumers, ...(intervals.consumeMs ? { intervalMs: intervals.consumeMs } : {}) }),
     new ActionReconcileLoop(c.actions, c.business.providers, c.tenantIds, c.logger, intervals.reconcileMs),
@@ -154,9 +155,11 @@ export function workerLoopsFor(c: Container, intervals: WorkerIntervals = {}): {
     new AuditShipLoop(c.auditShipper, intervals.auditShipMs),
     new WorkflowTickLoop(c.workflows, c.clock, intervals.workflowTickMs),
     new TransferSweepLoop(c.transfers, intervals.transferSweepMs),
-    new RetentionLoop(c.retention, c.clock, c.logger, intervals.retentionMs),
+    new RetentionLoop(c.retention, c.clock, c.logger, intervals.retentionMs, c.metrics),
     telephony,
   ];
+  // Every loop reports content-free run / error / processed / lag / duration metrics through the Metrics port.
+  const loops = raw.map((l) => new MeteredLoop(l, c.metrics, c.clock));
   return { loops, closers: [() => queue.close(), () => telephony.close()], queue };
 }
 

@@ -2,6 +2,13 @@
  * submit_complaint (complaint:create), create_support_request (support_request:create)
  * and get_authorized_case_status (case:read).
  *
+ * Linking: a verified (A2+) caller's complaint is linked to the caller's own subject when
+ * policy allows a subject-linked support request (support_request:create, evaluated in the
+ * business layer); unverified complaints stay unlinked. A support request asked to be linked
+ * is authorized against the AUTHORITATIVE target: the caller's own subject, or for a personal
+ * representative the represented subject with scope support_request:create (purpose
+ * representative_access); an unresolvable target is denied by policy.
+ *
  * Intake takes categories and flags only (no free text, never echoed). The caller is
  * told the SR reference is a support reference pending synchronization, never a
  * Salesforce Case number. Case status resolves the reference to its AUTHORITATIVE scope
@@ -14,6 +21,7 @@ import { CASE_STATUSES, type CaseView } from "../../business/services/cases.js";
 import { COMPLAINT_CATEGORIES, GENERAL_INTAKE_CATEGORIES, URGENCY } from "../../business/services/intake.js";
 import type { BusinessServices } from "../../business/services/types.js";
 import { atLeast, openResource, organizationResource, subjectResource, unresolvableResource } from "../../business/shared.js";
+import { toolPolicyRef } from "../../policy/input.js";
 import { speechFor } from "../../business/speech.js";
 import type { ToolSpeech } from "../../business/speech.js";
 import { IssueCategory } from "../../protocol/index.js";
@@ -26,23 +34,24 @@ import { argsDigest } from "./provider.js";
 const Accepted = z.strictObject({ status: z.literal("REQUEST_ACCEPTED"), supportReference: SupportRefArg });
 
 export const ComplaintInput = z.strictObject({ category: z.enum(COMPLAINT_CATEGORIES), wantsCallback: z.boolean(), language: LanguageArg });
-export const ComplaintOutput = z.strictObject({ complaint: Accepted, synchronization: z.literal("PENDING_SYNC") });
+export const ComplaintOutput = z.strictObject({ complaint: Accepted, synchronization: z.literal("PENDING_SYNC"), linkedToAccount: z.boolean() });
 
 export function submitComplaintTool(s: BusinessServices): ToolModule<z.infer<typeof ComplaintInput>, z.infer<typeof ComplaintOutput>> {
   const definition = TOOL_DEFINITIONS.submit_complaint;
   return {
     definition,
-    maskTarget: { collectionKey: "complaint", envelopeKeys: ["synchronization"] },
+    maskTarget: { collectionKey: "complaint", envelopeKeys: ["synchronization", "linkedToAccount"] },
     input: ComplaintInput,
     output: ComplaintOutput,
     purpose: () => "caller_self_service",
     resolveResource: async (auth) => openResource(auth, "complaint", "INTERNAL"),
     async execute(ctx, input) {
       try {
-        const r = await s.intake.complaint({ auth: ctx.auth, turnId: ctx.request.turnId, tool: definition.name, argsDigest: argsDigest(input), language: input.language }, input);
+        const subjectRef = await s.intake.complaintSubject(ctx.auth, toolPolicyRef(definition));
+        const r = await s.intake.complaint({ auth: ctx.auth, turnId: ctx.request.turnId, tool: definition.name, argsDigest: argsDigest(input), language: input.language }, input, subjectRef);
         const ref = r.supportRequest.referenceNumber;
         return ok(
-          { complaint: { status: "REQUEST_ACCEPTED", supportReference: ref }, synchronization: "PENDING_SYNC" },
+          { complaint: { status: "REQUEST_ACCEPTED", supportReference: ref }, synchronization: "PENDING_SYNC", linkedToAccount: r.supportRequest.subjectRef !== null },
           speechFor(s.deps.templates, "commitment.request_accepted_pending_sync", { supportReference: ref }, [sourceRef("sr", r.supportRequest.supportRequestId)]),
         );
       } catch (err) {
@@ -60,7 +69,9 @@ export const SupportRequestInput = z.strictObject({
 });
 export const SupportRequestOutput = z.strictObject({ request: Accepted, synchronization: z.literal("PENDING_SYNC"), linkedToAccount: z.boolean() });
 
-const linkable = (auth: AuthContext, link: boolean): boolean => link && auth.subjectId !== null && atLeast(auth.assurance, "A2");
+/** A representative's link is a representative_access request; everything else is the caller's own service. */
+const supportRequestPurpose = (auth: AuthContext, input: { linkToAccount: boolean }): PolicyPurpose =>
+  auth.selectedRole === "personal_representative" && input.linkToAccount && atLeast(auth.assurance, "A2") ? "representative_access" : "caller_self_service";
 
 export function createSupportRequestTool(s: BusinessServices): ToolModule<z.infer<typeof SupportRequestInput>, z.infer<typeof SupportRequestOutput>> {
   const definition = TOOL_DEFINITIONS.create_support_request;
@@ -69,9 +80,12 @@ export function createSupportRequestTool(s: BusinessServices): ToolModule<z.infe
     maskTarget: { collectionKey: "request", envelopeKeys: ["synchronization", "linkedToAccount"] },
     input: SupportRequestInput,
     output: SupportRequestOutput,
-    purpose: () => "caller_self_service",
-    resolveResource: async (auth, input) =>
-      linkable(auth, input.linkToAccount) && auth.subjectId ? subjectResource(auth, "support_request", auth.subjectId, "PHI") : openResource(auth, "support_request", "INTERNAL"),
+    purpose: (auth, input) => supportRequestPurpose(auth, input),
+    async resolveResource(auth, input) {
+      const target = await s.intake.linkTarget(auth, input.linkToAccount);
+      if (target.kind === "subject") return subjectResource(auth, "support_request", target.subjectId, "PHI");
+      return target.kind === "unresolved" ? unresolvableResource(auth, "support_request", "PHI") : openResource(auth, "support_request", "INTERNAL");
+    },
     async execute(ctx, input) {
       try {
         const sr = await s.intake.general({ auth: ctx.auth, turnId: ctx.request.turnId, tool: definition.name, argsDigest: argsDigest(input), language: input.language }, input);

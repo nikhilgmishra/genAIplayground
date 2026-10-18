@@ -119,7 +119,7 @@ export const HandoffPackage = z.strictObject({
   supportReference: SupportReference.nullable(),
   language: z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
   accommodations: z.array(z.enum(["interpreter", "relay_service", "slower_speech", "repeat_on_request", "tty"])).max(5),
-  safetyRoutingReason: z.enum(["EXPLICIT_PHRASE", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN", "CALLER_REQUEST", "HUMAN_INTERVENTION"]).nullable(),
+  safetyRoutingReason: z.enum(["EXPLICIT_PHRASE", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN", "CALLER_REQUEST", "HUMAN_INTERVENTION", "FAIL_SAFE"]).nullable(),
   clinicalStatementsIncluded: z.boolean(),
   /** Signed verification result for the same call and authorized receiver (compact JWS) or null. */
   verificationAssertion: z.string().max(4096).nullable(),

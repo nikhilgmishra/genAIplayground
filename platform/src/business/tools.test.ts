@@ -243,7 +243,7 @@ describe("A0 tools", () => {
     expect(loadDefaultTemplateRegistry().get("login.guidance", "en-US")?.text).toMatch(/can't reset passwords/);
   });
 
-  it("[SPEC-7.no-enumeration] [AUTH-01] begin_verification answers identically for a real and an unknown person and returns no match code", async () => {
+  it("[SPEC-7.no-enumeration] [AUTH-01] begin_verification answers identically for a real and an unknown person; the match code is never a data field, only a typed match_code speech slot", async () => {
     const one = await h.startCall("cal_synthCallVerify000001");
     await h.deps.sessions.selectRole(one.sessionRef, telephony(), "client");
     const known = expectDone(await h.invoke("begin_verification", await h.resolve(one.sessionRef), { method: "SECURE_LINK", locator: { kind: "NAME_AND_DATE_OF_BIRTH", fullName: PEOPLE.avery.fullName, dateOfBirth: "1990-01-01" } }));
@@ -256,8 +256,12 @@ describe("A0 tools", () => {
     expect(k.verification.status).toBe(u.verification.status);
     expect(k.verification.nextStep).toBe(u.verification.nextStep);
     expect(Object.keys(k.verification).sort()).toEqual(["nextStep", "status", "verificationId"]);
-    expect(JSON.stringify(known.outcome)).not.toMatch(/matchCode|1990-01-01|Synthetic-Client/);
+    expect(JSON.stringify(known.masked)).not.toMatch(/matchCode|1990-01-01|Synthetic-Client/);
+    expect(JSON.stringify(known.outcome)).not.toMatch(/1990-01-01|Synthetic-Client/);
     expect(known.outcome.speech?.templateId).toBe(unknown.outcome.speech?.templateId);
+    // Spoken only through the approved-template path; generated for every request, so it reveals nothing.
+    expect(known.outcome.speech?.templateId).toBe("verification.secure_link_match_code");
+    for (const r of [known, unknown]) expect(String(r.outcome.status === "SUCCESS" ? r.outcome.speech?.slots.matchCode : "")).toMatch(/^[a-z]{3,10}-[a-z]{3,10}$/);
   });
 
   it("[SAFE-02] [SPEC-4.complaint] an unverified caller can make a complaint; it enters complaint_review and is not linked to an account", async () => {

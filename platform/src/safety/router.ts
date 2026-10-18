@@ -70,7 +70,7 @@ export interface SafetyRoutingDecision extends SafetyDecision {
   safetyRoutingReason: SafetySignalSource | null;
 }
 
-const SOURCE_PRECEDENCE: readonly SafetySignalSource[] = ["HUMAN_INTERVENTION", "EXPLICIT_PHRASE", "CALLER_REQUEST", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN"];
+const SOURCE_PRECEDENCE: readonly SafetySignalSource[] = ["HUMAN_INTERVENTION", "EXPLICIT_PHRASE", "CALLER_REQUEST", "SEMANTIC_SIGNAL", "ASR_UNCERTAIN", "FAIL_SAFE"];
 
 export function safetyModeFromRiskFlags(flags: readonly string[]): boolean {
   return flags.includes(SAFETY_RISK_FLAG);
@@ -96,6 +96,8 @@ function safetyReason(signals: readonly SafetySignal[], malformed: boolean): str
   if (signals.some((s) => s.source === "HUMAN_INTERVENTION")) return "SAFETY_HUMAN_INTERVENTION";
   if (signals.some((s) => s.strength === "CREDIBLE")) return "SAFETY_SIGNAL_CREDIBLE";
   if (signals.some((s) => s.source === "CALLER_REQUEST")) return "SAFETY_CALLER_REQUEST";
+  // Only system fail-safe signals: the input could not be assessed, so the caller still reaches a human.
+  if (signals.length > 0 && signals.every((s) => s.source === "FAIL_SAFE")) return "SAFETY_INPUT_UNASSESSED_FAIL_SAFE";
   return "SAFETY_SIGNAL_UNRESOLVED";
 }
 

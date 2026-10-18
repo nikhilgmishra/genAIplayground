@@ -18,7 +18,11 @@
  *    append-only verification row is written. Leftovers and unverifiable copies
  *    (e.g. backups) are reported as unverified copies, never as deleted (OPS-03).
  *  - a subject-scoped hold on a dataset without a subject column cannot be
- *    resolved per row, so the dataset is not touched (fail closed).
+ *    resolved per row, so the dataset is not touched (fail closed);
+ *  - CRYPTO_SHRED and APPEND_ONLY_PURGE_REQUIRED datasets are reported
+ *    STRATEGY_BLOCKED (never simulated, never a silent failure);
+ *  - composite-key datasets (keyColumns) are matched on the whole key tuple; the
+ *    evidence key is the key columns joined with "/".
  */
 import type { AuditWriter } from "../audit/ports.js";
 import type { Db, Queryable } from "../db/types.js";
@@ -79,6 +83,28 @@ export class RetentionJob {
     return reports;
   }
 
+  /**
+   * Vendor deletion requests still waiting for the vendor (status PENDING_VENDOR), counted per
+   * vendor across the configured tenants (app_worker, tenant RLS). Content-free: vendor ids and counts.
+   */
+  async pendingVendorDeletions(): Promise<Record<string, number>> {
+    const out: Record<string, number> = {};
+    for (const tenantId of this.opts.tenantIds) {
+      const rows = await this.opts.db.tx(
+        async (tx) =>
+          (
+            await tx.query<{ vendor: string; n: number }>(
+              "select vendor, count(*)::int as n from vendor_deletion_requests where tenant_id = $1 and status = 'PENDING_VENDOR' group by vendor order by vendor",
+              [tenantId],
+            )
+          ).rows,
+        { role: "app_worker", rls: { tenantId } },
+      );
+      for (const r of rows) out[r.vendor] = (out[r.vendor] ?? 0) + r.n;
+    }
+    return out;
+  }
+
   private async runTenant(tenantId: string, now: Date): Promise<RetentionRunReport> {
     const runId = newId("ret");
     const startedAt = iso(now);
@@ -98,7 +124,9 @@ export class RetentionJob {
         continue;
       }
       if (ds.deleteStrategy !== "HARD_DELETE") {
-        datasets.push({ ...base, status: "STRATEGY_BLOCKED", reasonCode: "RETENTION_CRYPTO_SHRED_BLOCKED" });
+        const reasonCode = ds.deleteStrategy === "APPEND_ONLY_PURGE_REQUIRED" ? "RETENTION_PURGE_PATH_REQUIRED" : "RETENTION_CRYPTO_SHRED_BLOCKED";
+        this.logger.warn("retention.dataset.strategy_blocked", { tenantId, runId, reasonCode, kind: ds.name });
+        datasets.push({ ...base, status: "STRATEGY_BLOCKED", reasonCode });
         continue;
       }
       try {
@@ -151,10 +179,16 @@ export class RetentionJob {
     return { ...base, status: "EXECUTED", cutoff: new Date(now.getTime() - policy.retentionDays * DAY_MS).toISOString() };
   }
 
+  /** Evidence key expression for alias `a`: the key column, or the composite key columns joined with "/". */
+  private keyExpr(ds: RetentionDataset, a: string): string {
+    const cols = ds.keyColumns ?? [ds.keyColumn];
+    return cols.length === 1 ? `${a}.${quoteIdent(cols[0] as string)}::text` : `(${cols.map((c) => `${a}.${quoteIdent(c)}::text`).join(" || '/' || ")})`;
+  }
+
   /** SQL predicate: row `t` is covered by an active legal hold. */
   private holdPredicate(ds: RetentionDataset): string {
     const tenant = `t.${quoteIdent(ds.tenantColumn)}`;
-    const key = `t.${quoteIdent(ds.keyColumn)}::text`;
+    const key = this.keyExpr(ds, "t");
     const subject = ds.subjectColumn ? `(h.subject_id is null or h.subject_id = t.${quoteIdent(ds.subjectColumn)}::text)` : "h.subject_id is null";
     return `exists (select 1 from legal_holds h where h.tenant_id = ${tenant} and h.released_at is null
               and (h.data_class is null or h.data_class = $3) and (h.dataset is null or h.dataset = $4)
@@ -165,13 +199,21 @@ export class RetentionJob {
     const table = quoteIdent(ds.table);
     const tenantCol = quoteIdent(ds.tenantColumn);
     const tsCol = quoteIdent(ds.timestampColumn);
-    const keyCol = quoteIdent(ds.keyColumn);
     const cutoff = cls.cutoff as string;
     const asWorker = { role: "app_worker" as const, rls: { tenantId } };
     const params = [tenantId, cutoff, ds.dataClass, ds.name];
     const report: DatasetReport = { dataset: ds.name, dataClass: ds.dataClass, status: "NOTHING_EXPIRED", deletedCount: 0, heldCount: 0, deletionIds: [], keyDigest: null, verifications: [], vendorRequests: [], reasonCode: null };
 
     const expiredWhere = `t.${tenantCol} = $1 and t.${tsCol} < $2::timestamptz`;
+    // Fail closed and visible: without DELETE privilege for the worker role the dataset cannot be purged.
+    const canDelete = await this.opts.db.tx(
+      async (tx) => (await tx.query<{ ok: boolean }>("select has_table_privilege(current_user, $1, 'DELETE') as ok", [ds.table])).rows[0]?.ok === true,
+      asWorker,
+    );
+    if (!canDelete) {
+      this.logger.warn("retention.dataset.privilege_missing", { tenantId, runId, reasonCode: "RETENTION_DELETE_PRIVILEGE_MISSING", kind: ds.name });
+      return { ...report, status: "STRATEGY_BLOCKED", reasonCode: "RETENTION_DELETE_PRIVILEGE_MISSING" };
+    }
     if (!ds.subjectColumn) {
       const subjectHolds = await this.opts.db.tx(
         async (tx) =>
@@ -195,17 +237,22 @@ export class RetentionJob {
       async (tx) => (await tx.query<{ n: number }>(`select count(*)::int as n from ${table} t where ${expiredWhere} and ${hold}`, params)).rows[0]?.n ?? 0,
       asWorker,
     );
+    const candidates = await this.opts.db.tx(
+      async (tx) => (await tx.query<{ n: number }>(`select count(*)::int as n from ${table} t where ${expiredWhere} and not ${hold}`, params)).rows[0]?.n ?? 0,
+      asWorker,
+    );
 
-    const vendorCols = ds.vendorCopies.map((v, i) => `${quoteIdent(v.refColumn)}::text as vendor_ref_${i}`);
-    const returning = [`${keyCol}::text as k`, ...vendorCols].join(", ");
+    const vendorCols = ds.vendorCopies.map((v, i) => `d.${quoteIdent(v.refColumn)}::text as vendor_ref_${i}`);
+    const returning = [`${this.keyExpr(ds, "d")} as k`, ...vendorCols].join(", ");
+    const tuple = (a: string) => (ds.keyColumns ?? [ds.keyColumn]).map((c) => `${a}.${quoteIdent(c)}`).join(", ");
     const allKeys: string[] = [];
     for (let batch = 0; batch < this.maxBatches; batch += 1) {
       const result = await this.opts.db.tx(async (tx) => {
         const deleted = (
           await tx.query<Record<string, string | null>>(
-            `delete from ${table} where ${tenantCol} = $1 and ${keyCol} in (
-               select t.${keyCol} from ${table} t where ${expiredWhere} and not ${hold}
-                order by t.${tsCol}, t.${keyCol} limit ${this.batchSize})
+            `delete from ${table} as d where d.${tenantCol} = $1 and (${tuple("d")}) in (
+               select ${tuple("t")} from ${table} t where ${expiredWhere} and not ${hold}
+                order by t.${tsCol}, ${tuple("t")} limit ${this.batchSize})
              returning ${returning}`,
             params,
           )
@@ -243,6 +290,11 @@ export class RetentionJob {
       if (result.keys.length < this.batchSize) break;
     }
     report.deletedCount = allKeys.length;
+    if (candidates > 0 && allKeys.length === 0) {
+      // Expired, unheld rows exist but none could be deleted (e.g. no row-level DELETE policy): never "nothing expired".
+      this.logger.error("retention.dataset.delete_blocked", { tenantId, runId, reasonCode: "RETENTION_DELETE_BLOCKED", kind: ds.name, count: candidates });
+      return { ...report, status: "FAILED", reasonCode: "RETENTION_DELETE_BLOCKED" };
+    }
     if (allKeys.length > 0) {
       report.status = "DELETED";
       report.keyDigest = keyDigest(allKeys);

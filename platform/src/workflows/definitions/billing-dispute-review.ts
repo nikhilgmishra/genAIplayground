@@ -6,7 +6,7 @@
  * communicating the decision is a later disclosure; both are rechecked.
  */
 import type { VersionedWorkflowDefinition } from "../types.js";
-import { deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
+import { ACTORS, COMMON_EVENT_ACTORS, deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
 
 export const billingDisputeReviewV1: VersionedWorkflowDefinition = deepFreeze({
   type: "billing_dispute_review",
@@ -91,4 +91,20 @@ export const billingDisputeReviewV1: VersionedWorkflowDefinition = deepFreeze({
     WAITING_FOR_SYSTEM: { SYSTEM_CONFIRMED: "disclosure" },
   },
   humanTaskRoles: { WAITING_FOR_HUMAN: "billing_specialist" },
+  eventActors: {
+    ...COMMON_EVENT_ACTORS,
+    VALIDATE: ACTORS.SYSTEM,
+    VALIDATION_PASSED: ACTORS.SYSTEM_OR_STAFF,
+    NEEDS_CALLER_INFO: ACTORS.SYSTEM_OR_STAFF,
+    CALLER_RESPONDED: ACTORS.CALLER_RESPONSE,
+    COMMIT: ACTORS.SYSTEM,
+    SYSTEM_CONFIRMED: ACTORS.SYSTEM_OR_EXTERNAL,
+    SYSTEM_REJECTED: ACTORS.SYSTEM_OR_EXTERNAL,
+    PERMANENT_FAILURE: ACTORS.SYSTEM_OR_EXTERNAL,
+  },
+  grantActions: {
+    WAITING_FOR_HUMAN: { HUMAN_REJECTED: "billing.review.decision_notice" },
+    READY_TO_COMMIT: { COMMIT: "billing.review.commit" },
+    WAITING_FOR_SYSTEM: { SYSTEM_CONFIRMED: "billing.review.outcome_notice" },
+  },
 });

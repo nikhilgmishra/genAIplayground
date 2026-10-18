@@ -83,6 +83,18 @@ describe("TemplateResponseGate: rendering", () => {
     expect(ref.utterance).toMatch(/^Your support reference is S R, A B C D, 2 3 4 5\. .*not a case number\.$/);
   });
 
+  it("[SPEC-7.transaction-matching] [ACT-05] the secure-link match code is spoken only through its typed template; an invalid code fails closed", () => {
+    const d = directive({ templateId: "verification.secure_link_match_code", responseClass: "GENERIC_STATUS", slots: { matchCode: "maple-otter" }, authorizationRef: null, sourceRefs: [] });
+    const en = ok(gate.render(d, ctx()));
+    expect(en.utterance).toMatch(/check that it shows the words maple, otter before you approve\.$/);
+    expect(en.localUnapprovedBadge).toBe(true);
+    expect(ok(gate.render(d, ctx({ locale: "es-US" }))).utterance).toMatch(/las palabras maple, otter antes de aprobar\.$/);
+    expect(rejected(gate.render({ ...d, slots: { matchCode: "maple-maple" } }, ctx())).reasonCode).toBe("SLOT_INVALID_MATCH_CODE");
+    expect(rejected(gate.render({ ...d, slots: { matchCode: "4111-1111" } }, ctx())).reasonCode).toBe("SLOT_INVALID_MATCH_CODE");
+    // DRAFT pending support operations review: never rendered outside local/ci.
+    expect(rejected(gate.render(d, ctx({ environment: "production" }))).reasonCode).toBe("TEMPLATE_NOT_APPROVED");
+  });
+
   it("[SPEC-11.acknowledgment] 'Let me check that.' renders as an acknowledgment that never counts as resolution", () => {
     const r = ok(gate.render(directive({ templateId: "status.checking", responseClass: "GENERIC_STATUS", slots: {}, authorizationRef: null, sourceRefs: [] }), ctx({ validAuthorizationRefs: new Set() })));
     expect(r).toMatchObject({ utterance: "Let me check that.", acknowledgmentOnly: true, protectedClass: false });

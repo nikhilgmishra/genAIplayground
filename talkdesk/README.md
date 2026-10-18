@@ -67,17 +67,18 @@ Talkdesk number ─► Studio flow (deterministic; talkdesk/studio-flow-spec.md)
 | Isolated DTMF OTP (only if TB-03 proven) | `telephony.submitOtp` | `VerificationService.submitOtp` (telephony_control identity) |
 | Deterministic confirmation step | `telephony.pendingConfirmation`, `telephony.confirmAction` | `ActionService.confirm` + `ActionConfirmation` (`platform/src/actions/ports.ts`) |
 | Participant change (conference, transfer leg) | `telephony.applyChange` | `SessionService.applyChange` |
-| Transfer state events (TB-07) | `telephony.transferEvent` | `TransferRecord` / `TransferState` (`platform/src/protocol/support.ts`) |
+| Transfer state events (TB-07) | `webhooks.transferEvents` | `TransferRecord` / `TransferState` (`platform/src/protocol/support.ts`) |
 | AI admission check | `telephony.admission` | `AdmissionController.admit` (`platform/src/ops/ports.ts`) |
 | Call end | `telephony.endCall` | `SessionService.endCall` |
 | AI agent tool calls | `/mcp` | `ToolRequest`/`ToolResult`/`ToolDefinition` (`platform/src/protocol/tools.ts`) |
 | Queue / destination mapping | trusted destinations | `DestinationConfig` (`platform/src/config/ports.ts`); `DESTINATIONS` (`platform/src/fixtures/synthetic-world.ts`) |
 
-The telephony-control operation identifiers (`telephony.*`) and the HTTP paths quoted in
-these documents are **PROPOSED** by this package. The gateway module's published OpenAPI
-is authoritative; `drift-check.md` compares the two. Operations `telephony.admission`,
-`telephony.pendingConfirmation` and `telephony.transferEvent` have no port method today
-and are listed as interface change requests in the delivery report.
+The telephony-control operation identifiers and HTTP paths quoted in these documents are
+the ones the gateway publishes (`schemas/openapi/gateway.openapi.json`, generated from
+`platform/src/gateway`); `validate-package.mjs` fails when `expected-config.yaml`
+`httpSteps` or `studio-flow-spec.md` section 3 differ from that document, and
+`drift-check.md` compares a tenant observation with it. Publication is not tenant
+evidence: every Studio-side behaviour stays UNVERIFIED until the tenant tests run.
 
 ## Conventions
 
@@ -98,7 +99,9 @@ and are listed as interface change requests in the delivery report.
 ## Validation (offline)
 
 ```
-node talkdesk/tools/validate-package.mjs     # YAML parse, guardrail length/hash, destination + tool consistency
+node talkdesk/tools/validate-package.mjs     # YAML parse, guardrail length/hash, destination + tool consistency,
+                                             # every schemas/tools/catalog.json tool assigned to exactly one agent,
+                                             # httpSteps == published gateway OpenAPI, one integrationId per tenant
 node --test talkdesk/tools/package.test.mjs   # tagged node:test suite
 node talkdesk/tools/drift-check.mjs talkdesk/observed-config.template.yaml   # example run: verdict INCOMPLETE, exit code 2 (nothing observed yet)
 ```

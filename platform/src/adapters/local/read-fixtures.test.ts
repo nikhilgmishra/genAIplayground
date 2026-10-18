@@ -40,14 +40,17 @@ describe("ClaimsFixture (LOCAL FIXTURE, SYNTHETIC)", () => {
 });
 
 describe("ProviderFixture (LOCAL FIXTURE, SYNTHETIC)", () => {
-  it("[SPEC-4.provider] onboarding status exposes the stage and missing document types only", async () => {
+  it("[SPEC-4.provider] onboarding status exposes the stage, missing document types and the provider's practice organization only", async () => {
     const provider = new ProviderFixture({ store: new SyntheticStore() });
     expect(await provider.getOnboardingStatus(PEOPLE.newbie.subjectId)).toEqual({
       providerId: PEOPLE.newbie.subjectId,
       stage: "DOCUMENTS_PENDING",
       missingDocumentTypes: ["MALPRACTICE_INSURANCE", "W9"],
       asOf: "2026-10-14T12:00:00.000Z",
+      organizationId: null,
     });
+    // The practice comes from the SYNTHETIC provider record (enrolled practice), never from caller input.
+    expect((await provider.getOnboardingStatus(PEOPLE.morgan.subjectId))?.organizationId).toBe(PEOPLE.morgan.organizationId);
     expect(await provider.getOnboardingStatus("prv_synthDoesNotExist01")).toBeNull();
   });
 

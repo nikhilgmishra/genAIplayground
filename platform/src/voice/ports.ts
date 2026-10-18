@@ -15,7 +15,9 @@ export type SlotType =
   | "enum"
   | "count"
   | "spelled_code"
-  | "portal_path";
+  | "portal_path"
+  /** Two distinct words from the identity module's match-code list (identity/match-code.ts), e.g. "acorn-maple". Not a secret. */
+  | "match_code";
 
 export interface TemplateDefinition {
   templateId: string;

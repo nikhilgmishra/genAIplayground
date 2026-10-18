@@ -46,7 +46,7 @@ describe("RelationshipDirectoryFixture (LOCAL FIXTURE, SYNTHETIC registries)", (
     const facts = await dir.relationshipsFor(PEOPLE.morgan.actorId, "provider");
     expect(types(facts)).toEqual(["practice_member", "self", "treating_provider"]);
     expect(facts.find((f) => f.type === "practice_member")).toMatchObject({ organizationId: ORGANIZATIONS.practiceNorth.organizationId, source: "enrollment_system", validUntil: null });
-    expect(facts.find((f) => f.type === "treating_provider")).toMatchObject({ subjectId: PEOPLE.avery.subjectId, scopes: ["appointment:read"], constraints: [] });
+    expect(facts.find((f) => f.type === "treating_provider")).toMatchObject({ subjectId: PEOPLE.avery.subjectId, scopes: ["appointment:read", "appointment:list_options"], constraints: [] });
     // No treating relationship with Blake exists in the enrollment system, so no fact appears for Blake.
     expect(facts.some((f) => f.subjectId === PEOPLE.blake.subjectId)).toBe(false);
   });

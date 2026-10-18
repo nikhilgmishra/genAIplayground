@@ -5,7 +5,10 @@
  *    underlying operation is conditional / deduplicated);
  *  - content-free: logs and reports carry counts, opaque ids and reason codes only;
  *  - isolated: an error is caught and reported (reason code), never thrown to
- *    the scheduler, and never stops the other loops.
+ *    the scheduler, and never stops the other loops;
+ *  - observable: MeteredLoop emits content-free per-loop metrics (runs, errors,
+ *    processed items, schedule lag, duration) through the Metrics port; a
+ *    metrics failure never affects the loop.
  */
 import type { LedgerActionService } from "../actions/action-service.js";
 import type { ToolRequestIdempotency } from "../actions/tool-idempotency.js";
@@ -15,7 +18,8 @@ import { TRANSFER_EVENT_FOR_STATE } from "../adapters/local/telephony-fixture.js
 import type { AuditShipper } from "../audit/shipper.js";
 import type { BusinessModule } from "../business/contract.js";
 import type { Db } from "../db/types.js";
-import type { Logger } from "../observability/ports.js";
+import { noopMetrics } from "../observability/metrics.js";
+import type { Logger, Metrics } from "../observability/ports.js";
 import { PgConsumerDedup } from "../outbox/consumer-dedup.js";
 import type { PgOutboxDispatcher } from "../outbox/dispatcher.js";
 import type { MemoryPublisherFixture } from "../outbox/memory-publisher.fixture.js";
@@ -44,6 +48,53 @@ export interface WorkerLoop {
 const reasonOf = (err: unknown): string => (err instanceof PlatformError && /^[A-Z][A-Z0-9_]{2,63}$/.test(err.reasonCode) ? err.reasonCode : "UNCLASSIFIED_ERROR");
 const ok = (processed: number, details: LoopReport["details"] = {}): LoopReport => ({ ok: true, processed, reasonCode: null, details });
 const failed = (err: unknown, details: LoopReport["details"] = {}): LoopReport => ({ ok: false, processed: 0, reasonCode: reasonOf(err), details });
+
+/** Metrics must never break a loop (or a safety-relevant flow): emission errors are swallowed. */
+function safeMetric(fn: () => void): void {
+  try {
+    fn();
+  } catch {
+    // content-free metrics are best effort here; the loop report and logs still carry the outcome
+  }
+}
+
+/**
+ * Wraps a loop with content-free metrics (labels are the closed loop-name enum and ok/failed):
+ * vsp_worker_loop_runs_total{loop,result}, vsp_worker_loop_errors_total{loop},
+ * vsp_worker_loop_processed_total{loop}, vsp_worker_loop_lag_ms{loop} (how far this run started
+ * behind the previous start plus the interval) and vsp_worker_loop_duration_ms{loop}.
+ */
+export class MeteredLoop implements WorkerLoop {
+  readonly name: string;
+  readonly intervalMs: number;
+  private lastStartMs: number | null = null;
+
+  constructor(
+    private readonly inner: WorkerLoop,
+    private readonly metrics: Metrics,
+    private readonly clock: Clock,
+  ) {
+    this.name = inner.name;
+    this.intervalMs = inner.intervalMs;
+  }
+
+  async runOnce(): Promise<LoopReport> {
+    const start = this.clock.now().getTime();
+    const labels = { loop: this.name };
+    if (this.lastStartMs !== null) {
+      const lag = Math.max(0, start - (this.lastStartMs + this.intervalMs));
+      safeMetric(() => this.metrics.observe("vsp_worker_loop_lag_ms", lag, labels));
+    }
+    this.lastStartMs = start;
+    const report = await guarded(() => this.inner.runOnce());
+    const duration = Math.max(0, this.clock.now().getTime() - start);
+    safeMetric(() => this.metrics.observe("vsp_worker_loop_duration_ms", duration, labels));
+    safeMetric(() => this.metrics.increment("vsp_worker_loop_runs_total", { loop: this.name, result: report.ok ? "ok" : "failed" }));
+    if (!report.ok) safeMetric(() => this.metrics.increment("vsp_worker_loop_errors_total", labels));
+    if (report.processed > 0) safeMetric(() => this.metrics.increment("vsp_worker_loop_processed_total", labels, report.processed));
+    return report;
+  }
+}
 
 /** Small helper so each loop's body is wrapped identically. */
 async function guarded(fn: () => Promise<LoopReport>): Promise<LoopReport> {
@@ -74,7 +125,7 @@ export class OutboxDispatchLoop implements WorkerLoop {
 }
 
 interface QueueEntry {
-  message: OutboxMessage & { tenantId?: string };
+  message: OutboxMessage;
   attempts: number;
   nextAttemptAt: number;
 }
@@ -187,14 +238,6 @@ export class OutboxConsumeLoop implements WorkerLoop {
     this.dedup = new PgConsumerDedup({ db: opts.db, clock: opts.clock, role: "app_worker" });
   }
 
-  private async alreadyProcessed(tenantId: string, consumer: string, messageId: string): Promise<boolean> {
-    const r = await this.opts.db.tx(
-      async (tx) => (await tx.query<{ one: number }>("select 1 as one from consumer_dedup where consumer = $1 and message_id = $2", [consumer, messageId])).rows.length > 0,
-      { role: "app_worker", rls: { tenantId } },
-    );
-    return r;
-  }
-
   runOnce(): Promise<LoopReport> {
     return guarded(async () => {
       let consumed = 0;
@@ -218,7 +261,7 @@ export class OutboxConsumeLoop implements WorkerLoop {
           continue;
         }
         try {
-          if (await this.alreadyProcessed(tenantId, consumerName, m.messageId)) {
+          if (await this.dedup.isProcessed(tenantId, consumerName, m.messageId)) {
             this.opts.queue.ack(m.messageId);
             duplicates += 1;
             continue;
@@ -363,14 +406,20 @@ export class TransferSweepLoop implements WorkerLoop {
   }
 }
 
-/** Retention: deletes nothing while no approved duration exists; BLOCKED classes are reported, never "deleted". */
+/**
+ * Retention: deletes nothing while no approved duration exists; BLOCKED classes are reported, never "deleted".
+ * Emits vsp_retention_deleted_total{data_class}, vsp_retention_classes_blocked{data_class,reason},
+ * vsp_retention_unverified_copies{location,status} and (when the job can count them)
+ * vsp_vendor_deletion_requests_pending{vendor}.
+ */
 export class RetentionLoop implements WorkerLoop {
   readonly name = "retention.run";
   constructor(
-    private readonly job: Pick<RetentionJob, "run">,
+    private readonly job: Pick<RetentionJob, "run"> & Partial<Pick<RetentionJob, "pendingVendorDeletions">>,
     private readonly clock: Clock,
     private readonly logger: Logger,
     readonly intervalMs = 86_400_000,
+    private readonly metrics: Metrics = noopMetrics,
   ) {}
   runOnce(): Promise<LoopReport> {
     return guarded(async () => {
@@ -378,19 +427,49 @@ export class RetentionLoop implements WorkerLoop {
       let deleted = 0;
       let blockedClasses = 0;
       let unverified = 0;
+      const deletedByClass = new Map<string, number>();
+      const blocked = new Map<string, number>();
+      const copies = new Map<string, number>();
       for (const r of reports) {
-        for (const d of r.datasets) deleted += d.deletedCount;
+        for (const d of r.datasets) {
+          deleted += d.deletedCount;
+          deletedByClass.set(d.dataClass, (deletedByClass.get(d.dataClass) ?? 0) + d.deletedCount);
+        }
         blockedClasses += r.classes.filter((c) => c.status !== "EXECUTED").length;
         unverified += r.unverifiedCopies.length;
         for (const c of r.classes) {
-          if (c.status !== "EXECUTED") this.logger.warn("worker.retention.class_blocked", { dataClass: c.dataClass, reasonCode: c.status });
+          if (c.status !== "EXECUTED") {
+            this.logger.warn("worker.retention.class_blocked", { dataClass: c.dataClass, reasonCode: c.status });
+            blocked.set(`${c.dataClass}|${c.status}`, (blocked.get(`${c.dataClass}|${c.status}`) ?? 0) + 1);
+          }
         }
+        for (const u of r.unverifiedCopies) copies.set(`${u.location}|${u.status}`, (copies.get(`${u.location}|${u.status}`) ?? 0) + 1);
+      }
+      for (const [dataClass, n] of deletedByClass) if (n > 0) safeMetric(() => this.metrics.increment("vsp_retention_deleted_total", { data_class: dataClass }, n));
+      for (const dataClass of DATA_CLASSES) {
+        for (const reason of BLOCK_REASONS) {
+          safeMetric(() => this.metrics.gauge("vsp_retention_classes_blocked", blocked.get(`${dataClass}|${reason}`) ?? 0, { data_class: dataClass, reason }));
+        }
+      }
+      for (const location of COPY_LOCATIONS) {
+        for (const status of COPY_STATUSES) {
+          safeMetric(() => this.metrics.gauge("vsp_retention_unverified_copies", copies.get(`${location}|${status}`) ?? 0, { location, status }));
+        }
+      }
+      if (this.job.pendingVendorDeletions) {
+        const pending = await this.job.pendingVendorDeletions().catch(() => null);
+        if (pending) for (const [vendor, n] of Object.entries(pending)) safeMetric(() => this.metrics.gauge("vsp_vendor_deletion_requests_pending", n, { vendor }));
       }
       const status = reports.every((r) => r.status === "BLOCKED_RETENTION_UNSET") ? "BLOCKED_RETENTION_UNSET" : null;
       return { ok: true, processed: deleted, reasonCode: status, details: { blockedClasses, unverifiedCopies: unverified, runs: reports.length } };
     });
   }
 }
+
+const DATA_CLASSES = ["TRANSIENT_CONVERSATION", "BUSINESS_RECORD", "RESTRICTED_QA_MEDIA", "SECURITY_AUDIT"] as const;
+const BLOCK_REASONS = ["BLOCKED_RETENTION_UNSET", "BLOCKED_RETENTION_CONFIG_MISMATCH"] as const;
+const COPY_LOCATIONS = ["DERIVED_TABLE", "INDEX", "CACHE", "BACKUP", "VENDOR"] as const;
+const COPY_STATUSES = ["LEFTOVERS_FOUND", "UNVERIFIABLE"] as const;
 
 // ---------------------------------------------------------------------------
 // LOCAL FIXTURE: telephony fixture events -> transfer coordinator

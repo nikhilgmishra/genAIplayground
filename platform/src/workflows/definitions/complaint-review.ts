@@ -3,7 +3,7 @@
  * response to the complainant is a later disclosure and is rechecked.
  */
 import type { VersionedWorkflowDefinition } from "../types.js";
-import { deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
+import { ACTORS, COMMON_EVENT_ACTORS, deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
 
 export const complaintReviewV1: VersionedWorkflowDefinition = deepFreeze({
   type: "complaint_review",
@@ -54,4 +54,14 @@ export const complaintReviewV1: VersionedWorkflowDefinition = deepFreeze({
     WAITING_FOR_HUMAN: { HUMAN_APPROVED: "disclosure" },
   },
   humanTaskRoles: { WAITING_FOR_HUMAN: "complaints_reviewer" },
+  eventActors: {
+    ...COMMON_EVENT_ACTORS,
+    VALIDATE: ACTORS.SYSTEM,
+    TRIAGED: ACTORS.SYSTEM_OR_STAFF,
+    NEEDS_CALLER_INFO: ACTORS.SYSTEM_OR_STAFF,
+    CALLER_RESPONDED: ACTORS.CALLER_RESPONSE,
+  },
+  grantActions: {
+    WAITING_FOR_HUMAN: { HUMAN_APPROVED: "complaint.response.disclose" },
+  },
 });

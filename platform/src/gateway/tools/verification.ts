@@ -2,9 +2,10 @@
  * begin_verification (verification:begin). The locator only LOCATES a candidate
  * inside the restricted verification service; it never authenticates (AUTH-01) and is
  * never echoed, logged or audited. The response is generic for zero, one or many
- * matches (no enumeration). The match code is not returned to the model (it is shown
- * in the portal); a spoken match-code template needs a voice slot type that does not
- * exist yet (gap recorded in the business README).
+ * matches (no enumeration). The secure-link match code (two words, generated for every
+ * request, eligible or not; not a secret) is never a tool output field: it is spoken only
+ * through the approved-template path (verification.secure_link_match_code, slot type
+ * match_code) so the caller can compare it with the words the portal shows.
  */
 import { z } from "zod";
 import type { BusinessServices } from "../../business/services/types.js";
@@ -12,6 +13,7 @@ import { openResource } from "../../business/shared.js";
 import { speechFor } from "../../business/speech.js";
 import type { GenericVerificationResponse } from "../../identity/ports.js";
 import { DependencyError } from "../../shared/errors.js";
+import { isValidMatchCode } from "../../voice/slots.js";
 import type { ToolModule } from "../ports.js";
 import { DateArg, failed, ok, retryable } from "./common.js";
 import { TOOL_DEFINITIONS } from "./definitions.js";
@@ -61,11 +63,13 @@ export function beginVerificationTool(s: BusinessServices): ToolModule<z.infer<t
       const locator = input.locator.kind === "PORTAL_USERNAME_HINT" ? { portalUsernameHint: input.locator.hint } : { fullName: input.locator.fullName, dateOfBirth: input.locator.dateOfBirth };
       let verificationId: string;
       let status: (typeof STATUS)[number];
+      let matchCode: string | null = null;
       try {
         if (input.method === "SECURE_LINK") {
           const r = await s.deps.verification.beginSecureLink(ctx.auth, { role, locator });
           verificationId = r.transactionId;
           status = r.response;
+          matchCode = isValidMatchCode(r.matchCode) ? r.matchCode : null;
         } else {
           const r = await s.deps.verification.beginOtp(ctx.auth, { role, locator });
           verificationId = r.challengeId;
@@ -76,7 +80,11 @@ export function beginVerificationTool(s: BusinessServices): ToolModule<z.infer<t
         return failed("VERIFICATION_UNAVAILABLE_USE_HUMAN");
       }
       const nextStep = status === "VERIFICATION_UNAVAILABLE_USE_HUMAN" ? "HUMAN_VERIFICATION" : status === "IF_ELIGIBLE_A_CODE_WAS_SENT" ? "ENTER_CODE_ON_SECURE_PROMPT" : "APPROVE_SECURE_LINK_IN_PORTAL";
-      return ok({ verification: { verificationId, status, nextStep } }, speechFor(s.deps.templates, TEMPLATE_BY_STATUS[status]));
+      const speech =
+        status === "IF_ELIGIBLE_A_LINK_WAS_SENT" && matchCode !== null
+          ? speechFor(s.deps.templates, "verification.secure_link_match_code", { matchCode })
+          : speechFor(s.deps.templates, TEMPLATE_BY_STATUS[status]);
+      return ok({ verification: { verificationId, status, nextStep } }, speech);
     },
   };
 }

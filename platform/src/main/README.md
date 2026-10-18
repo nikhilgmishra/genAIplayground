@@ -35,5 +35,6 @@ ConfigurationRejectedError before binding any port`).
 | `server.ts` (`node dist/main/server.js`) | Deployed gateway: `VSP_ENVIRONMENT` required, `PORT` (8080), `VSP_MUTATIONS_ENABLED` (default false outside local/ci) | refused outside local/ci; loopback only in local/ci |
 | `console.ts` | LOCAL FIXTURE console composition (`ConsoleApiDeps` over the container; workforce SSO is BLOCKED, PRQ-036) | via `local.ts` |
 | `fixtures/stub-business.fixture.ts` | LOCAL TEST FIXTURE stub `BusinessModule` for composition tests | — |
+| `sessionless-routing.test.ts` | SAFE-02 end to end over this container with the REAL business module: no, expired and revoked sessions over the HTTP tool route and the real MCP SDK client (127.0.0.1); safety/human tools route to an allowlisted destination and are audited, every other tool fails closed | — |
 
 The worker entry point is `platform/src/worker/main.ts`.

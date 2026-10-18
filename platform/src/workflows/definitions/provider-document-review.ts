@@ -5,7 +5,7 @@
  * with the credentialing function).
  */
 import type { VersionedWorkflowDefinition } from "../types.js";
-import { deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
+import { ACTORS, COMMON_EVENT_ACTORS, deepFreeze, humanTaskFor, terminalState, waitState } from "./builders.js";
 
 export const providerDocumentReviewV1: VersionedWorkflowDefinition = deepFreeze({
   type: "provider_document_review",
@@ -74,4 +74,17 @@ export const providerDocumentReviewV1: VersionedWorkflowDefinition = deepFreeze(
     WAITING_FOR_HUMAN: { HUMAN_APPROVED: "material_change", HUMAN_REJECTED: "disclosure" },
   },
   humanTaskRoles: { WAITING_FOR_HUMAN: "provider_relations_specialist" },
+  eventActors: {
+    ...COMMON_EVENT_ACTORS,
+    VALIDATE: ACTORS.SYSTEM,
+    DOCUMENTS_RECEIVED: ACTORS.SYSTEM_OR_STAFF,
+    DOCUMENTS_MISSING: ACTORS.SYSTEM_OR_STAFF,
+    // The provider submits documents through the authenticated portal or a call (caller), or staff record them.
+    DOCUMENTS_SUBMITTED: ACTORS.CALLER_RESPONSE,
+    SYSTEM_CONFIRMED: ACTORS.SYSTEM_OR_EXTERNAL,
+    PERMANENT_FAILURE: ACTORS.SYSTEM_OR_EXTERNAL,
+  },
+  grantActions: {
+    WAITING_FOR_HUMAN: { HUMAN_APPROVED: "provider.documents.record_review", HUMAN_REJECTED: "provider.documents.request_correction" },
+  },
 });

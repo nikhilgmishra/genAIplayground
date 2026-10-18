@@ -11,6 +11,7 @@ export * from "./registry.js";
 export * from "./outcome.js";
 export * from "./tokens.js";
 export * from "./recheck.js";
+export * from "./grants.js";
 export * from "./engine.js";
 export * from "./asl.js";
 export * from "./transfer.js";

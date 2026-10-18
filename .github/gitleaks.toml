@@ -36,6 +36,6 @@ regexes = ['''^[a-z]+([/-][a-z]+)*$''']
 [[allowlists]]
 description = "SYNTHETIC idempotency-key fixtures in gateway tests"
 condition = "AND"
-paths = ['''^platform/src/gateway/pipeline\.test\.ts$''']
+paths = ['''(^|/)platform/src/gateway/pipeline\.test\.ts$''']
 regexTarget = "secret"
 regexes = ['''^idem_fixtureKey_[0-9]{6}$''']

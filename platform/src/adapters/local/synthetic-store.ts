@@ -191,7 +191,9 @@ function seedState(): State {
   const slots: StoredSlot[] = SLOTS.map((s) => ({ ...s, heldBy: null }));
   const invoices: StoredInvoice[] = INVOICES.map((inv) => ({ ...inv, lines: inv.lines.map((l) => ({ ...l })) }));
   const claims: StoredClaim[] = CLAIMS.map((c) => ({ ...c }));
-  const onboarding: StoredOnboarding[] = ONBOARDING.map((o) => ({ ...o, missingDocumentTypes: [...o.missingDocumentTypes] }));
+  // The provider's practice comes from the SYNTHETIC person record of that provider (the enrolled practice).
+  const practiceOf = (providerId: string): string | null => Object.values(PEOPLE).find((p) => p.subjectId === providerId && p.role === "provider")?.organizationId ?? null;
+  const onboarding: StoredOnboarding[] = ONBOARDING.map((o) => ({ ...o, missingDocumentTypes: [...o.missingDocumentTypes], organizationId: practiceOf(o.providerId) }));
   const remittances: StoredRemittance[] = REMITTANCES.map((r) => ({ ...r }));
   const destinations: StoredDestination[] = DESTINATIONS.map((d) => ({
     destinationId: d.destinationId,

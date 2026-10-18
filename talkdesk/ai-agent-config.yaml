@@ -100,9 +100,10 @@ coordinator:
     - "Caller-facing protected facts come only from gateway SpeechDirective templates (ACT-05)."
     - "On 'agent', 'person', '0' or any request for a human: request_human_transfer, then HUMAN_REQUESTED exit."
     - "On any possible safety concern: request_safety_route, then SAFETY_ROUTE exit; no authentication."
+  # Public, account-free answers only (A0). Case follow-up belongs to vsp_intake.
   allowedTools:
     - { name: search_approved_runbook, version: "1.0.0" }
-    - { name: get_authorized_case_status, version: "1.0.0" }
+    - { name: get_login_guidance, version: "1.0.0" }      # login guidance; never a credential reset
   handoffTo: [vsp_scheduling, vsp_billing_claims, vsp_provider_partner, vsp_intake]
   deterministicSkills: [vsp_verification_skill, vsp_confirmation_skill]
 
@@ -127,6 +128,7 @@ agents:
     purpose: "Invoice explanation from authoritative fields, billing review intake, insurer-reported claim status. Never decides coverage, waives fees or promises refunds; claim status is not an eligibility or payment guarantee."
     allowedTools:
       - { name: get_invoice_status, version: "1.0.0" }
+      - { name: prepare_billing_review, version: "1.0.0" }   # prepares only; nothing is submitted until trusted confirmation (SF-12)
       - name: submit_billing_review
         version: "1.0.0"
         consequential: true
@@ -176,8 +178,11 @@ deterministicSkills:
     spec: "studio-flow-spec.md SF-12"
     status: DISABLED_UNTIL_TB02_PROVEN
 
-# Tool names come from spec section 8 plus the bounded workflow catalogue (section 4).
-# Anything not listed here is not exposed. Explicitly prohibited (spec section 8):
+# Tool names come from spec section 8 plus the bounded workflow catalogue (section 4) and
+# equal the pinned gateway catalogue (schemas/tools/catalog.json): every catalogue tool is
+# assigned to exactly ONE agent or skill (the two always-available tools to every agent),
+# at its pinned version; validate-package.mjs checks this. Anything not listed here is not
+# exposed. Explicitly prohibited (spec section 8):
 prohibitedToolKinds:
   - raw_sql
   - arbitrary_salesforce_query

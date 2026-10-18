@@ -16,6 +16,7 @@ import type { AuditWriter } from "../audit/ports.js";
 import type { Db, Queryable } from "../db/types.js";
 import type { Logger } from "../observability/ports.js";
 import { silentLogger } from "../observability/logger.js";
+import { auditStreamName } from "../audit/schema.js";
 import { AuditEventInput } from "../protocol/index.js";
 import type { Clock } from "../shared/clock.js";
 import { addMs, iso } from "../shared/clock.js";
@@ -39,10 +40,8 @@ export function computeBackoffMs(attempt: number, policy: BackoffPolicy, random:
   return Math.floor(exp / 2 + r * (exp / 2));
 }
 
-/** Outbox message as handed to publishers; tenantId lets consumers set their RLS context. */
-export interface DispatchedOutboxMessage extends OutboxMessage {
-  tenantId: string;
-}
+/** Outbox message as handed to publishers (kept for compatibility: OutboxMessage now carries tenantId). */
+export type DispatchedOutboxMessage = OutboxMessage;
 
 export interface DeadLetterEntry {
   tenantId: string;
@@ -86,6 +85,12 @@ export interface PgOutboxDispatcherOptions {
   logger?: Logger;
   /** When provided, operator repair actions are audited in the same transaction (fail closed). */
   audit?: AuditWriter;
+  /**
+   * Dispatcher instance id (e.g. the ECS task id). Audit events go to the per-instance stream
+   * auditStreamName("outbox", instanceId) so instances never contend on one chain head.
+   * Defaults to a random opaque id per dispatcher instance.
+   */
+  instanceId?: string;
 }
 
 interface OutboxRow {
@@ -107,6 +112,8 @@ const MESSAGE_ID = /^msg_[A-Za-z0-9_-]{16,64}$/;
 
 export class PgOutboxDispatcher implements OutboxDispatcher {
   readonly config: DispatcherConfig;
+  /** Audit stream of this dispatcher instance (auditStreamName("outbox", instanceId)). */
+  readonly auditStream: string;
   private readonly logger: Logger;
   private readonly random: () => number;
 
@@ -116,6 +123,7 @@ export class PgOutboxDispatcher implements OutboxDispatcher {
     this.config = cfg.data;
     this.logger = opts.logger ?? silentLogger;
     this.random = opts.random ?? Math.random;
+    this.auditStream = auditStreamName("outbox", opts.instanceId ?? newId("odi"));
   }
 
   private async tenants(): Promise<string[]> {
@@ -327,7 +335,7 @@ export class PgOutboxDispatcher implements OutboxDispatcher {
               reasonCode: operator?.reasonCode ?? "OPERATOR_REQUEUE",
               dataClass: "SECURITY_AUDIT",
             });
-            await this.opts.audit.append(tx, input, "outbox");
+            await this.opts.audit.append(tx, input, this.auditStream);
           }
           return true;
         },

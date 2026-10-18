@@ -72,31 +72,40 @@ disabled.
 
 ## 3. Gateway operations used by Studio (telephony-control API)
 
-Service identity: `telephony_control` (separate credential from `mcp_tools`; see
-`mcp-connection.md` §3). Paths are **PROPOSED**; the gateway OpenAPI (owner: gateway
-module, `platform/src/gateway`) is authoritative and `drift-check.md` compares them.
-Whether Studio HTTP steps support OAuth2 client credentials is **UNKNOWN** (VQ-TD-22); a
-static header credential requires approval AR-08 (`STATIC_CREDENTIAL_EXCEPTION`).
+Service identity: `telephony_control` (separate credential from `mcp_tools`, same
+`integrationId` for the Talkdesk tenant; see `mcp-connection.md` §3). Paths below are the
+ones the gateway **publishes** (`schemas/openapi/gateway.openapi.json`, generated from
+`platform/src/gateway/http/telephony-routes.ts`; `drift-check.md --openapi` compares them).
+They are not tenant evidence: whether Studio HTTP steps can call them, send headers and
+type-check responses is **UNKNOWN** until the tenant tests run. Whether Studio HTTP steps
+support OAuth2 client credentials is **UNKNOWN** (VQ-TD-22); a static header credential
+requires approval AR-08 (`STATIC_CREDENTIAL_EXCEPTION`).
 
-| Op | Port method | Proposed method + path | Request body (strict) | Success response | On timeout / error |
+Every operation except TC-01 and TC-09 takes the bearer session reference only in the
+`X-VSP-Session-Ref` header (from `vsp_session_ref`) and the Talkdesk interaction id in
+`X-VSP-Interaction-Id` (binds the session to the current call); neither ever appears in a
+URL path or query string.
+
+| Op | Port method | Published method + path | Request body (strict) | Success response | On timeout / error |
 |---|---|---|---|---|---|
-| TC-01 `telephony.startCall` | `SessionService.startCall` | `POST /telephony/v1/calls` | `{callId, callerIdHash: null, consent}` | `StartCallResult` `{sessionRef, sessionGeneration, authGate:false, expiresAt}` | `vsp_mode = CONTINUITY` → SF-C |
-| TC-02 `telephony.recordConsent` | `SessionService.recordConsent` | `POST /telephony/v1/calls/{sessionRef}/consent` | `ConsentState` | `{sessionGeneration}` | consent treated as not granted; AI not admitted |
-| TC-03 `telephony.selectRole` | `SessionService.selectRole` | `POST /telephony/v1/calls/{sessionRef}/role` | `{role}` | `{sessionGeneration}` | role `unselected`; A0 only |
-| TC-04 `telephony.authGate` | `SessionService.authGate` | `GET /telephony/v1/calls/{sessionRef}/auth-gate` | — | `AuthGateResponse` `{isAuthenticated, sessionGeneration, evaluatedAt}` | `vsp_auth_gate = false` |
-| TC-05 `telephony.admission` | `AdmissionController.admit` (no telephony port yet) | `GET /telephony/v1/calls/{sessionRef}/admission` | — | `AdmissionDecision` `{admitted, continuity, reasonCode}` | not admitted → SF-C |
-| TC-06 `telephony.submitOtp` | `VerificationService.submitOtp` | `POST /telephony/v1/calls/{sessionRef}/otp` | `{challengeId, code}` | `{verified, reasonCode}` (never echoes the code) | not verified → SF-11c |
-| TC-07 `telephony.pendingConfirmation` | `ActionService` (no port method yet) | `GET /telephony/v1/calls/{sessionRef}/pending-confirmation` | — | `{actionId, digest, turnId, sessionGeneration, promptText, expiresAt}` — `promptText` rendered by the gateway response gate from the approved `confirmationTemplateId` | no confirmation; route SF-13 (human) |
-| TC-08 `telephony.confirmAction` | `ActionService.confirm` | `POST /telephony/v1/calls/{sessionRef}/actions/{actionId}/confirm` | `ActionConfirmation` (`method: dtmf_keypress`, `capturedBy: talkdesk-studio`) | `{state: CONFIRMED}` | not confirmed; agent cannot commit |
-| TC-09 `telephony.transferEvent` | `TransferRecord` updates (no port method yet; TB-07) | `POST /telephony/v1/transfers/{transferRef}/events` | `{state, at, source}` | `{accepted:true}` | transfer outcome stays `OUTCOME_UNKNOWN`; humans reconcile |
-| TC-10 `telephony.applyChange` | `SessionService.applyChange` | `POST /telephony/v1/calls/{sessionRef}/change` | `{kind: PARTICIPANT_CHANGED}` | `{sessionGeneration}` | treat as changed: `vsp_auth_gate = false` |
-| TC-11 `telephony.endCall` | `SessionService.endCall` | `POST /telephony/v1/calls/{sessionRef}/end` | — | `204` | none needed: gateway enforces `expiresAt` (AUTH-04) |
-| TC-12 `telephony.handoffContext` | `HandoffPackage` lookup (transfer module) | `GET /telephony/v1/calls/{sessionRef}/handoff` | — | `{destinationId, handoffId, supportReference, priority}` | use default destination for the exit reason (section 4) |
+| TC-01 `telephony.startCall` | `SessionService.startCall` | `POST /telephony/v1/calls` | `{callId, callerIdHash: null, consent}` | `201` `StartCallResult` `{sessionRef, sessionGeneration, authGate:false, expiresAt}` | `vsp_mode = CONTINUITY` → SF-C |
+| TC-02 `telephony.recordConsent` | `SessionService.recordConsent` | `POST /telephony/v1/session/consent` | `ConsentState` | `{sessionGeneration}` | consent treated as not granted; AI not admitted |
+| TC-03 `telephony.selectRole` | `SessionService.selectRole` | `POST /telephony/v1/session/role` | `{role}` | `{sessionGeneration}` | role `unselected`; A0 only |
+| TC-04 `telephony.authGate` | `SessionService.authGate` | `GET /telephony/v1/session/auth-gate` | — | `AuthGateResponse` `{isAuthenticated, sessionGeneration, evaluatedAt}` | `vsp_auth_gate = false` |
+| TC-05 `telephony.admission` | `AdmissionController.admit` | `GET /telephony/v1/session/admission` | — | `AdmissionDecision` `{admitted, continuity, reasonCode}` | not admitted → SF-C |
+| TC-06 `telephony.submitOtp` | `VerificationService.submitOtp` | `POST /telephony/v1/session/otp` | `{challengeId, code}` | `{verified, reasonCode}` (never echoes the code) | not verified → SF-11c |
+| TC-07 `telephony.pendingConfirmation` | `ActionService` pending-action read | `GET /telephony/v1/session/pending-confirmation` | — | `{actionId, digest, sessionGeneration, turnId, expiresAt, confirmationTemplateId, promptText, routeToHuman}` — `promptText` rendered by the gateway response gate from the approved `confirmationTemplateId` (`null` ⇒ route to a human) | no confirmation; route SF-13 (human) |
+| TC-08 `telephony.confirmAction` | `ActionService.confirm` | `POST /telephony/v1/session/actions/{actionId}/confirm` | `{digest, sessionGeneration, turnId, method: dtmf_keypress, capturedAt}` (the gateway builds the `ActionConfirmation` with `capturedBy: talkdesk-studio`) | `{actionId, state: CONFIRMED}` | not confirmed; agent cannot commit |
+| TC-09 `webhooks.transferEvents` | `TransferCoordinator` event intake (TB-07) | `POST /v1/webhooks/transfer-events` | `{transferId, event, eventId, packageAcknowledged?}` (receiver accepted, bridged, caller connected) | `{accepted, decision}` | transfer outcome stays `OUTCOME_UNKNOWN`; humans reconcile. Talkdesk event authentication is undocumented (TB-09): only the LOCAL FIXTURE HMAC is accepted, in local/ci only |
+| TC-10 `telephony.applyChange` | `SessionService.applyChange` | `POST /telephony/v1/session/change` | `{kind: PARTICIPANT_CHANGED}` | `{sessionGeneration}` | treat as changed: `vsp_auth_gate = false` |
+| TC-11 `telephony.endCall` | `SessionService.endCall` | `POST /telephony/v1/session/end` | `{reason: CALLER_HANGUP \| FLOW_COMPLETED \| TRANSFERRED}` | `200` `{ended, outcome, reasonCode}` (not `204`) | none needed: gateway enforces `expiresAt` (AUTH-04) |
+| TC-12 `telephony.handoffContext` | `HandoffPackage` lookup (transfer module) | `GET /telephony/v1/session/handoff` | — | `{destinationId, handoffId, supportReference, priority}` | use default destination for the exit reason (section 4) |
 
 Rules for every HTTP step:
 
-* `sessionRef` travels in the path only as the opaque `ses_*` value; no PHI, ANI, name,
-  DOB or digits in any URL, query string or header value (SPEC-6.no-phi-in-urls).
+* `sessionRef` travels only in the `X-VSP-Session-Ref` header as the opaque `ses_*` value,
+  never in a URL; no PHI, ANI, name, DOB or digits in any URL, query string or header value
+  (SPEC-6.no-phi-in-urls).
 * `callerIdHash` is sent as `null` in Phase 2. ANI is a risk signal only (AUTH-01);
   hashing it outside the gateway requires a privacy data-flow review first.
 * Studio HTTP step timeout values are **UNKNOWN**; set them after the sandbox latency

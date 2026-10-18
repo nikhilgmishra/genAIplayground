@@ -4,11 +4,12 @@
  * catalogue action names (policy/vsp/data.json); minAssurance equals the catalogue's
  * minimum for that action. Versions follow talkdesk/ai-agent-config.yaml (1.0.0).
  *
- * Billing review choice: prepare_billing_review prepares the action and
- * submit_billing_review is the COMMIT tool with explicit prepared-action semantics
- * ({actionId, digest} only, trusted confirmation required), matching spec section 8's
- * tool name. The Talkdesk package must add prepare_billing_review and get_login_guidance
- * (interface change request).
+ * Billing review choice: prepare_billing_review (policy action billing:prepare_review)
+ * prepares the action and submit_billing_review (billing:submit_review) is the COMMIT
+ * tool with explicit prepared-action semantics ({actionId, digest} only, trusted
+ * confirmation required), matching spec section 8's tool name. get_appointment_options
+ * uses the dedicated appointment:list_options action, whose field mask carries the
+ * opaque slot id (appointment:read is unchanged and has none).
  */
 import type { ToolDefinition } from "../../protocol/index.js";
 import { NO_RETRY, READ_RETRY, TOOL_VERSION } from "./common.js";
@@ -70,7 +71,7 @@ export const TOOL_DEFINITIONS = {
     safetyClass: "PROTECTED_READ",
     dataClassification: "PHI",
     minAssurance: "A2",
-    permissions: ["appointment:read"],
+    permissions: ["appointment:list_options"],
     timeoutMs: 3000,
     retryPolicy: READ_RETRY,
     idempotency: "NATURALLY_IDEMPOTENT",
@@ -130,7 +131,7 @@ export const TOOL_DEFINITIONS = {
     safetyClass: "PREPARE_MUTATION",
     dataClassification: "FINANCIAL",
     minAssurance: "A2",
-    permissions: ["billing:submit_review"],
+    permissions: ["billing:prepare_review"],
     timeoutMs: 4000,
     retryPolicy: NO_RETRY,
     idempotency: "IDEMPOTENCY_KEY_REQUIRED",

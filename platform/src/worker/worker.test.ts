@@ -14,7 +14,10 @@ import type { BusinessModule } from "../business/contract.js";
 import { FakeClock } from "../shared/clock.js";
 import { ConflictError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
-import { ActionReconcileLoop, OutboxConsumeLoop, OutboxDispatchLoop, LocalConsumerQueueFixture } from "./loops.js";
+import { InMemoryMetrics } from "../observability/metrics.js";
+import type { RetentionRunReport } from "../retention/ports.js";
+import { ActionReconcileLoop, MeteredLoop, OutboxConsumeLoop, OutboxDispatchLoop, LocalConsumerQueueFixture, RetentionLoop } from "./loops.js";
+import type { LoopReport, WorkerLoop } from "./loops.js";
 import { ManualLoopScheduler } from "./scheduler.js";
 import { Worker, buildWorkerHealthApp, workerLoopsFor } from "./worker.js";
 
@@ -72,6 +75,86 @@ describe("worker scheduler", () => {
     clock.advanceMs(10_000);
     expect(await s.runDue()).toEqual([]);
     expect(runs).toEqual(["a", "a", "b"]);
+  });
+});
+
+describe("worker loop metrics (content-free, closed labels)", () => {
+  const loopOf = (name: string, reports: LoopReport[], onRun?: () => void): WorkerLoop => ({
+    name,
+    intervalMs: 1_000,
+    async runOnce() {
+      onRun?.();
+      const r = reports.shift();
+      if (!r) throw new Error("no more scripted reports");
+      return r;
+    },
+  });
+
+  it("[SPEC-13.metrics][SPEC-15.worker] MeteredLoop counts runs, errors and processed items and observes lag and duration per loop", async () => {
+    const clock = new FakeClock(START);
+    const metrics = new InMemoryMetrics();
+    const inner = loopOf(
+      "outbox.dispatch",
+      [
+        { ok: true, processed: 3, reasonCode: null, details: {} },
+        { ok: false, processed: 0, reasonCode: "PUBLISH_FAILED", details: {} },
+      ],
+      () => clock.advanceMs(40),
+    );
+    const metered = new MeteredLoop(inner, metrics, clock);
+    expect(metered.name).toBe("outbox.dispatch");
+    await metered.runOnce();
+    clock.advanceMs(1_000 + 250 - 40);
+    await metered.runOnce();
+    expect(metrics.counterValue("vsp_worker_loop_runs_total", { loop: "outbox.dispatch", result: "ok" })).toBe(1);
+    expect(metrics.counterValue("vsp_worker_loop_runs_total", { loop: "outbox.dispatch", result: "failed" })).toBe(1);
+    expect(metrics.counterValue("vsp_worker_loop_errors_total", { loop: "outbox.dispatch" })).toBe(1);
+    expect(metrics.counterValue("vsp_worker_loop_processed_total", { loop: "outbox.dispatch" })).toBe(3);
+    expect(metrics.observations("vsp_worker_loop_duration_ms", { loop: "outbox.dispatch" })).toEqual([40, 40]);
+    expect(metrics.observations("vsp_worker_loop_lag_ms", { loop: "outbox.dispatch" })).toEqual([250]);
+  });
+
+  it("[SPEC-15.worker] a throwing loop is reported as failed, and a failing metrics sink never breaks the loop", async () => {
+    const clock = new FakeClock(START);
+    const broken = { increment: () => { throw new Error("sink down"); }, observe: () => { throw new Error("sink down"); }, gauge: () => { throw new Error("sink down"); } };
+    const r = await new MeteredLoop(loopOf("audit.ship", []), broken, clock).runOnce();
+    expect(r).toMatchObject({ ok: false, reasonCode: "UNCLASSIFIED_ERROR" });
+    const ok = await new MeteredLoop(loopOf("audit.ship", [{ ok: true, processed: 1, reasonCode: null, details: {} }]), broken, clock).runOnce();
+    expect(ok.ok).toBe(true);
+  });
+
+  it("[DATA-03][OPS-03][SPEC-13.metrics] the retention loop reports blocked classes, unverified copies, deletions and pending vendor requests as metrics", async () => {
+    const clock = new FakeClock(START);
+    const metrics = new InMemoryMetrics();
+    const report = (tenantId: string): RetentionRunReport => ({
+      runId: newId("ret"),
+      tenantId,
+      startedAt: START,
+      completedAt: START,
+      status: "COMPLETED_WITH_UNVERIFIED_COPIES",
+      classes: [
+        { dataClass: "BUSINESS_RECORD", status: "EXECUTED", retentionDays: 30, policyVersion: 1, approvalId: "apr_testOnlyApproval01", legalPurpose: "TEST_ONLY", cutoff: START },
+        { dataClass: "TRANSIENT_CONVERSATION", status: "BLOCKED_RETENTION_UNSET", retentionDays: null, policyVersion: null, approvalId: null, legalPurpose: null, cutoff: null },
+        { dataClass: "RESTRICTED_QA_MEDIA", status: "BLOCKED_RETENTION_UNSET", retentionDays: null, policyVersion: null, approvalId: null, legalPurpose: null, cutoff: null },
+        { dataClass: "SECURITY_AUDIT", status: "BLOCKED_RETENTION_CONFIG_MISMATCH", retentionDays: 10, policyVersion: 2, approvalId: "apr_testOnlyApproval02", legalPurpose: "TEST_ONLY", cutoff: null },
+      ],
+      datasets: [{ dataset: "support_memory", dataClass: "BUSINESS_RECORD", status: "DELETED", deletedCount: 4, heldCount: 0, deletionIds: [], keyDigest: null, verifications: [], vendorRequests: [], reasonCode: null }],
+      unverifiedCopies: [{ dataset: "support_memory", verifier: "aurora_backups", location: "BACKUP", status: "UNVERIFIABLE", leftoverCount: 0, reasonCode: "BACKUP_RETENTION_INFRASTRUCTURE_MANAGED" }],
+    });
+    const job = {
+      run: async () => [report("tnt_synthTenant00000001"), report("tnt_synthTenant00000002")],
+      pendingVendorDeletions: async () => ({ salesforce: 2, talkdesk: 1 }),
+    };
+    const r = await new RetentionLoop(job, clock, createMemoryLogger().logger, 86_400_000, metrics).runOnce();
+    expect(r).toMatchObject({ ok: true, processed: 8 });
+    expect(metrics.counterValue("vsp_retention_deleted_total", { data_class: "BUSINESS_RECORD" })).toBe(8);
+    expect(metrics.gaugeValue("vsp_retention_classes_blocked", { data_class: "TRANSIENT_CONVERSATION", reason: "BLOCKED_RETENTION_UNSET" })).toBe(2);
+    expect(metrics.gaugeValue("vsp_retention_classes_blocked", { data_class: "SECURITY_AUDIT", reason: "BLOCKED_RETENTION_CONFIG_MISMATCH" })).toBe(2);
+    expect(metrics.gaugeValue("vsp_retention_classes_blocked", { data_class: "BUSINESS_RECORD", reason: "BLOCKED_RETENTION_UNSET" })).toBe(0);
+    expect(metrics.gaugeValue("vsp_retention_unverified_copies", { location: "BACKUP", status: "UNVERIFIABLE" })).toBe(2);
+    expect(metrics.gaugeValue("vsp_vendor_deletion_requests_pending", { vendor: "salesforce" })).toBe(2);
+    expect(metrics.gaugeValue("vsp_vendor_deletion_requests_pending", { vendor: "talkdesk" })).toBe(1);
+    expect(JSON.stringify(metrics.allSeries())).not.toContain("support_memory");
   });
 });
 
@@ -184,6 +267,11 @@ describe("worker loops over the local composition", () => {
     const again = await w.runAllOnce();
     expect(again["audit.ship"]?.processed).toBe(0);
     expect(again["retention.run"]?.processed).toBe(0);
+    // Every loop reported its runs through the Metrics port (closed loop-name labels, never "other").
+    for (const name of w.loopNames) expect(c.metrics.counterValue("vsp_worker_loop_runs_total", { loop: name, result: "ok" }), name).toBe(2);
+    expect(c.metrics.counterValue("vsp_worker_loop_runs_total", { loop: "other" })).toBe(0);
+    expect(c.metrics.gaugeValue("vsp_retention_classes_blocked", { data_class: "BUSINESS_RECORD", reason: "BLOCKED_RETENTION_UNSET" })).toBe(1);
+    expect(c.metrics.counterValue("vsp_retention_deleted_total")).toBe(0);
   }, 60_000);
 
   it("[SPEC-15.worker] readiness over HTTP: 503 until loops ran, 200 when green, 503 when a loop stalls (FakeClock)", async () => {

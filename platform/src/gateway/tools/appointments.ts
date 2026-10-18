@@ -1,13 +1,14 @@
 /**
- * get_appointment_options (appointment:read), prepare_appointment_change
+ * get_appointment_options (appointment:list_options), prepare_appointment_change
  * (appointment:prepare_change) and commit_appointment_change (appointment:commit_change).
  *
  * resolveResource uses AUTHORITATIVE lookups: an appointment's real subject from the
  * scheduling system, a prepared action's subject from the ledger (bound to this
  * session). An unknown id resolves to a resource policy denies exactly like another
- * person's record (no existence disclosure). Options carry no slot id (the
- * appointment:read field mask has none); the caller picks an option by its start time
- * and prepare re-resolves the slot from authoritative availability.
+ * person's record (no existence disclosure). Options carry the opaque slot id (the
+ * appointment:list_options field mask includes it; existing appointments carry null).
+ * prepare takes the option's start time plus the optional modality and slot id and
+ * re-resolves the slot from authoritative availability; a slot id alone selects nothing.
  */
 import { z } from "zod";
 import type { Appointment, Slot } from "../../adapters/ports.js";
@@ -29,6 +30,8 @@ const purposeFor = (auth: AuthContext): PolicyPurpose =>
 
 const AppointmentRecord = z.strictObject({
   appointmentId: Id.nullable(),
+  /** Opaque scheduling slot id of an open option; null for an existing appointment. */
+  slotId: Id.nullable(),
   startsAt: InstantArg,
   timeZone: z.string().max(64),
   modality: Modality,
@@ -47,6 +50,7 @@ export const OptionsOutput = z.strictObject({
 
 const appointmentRecord = (a: Appointment): z.infer<typeof AppointmentRecord> => ({
   appointmentId: a.appointmentId,
+  slotId: null,
   startsAt: a.startsAt,
   timeZone: a.timeZone,
   modality: a.modality,
@@ -56,6 +60,7 @@ const appointmentRecord = (a: Appointment): z.infer<typeof AppointmentRecord> =>
 
 const optionRecord = (sl: Slot, appointmentId: string | null): z.infer<typeof AppointmentRecord> => ({
   appointmentId,
+  slotId: sl.slotId,
   startsAt: sl.startsAt,
   timeZone: sl.timeZone,
   modality: sl.modality,
@@ -110,6 +115,8 @@ export const PrepareInput = z.strictObject({
   appointmentId: Id.nullable(),
   startsAt: InstantArg,
   modality: Modality.nullable(),
+  /** Optional opaque slot id from get_appointment_options; must match the authoritative open slot at startsAt. */
+  slotId: Id.nullable().optional(),
 });
 export const PrepareOutput = z.strictObject({
   change: z.strictObject({
