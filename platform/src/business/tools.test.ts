@@ -165,7 +165,7 @@ describe("[ACT-04] interaction outcome rules", () => {
     failed: fc.boolean(),
   });
 
-  it("[ACT-04] RESOLVED only with a verified COMMITTED receipt of the contract's action kind; acceptance, hang-up or an unverified receipt never resolve", () => {
+  it("[ACT-04][SPEC-4.outcomes] RESOLVED only with a verified COMMITTED receipt of the contract's action kind; acceptance, hang-up or an unverified receipt never resolve", () => {
     fc.assert(
       fc.property(arbEvidence, fc.constantFrom(...CONTRACT_IDS, null), fc.subarray(["appointment.reschedule", "appointment.create", "billing.review.submit"] as const), (ev, contractId, kinds) => {
         evidence.parse(ev);
@@ -183,7 +183,7 @@ describe("[ACT-04] interaction outcome rules", () => {
     );
   });
 
-  it("[ACT-04] a caller hang-up alone is CALLER_DISCONNECTED and no evidence is OUTCOME_UNKNOWN", () => {
+  it("[ACT-04][SPEC-4.outcomes] a caller hang-up alone is CALLER_DISCONNECTED and no evidence is OUTCOME_UNKNOWN", () => {
     const none = { commitReceiptIds: [], informationProvided: false, requestAccepted: false, transferConnected: false, callerDisconnected: false, policyDeclined: false, failed: false };
     expect(decideOutcome("appointment_reschedule@1", { ...none, callerDisconnected: true }, []).outcome).toBe("CALLER_DISCONNECTED");
     expect(decideOutcome("appointment_reschedule@1", none, []).outcome).toBe("OUTCOME_UNKNOWN");
@@ -247,7 +247,7 @@ describe("A0 tools", () => {
     expect((await h.invoke("search_approved_runbook", ctx, { intent: "payment_help", query: "my card is 4111 1111", language: "en" })).stage).toBe("input");
   });
 
-  it("[SPEC-4.login] login guidance never resets credentials; lockouts go to the trusted human recovery process; no password field exists", async () => {
+  it("[SPEC-4.login][SPEC-4.prohibited-assertions] login guidance never resets credentials; lockouts go to the trusted human recovery process; no password field exists", async () => {
     const { ctx } = await h.startCall("cal_synthCallLogin0000001");
     const a = expectDone(await h.invoke("get_login_guidance", ctx, { portal: "CLIENT_PORTAL", issue: "FORGOT_PASSWORD", language: "en" }));
     const b = expectDone(await h.invoke("get_login_guidance", ctx, { portal: "CLIENT_PORTAL", issue: "LOCKED_OUT", language: "en" }));

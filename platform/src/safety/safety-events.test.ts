@@ -103,7 +103,7 @@ describe("SafetyEventRecorder", () => {
     expect(records.some((x) => x.event === "safety.event.audit_or_store_failed")).toBe(true);
   });
 
-  it("[SAFE-02] a complete database outage never throws into the safety route", async () => {
+  it("[SAFE-02][SPEC-12.db-outage] a complete database outage never throws into the safety route", async () => {
     const broken: Db = { engine: "pglite", query: async () => Promise.reject(new Error("down")), exec: async () => Promise.reject(new Error("down")), tx: async () => Promise.reject(new Error("down")), close: async () => undefined };
     const recorder = new SafetyEventRecorder({ db: broken, audit, clock });
     const incident = recorder.begin(incidentInput());

@@ -33,7 +33,7 @@ const currentAttempt = async (handoffId: string) => {
 const UNRECORDED_CLAIM = /\b(not|never|isn't|is not|won't|will not)\s+(be(ing)?\s+)?recorded\b|\bunrecorded\b|\bno recording\b|\brecording (is|has been) (off|stopped|paused)\b/i;
 
 describe("[SPEC-16.journey-5] unverified caller requests a human", () => {
-  it("[SPEC-16.journey-5][SAFE-02][SAFE-04][SAFE-05] warm transfer to CALLER_CONFIRMED_CONNECTED through acceptance and bridge; TRANSFERRED only after connection", async () => {
+  it("[SPEC-16.journey-5][SAFE-02][SAFE-04][SAFE-05][SPEC-15.offline-slice] warm transfer to CALLER_CONFIRMED_CONNECTED through acceptance and bridge; TRANSFERRED only after connection", async () => {
     const call = h.call();
     await call.start();
     expect(await call.authGate()).toBe(false);

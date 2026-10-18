@@ -88,17 +88,18 @@ and PRQ-011 (on-call roster and paging).
 
 | Reference | State |
 |---|---|
-| Kill switches via `KillSwitchService.set` (`platform/src/ops`), roles per `KILL_SWITCH_ROLES` | Service exists (offline); console UI PLANNED |
+| Kill switches via `KillSwitchService.set` (`platform/src/ops`), roles per `KILL_SWITCH_ROLES` | Service, console API and console page exist (offline, LOCAL FIXTURE sign-in); workforce SSO BLOCKED (PRQ-036) |
 | Admission control and budgets (`AdmissionController`, `BudgetService`, `platform/src/ops`) | Exists (offline) |
-| Audit metadata search (`auditedSearch`, `platform/src/audit`) | Exists (offline); console UI PLANNED |
-| Audit integrity and completeness (`IntegrityVerifier`, `assessCompleteness`, `platform/src/audit`) | Exists (offline); scheduled job PLANNED |
+| Audit metadata search (`auditedSearch`, `platform/src/audit`) | Exists (offline); console Audit search page exists (offline) |
+| Audit integrity and completeness (`IntegrityVerifier`, `assessCompleteness`, `AuditCompletenessMonitor`, `platform/src/audit`) | Exists (offline); runs as the worker loop `audit.verify` (OPS-AUD-01); live verifier role BLOCKED (PRQ-037, PRQ-040) |
+| Deferred route audit (`DeferredAuditQueue`, worker loop `audit.deferred_flush`) | Exists (offline); process-local ([ADR-0011](../adr/ADR-0011-deferred-route-audit.md)) |
 | `cd platform && npx tsx src/workflows/generate-asl.ts --check` | Exists |
 | `node talkdesk/tools/drift-check.mjs`, `node talkdesk/tools/validate-package.mjs` | Exist (offline); live tenant comparison BLOCKED |
 | `bash scripts/fetch-tools.sh` (pinned OPA and Terraform) | Exists |
-| `pnpm policy:test`, `pnpm policy:build` (`scripts/policy.sh`) | PLANNED (script not yet present) |
-| `pnpm evidence` (`platform/src/evaluation/cli.ts`) | PLANNED |
-| Console actions: inspect journey, cancel uncommitted work, retry reconciled operation, DLQ repair, legal hold | PLANNED (`platform/src/console-api`, `console/`) |
-| Retention legal hold (`platform/src/retention`) | PLANNED |
+| `pnpm policy:test`, `pnpm policy:build` (`scripts/policy.sh`) | Exist; `pnpm policy:test` passes offline (225 Rego tests in `evidence/test-reports/opa-vsp.json`) |
+| `pnpm evidence` (`platform/src/evaluation/cli.ts`) | Exists (LOCAL FIXTURE evidence only) |
+| Console actions: inspect journey, cancel uncommitted work, retry reconciled operation, DLQ repair, staff safety escalation | Exist (offline, `platform/src/console-api`, `console/`); legal hold has no console endpoint |
+| Retention legal hold (`LegalHoldStorePg`, `platform/src/retention`) | Exists (offline); no console endpoint |
 
 ## Drill programme
 

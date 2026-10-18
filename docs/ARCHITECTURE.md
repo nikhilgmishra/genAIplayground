@@ -115,8 +115,12 @@ server-side state on every request.
 7. Business operation with timeout, circuit breaker and bounded retries (no retry stacking).
 8. Output validated against the tool's output schema (unexpected fields rejected); field mask
    from the policy decision applied.
-9. Audit event appended durably (in the same transaction for consequential actions) before
-   the result is returned.
+9. Audit: a consequential action's evidence is appended in its commit transaction, and a
+   disclosure (`AUDIT_READ`) is returned only after its `tool.invoke` event is durably appended.
+   Any other failed `tool.invoke` append does not withhold the result; it is logged and counted
+   (`vsp_protected_actions_total{audit="not_recorded"}` for accepted consequential calls), and
+   handoff route evidence written during an audit outage is deferred and appended later in order
+   ([ADR-0011](adr/ADR-0011-deferred-route-audit.md)).
 10. `ToolResult` tagged with `turnId` + `sessionGeneration`; speech only as a `SpeechDirective`
     rendered by the response gate before any audio.
 

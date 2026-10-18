@@ -138,7 +138,7 @@ describe("prepare", () => {
     expect(await reason(h.service.prepare(ctx, freeTextChange, d))).toBe("INVALID_PREPARE_INPUT");
   });
 
-  it("[ACT-01] a changed request supersedes the session's earlier pending action on the same record", async () => {
+  it("[ACT-01][SPEC-8.commit-recheck] a changed request supersedes the session's earlier pending action on the same record", async () => {
     const ctx = syntheticAuthContext(h.clock);
     const first = await h.service.prepare(ctx, rescheduleInput(), allowDecision(h.clock));
     const second = await h.service.prepare(ctx, rescheduleInput({ change: { slotId: SLOTS[1].slotId } }), allowDecision(h.clock));
@@ -219,7 +219,7 @@ describe("confirm", () => {
     expect(await stateOf(action.actionId)).toBe("INVALIDATED");
   });
 
-  it("[ACT-01] a generation change after confirmation invalidates the action at commit with zero provider calls", async () => {
+  it("[ACT-01][SPEC-8.commit-recheck] a generation change after confirmation invalidates the action at commit with zero provider calls", async () => {
     const { ctx, action } = await prepareConfirmed();
     const bumped = { ...ctx, sessionGeneration: 2 };
     expect(await reason(commitOf(bumped, action))).toBe("SESSION_GENERATION_CHANGED");
@@ -254,7 +254,7 @@ describe("confirm", () => {
     expect(await stateOf(action.actionId)).toBe("EXPIRED");
   });
 
-  it("[ACT-01] an expired preparation cannot be committed", async () => {
+  it("[ACT-01][SPEC-8.commit-recheck] an expired preparation cannot be committed", async () => {
     const { ctx, action } = await prepare(syntheticAuthContext(h.clock), rescheduleInput({ ttlSeconds: 60 }));
     h.clock.advanceSeconds(2);
     await h.service.confirm(confirmationFor(action, ctx.sessionRef, h.clock), telephonyIntegration());
@@ -264,7 +264,7 @@ describe("confirm", () => {
     expect(h.provider.calls.commit).toBe(0);
   });
 
-  it("[ACT-01] a confirmation older than the freshness window cannot commit (default 120s)", async () => {
+  it("[ACT-01][SPEC-8.commit-recheck] a confirmation older than the freshness window cannot commit (default 120s)", async () => {
     const { ctx, action } = await prepareConfirmed();
     h.clock.advanceSeconds(121);
     expect(await reason(commitOf(ctx, action))).toBe("CONFIRMATION_STALE");
@@ -272,7 +272,7 @@ describe("confirm", () => {
     expect(h.provider.calls.commit).toBe(0);
   });
 
-  it("[ACT-01] interrupted confirmation: invalidatePending (barge-in) invalidates PREPARED and CONFIRMED actions, which then cannot commit", async () => {
+  it("[ACT-01][SPEC-8.commit-recheck] interrupted confirmation: invalidatePending (barge-in) invalidates PREPARED and CONFIRMED actions, which then cannot commit", async () => {
     const ctx = syntheticAuthContext(h.clock);
     const { action: confirmed } = await prepareConfirmed(ctx);
     h.provider.seedRecord("scheduling", "apt_synthOtherRecord0001", 1);
@@ -447,7 +447,7 @@ describe("commit", () => {
     expect((await h.service.describe(ctx.tenantId, action.actionId))?.stateReason).toBe("FIXTURE_PERMANENT_REJECTION");
   });
 
-  it("[ACT-01] commit re-checks authorization: a deny or a policy error blocks the commit with zero provider calls", async () => {
+  it("[ACT-01][SPEC-8.commit-recheck] commit re-checks authorization: a deny or a policy error blocks the commit with zero provider calls", async () => {
     const { ctx, action } = await prepareConfirmed();
     expect(await reason(commitOf(ctx, action, deps({ reauthorize: async () => allowDecision(h.clock, { allow: false, reasonCodes: ["KILL_SWITCH_WRITES"] }) })))).toBe(
       "POLICY_DENIED",
@@ -792,7 +792,7 @@ describe("concurrency", () => {
     expect((await commitOf(ctx, action)).receiptId).toBe(ok[0]?.value.receiptId);
   });
 
-  it("[SPEC-8.3] a concurrent version change observed by the optimistic-concurrency check invalidates with STATE_CHANGED and no provider commit", async () => {
+  it("[SPEC-8.3][SPEC-8.commit-recheck] a concurrent version change observed by the optimistic-concurrency check invalidates with STATE_CHANGED and no provider commit", async () => {
     const { ctx, action } = await prepareConfirmed();
     h.provider.injectConcurrentVersionChange();
     expect(await reason(commitOf(ctx, action))).toBe("STATE_CHANGED");

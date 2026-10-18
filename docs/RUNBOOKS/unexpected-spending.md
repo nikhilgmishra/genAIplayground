@@ -19,7 +19,7 @@
 
 1. Budget exhaustion already stops **new nonessential automation** and routes callers to approved continuity service (`AdmissionController`, `BudgetService`). Confirm it is happening.
 2. **Never disconnect an active safety handoff** to enforce a financial limit; the approved safety reserve and escalation owner apply (SAFE-03).
-3. For a runaway source, engage the narrowest [kill switch](kill-switch-operations.md): `INTENT` (one workflow), `INTEGRATION` (one vendor), `OUTBOUND_NOTIFICATIONS` (notification pumping), `MODEL_VERSION` (a costlier model), or `AI_ADMISSION`.
+3. For a runaway source, engage the narrowest [kill switch](kill-switch-operations.md): `INTENT` (one workflow), `INTEGRATION` (one vendor), `OUTBOUND_NOTIFICATIONS` (notification pumping; enforced on every send before the provider, OPS-KS-01), `MODEL_VERSION` (a costlier model), or `AI_ADMISSION`.
 4. Stop any billable test runs; billable execution requires an approved `BILLABLE_TEST_EXECUTION` record and ceiling.
 
 ## Evidence preservation
@@ -32,7 +32,7 @@ Privacy counsel determines any reporting obligations and deadlines; the software
 ## Step-by-step actions
 
 1. Attribute spend by environment, cohort, workflow and vendor (`BudgetService.statusFor`).
-2. Compare against traffic (dashboard `<prefix>-call-flow`) and cost per verified resolution; distinguish real demand from abuse (OTP pumping, call floods, retries on top of retries, long calls stuck in loops).
+2. Compare against traffic (dashboard `<prefix>-call-flow`) and cost per verified resolution; distinguish real demand from abuse (OTP pumping, call floods, retries on top of retries, long calls stuck in loops). Tool floods from one call hit its per-call bucket (`429 RATE_LIMITED`, MCP batches counted per message); safety and human tools are never limited ([ADR-0012](../adr/ADR-0012-safety-routes-exempt-from-limits.md)).
 3. Abuse → follow [authentication-bypass.md](authentication-bypass.md) or the challenge-abuse controls; retry storm → [dependency-outage.md](dependency-outage.md).
 4. Real demand → finance decides whether to raise the budget (new approval record); engineering never raises it.
 5. Vendor metering delay or fixed charges → note them in the incident record; prepaid balances and alerts are not guaranteed caps.

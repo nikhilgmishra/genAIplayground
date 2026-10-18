@@ -60,7 +60,7 @@ describe("SupportMemoryPg", () => {
     expect(metrics.counterValue("vsp_memory_recap_withheld_total", { reason: "MEMORY_RECAP_SUBJECT_NOT_AUTHORIZED" })).toBe(1);
     expect(metrics.counterValue("vsp_memory_recap_withheld_total", { reason: "MEMORY_RECAP_RISK_FLAG" })).toBe(1);
   });
-  it("[DATA-04] a verified returning caller (A2, same subject) hears a recap of unexpired entries with provenance labels", async () => {
+  it("[DATA-04][SPEC-9.memory] a verified returning caller (A2, same subject) hears a recap of unexpired entries with provenance labels", async () => {
     const { mem } = await setup();
     const a = await mem.record(entry());
     const b = await mem.record(entry({ kind: "PREFERENCE", value: { preferenceType: "CONTACT_WINDOW", preferenceValue: "MORNINGS", timeZone: "America/Chicago" }, provenance: "CALLER_REPORTED", sourceRef: CALL_REF }));
@@ -71,7 +71,7 @@ describe("SupportMemoryPg", () => {
     expect((await recap(mem, { assurance: "A3" })).length).toBe(2);
   });
 
-  it("[DATA-04] no recap before authentication (A0/A1, shared phone), for another subject, or when unauthorized", async () => {
+  it("[DATA-04][SPEC-9.memory] no recap before authentication (A0/A1, shared phone), for another subject, or when unauthorized", async () => {
     const { mem, records } = await setup();
     await mem.record(entry());
     expect(await recap(mem, { assurance: "A0" })).toEqual([]);
@@ -145,7 +145,7 @@ describe("SupportMemoryPg", () => {
     ).rejects.toThrow(/row-level security/);
   });
 
-  it("[DATA-04] machine-inferred entries are never recapped as facts; a human-reviewed summary is recapped with its label", async () => {
+  it("[DATA-04][SPEC-9.memory] machine-inferred entries are never recapped as facts; a human-reviewed summary is recapped with its label", async () => {
     const { mem } = await setup();
     await mem.record(entry({ provenance: "MACHINE_INFERRED", sourceRef: CALL_REF, value: { issueCategory: "BILLING_DISPUTE", status: "OPEN" } }));
     expect(await recap(mem)).toEqual([]);
@@ -169,7 +169,7 @@ describe("SupportMemoryPg", () => {
     await expect(mem.record(entry({ sourceRef: "https://example.invalid/x" }))).rejects.toThrow("MEMORY_ENTRY_INVALID");
   });
 
-  it("[DATA-03] expiry is mandatory and enforced on read even before expire() runs", async () => {
+  it("[DATA-03][SPEC-9.memory] expiry is mandatory and enforced on read even before expire() runs", async () => {
     const { mem, clock, db } = await setup({ maxTtlMs: 90 * 86_400_000 });
     await expect(mem.record({ ...entry(), expiresAt: undefined } as unknown as NewEntry)).rejects.toThrow("MEMORY_ENTRY_INVALID");
     await expect(mem.record(entry({ expiresAt: NOW }))).rejects.toThrow("MEMORY_EXPIRY_NOT_IN_FUTURE");

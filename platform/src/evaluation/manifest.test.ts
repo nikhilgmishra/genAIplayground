@@ -78,7 +78,7 @@ describe("release manifest builder", () => {
     expect(sandbox.manifest.missingApprovals).toEqual(["VENDOR_SANDBOX_INTEGRATION"]);
   });
 
-  it("[OPS-06] a local manifest with only local evidence is IMPLEMENTED_OFFLINE; unpinned items are notes, not success claims", () => {
+  it("[OPS-06][SPEC-16.status-vocabulary] a local manifest with only local evidence is IMPLEMENTED_OFFLINE; unpinned items are notes, not success claims", () => {
     const { manifest, blockers, notes } = base({ targetEnvironment: "local" });
     expect(manifest.status).toBe("IMPLEMENTED_OFFLINE");
     expect(blockers).toEqual([]);
@@ -142,7 +142,7 @@ describe("release manifest builder", () => {
     expect(r.manifest.status).toBe("BLOCKED");
   });
 
-  it("[OPS-06] writes release-manifest.<env>.json and a blocker report without compliance claims", () => {
+  it("[OPS-06][SPEC-16.status-vocabulary] writes release-manifest.<env>.json and a blocker report without compliance claims", () => {
     const out = tmp();
     const result = base();
     const { manifestPath, reportPath } = writeReleaseManifest(result, out);

@@ -15,6 +15,7 @@
 * A staff report, caller complaint, vendor notification or QA reviewer finding PHI in a log, ticket, Case summary, notification, metric, trace, export or developer tool.
 * A disclosure to a caller whose relationship or assurance did not permit it (found in audit review or complaint).
 * Redaction failure quarantine events.
+* A clinical-question, privacy-concern or safety-concern support request visible as a broadly visible or subject-linked Case (restricted placement regression, DP-01).
 
 ## Immediate containment
 
@@ -29,14 +30,14 @@
 
 ## Evidence preservation
 
-* Place a legal hold on affected records (retention module, PLANNED; until then record the hold scope in the incident record and suspend retention jobs for it).
+* Place a legal hold on affected records. `LegalHoldStorePg` (`platform/src/retention`) exists offline but has no console endpoint; until an operator path exists, record the hold scope in the incident record and suspend retention jobs for it.
 * Preserve audit events by correlation id (`auditedSearch`), action ledger rows, policy decision ids and policy version, release manifest and configuration versions, vendor interaction ids, and access logs of the receiving sink.
 * Record who accessed the exposed content and when, from the sink's own access logs.
 * **Privacy counsel determines whether reporting obligations apply, to whom and by when.** The software preserves evidence and supports the process; it does not decide notification.
 
 ## Step-by-step actions
 
-1. Identify the path: which component emitted the data, through which field, under which policy decision (audit search by correlation id or call id; PLANNED console view).
+1. Identify the path: which component emitted the data, through which field, under which policy decision (audit search by correlation id or call id; the console Audit search and Call investigation views exist offline, metadata only).
 2. Determine scope: affected subjects (opaque ids), time window, sinks, copies (exports, backups, vendor copies). Do not enumerate by name in chat.
 3. Fix the root cause in code or configuration (for example a missing field mask, a log statement, a metric label, a template slot); add a regression test tagged `[DATA-01]`.
 4. Deploy the fix through the normal release path; policy changes follow [policy-release.md](policy-release.md).

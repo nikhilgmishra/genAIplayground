@@ -122,7 +122,7 @@ describe("billing review", () => {
     expect(outcome.outcome).toBe("REQUEST_ACCEPTED");
   });
 
-  it("[ACT-04] no billing-review or billing template contains refund, waiver or credit wording", () => {
+  it("[ACT-04][SPEC-4.prohibited-assertions] no billing-review or billing template contains refund, waiver or credit wording", () => {
     const reg = loadDefaultTemplateRegistry();
     const ids = ["billing.review_confirmation", "commitment.request_accepted_pending_sync", "commitment.request_accepted_no_reference", "invoice.balance", "invoice.line_explanation", "billing.payment_page", "billing.not_payable"];
     for (const id of ids) {
@@ -212,7 +212,7 @@ describe("billing review", () => {
 });
 
 describe("claims", () => {
-  it("[SPEC-4.claim-status] insurer status with as-of date; template states it is not a payment guarantee", async () => {
+  it("[SPEC-4.claim-status][SPEC-4.prohibited-assertions] insurer status with as-of date; template states it is not a payment guarantee", async () => {
     const auth = await verified();
     const r = expectDone(await h.invoke("get_claim_status", auth, { claimId: CLAIMS[0].claimId }));
     if (r.outcome.status !== "SUCCESS") throw new Error("expected success");

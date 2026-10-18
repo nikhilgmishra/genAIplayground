@@ -28,7 +28,7 @@ Privacy counsel determines any reporting obligations and deadlines; the software
 
 ## Step-by-step actions
 
-1. Determine the duplication point: retry after an ambiguous timeout without reconciliation (ACT-03), consumer without dedup, provider without idempotency-key support (PRQ-007), Salesforce upsert without the external id, or two prepared actions confirmed separately.
+1. Determine the duplication point: retry after an ambiguous timeout without reconciliation (ACT-03), an intake retried under a NEW idempotency key after `UNKNOWN_OUTCOME` (a same-key retry replays, ACT-F2), consumer without dedup, provider without idempotency-key support (PRQ-007), Salesforce upsert without the external id, or two prepared actions confirmed separately.
 2. Fix the cause and add a regression test tagged `[ACT-02]` reproducing the sequence (retry, redelivery or crash after commit).
 3. Remediate the duplicate only through a **domain-approved compensation** with the business-system owner. Reversing an appointment or payment is not automatically safe; it may need caller contact by a human.
 4. Record the remediation as a new prepared and confirmed action (human-confirmed), never as a silent deletion.

@@ -43,7 +43,7 @@ describe("Integration inventory (machine-readable, spec section 16)", () => {
     expect(explore?.status).toBe("BLOCKED");
   });
 
-  it("[OPS-03] no entry claims sandbox or production verification; IMPLEMENTED_OFFLINE is only used where an offline-tested live code path exists", () => {
+  it("[OPS-03][SPEC-16.status-vocabulary] no entry claims sandbox or production verification; IMPLEMENTED_OFFLINE is only used where an offline-tested live code path exists", () => {
     for (const e of INTEGRATION_INVENTORY) {
       expect(["UNKNOWN", "BLOCKED", "IMPLEMENTED_OFFLINE"]).toContain(e.status);
       expect(`${e.notes} ${e.status}`).not.toMatch(/VERIFIED_SANDBOX|VERIFIED_PRODUCTION|production[- ]ready|HIPAA[- ]compliant/i);

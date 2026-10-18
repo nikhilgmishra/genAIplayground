@@ -232,7 +232,7 @@ describe("[SPEC-16.faults] injected faults on the local composition", () => {
     expect((await call.end()).outcome).toBe("RESOLVED");
   }, 120_000);
 
-  it("[SPEC-16.fault-salesforce-outage][SPEC-8.salesforce][ACT-02] Salesforce outage: internal SR reference spoken (never a Case number), sync RETRY then DEAD_LETTER, operator repair syncs exactly one Case", async () => {
+  it("[SPEC-16.fault-salesforce-outage][SPEC-8.salesforce][ACT-02][SPEC-15.offline-slice] Salesforce outage: internal SR reference spoken (never a Case number), sync RETRY then DEAD_LETTER, operator repair syncs exactly one Case", async () => {
     const hh = await start();
     const call = await verifiedClient(hh);
     const faultId = hh.c.fixtures.faults.inject({ integrationId: "salesforce", operation: "*", kind: "OUTAGE", mode: "persistent" });
