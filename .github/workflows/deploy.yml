@@ -134,7 +134,7 @@ jobs:
           bash scripts/terraform-mirror.sh
 
       - name: Configure AWS credentials (plan role, read-only)
-        uses: aws-actions/configure-aws-credentials@v4 # pin to full commit SHA before production
+        uses: aws-actions/configure-aws-credentials@v6 # pin to full commit SHA before production
         with:
           role-to-assume: ${{ vars.TF_PLAN_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
@@ -279,7 +279,7 @@ jobs:
           bash scripts/terraform-mirror.sh
 
       - name: Configure AWS credentials (apply role)
-        uses: aws-actions/configure-aws-credentials@v4 # pin to full commit SHA before production
+        uses: aws-actions/configure-aws-credentials@v6 # pin to full commit SHA before production
         with:
           role-to-assume: ${{ vars.TF_APPLY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
