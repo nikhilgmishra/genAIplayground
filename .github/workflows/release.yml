@@ -77,7 +77,7 @@ jobs:
 
       - name: Build and push (immutable tag = commit SHA; deployed by digest)
         id: build
-        uses: docker/build-push-action@v6 # pin to full commit SHA before production
+        uses: docker/build-push-action@v7 # pin to full commit SHA before production
         with:
           context: .
           file: platform/Dockerfile
