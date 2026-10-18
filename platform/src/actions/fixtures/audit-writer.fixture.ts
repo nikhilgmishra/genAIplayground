@@ -9,11 +9,12 @@
  */
 import type { AuditHealth, AuditHealthStatus, AuditWriter } from "../../audit/ports.js";
 import type { Db, Queryable } from "../../db/types.js";
-import { AUDIT_SCHEMA_VERSION, AuditEvent, AuditEventInput } from "../../protocol/index.js";
+import { AUDIT_SCHEMA_VERSION, AuditEvent } from "../../protocol/index.js";
 import type { AuditEvent as AuditEventT, AuditEventInput as AuditEventInputT } from "../../protocol/index.js";
 import { digestOf } from "../../shared/canonical.js";
 import { AuditUnavailableError } from "../../shared/errors.js";
 import { newId } from "../../shared/ids.js";
+import { validateAuditInput } from "../../audit/schema.js";
 
 export const AUDIT_FIXTURE_TABLE = "test_fixture_audit_events";
 
@@ -96,7 +97,7 @@ export class InTxAuditWriterFixture implements AuditWriter {
 
   async append(tx: Queryable, input: AuditEventInputT, stream = "default"): Promise<AuditEventT> {
     if (this.outage || this.failActions.has(input.action)) throw new AuditUnavailableError("AUDIT_FIXTURE_OUTAGE");
-    const parsed = AuditEventInput.parse(input);
+    const parsed = validateAuditInput(input); // same validation as the real writer
     if (!ACTION_NAME.test(parsed.action)) throw new Error("AUDIT_FIXTURE_INVALID_ACTION_NAME");
     for (const p of parsed.evidencePointers) {
       if (!TYPED_OPAQUE_REF.test(p) && !SCHEME_POINTER.test(p)) throw new Error("AUDIT_FIXTURE_INVALID_EVIDENCE_POINTER");

@@ -8,11 +8,12 @@
  */
 import type { AuditWriter } from "../../audit/ports.js";
 import type { Queryable } from "../../db/types.js";
-import { AUDIT_SCHEMA_VERSION, AuditEventInput } from "../../protocol/index.js";
+import { AUDIT_SCHEMA_VERSION } from "../../protocol/index.js";
 import type { AuditEvent, AuditEventInput as AuditEventInputType } from "../../protocol/index.js";
 import { canonicalJson, sha256Hex } from "../../shared/canonical.js";
 import { AuditUnavailableError } from "../../shared/errors.js";
 import { newId } from "../../shared/ids.js";
+import { validateAuditInput } from "../../audit/schema.js";
 
 export const SAFETY_AUDIT_FIXTURE_BADGE = "IN-TEST AUDIT WRITER FIXTURE — NOT DURABLE, NOT INDEPENDENT EVIDENCE";
 
@@ -39,7 +40,7 @@ export class RecordingAuditWriterFixture implements AuditWriter {
 
   async append(tx: Queryable, input: AuditEventInputType, stream?: string): Promise<AuditEvent> {
     if (this.outage) throw new AuditUnavailableError("AUDIT_UNAVAILABLE");
-    const parsed = AuditEventInput.parse(input);
+    const parsed = validateAuditInput(input); // same validation as the real writer
     this.inputs.push(input);
     this.seq += 1;
     const body: Omit<AuditEvent, "hash"> = {

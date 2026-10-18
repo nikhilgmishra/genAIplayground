@@ -23,6 +23,7 @@ import { AuditUnavailableError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
 import { STAFF } from "../fixtures/synthetic-world.js";
 import type { PreDisclosureRecheck, RecheckContext, RecheckResult } from "./recheck.js";
+import { validateAuditInput } from "../audit/schema.js";
 
 export const FIXTURE_LABEL = "LOCAL TEST FIXTURE — SYNTHETIC";
 
@@ -49,7 +50,7 @@ export class AuditWriterFixture implements AuditWriter {
 
   async append(tx: Queryable, input: AuditEventInput, stream = "workflow.fixture"): Promise<AuditEvent> {
     if (this.unavailable) throw new AuditUnavailableError("AUDIT_FIXTURE_UNAVAILABLE");
-    const parsed = AuditEventInput.parse(input); // proves every audit input is protocol-valid
+    const parsed = validateAuditInput(input); // same validation as the real writer
     await tx.query("insert into wf_test_audit_fixture (tenant_id, action, payload) values ($1, $2, $3)", [
       parsed.tenantId,
       parsed.action,
@@ -110,7 +111,7 @@ export class MemoryAuditWriterFixture implements AuditWriter {
 
   async appendStandalone(input: AuditEventInput, stream = "transfer.fixture"): Promise<AuditEvent> {
     if (this.unavailable) throw new AuditUnavailableError("AUDIT_FIXTURE_UNAVAILABLE");
-    const parsed = AuditEventInput.parse(input);
+    const parsed = validateAuditInput(input); // same validation as the real writer
     this.events.push(parsed);
     return {
       ...parsed,

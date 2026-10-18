@@ -13,10 +13,11 @@ import type { Db, Queryable } from "../db/types.js";
 import { createTestDb } from "../db/testing.js";
 import type { PgliteDb } from "../db/pglite.js";
 import { STAFF } from "../fixtures/synthetic-world.js";
-import { AuditEventInput } from "../protocol/index.js";
+
 import type { AuditEvent, StaffActor, StaffRole } from "../protocol/index.js";
 import { AuditUnavailableError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
+import { validateAuditInput } from "../audit/schema.js";
 
 const ACTION_RE = /^[a-z][a-z0-9_]{0,31}(\.[a-z][a-z0-9_]{0,31}){1,5}$/;
 const POINTER_RE = /^(s3|db|sf|ledger|wf|kv):\/\/[A-Za-z0-9/_.:@-]{3,190}$/;
@@ -39,9 +40,13 @@ export class InTxAuditWriterFixture implements AuditWriter {
   constructor(private readonly db: Db) {}
 
   private validate(input: unknown) {
-    const parsed = AuditEventInput.safeParse(input);
-    if (!parsed.success) throw new ValidationError("AUDIT_EVENT_INVALID");
-    const e = parsed.data;
+    // Same validation as the real writer (platform/src/audit/schema.ts), so fixtures cannot accept what production rejects.
+    let e: ReturnType<typeof validateAuditInput>;
+    try {
+      e = validateAuditInput(input);
+    } catch {
+      throw new ValidationError("AUDIT_EVENT_INVALID");
+    }
     if (!ACTION_RE.test(e.action)) throw new ValidationError("AUDIT_EVENT_INVALID");
     if (!e.evidencePointers.every((p) => POINTER_RE.test(p))) throw new ValidationError("AUDIT_EVENT_INVALID");
     if (e.reasonCode && /\d{4,}/.test(e.reasonCode)) throw new ValidationError("AUDIT_EVENT_INVALID");

@@ -1062,7 +1062,8 @@ export class PgWorkflowEngine implements WorkflowEngine {
       actorRef: actor.ref,
       role: null,
       now,
-      evidence: [`workflow:${row.workflow_id}`, `guard:${guard}`],
+      // Guard names are code-defined tokens; carried as a scheme-qualified pointer (audit pointer grammar).
+      evidence: [`workflow:${row.workflow_id}`, `wf://workflows/${row.workflow_id}/guards/${guard}`],
       beforeHash: null,
       afterHash: null,
       idempotencyKey: null,

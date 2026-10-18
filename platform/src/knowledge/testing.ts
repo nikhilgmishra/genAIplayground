@@ -11,6 +11,7 @@ import { AuditEventInput } from "../protocol/index.js";
 import type { AuditEvent } from "../protocol/index.js";
 import { AuditUnavailableError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
+import { validateAuditInput } from "../audit/schema.js";
 
 export const createKnowledgeTestDb = (): Promise<PgliteDb> => createTestDb({ include: /^05/ });
 
@@ -57,8 +58,14 @@ export class InTxAuditWriterFixture implements AuditWriter {
   }
 
   async append(tx: Queryable, input: AuditEventInput): Promise<AuditEvent> {
-    const parsed = AuditEventInput.safeParse(input);
-    if (!parsed.success) throw new ValidationError("AUDIT_EVENT_INVALID");
+    // Same validation as the real writer (platform/src/audit/schema.ts).
+    let validated: ReturnType<typeof validateAuditInput>;
+    try {
+      validated = validateAuditInput(input);
+    } catch {
+      throw new ValidationError("AUDIT_EVENT_INVALID");
+    }
+    const parsed = { data: validated };
     if (this.failAppend) throw new AuditUnavailableError();
     const ev: AuditEvent = { ...parsed.data, eventId: newId("aud"), schemaVersion: "audit.v1", sourceStream: "fixture.test", sequence: 1, prevHash: null, hash: "0".repeat(64) };
     await tx.query("insert into test_audit_fixture (event_id, tenant_id, action, outcome, body) values ($1, $2, $3, $4, $5::jsonb)", [
