@@ -560,14 +560,29 @@ iam_condition(op, have, vals) if {
 
 iam_value_matches(false, have, vals) if have in vals
 
+# Bool compares "true"/"false" case-insensitively; an absent key does not hold. BoolIfExists also
+# holds when the key is absent (the request does not carry it).
+iam_condition("Bool", have, vals) if iam_bool_matches(have, vals)
+
+iam_condition("BoolIfExists", have, _) if have == null
+
+iam_condition("BoolIfExists", have, vals) if iam_bool_matches(have, vals)
+
+iam_bool_matches(have, vals) if {
+	have != null
+	lower(sprintf("%v", [have])) in {lower(sprintf("%v", [v])) | some v in vals}
+}
+
 iam_value_matches(true, have, vals) if {
 	some v in vals
 	glob.match(v, null, have)
 }
 
 # The CI permissions boundary (modules/iam_ci): known at plan time, so its effect is probed
-# directly. It must explicitly deny every path by which code running with the CI
-# credentials could rewrite the CI identity or escalate through another principal.
+# directly. It must explicitly deny every probed path by which code running with the CI
+# credentials could rewrite the CI identity, escalate through another principal, read data,
+# or export or share it with the calls the stack never makes (VSP-INF-02). Resource policies
+# Terraform itself manages are not probed: IAM cannot inspect their content (README residual risk).
 ci_boundaries := {p |
 	some p in of_type("aws_iam_policy")
 	endswith(object.get(after(p), "name", ""), "-ci-boundary")
@@ -597,9 +612,19 @@ ci_foreign_role_actions := {"iam:AttachRolePolicy", "iam:PutRolePolicy", "iam:Up
 
 ci_data_plane_probe_actions := {"dynamodb:GetItem", "dynamodb:Scan", "secretsmanager:GetSecretValue", "sqs:ReceiveMessage", "logs:FilterLogEvents", "kms:Decrypt"}
 
+# Calls that copy data out or share it under the caller's own authorization; the stack never makes them.
+ci_data_export_probe_actions := {
+	"dynamodb:ExportTableToPointInTime", "dynamodb:PutResourcePolicy", "rds:ModifyDBClusterSnapshotAttribute", "rds:ModifyDBSnapshotAttribute",
+	"rds:StartExportTask", "logs:CreateExportTask", "logs:PutSubscriptionFilter", "s3:PutReplicationConfiguration", "s3:PutBucketAcl", "sqs:AddPermission",
+}
+
+# Sharing calls Terraform does make: probed without the request keys that would scope them
+# (kms:GrantIsForAWSResource, secretsmanager:BlockPublicPolicy), as a direct call would be.
+ci_scoped_share_probe_actions := {"kms:CreateGrant", "secretsmanager:PutResourcePolicy"}
+
 ci_account_level_actions := {"iam:CreateOpenIDConnectProvider", "iam:CreateAccessKey", "iam:AttachGroupPolicy", "iam:CreatePolicyVersion"}
 
-ci_probes(part, acct, prefix, boundary, region) := (((self_p | foreign_p) | assume_p) | data_p) | account_p if {
+ci_probes(part, acct, prefix, boundary, region) := (((((self_p | foreign_p) | assume_p) | data_p) | export_p) | share_p) | account_p if {
 	roles := {sprintf("arn:%s:iam::%s:role/%s-gha-plan", [part, acct, prefix]), sprintf("arn:%s:iam::%s:role/%s-gha-apply", [part, acct, prefix])}
 	foreign := sprintf("arn:%s:iam::%s:role/PreExistingAdministratorRole", [part, acct])
 	self_p := {{"desc": sprintf("%s on its own role %s", [a, r]), "action": a, "resource": r, "ctx": {"aws:RequestedRegion": region, "iam:PermissionsBoundary": boundary}} |
@@ -613,6 +638,14 @@ ci_probes(part, acct, prefix, boundary, region) := (((self_p | foreign_p) | assu
 	data_p := {{"desc": sprintf("%s by CI role %s", [a, r]), "action": a, "resource": sprintf("arn:%s:dynamodb:%s:%s:table/probe", [part, region, acct]), "ctx": {"aws:RequestedRegion": region, "aws:PrincipalArn": r, "kms:EncryptionContext:aws:s3:arn": "arn:aws:s3:::not-the-state-bucket/object"}} |
 		some r in roles
 		some a in ci_data_plane_probe_actions
+	}
+	export_p := {{"desc": sprintf("%s (export or share) by CI role %s", [a, r]), "action": a, "resource": sprintf("arn:%s:dynamodb:%s:%s:table/probe", [part, region, acct]), "ctx": {"aws:RequestedRegion": region, "aws:PrincipalArn": r}} |
+		some r in roles
+		some a in ci_data_export_probe_actions
+	}
+	share_p := {{"desc": sprintf("%s outside an AWS-service grant or a non-public policy by CI role %s", [a, r]), "action": a, "resource": "*", "ctx": {"aws:RequestedRegion": region, "aws:PrincipalArn": r}} |
+		some r in roles
+		some a in ci_scoped_share_probe_actions
 	}
 	account_p := {{"desc": a, "action": a, "resource": "*", "ctx": {"aws:RequestedRegion": region}} |
 		some a in ci_account_level_actions
@@ -635,7 +668,7 @@ deny contains msg if {
 deny contains msg if {
 	some p in ci_boundaries
 	some e in ci_escalations(json.unmarshal(after(p).policy))
-	msg := sprintf("CI-BOUNDARY: %s allows %s (CI must not change its own identity, read data or escalate through other roles)", [p.address, e])
+	msg := sprintf("CI-BOUNDARY: %s allows %s (CI must not change its own identity, read, export or share data, or escalate through other roles)", [p.address, e])
 }
 
 # Terraform state: plan writes only the lock; apply never deletes the state (VSP-INF-03).

@@ -348,6 +348,22 @@ test_waf_logging_uppercase_header_does_not_count if {
 
 # ------------------------------------------------------------ IAM evaluator
 
+# [VSP-INF-02] Bool / BoolIfExists: an absent key fails Bool and holds for BoolIfExists; values compare case-insensitively
+test_iam_evaluator_bool_semantics if {
+	doc := {"Statement": [
+		{"Effect": "Allow", "Action": ["kms:*", "secretsmanager:*"], "Resource": "*"},
+		{"Effect": "Deny", "Action": ["kms:CreateGrant", "secretsmanager:PutResourcePolicy"], "Resource": "*", "Condition": {"BoolIfExists": {"kms:GrantIsForAWSResource": "false", "secretsmanager:BlockPublicPolicy": "false"}}},
+		{"Effect": "Deny", "Action": "kms:RevokeGrant", "Resource": "*", "Condition": {"Bool": {"kms:GrantIsForAWSResource": "false"}}},
+	]}
+	not terraform.iam_allows(doc, "kms:CreateGrant", "k", {})
+	not terraform.iam_allows(doc, "kms:CreateGrant", "k", {"kms:GrantIsForAWSResource": "False"})
+	terraform.iam_allows(doc, "kms:CreateGrant", "k", {"kms:GrantIsForAWSResource": true})
+	not terraform.iam_allows(doc, "secretsmanager:PutResourcePolicy", "s", {})
+	terraform.iam_allows(doc, "secretsmanager:PutResourcePolicy", "s", {"secretsmanager:BlockPublicPolicy": "true"})
+	terraform.iam_allows(doc, "kms:RevokeGrant", "k", {}) # Bool: absent key does not hold
+	not terraform.iam_allows(doc, "kms:RevokeGrant", "k", {"kms:GrantIsForAWSResource": "false"})
+}
+
 test_iam_evaluator_semantics if {
 	doc := {"Statement": [
 		{"Effect": "Allow", "Action": ["iam:*", "dynamodb:*"], "Resource": "*"},
@@ -374,7 +390,7 @@ boundary_arn := "arn:aws:iam::111111111111:policy/vsp-test-ci-boundary"
 
 ci_roles := ["arn:aws:iam::111111111111:role/vsp-test-gha-plan", "arn:aws:iam::111111111111:role/vsp-test-gha-apply"]
 
-surface := {"Sid": "MaximumServiceSurface", "Effect": "Allow", "Action": ["iam:*", "sts:AssumeRole", "dynamodb:*", "secretsmanager:*", "sqs:*", "logs:*", "kms:*", "s3:*"], "Resource": "*"}
+surface := {"Sid": "MaximumServiceSurface", "Effect": "Allow", "Action": ["iam:*", "sts:AssumeRole", "dynamodb:*", "secretsmanager:*", "sqs:*", "logs:*", "kms:*", "s3:*", "rds:*"], "Resource": "*"}
 
 regions := {"Sid": "OnlyApprovedRegions", "Effect": "Deny", "NotAction": ["iam:*", "sts:*"], "Resource": "*", "Condition": {"StringNotEquals": {"aws:RequestedRegion": ["us-east-1"]}}}
 
@@ -387,7 +403,19 @@ old_boundary := {"Statement": [
 	{"Sid": "BoundaryIsImmutableToCi", "Effect": "Deny", "Action": ["iam:DeleteRolePermissionsBoundary", "iam:CreatePolicyVersion", "iam:DeletePolicy", "iam:DeletePolicyVersion", "iam:SetDefaultPolicyVersion"], "Resource": [boundary_arn, "arn:aws:iam::111111111111:role/*"]},
 ]}
 
-new_boundary := {"Statement": [
+data_reads := ["dynamodb:GetItem", "dynamodb:Scan", "secretsmanager:GetSecretValue", "sqs:ReceiveMessage", "logs:FilterLogEvents", "kms:Decrypt"]
+
+data_exports := [
+	"dynamodb:ExportTableToPointInTime", "dynamodb:PutResourcePolicy", "rds:ModifyDBClusterSnapshotAttribute", "rds:ModifyDBSnapshotAttribute",
+	"rds:StartExportTask", "logs:CreateExportTask", "logs:PutSubscriptionFilter", "s3:PutReplicationConfiguration", "s3:PutBucketAcl", "sqs:AddPermission",
+]
+
+ci_data_condition := {"ArnEquals": {"aws:PrincipalArn": ci_roles}, "StringNotLike": {"kms:EncryptionContext:aws:s3:arn": "arn:aws:s3:::vsp-test-tfstate/envs/sandbox/*"}}
+
+scoped_sharing := {"Sid": "SharingOnlyViaAwsServicesOrPrivately", "Effect": "Deny", "Action": ["kms:CreateGrant", "secretsmanager:PutResourcePolicy"], "Resource": "*", "Condition": {"BoolIfExists": {"kms:GrantIsForAWSResource": "false", "secretsmanager:BlockPublicPolicy": "false"}}}
+
+# The boundary after the first VSP-INF-02 fix: identity and escalation closed, reads denied, but no export or sharing deny.
+round1_boundary := {"Statement": [
 	surface,
 	regions,
 	{"Sid": "NoLongLivedCredentials", "Effect": "Deny", "Action": ["iam:CreateUser", "iam:CreateAccessKey", "iam:AttachGroupPolicy"], "Resource": "*"},
@@ -397,8 +425,14 @@ new_boundary := {"Statement": [
 	{"Sid": "NoInAccountRoleAssumption", "Effect": "Deny", "Action": ["sts:AssumeRole"], "Resource": ["arn:aws:iam::111111111111:role/*"]},
 	{"Sid": "NoIdentityProviderChanges", "Effect": "Deny", "Action": ["iam:CreateOpenIDConnectProvider"], "Resource": "*"},
 	{"Sid": "NoManagedPolicyChanges", "Effect": "Deny", "Action": ["iam:CreatePolicyVersion"], "Resource": "*"},
-	{"Sid": "NoDataPlaneReadsForCi", "Effect": "Deny", "Action": ["dynamodb:GetItem", "dynamodb:Scan", "secretsmanager:GetSecretValue", "sqs:ReceiveMessage", "logs:FilterLogEvents", "kms:Decrypt"], "Resource": "*", "Condition": {"ArnEquals": {"aws:PrincipalArn": ci_roles}, "StringNotLike": {"kms:EncryptionContext:aws:s3:arn": "arn:aws:s3:::vsp-test-tfstate/envs/sandbox/*"}}},
+	{"Sid": "NoDataPlaneReadsForCi", "Effect": "Deny", "Action": data_reads, "Resource": "*", "Condition": ci_data_condition},
 ]}
+
+# The fixed boundary: the shared deny also lists the export and sharing calls, plus the scoped sharing statement.
+new_boundary := {"Statement": array.concat(
+	[s | some s in round1_boundary.Statement; s.Sid != "NoDataPlaneReadsForCi"],
+	[{"Sid": "NoDataPlaneReadsForCi", "Effect": "Deny", "Action": array.concat(data_reads, data_exports), "Resource": "*", "Condition": ci_data_condition}, scoped_sharing],
+)}
 
 boundary_rc(doc) := rc("aws_iam_policy", "module.stack.module.iam_ci[0].aws_iam_policy.boundary", "module.stack.module.iam_ci[0]", {"name": "vsp-test-ci-boundary", "policy": json.marshal(doc)})
 
@@ -429,9 +463,39 @@ test_ci_boundary_without_self_requirement_denied if {
 	has_prefix(terraform.deny, "CI-BOUNDARY") with input as plan([boundary_rc(doc)])
 }
 
+# [OPS-05][VSP-INF-02] the round-1 boundary still let the CI roles export a table (e.g. into the state prefix the
+# apply role reads back), share a table, snapshot or secret with another account, or grant a KMS key directly
+test_ci_boundary_round1_export_and_sharing_denied if {
+	msgs := terraform.deny with input as plan([boundary_rc(round1_boundary)])
+	some export in msgs
+	contains(export, "dynamodb:ExportTableToPointInTime (export or share) by CI role arn:aws:iam::111111111111:role/vsp-test-gha-apply")
+	some table_policy in msgs
+	contains(table_policy, "dynamodb:PutResourcePolicy (export or share) by CI role")
+	some snapshot in msgs
+	contains(snapshot, "rds:ModifyDBClusterSnapshotAttribute (export or share) by CI role")
+	some logs in msgs
+	contains(logs, "logs:CreateExportTask (export or share) by CI role")
+	some grant in msgs
+	contains(grant, "kms:CreateGrant outside an AWS-service grant or a non-public policy by CI role")
+	some secret in msgs
+	contains(secret, "secretsmanager:PutResourcePolicy outside an AWS-service grant or a non-public policy by CI role")
+}
+
+# [OPS-05][VSP-INF-02] every export or sharing action is probed: dropping any one from the deny reopens it
+test_ci_boundary_each_export_is_needed if {
+	every a in data_exports {
+		doc := {"Statement": array.concat(
+			[s | some s in new_boundary.Statement; s.Sid != "NoDataPlaneReadsForCi"],
+			[{"Sid": "NoDataPlaneReadsForCi", "Effect": "Deny", "Action": array.concat(data_reads, [x | some x in data_exports; x != a]), "Resource": "*", "Condition": ci_data_condition}],
+		)}
+		some m in terraform.deny with input as plan([boundary_rc(doc)])
+		contains(m, sprintf("%s (export or share) by CI role", [a]))
+	}
+}
+
 # [VSP-INF-02] each statement is load-bearing: dropping any one reopens a path
 test_ci_boundary_each_deny_is_needed if {
-	every sid in ["CiIdentityIsImmutableToCi", "OnlyRolesCreatedByCiCanBeChangedOrPassed", "NoInAccountRoleAssumption", "NoIdentityProviderChanges", "NoManagedPolicyChanges", "NoDataPlaneReadsForCi", "NoLongLivedCredentials"] {
+	every sid in ["CiIdentityIsImmutableToCi", "OnlyRolesCreatedByCiCanBeChangedOrPassed", "NoInAccountRoleAssumption", "NoIdentityProviderChanges", "NoManagedPolicyChanges", "NoDataPlaneReadsForCi", "SharingOnlyViaAwsServicesOrPrivately", "NoLongLivedCredentials"] {
 		doc := {"Statement": [s | some s in new_boundary.Statement; s.Sid != sid]}
 		has_prefix(terraform.deny, "CI-BOUNDARY") with input as plan([boundary_rc(doc)])
 	}
@@ -445,6 +509,16 @@ test_ci_boundary_keeps_deploy_paths if {
 	terraform.iam_allows(new_boundary, "sts:AssumeRole", "arn:aws:iam::222222222222:role/vsp-audit-writer", ctx)
 	terraform.iam_allows(new_boundary, "dynamodb:GetItem", "arn:aws:dynamodb:us-east-1:111111111111:table/s", {"aws:RequestedRegion": "us-east-1", "aws:PrincipalArn": "arn:aws:iam::111111111111:role/vsp-test-gateway-task"})
 	terraform.iam_allows(new_boundary, "kms:Decrypt", "k", {"aws:RequestedRegion": "us-east-1", "aws:PrincipalArn": ci_roles[0], "kms:EncryptionContext:aws:s3:arn": "arn:aws:s3:::vsp-test-tfstate/envs/sandbox/terraform.tfstate"})
+
+	# [VSP-INF-02] what Terraform does call stays allowed: grants an AWS service creates (RDS, DynamoDB),
+	# secret policies with Block Public Policy, and the resource policies the stack manages (residual risk).
+	ci := {"aws:RequestedRegion": "us-east-1", "aws:PrincipalArn": ci_roles[1]}
+	terraform.iam_allows(new_boundary, "kms:CreateGrant", "k", object.union(ci, {"kms:GrantIsForAWSResource": "true"}))
+	terraform.iam_allows(new_boundary, "secretsmanager:PutResourcePolicy", "s", object.union(ci, {"secretsmanager:BlockPublicPolicy": "true"}))
+	terraform.iam_allows(new_boundary, "s3:PutBucketPolicy", "arn:aws:s3:::vsp-test-alb-logs", ci)
+	terraform.iam_allows(new_boundary, "sqs:SetQueueAttributes", "q", ci)
+	terraform.iam_allows(new_boundary, "kms:PutKeyPolicy", "k", ci)
+	terraform.iam_allows(new_boundary, "dynamodb:UpdateTable", "t", ci)
 }
 
 # ------------------------------------------------------------ Terraform state (VSP-INF-03)

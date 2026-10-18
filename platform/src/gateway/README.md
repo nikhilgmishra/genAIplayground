@@ -86,6 +86,19 @@ grammar-valid evidence pointers only); an AUDIT_READ disclosure that still canno
 `PERMANENT_FAILURE AUDIT_EVENT_INVALID` (no data), not the retryable `AUDIT_UNAVAILABLE`. Tests:
 `pipeline.transactions.test.ts`, `../../test/journeys/transactions.test.ts`.
 
+### `vsp_protected_actions_total` audit label (OPS-01; finding OPS-AUD-01)
+
+An accepted (`SUCCESS`/`PENDING`) consequential call increments
+`vsp_protected_actions_total{authorization, audit}`. The `audit` label comes from the `tool.invoke`
+append for that result: `recorded_before_ack` when the event was durably appended before the result
+was returned (`auditEventId` set), `not_recorded` when the append failed (`auditEventId` null). A
+replay uses the stored result's `auditEventId`. A commit has no AUDIT_READ obligation, so a failed
+`tool.invoke` append does not block it; the gap is counted instead, and the `audited_accepted_actions`
+objective and the "Protected actions without decision or audit" panel can fall below 100%. The
+metric covers the gateway's `tool.invoke` record only. The ledger's own `action.commit.*` event is
+written in the commit transaction and is reconciled by the audit verification loop
+(`audit/monitor.ts`), not by this label. Tests: `pipeline.audit-metric.test.ts`.
+
 ## Commands
 
 ```

@@ -253,6 +253,24 @@ describe("TypeScript re-check before return", () => {
     expect(records.filter((r) => r.event === "knowledge.search.recheck_dropped").map((r) => r.fields.reasonCode)).toEqual(Array(4).fill("RECHECK_EXCERPT_UNSAFE"));
   });
 
+  it("[SPEC-14.threat-model][SPEC-9.retrieval][VSP-KN-01] stored excerpts with a decorated TLD (trailing '-', '_', digit or combining mark) or a decorated IPv4 are dropped on re-check", async () => {
+    // Rows a sanitizer that ended the TLD label at decoration would have stored (round-2 re-verification).
+    const { logger, records } = createMemoryLogger();
+    const rows = [
+      row({ source_id: "ok-row" }),
+      row({ source_id: "dash-row", body_sanitized: "You can reschedule at billing-portal.com-/pay today." }),
+      row({ source_id: "underscore-row", body_sanitized: "You can reschedule at billing-portal.com_/pay today." }),
+      row({ source_id: "mark-row", body_sanitized: `You can reschedule at billing-portal.com${String.fromCharCode(0x0332)}/pay today.` }),
+      row({ source_id: "inner-mark-row", body_sanitized: `You can reschedule at evil.co${String.fromCharCode(0x0332)}m/reset today.` }),
+      row({ source_id: "digit-row", body_sanitized: `You can reschedule at evil.com${String.fromCharCode(0x0660)}/reset today.` }),
+      row({ source_id: "ip-dash-row", body_sanitized: "You can reschedule at 203.0.113.7-/login today." }),
+    ];
+    const out = await searchKnowledge({ db: stubDb(rows), logger, embedder: null, embeddingsAvailable: async () => false, allowedLinkDomains: LOCAL_ALLOWED_LINK_DOMAINS }, input);
+    expect(out.hits.map((h) => h.sourceId)).toEqual(["ok-row"]);
+    expect(out.droppedOnRecheck).toBe(6);
+    expect(records.filter((r) => r.event === "knowledge.search.recheck_dropped").map((r) => r.fields.reasonCode)).toEqual(Array(6).fill("RECHECK_EXCERPT_UNSAFE"));
+  });
+
   it("[SPEC-9.retrieval] excerpts are the best-matching sentence, bounded", () => {
     const body = "First sentence about billing. Second sentence about how to reschedule an appointment. Third.";
     expect(buildExcerpt(body, "reschedule appointment", 320)).toBe("Second sentence about how to reschedule an appointment.");

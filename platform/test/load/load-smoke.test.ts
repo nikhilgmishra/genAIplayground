@@ -15,6 +15,13 @@ import { LOAD_LABEL, LOCAL_FIXTURE_BADGE } from "../../src/evaluation/driver/lab
 import { LoadTarget, phaseClean, runLoadCampaign, runPhase, writeLoadEvidence } from "./harness.js";
 import type { FinalState, LoadEvidence, PhaseRecord } from "./harness.js";
 
+/**
+ * Each smoke phase sends a fixed number of requests over 8 concurrent connections, so the
+ * assertions are about correctness under concurrency, not about how fast this machine is
+ * (a wall-clock throughput floor failed under CPU contention from parallel test files).
+ */
+const SMOKE_REQUESTS = 120;
+
 describe("LOCAL LOOPBACK load smoke (autocannon, 127.0.0.1)", () => {
   let target: LoadTarget;
   const phases: PhaseRecord[] = [];
@@ -25,8 +32,8 @@ describe("LOCAL LOOPBACK load smoke (autocannon, 127.0.0.1)", () => {
     await target.shipAll();
     const before = await target.auditRows();
     target.startAuditShipping();
-    phases.push(await runPhase(target, { name: "smoke.public_read", endpoint: "publicRead", connections: 8, durationS: 2 }));
-    phases.push(await runPhase(target, { name: "smoke.protected_read", endpoint: "protectedRead", connections: 8, durationS: 2 }));
+    phases.push(await runPhase(target, { name: "smoke.public_read", endpoint: "publicRead", connections: 8, durationS: 2, amount: SMOKE_REQUESTS }));
+    phases.push(await runPhase(target, { name: "smoke.protected_read", endpoint: "protectedRead", connections: 8, durationS: 2, amount: SMOKE_REQUESTS }));
     const successes = phases.reduce((n, p) => n + p.result.status2xx - p.result.bodyNotSuccess, 0);
     final = await target.finalState(before, successes);
   }, 90_000);
@@ -45,7 +52,8 @@ describe("LOCAL LOOPBACK load smoke (autocannon, 127.0.0.1)", () => {
 
   it("[SPEC-12.load-test][AUTH-02] PUBLIC_READ search_approved_runbook under concurrent load: every response is HTTP 200 with a SUCCESS ToolResult, no errors or timeouts", () => {
     const p = phases[0]!;
-    expect(p.result.responses).toBeGreaterThan(50);
+    expect(p.config.amount).toBe(SMOKE_REQUESTS);
+    expect(p.result.responses).toBe(SMOKE_REQUESTS);
     expect(p.result.errors).toBe(0);
     expect(p.result.timeouts).toBe(0);
     expect(p.result.non2xx).toBe(0);
@@ -59,7 +67,7 @@ describe("LOCAL LOOPBACK load smoke (autocannon, 127.0.0.1)", () => {
 
   it("[SPEC-12.load-test][AUTH-04] PROTECTED_READ get_invoice_status on a verified synthetic session under concurrent load: every response is a SUCCESS ToolResult", () => {
     const p = phases[1]!;
-    expect(p.result.responses).toBeGreaterThan(50);
+    expect(p.result.responses).toBe(SMOKE_REQUESTS);
     expect(phaseClean(p)).toBe(true);
     expect(p.result.reasonCodes).toEqual({});
   });
@@ -73,12 +81,9 @@ describe("LOCAL LOOPBACK load smoke (autocannon, 127.0.0.1)", () => {
     expect(final.integrity.numericOrderChainOk).toBe(true);
   });
 
-  // KNOWN FAILING (not owned here): platform/src/audit/verifier.ts orders a stream with
-  // `order by sequence` while the select list aliases `sequence::text as sequence`, so
-  // PostgreSQL/PGlite sorts by the TEXT alias ("10" < "9") and verifyStream reports
-  // SEQUENCE_GAP / PREV_HASH_MISMATCH on any stream with >= 10 events (same pattern in
-  // audit/shipper.ts). Fix: `order by audit_outbox.sequence` (or alias the text column
-  // differently). The numeric-order recomputation above shows the chain itself is intact.
+  // FORMERLY KNOWN FAILING, now fixed: platform/src/audit/verifier.ts ordered a stream by the
+  // TEXT alias of `sequence` ("10" < "9"), so verifyStream reported SEQUENCE_GAP /
+  // PREV_HASH_MISMATCH on any stream with >= 10 events. It now orders by the numeric column.
   it("[SPEC-12.load-test][OPS-01] the platform IntegrityVerifier verifies every local audit stream after load", () => {
     expect(final.integrity.localOk).toBe(true);
   });

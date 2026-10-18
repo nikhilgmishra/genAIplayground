@@ -20,7 +20,9 @@ shift || true
 run_tests() {
   "${OPA}" fmt --fail --list "${POLICY}" >/dev/null || { echo "terraform-policy: rego not formatted (opa fmt -w ${POLICY})" >&2; exit 1; }
   "${OPA}" check --strict "${POLICY}"
-  "${OPA}" test "${POLICY}" --ignore 'fixtures/*'
+  # The boundary probes re-evaluate the whole deny set once per action (about 3 s on a
+  # loaded runner); OPA's default 5 s per-test deadline would turn CPU contention into a failure.
+  "${OPA}" test "${POLICY}" --ignore 'fixtures/*' --timeout 60s
 }
 
 gate() {

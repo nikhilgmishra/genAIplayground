@@ -273,6 +273,11 @@ npx eslint src/business src/gateway/tools
   dials a STANDARD destination then; the coordinator enforces the same invariant and supersedes the
   call's STANDARD journeys when a safety route starts (`workflows/README.md`). The signal is
   `CALLER_REQUEST` (UNRESOLVED) for caller-originated requests and `HUMAN_INTERVENTION` for staff.
+  A human request that races a safety route (the safety signal arrives while its STANDARD dial is
+  pending, or before its journey is written) is resolved in the coordinator under concurrent writes
+  (conflict retry, STANDARD steps yield to an active SAFETY journey, write-then-read): the STANDARD
+  journey ends `SUPERSEDED` and `requestHuman` answers with the SAFETY journey it gets back (round 2
+  of SAFE-HANDOFF-02; end to end in `test/journeys/safety-supersede-race.test.ts`).
 * **Staff safety escalation (SAFE-HANDOFF-05).** `requestSafetyRoute` accepts `initiatedBy` (audited
   as the actor, sourceComponent `console`). With no usable context it resolves the call's live
   session server-side through `ToolDeps.callSessions` (trusted call binding; composed in the local

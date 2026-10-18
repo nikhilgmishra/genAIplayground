@@ -3,7 +3,8 @@ import react from "@vitejs/plugin-react";
 
 /**
  * Operations console build. The dev server proxies the console API to the local
- * platform (`pnpm start`, default 127.0.0.1:8080). No other origin is contacted.
+ * platform (`pnpm start` serves the console API on 127.0.0.1:8090; the gateway on 8080
+ * has no console routes). No other origin is contacted.
  */
 export default defineConfig({
   plugins: [react()],
@@ -12,7 +13,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      "/console/api": { target: "http://127.0.0.1:8080", changeOrigin: false, secure: true },
+      "/console/api": { target: "http://127.0.0.1:8090", changeOrigin: false, secure: true },
     },
   },
   preview: { host: "127.0.0.1", port: 4173, strictPort: true },

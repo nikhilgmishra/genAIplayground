@@ -2,9 +2,11 @@
 
 Status: **IMPLEMENTED_OFFLINE**. React 19 + TypeScript + Vite single-page app, built and tested
 against the typed contract in `platform/src/console-api/contract.ts` using a labelled mock backend
-(`src/test/mock-api.ts`). The backend console API is not implemented yet, so `pnpm dev` has no
-real server to talk to until it is. Workforce SSO is BLOCKED (PRQ-036). Not verified against any
-vendor, real IdP or production; this is not a claim of HIPAA compliance or production readiness.
+(`src/test/mock-api.ts`). The backend console API is `platform/src/console-api`; for local use run
+`pnpm start` at the repository root (LOCAL FIXTURE console API on 127.0.0.1:8090, LOCAL FIXTURE
+workforce sign-in, SYNTHETIC staff) and `npx vite` here. Workforce SSO is BLOCKED (PRQ-036).
+Not verified against any vendor, real IdP or production; this is not a claim of HIPAA compliance
+or production readiness.
 
 ## Commands
 
@@ -14,7 +16,7 @@ npx tsc -p tsconfig.json --noEmit   # typecheck (also: pnpm --filter @vsp/consol
 npx vitest run                      # unit, RBAC, flow and axe-core accessibility tests
 npx vite build                      # production bundle in console/dist (gitignored)
 npx eslint src                      # lint, including the browser-storage and raw-HTML bans
-npx vite                            # dev server on 127.0.0.1:5173; proxies /console/api -> 127.0.0.1:8080
+npx vite                            # dev server on 127.0.0.1:5173; proxies /console/api -> 127.0.0.1:8090
 ```
 
 ## Sections

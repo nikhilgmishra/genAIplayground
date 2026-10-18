@@ -11,8 +11,14 @@
 # The boundary (immutable to CI) also denies the CI roles: any change to their own
 # policies, trust, boundary or settings; role-policy changes on roles without the
 # boundary; trust/setting changes and PassRole on roles CI did not create; assuming
-# in-account roles; identity-provider, user, group and managed-policy changes; and
-# data-plane reads (VSP-INF-02).
+# in-account roles; identity-provider, user, group and managed-policy changes; data-plane
+# reads; and the export and sharing calls this stack never makes (table export, table
+# resource policy, snapshot sharing/export, log export, subscription filter, bucket
+# replication/ACL, legacy queue permission). KMS grants and secret policies, which Terraform
+# does use, are allowed (to every role under the boundary) only when an AWS service creates
+# the grant / with Block Public Policy (VSP-INF-02). Resource policies Terraform manages (key,
+# bucket, queue, secret, topic, log) can still name another account: that needs an
+# organization data perimeter (infra/terraform/README.md, residual risk).
 # Subject pinning requires the repository's OIDC subject claim customization
 # (include_claim_keys = ["repo", "context", "job_workflow_ref"]) set by a repository
 # administrator; until it is set the roles cannot be assumed (fails closed).
@@ -198,6 +204,20 @@ locals {
     "ec2:GetPasswordData", "ec2:GetConsoleOutput", "ec2:GetConsoleScreenshot", "kms:Decrypt",
   ]
 
+  # Calls that copy data out of its store or share it with another account under the caller's own
+  # authorization, which this stack never makes (no table export or table resource policy, no
+  # snapshot sharing or export, no log export or subscription filter, no bucket replication or
+  # ACL, no legacy queue permission). A table export could otherwise land under the state prefix,
+  # which the apply role reads back (VSP-INF-02, OPS-05).
+  data_plane_exports = [
+    "dynamodb:ExportTableToPointInTime", "dynamodb:PutResourcePolicy", "rds:ModifyDBClusterSnapshotAttribute",
+    "rds:ModifyDBSnapshotAttribute", "rds:StartExportTask", "logs:CreateExportTask", "logs:PutSubscriptionFilter",
+    "s3:PutReplicationConfiguration", "s3:PutBucketAcl", "s3:PutObjectAcl", "s3:PutObjectVersionAcl", "sqs:AddPermission",
+  ]
+
+  # One list for the boundary statement NoDataPlaneReadsForCi and the inline NoDataPlaneReads.
+  data_plane_denies = concat(local.data_plane_reads, local.data_plane_exports)
+
   # Applies only to the CI roles; the state-object decryption exception mirrors data_plane_deny.
   ci_data_plane_condition = merge(
     { ArnEquals = { "aws:PrincipalArn" = local.ci_role_arns } },
@@ -296,9 +316,21 @@ locals {
           # in their inline policies). Roles CI creates are not affected (task roles read data).
           Sid       = "NoDataPlaneReadsForCi"
           Effect    = "Deny"
-          Action    = local.data_plane_reads
+          Action    = local.data_plane_denies
           Resource  = "*"
           Condition = local.ci_data_plane_condition
+        },
+        {
+          # Sharing calls Terraform does make, scoped for every role under this boundary (no role CI
+          # creates needs more): KMS grants only when an AWS service (RDS, DynamoDB) creates them for a
+          # resource, secret policies only with Block Public Policy (modules/secrets sets it). Each key
+          # is absent from the other action's request, so BoolIfExists holds there and the statement
+          # reduces to the called action's own condition (an absent key is denied: fail closed).
+          Sid       = "SharingOnlyViaAwsServicesOrPrivately"
+          Effect    = "Deny"
+          Action    = ["kms:CreateGrant", "secretsmanager:PutResourcePolicy"]
+          Resource  = "*"
+          Condition = { BoolIfExists = { "kms:GrantIsForAWSResource" = "false", "secretsmanager:BlockPublicPolicy" = "false" } }
         },
         {
           Sid      = "BoundaryIsImmutableToCi"
@@ -402,7 +434,7 @@ locals {
     {
       Sid      = "NoDataPlaneReads"
       Effect   = "Deny"
-      Action   = local.data_plane_reads
+      Action   = local.data_plane_denies
       Resource = "*"
     },
     var.state_kms_key_arn == null ? {} : {

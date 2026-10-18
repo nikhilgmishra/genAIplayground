@@ -720,7 +720,8 @@ export class ToolPipeline {
       if (stored.success) {
         st.auditReason = PIPELINE_REASON.IDEMPOTENT_REPLAY;
         await this.appendAudit(st, stored.data.status, PIPELINE_REASON.IDEMPOTENT_REPLAY, false);
-        this.observe(st, stored.data.status, PIPELINE_REASON.IDEMPOTENT_REPLAY);
+        // The replayed acknowledgement carries the original call's tool.invoke event id (OPS-AUD-01).
+        this.observe(st, stored.data.status, PIPELINE_REASON.IDEMPOTENT_REPLAY, stored.data.auditEventId);
         return { kind: "result", result: stored.data };
       }
       return { kind: "result", result: await this.finish(st, { status: "PERMANENT_FAILURE", reasonCode: PIPELINE_REASON.TOOL_RESULT_INVALID }, null, null) };
@@ -900,7 +901,7 @@ export class ToolPipeline {
     const result: ToolResult = parsed.success
       ? parsed.data
       : ToolResult.parse({ ...base, speech: null, status: "PERMANENT_FAILURE", reasonCode: PIPELINE_REASON.TOOL_RESULT_INVALID });
-    this.observe(st, result.status, "reasonCode" in result ? result.reasonCode : null);
+    this.observe(st, result.status, "reasonCode" in result ? result.reasonCode : null, result.auditEventId);
     if (st.ctx && st.entry) {
       try {
         d.callOutcomes?.observe(st.ctx.callId, st.entry.definition.safetyClass, result.status, st.decision !== null && st.decision.allow === false);
@@ -987,7 +988,13 @@ export class ToolPipeline {
     return ev.eventId;
   }
 
-  private observe(st: InvocationState, status: ToolStatus, reasonCode: string | null): void {
+  /**
+   * (o) metrics and the completion log. `auditEventId` is the tool.invoke event appended before this
+   * result is returned (null when the append failed): it alone decides the `audit` label of
+   * vsp_protected_actions_total, so an accepted action without that record is counted "not_recorded"
+   * and the audited_accepted_actions objective can fall below 100% (OPS-01, OPS-AUD-01).
+   */
+  private observe(st: InvocationState, status: ToolStatus, reasonCode: string | null, auditEventId: string | null): void {
     const d = this.deps;
     const tool = st.entry?.definition.name ?? "other";
     const durationMs = Math.max(0, d.clock.now().getTime() - st.startedMs);
@@ -997,7 +1004,7 @@ export class ToolPipeline {
       if (st.entry?.definition.consequential && (status === "SUCCESS" || status === "PENDING")) {
         d.metrics.increment("vsp_protected_actions_total", {
           authorization: st.decision?.allow ? "valid_decision" : "missing_decision",
-          audit: "recorded_before_ack",
+          audit: auditEventId === null ? "not_recorded" : "recorded_before_ack",
         });
       }
     } catch {

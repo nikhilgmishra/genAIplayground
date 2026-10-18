@@ -20,29 +20,38 @@
  *  - repeats the pipeline until the text is stable, then hard-scrubs anything
  *    left that still violates the output invariants.
  *
- * Output invariants (property-tested, including generated domains on arbitrary
- * TLDs, IDNA separators and IPv4/IPv6 literals): no "<" or ">", no "://", no
- * "www.", no javascript:/vbscript:/data: URI, no bare domain outside the
- * allowlist and no IP literal. A "bare domain" is a dotted run of labels
- * (letters of any script, digits, "_" or "-") in which some label after the
- * first is 2-63 letters or an xn-- A-label; an IPv4 literal is a run of four
- * or more numeric labels; an IPv6 literal is a (bracketed) colon-hex group
- * sequence with "::" or eight groups. Spelled-out forms ("evil dot com") are
- * not domains under this definition (see README, known limitations).
+ * Output invariants (property-tested with an independent oracle, including
+ * generated domains on arbitrary TLDs, decorated TLDs, IDNA separators and
+ * IPv4/IPv6 literals): no "<" or ">", no "://", no "www.", no
+ * javascript:/vbscript:/data: URI, no bare domain outside the allowlist and no
+ * IP literal. A "bare domain" is a dotted run of labels (letters of any script,
+ * combining marks, digits, "_" or "-") in which some label after the first,
+ * with combining marks deleted, begins with 2-63 letters; anything after that
+ * letter run is decoration ("evil.com-/reset", "evil.co<U+0332>m", "evil.com1"
+ * are domains; xn-- A-labels are covered). An IPv4 literal is a run of four or
+ * more numeric labels (optionally decorated with "-"/"_"); an IPv6 literal is a
+ * (bracketed) colon-hex group sequence with "::" or eight groups. Spelled-out
+ * forms ("evil dot com") and TLD labels that start with a digit, "-" or "_" are
+ * not domains under this definition (host-literals.ts; README, known
+ * limitations).
  *
- * Every pattern runs in time linear in the input (VSP-KN-02): element matching
+ * Sanitization time is linear in the input (VSP-KN-02): element matching
  * (blocks, anchors) pairs opening and closing tags in one pass (markup.ts)
  * instead of lazy cross-tag regexes, `<tag ...>` patterns are evaluated only up
- * to the last ">", host literals are found by a linear scan (host-literals.ts),
- * and the remaining quantifiers are delimiter-bounded or capped.
- * Combined with the input cap this bounds sanitization time; there is no
- * wall-clock deadline (output must stay deterministic for content digests).
+ * to the last ">", host literals are found by a linear scan that memoizes path
+ * ends (host-literals.ts), trailing punctuation and slashes are trimmed by
+ * backward scans instead of `[...]+$` regexes, and every remaining quantifier is
+ * delimiter-bounded or capped, so the work per start position is bounded by a
+ * constant (at most the 2 000-character link-target cap of the markdown link and
+ * autolink patterns). Timing tests at 20 000 and 40 000 characters check this. Combined with the input cap
+ * this bounds sanitization time; there is no wall-clock deadline (output must
+ * stay deterministic for content digests).
  *
  * Findings are reason codes. QUARANTINE-level findings (executable or embedded
  * content) make the ingestion pipeline quarantine the item; STRIP-level
  * findings (formatting, links) are recorded and the cleaned text is kept.
  */
-import { stripControl, stripInvisible } from "../privacy/patterns.js";
+import { containsTagCharacters, stripControl, stripInvisible } from "../privacy/patterns.js";
 import { IDNA_DOTS, hostLiterals, hostSpans, normalizeHost, replaceSpans } from "./host-literals.js";
 import { replaceElements, replaceTags } from "./markup.js";
 import { MAX_BODY_CHARS } from "./schema.js";
@@ -63,11 +72,14 @@ export type SanitizeFindingCode =
   | "LINK_REMOVED"
   | "URL_REMOVED"
   | "INVISIBLE_CHARACTERS_REMOVED"
+  | "HIDDEN_TAG_CHARACTERS"
   | "SANITIZER_HARD_SCRUB_APPLIED"
   | "SANITIZER_INPUT_TOO_LARGE";
 
 /** Findings that indicate executable or embedded content: the item is quarantined. */
 export const QUARANTINE_FINDINGS: ReadonlySet<SanitizeFindingCode> = new Set([
+  // Tag-character smuggling hides text from readers and matchers alike (VSP-KN-01).
+  "HIDDEN_TAG_CHARACTERS",
   "SCRIPT_OR_STYLE_REMOVED",
   "EMBEDDED_OBJECT_REMOVED",
   "EVENT_HANDLER_REMOVED",
@@ -172,6 +184,25 @@ function hostAllowed(host: string, allowed: ReadonlySet<string>): boolean {
   return allowed.has(normalizeHost(host).replace(/\.$/, ""));
 }
 
+/** Sentence punctuation that may follow a URL or host literal without belonging to it. */
+const TRAILING_PUNCTUATION = ".,;:!?";
+
+/**
+ * The trailing run of `s` made of characters in `chars`, found by a backward
+ * scan. A `[...]+$` regex is O(n^2) on a long run that is not at the end (it
+ * rescans the run from every start), which a path such as "a.bc/" + 20 000
+ * commas + "x" would trigger (VSP-KN-02).
+ */
+function trailingRun(s: string, chars: string): string {
+  let i = s.length;
+  while (i > 0 && chars.includes(s.charAt(i - 1))) i -= 1;
+  return s.slice(i);
+}
+
+function trimTrailing(s: string, chars: string): string {
+  return s.slice(0, s.length - trailingRun(s, chars).length);
+}
+
 /**
  * Plain-text rendering of an allowlisted link: "host/path" without scheme,
  * credentials, port, query or fragment. A path is kept only when it is short,
@@ -191,7 +222,7 @@ export function plainTextLink(target: string, allowed: ReadonlySet<string>): str
   if (url.protocol !== "https:" && url.protocol !== "http:") return null;
   if (url.username || url.password) return null;
   if (!hostAllowed(url.hostname, allowed)) return null;
-  const path = url.pathname.replace(/\/+$/, "");
+  const path = trimTrailing(url.pathname, "/");
   const safePath = /^[/A-Za-z0-9_~-]{0,120}$/.test(path) && !/\d{4,}/.test(path) ? path : "";
   return `${url.hostname.toLowerCase()}${safePath}`;
 }
@@ -284,7 +315,7 @@ function onePass(input: string, allowed: ReadonlySet<string>, findings: Set<Sani
 
   // Raw URLs, bare domains and IP literals.
   const urlReplacer = (m: string) => {
-    const trail = /[.,;:!?]+$/.exec(m)?.[0] ?? "";
+    const trail = trailingRun(m, TRAILING_PUNCTUATION);
     const plain = plainTextLink(m.slice(0, m.length - trail.length), allowed);
     if (plain) {
       findings.add("LINK_REWRITTEN_ALLOWLISTED");
@@ -302,7 +333,7 @@ function onePass(input: string, allowed: ReadonlySet<string>, findings: Set<Sani
   record(OTHER_URI, "URL_REMOVED");
   s = s.replace(OTHER_URI, " ");
   s = replaceSpans(s, hostSpans(s, (h) => hostAllowed(h, allowed)), (span, m) => {
-    const trail = /[.,;:!?]+$/.exec(m)?.[0] ?? "";
+    const trail = trailingRun(m, TRAILING_PUNCTUATION);
     if (span.allowedHost !== null) return `${plainTextLink(m.slice(0, m.length - trail.length), allowed) ?? span.allowedHost}${trail}`;
     findings.add("URL_REMOVED");
     return ` ${trail}`;
@@ -363,6 +394,7 @@ export function sanitizeKnowledgeText(input: string, opts: SanitizeOptions = {})
   const findings = new Set<SanitizeFindingCode>();
   const normalized = input.normalize("NFKC").replace(IDNA_DOTS, ".");
   if (normalized.length > MAX_SANITIZE_INPUT_CHARS) return tooLarge();
+  if (containsTagCharacters(normalized)) findings.add("HIDDEN_TAG_CHARACTERS");
   const visible = stripControl(stripInvisible(normalized));
   if (visible !== normalized.replace(/\r\n?/g, "\n")) findings.add("INVISIBLE_CHARACTERS_REMOVED");
 

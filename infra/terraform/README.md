@@ -22,11 +22,11 @@ permits it (OPS-04).
 | `modules/audit` | **Audit account** (`aws.audit` provider alias only): Object Lock bucket (mode and days REQUIRED, null rejected), versioning, audit CMK, deny-delete / TLS-only bucket policy, write-only cross-account writer role (PutObject only), separate read-only auditor role, S3 access logs |
 | `modules/observability` | KMS-encrypted SNS alarm topic, 11 dashboards (spec section 13 list plus platform), alarms on catalogue metrics (`platform/src/observability/metrics.ts`) and ALB metrics. Alarm text is fixed and contains no PHI |
 | `modules/secrets` | Secrets Manager containers with CMK, reader-only resource policies and optional rotation hooks. **No secret values** |
-| `modules/iam_ci` | GitHub OIDC provider. Plan/apply roles trust exactly `repo:<owner>/<repo>:environment:<env>[-plan]:job_workflow_ref:<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main` with aud `sts.amazonaws.com` (needs the repository OIDC subject customization, see prerequisites). Permissions boundary that CI cannot change and that also denies the CI roles any change to their own policies/trust/boundary, role-policy changes on roles without the boundary, trust changes and PassRole on roles CI did not create, assuming in-account roles, identity-provider/user/group/managed-policy changes, and the data-plane reads listed in `data_plane_reads` (DynamoDB items, queue messages, secret values, log events and query results, RDS log files, X-Ray traces, SSM parameters, EC2 console/password data, KMS decrypt outside the state) (VSP-INF-02). Plan reads the state and writes only `<key>.tflock`; apply overwrites the state but deletes only the lock; neither changes the state bucket's configuration (VSP-INF-03). No long-lived keys |
+| `modules/iam_ci` | GitHub OIDC provider. Plan/apply roles trust exactly `repo:<owner>/<repo>:environment:<env>[-plan]:job_workflow_ref:<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main` with aud `sts.amazonaws.com` (needs the repository OIDC subject customization, see prerequisites). Permissions boundary that CI cannot change and that also denies the CI roles any change to their own policies/trust/boundary, role-policy changes on roles without the boundary, trust changes and PassRole on roles CI did not create, assuming in-account roles, identity-provider/user/group/managed-policy changes, the data-plane reads listed in `data_plane_reads` (DynamoDB items, queue messages, secret values, log events and query results, RDS log files, X-Ray traces, SSM parameters, EC2 console/password data, KMS decrypt outside the state), and the export and sharing calls listed in `data_plane_exports` that this stack never makes (DynamoDB table export and table resource policy, RDS snapshot sharing and snapshot export, log export tasks and subscription filters, S3 replication and ACLs, legacy SQS `AddPermission`). The same list is also in both inline policies. KMS grants are allowed only when an AWS service creates them, and secret policies only with Block Public Policy, for every role under the boundary (VSP-INF-02). The resource policies Terraform manages can still name another account (see residual risk below). Plan reads the state and writes only `<key>.tflock`; apply overwrites the state but deletes only the lock; neither changes the state bucket's configuration (VSP-INF-03). No long-lived keys |
 | `modules/budgets` | AWS Budgets alerts (actual and forecasted). **Alerts are not hard caps** |
 | `modules/stack` | Composition used by every environment root |
 | `envs/{sandbox,staging,production,production-dr}` | Roots: providers (`allowed_account_ids` pinning, audit-account alias), partial S3 backend, tfvars without secrets, plan tests |
-| `policy/` | Rego policy over `terraform show -json` (OPA, pinned) + unit tests + SYNTHETIC offline-plan fixtures. Includes a minimal IAM evaluator that probes the rendered CI boundary for self-modification and escalation paths (`CI-BOUNDARY`), the CI state grants (`CI-STATE`), CI identity changes (`CI-IDENTITY`), pinned GitHub subjects (`IAM`) and WAF log redaction (`WAF-LOGS`) |
+| `policy/` | Rego policy over `terraform show -json` (OPA, pinned) + unit tests + SYNTHETIC offline-plan fixtures. Includes a minimal IAM evaluator that probes the rendered CI boundary for self-modification, escalation, data-read, export and sharing paths (`CI-BOUNDARY`), the CI state grants (`CI-STATE`), CI identity changes (`CI-IDENTITY`), pinned GitHub subjects (`IAM`) and WAF log redaction (`WAF-LOGS`) |
 
 ## Commands (all offline)
 
@@ -163,10 +163,35 @@ real-account plan is **NOT RUN**.
   owner: platform) must use the same subject format. The audit account must differ from the
   workload account (in-account role assumption is denied). Add CODEOWNERS so audit-module
   and policy changes need security review (owners UNKNOWN). These are NOT verified here.
-* Residual risk (by design): the apply role can still create roles within the boundary and
-  deploy code that runs with them; that path is gated by the reviewed `<env>` environment, the
-  release-manifest gate and the OPA plan gate, not by IAM. An organization SCP that limits
-  cross-account trust on CI-created roles needs the AWS organization administrator.
+* Residual risk (VSP-INF-02). IAM in this module does not make "CI cannot obtain data" true.
+  For data, it denies only the listed reads, exports and sharing calls. With the apply
+  credentials alone, these paths remain:
+  - **Resource policies Terraform manages.** `kms:PutKeyPolicy` (the apply role is a key
+    administrator), `s3:PutBucketPolicy`, `sqs:SetQueueAttributes` (queue policy) and
+    `secretsmanager:PutResourcePolicy` can grant a named external account access to keys,
+    objects, queue messages or secret values. Block Public Policy stops only public secret
+    policies. `sns:SetTopicAttributes` and `logs:PutResourcePolicy` are also allowed, and what
+    they could expose was not assessed. IAM cannot inspect what a policy document grants.
+    Closing these paths needs an AWS Organizations data perimeter: resource control policies
+    or SCPs that limit resource access to the organization (`aws:PrincipalOrgID` /
+    `aws:ResourceOrgID`) for each service in this stack they cover. The AWS organization
+    administrator owns this. It is **NOT in place and NOT verified here**.
+  - **Roles CI creates (by design).** The apply role can create roles within the boundary
+    and deploy code that runs with them: task definitions, state machines, or a role passed
+    to a service that copies data. The reviewed `<env>` environment, the release-manifest
+    gate and the OPA plan gate control this path, not IAM. An organization SCP that limits
+    cross-account trust on CI-created roles needs the AWS organization administrator.
+  - **Configuration changes the deploy permissions allow.** For example, the apply role can
+    turn off RDS-managed master passwords together with network or security-group changes,
+    which can expose a data store. Nothing in this module prevents that.
+  - **Item writes that return old values.** `dynamodb:UpdateItem` or `DeleteItem` with
+    `ReturnValues` is not denied. It needs the item keys, and CI cannot list them (Scan,
+    Query and stream reads are denied).
+  The effects above were evaluated offline (tftest, OPA evaluator) with AWS IAM semantics.
+  They were not run against AWS. In particular, the request keys `kms:GrantIsForAWSResource`
+  and `secretsmanager:BlockPublicPolicy` must be confirmed in a real account, including that
+  RDS and DynamoDB create their KMS grants with `kms:GrantIsForAWSResource` true. The
+  statement that uses them denies the call when its key is absent (fail closed).
 
 ## Cost
 

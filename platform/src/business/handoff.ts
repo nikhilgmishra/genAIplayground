@@ -24,6 +24,10 @@
  *   is SAFETY_PRIORITY, the staff-selected destination is a safety destination, or the stated
  *   category is safety_concern. It never dials a STANDARD destination then (the coordinator
  *   enforces the same invariant and supersedes STANDARD journeys when a safety route starts).
+ *   A human request that races a safety route (both in flight, e.g. the safety signal arrives while
+ *   the STANDARD dial is pending) is resolved by the coordinator, which supersedes the STANDARD
+ *   journey and returns the SAFETY journey; requestHuman then answers with the safety route
+ *   (journey.priority SAFETY below; workflows/transfer.ts, SAFE-HANDOFF-02 round 2).
  * - A staff-raised safety concern (console, SAFE-HANDOFF-05) is the full safety path: the call's
  *   live session is resolved server-side (ToolDeps.callSessions, trusted call binding) so pending
  *   mutations are revoked and SAFETY_ESCALATION is applied, the restricted P1 safety record is

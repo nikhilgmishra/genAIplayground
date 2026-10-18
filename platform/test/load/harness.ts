@@ -19,9 +19,9 @@
  * while traffic runs, as the worker would.
  *
  * After the load, the FINAL SYSTEM STATE is verified: every successful response
- * has a durable audit row, the IntegrityVerifier result is recorded, and the hash
- * chain is recomputed in numeric sequence order (see the it.fails note in
- * load-smoke.test.ts for the IntegrityVerifier ordering defect).
+ * has a durable audit row, the platform IntegrityVerifier checks every local
+ * stream, and the hash chain is also recomputed independently in numeric
+ * sequence order.
  *
  * Numbers produced here describe a developer machine on loopback. They are
  * labelled LOAD_LABEL and must never be cited as Talkdesk, PSTN or AWS capacity.
@@ -68,6 +68,11 @@ export interface LoadPhaseSpec {
   durationS: number;
   /** Requests per second across all connections; omitted = as fast as the target answers (burst). */
   overallRate?: number;
+  /**
+   * Fixed number of requests; when set autocannon ignores durationS and stops after this many,
+   * so a correctness smoke does not depend on how fast the machine is.
+   */
+  amount?: number;
 }
 
 export interface PhaseResult {
@@ -96,7 +101,7 @@ export interface PhaseResult {
 export interface PhaseRecord {
   name: string;
   endpoint: { tool: string; safetyClass: string; sessionAssurance: string };
-  config: { connections: number; durationS: number; overallRate: number | null };
+  config: { connections: number; durationS: number; overallRate: number | null; amount: number | null };
   result: PhaseResult;
   /** Sustained phases only: achieved >= TARGET_SUSTAINED_RPS with zero errors (null for bursts). */
   sustainedTargetMet: boolean | null;
@@ -307,6 +312,7 @@ export function runPhase(target: LoadTarget, spec: LoadPhaseSpec): Promise<Phase
     connections: spec.connections,
     durationS: spec.durationS,
     ...(spec.overallRate ? { overallRate: spec.overallRate } : {}),
+    ...(spec.amount ? { amount: spec.amount } : {}),
     timeoutS: 10,
   };
   return new Promise((resolve, reject) => {
@@ -327,7 +333,7 @@ export function runPhase(target: LoadTarget, spec: LoadPhaseSpec): Promise<Phase
       resolve({
         name: spec.name,
         endpoint: { tool: ep.tool, safetyClass: ep.safetyClass, sessionAssurance: ep.sessionAssurance },
-        config: { connections: spec.connections, durationS: spec.durationS, overallRate: spec.overallRate ?? null },
+        config: { connections: spec.connections, durationS: spec.durationS, overallRate: spec.overallRate ?? null, amount: spec.amount ?? null },
         result: parsed,
         sustainedTargetMet: sustained ? (parsed.throughputRps ?? 0) >= TARGET_SUSTAINED_RPS && parsed.errorRate === 0 : null,
       });

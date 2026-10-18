@@ -16,7 +16,7 @@
  *   FAILING              at least one tagged test failed
  *   IMPLEMENTED_OFFLINE  >= 1 tagged test and every tagged test passed in a recorded run
  *   BLOCKED              verification beyond the offline slice depends on an external prerequisite;
- *                        BLOCKED overrides the release status for sandbox/production readiness.
+ *                        BLOCKED overrides the release status for sandbox and production gates.
  *
  * Usage: tsx src/evaluation/traceability.ts [--root <repo>] [--vitest-report <file>]... [--opa-report <file>]
  *          [--out <md>] [--json <file>] [--generated-at <iso>]
@@ -310,7 +310,7 @@ export function renderTraceabilityMarkdown(rep: TraceabilityReport): string {
   L.push("| `NOT_RUN` | Tagged tests exist but at least one has no recorded result or was skipped |");
   L.push("| `NO_TEST` | No test carries this requirement's tag (gap) |");
   L.push("| `FAILING` | At least one tagged test failed |");
-  L.push("| `BLOCKED` | Verification beyond the offline slice depends on an external prerequisite; overrides the release status for sandbox/production readiness (offline status shown in brackets) |");
+  L.push("| `BLOCKED` | Verification beyond the offline slice depends on an external prerequisite; overrides the release status for sandbox and production gates (offline status shown in brackets) |");
   L.push("", "`VERIFIED_SANDBOX`, `APPROVED_PILOT` and `VERIFIED_PRODUCTION` are never produced by this generator: they require sandbox or production evidence and human approvals. Unknown, missing evidence and unrun tests are not PASS (OPS-03).", "");
   const s = rep.summary;
   L.push("## Summary", "");

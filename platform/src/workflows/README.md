@@ -175,6 +175,29 @@ every non-permitted actor kind escalates.
   or CONNECTED dials nothing and returns that SAFETY journey (audited
   `transfer.standard_request_superseded`). `activeSafetyJourney()` / `journeysForCall()` expose
   this to the HandoffService; `TransferStore.listForCall` backs it.
+* The invariant holds under concurrent writes (SAFE-HANDOFF-02 round 2; the first fix logged a
+  version conflict on the supersede write and moved on, leaving the STANDARD journey ROUTING and
+  re-dialled by the sweep):
+  * the SUPERSEDED write is conditional; a `ConflictError` (the STANDARD journey was written between
+    the read and the write, e.g. its vendor dial returned) is retried on a fresh read, at most
+    `MAX_SUPERSEDE_WRITES` (8) times, then logged `TRANSFER_SUPERSEDE_RETRIES_EXHAUSTED`;
+  * every STANDARD routing step first checks the call for an active SAFETY journey and supersedes
+    instead of proceeding (`yieldsToSafety`): the sweep (before a TIMEOUT or retry), a vendor event
+    (`applyEvent` rejects it `TRANSFER_JOURNEY_SUPERSEDED`), the failover, the retry and between-tries
+    update prompts, and right before every dial (`startAttempt`). It also stops when the supersede
+    write itself failed (fail closed; nothing STANDARD is prompted or dialled) and throws on a failed
+    lookup (STANDARD fails closed on store errors);
+  * write-then-read on both sides: a new STANDARD journey is written before its first dial check and
+    re-reads after routing (`supersedingSafety`, the request then returns the SAFETY journey); a SAFETY
+    journey is written before its supersede read. Of two concurrent requests at least one sees the
+    other;
+  * the sweep re-supersedes for every routing SAFETY journey, so a supersede that could not be
+    written (store outage, retries exhausted) is retried until it lands, also for CONNECTED or
+    HOLDING_FOR_OPERATIONS STANDARD journeys that the sweep does not otherwise visit;
+  * a STANDARD dial already in flight when the supersede commits is recorded on the superseded
+    journey (vendor reference, audited `transfer.attempt_started` / `INVALIDATED` /
+    `SUPERSEDED_BY_SAFETY_ROUTE`), so its late vendor events are matched and rejected; it is never
+    retried or failed over.
 * Destinations come only from `DestinationConfig[]`; ids/queue refs that look like phone numbers
   (`+…`, ≥7 digits), tel/sip/http URIs, emails or paths are rejected (SAFE-05). A **safety** handoff
   carrying a bad or non-safety destination is routed to the configured `SAFETY_PRIORITY`
@@ -218,7 +241,7 @@ every non-permitted actor kind escalates.
 |---|---|---|
 | ACT-04 | `outcome.ts`; audit outcome PENDING for nonterminal | `engine.test.ts`, `definitions.test.ts` (`[ACT-04]`) |
 | ACT-02 | dedupe keys + unique index; single-use tasks; no CANCEL after commit submission | `[ACT-02]` tests |
-| SAFE-03 | safety journeys cycle routes forever (also after a bridge drop); route timing; audit/store gaps tolerated; SAFETY supersedes STANDARD journeys of the call | `transfer.test.ts` `[SAFE-03]`, `[SAFE-HANDOFF-01]`, `[SAFE-HANDOFF-02]` |
+| SAFE-03 | safety journeys cycle routes forever (also after a bridge drop); route timing; audit/store gaps tolerated; SAFETY supersedes STANDARD journeys of the call, also under concurrent writes (conflict retry, STANDARD steps yield, sweep re-supersedes) | `transfer.test.ts` `[SAFE-03]`, `[SAFE-HANDOFF-01]`, `[SAFE-HANDOFF-02]`; `transfer.supersede-race.test.ts` `[SAFE-03][SAFE-HANDOFF-02]` (forced interleavings + exhaustive microtask grid) |
 | SAFE-04 | `transferTransition`, `journeyOutcome` | `[SAFE-04]` incl. property test |
 | SAFE-05 | `looksLikeDialTarget`, allowlist, `validateDestinations` | `[SAFE-05]` incl. property test |
 | OPS-01 | audit in the transition transaction; fail closed | `[OPS-01]` |

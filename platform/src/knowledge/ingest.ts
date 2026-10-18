@@ -20,7 +20,7 @@
  *  8. pinned snapshot (version + digest) of the servable corpus (OPS-06).
  */
 import type { Queryable } from "../db/types.js";
-import { detectSensitiveSpans } from "../privacy/patterns.js";
+import { decodeTagCharacters, detectSensitiveSpans } from "../privacy/patterns.js";
 import { findConflicts, keyOf, resolveConflicts } from "./conflicts.js";
 import type { ConflictCandidate, SourcePrecedence } from "./conflicts.js";
 import { toVectorLiteral } from "./embedding.js";
@@ -73,11 +73,13 @@ export function evaluateKnowledgeItem(raw: unknown, index: number, ctx: Evaluati
   const findings = [...new Set([...sanitizedTitle.findings, ...sanitizedBody.findings])].sort();
   const quarantineFindings = [...sanitizedTitle.quarantineFindings, ...sanitizedBody.quarantineFindings];
   // An input the sanitizer refuses as too large (VSP-KN-02) is quarantined under its own reason, not as executable content.
-  if (quarantineFindings.some((f) => f !== "SANITIZER_INPUT_TOO_LARGE")) reasons.add("KNOWLEDGE_EXECUTABLE_CONTENT");
+  if (quarantineFindings.some((f) => f !== "SANITIZER_INPUT_TOO_LARGE" && f !== "HIDDEN_TAG_CHARACTERS")) reasons.add("KNOWLEDGE_EXECUTABLE_CONTENT");
   for (const f of quarantineFindings) reasons.add(`KNOWLEDGE_${f}`);
   if (sanitizedTitle.text.length === 0 || sanitizedBody.text.length === 0) reasons.add("KNOWLEDGE_EMPTY_AFTER_SANITIZE");
 
-  for (const text of [p.title, p.body, decodeForDetection(p.title), decodeForDetection(p.body), sanitizedTitle.text, sanitizedBody.text]) {
+  // Tag-encoded text is invisible to readers; decode it so a hidden instruction is reported as what it is (VSP-KN-01).
+  const hidden = [decodeTagCharacters(p.title), decodeTagCharacters(p.body)].filter((t) => t.length > 0);
+  for (const text of [p.title, p.body, decodeForDetection(p.title), decodeForDetection(p.body), sanitizedTitle.text, sanitizedBody.text, ...hidden]) {
     for (const code of detectInjection(text)) reasons.add(code);
   }
   if (detectSensitiveSpans(`${p.title}\n${p.body}`).some((s) => s.type === "EMAIL" || s.type === "SSN" || s.type === "CARD")) {

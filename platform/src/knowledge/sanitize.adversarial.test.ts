@@ -121,6 +121,152 @@ describe("VSP-KN-01: no bare domain or IP literal outside the allowlist", () => 
     );
   });
 
+  // Round 2: all 24 inputs came back unchanged from the round-1 sanitizer. Decoration attached to the TLD
+  // label ('-', '_', digits, combining marks, fullwidth or small dashes that NFKC folds to '-') made the label
+  // fail a letters-only test, decoration on an octet made it non-numeric, and a doubled separator broke the run.
+  const ch = (...codePoints: number[]): string => String.fromCodePoint(...codePoints);
+  const LOW_LINE_MARK = ch(0x0332);
+  const decoratedCases: [string, string][] = [
+    ["Reset at evil.com-/reset", "evil.com"],
+    ["Reset at evil.com--/reset", "evil.com"],
+    ["Reset at evil.net-", "evil.net"],
+    ["Reset at secure-login.org-/a", "secure-login.org"],
+    ["Pay at billing-portal.cc-/pay today", "billing-portal.cc"],
+    ["Pay at billing-portal.com_/pay today", "billing-portal.com"],
+    [`Reset at evil.com${LOW_LINE_MARK}/reset`, "evil.com"],
+    [`Reset at evil.com${ch(0x20dd)}/reset`, "evil.com"],
+    [`Reset at evil.com${ch(0x0353)}/reset`, "evil.com"],
+    [`Reset at evil.com${ch(0x093c)}/reset`, "evil.com"],
+    [`Reset at evil.co${LOW_LINE_MARK}m/reset`, "evil.com"],
+    [`Open evil.c${LOW_LINE_MARK}om/reset`, "evil.com"],
+    [`Reset at evil.com${ch(0xfe63)}/reset`, "evil.com"],
+    [`Reset at evil.com${ch(0xff0d)}/reset`, "evil.com"],
+    [`Pay at billing-portal.cc${ch(0xff0d)}/pay`, "billing-portal.cc"],
+    [`Reset at evil.com${ch(0xff3f)}/reset`, "evil.com"],
+    [`Reset at evil.com${ch(0x0660)}/reset`, "evil.com"],
+    [`Reset at evil.com${ch(0x00b2)}/reset`, "evil.com"],
+    [`Reset at evil.com${ch(0x2460)}/reset`, "evil.com"],
+    ["Visit evil.com1/x", "evil.com"],
+    ["Visit evil.com-secure/x", "evil.com"],
+    ["Visit evil..com/x", "evil..com"],
+    ["Visit 203.0.113.7-/login", "203.0.113.7"],
+    ["Visit 203.0.113.7_/login", "203.0.113.7"],
+  ];
+  /** Independent oracle normalization: compatibility-decompose, delete combining marks, fold IDNA separators, lowercase. */
+  const squash = (s: string): string => s.normalize("NFKD").replace(/\p{M}/gu, "").replace(/[\u3002\uFF0E\uFF61]/g, ".").toLowerCase();
+
+  it("[SPEC-14.threat-model][SPEC-9.sanitize][VSP-KN-01] domains and IPv4 literals with decoration after the TLD or last octet are removed", () => {
+    for (const [input, needle] of decoratedCases) {
+      const r = sanitizeKnowledgeText(input, { allowedLinkDomains: ALLOWED });
+      expect({ input, survived: squash(r.text).includes(squash(needle)) }).toEqual({ input, survived: false });
+      expect({ input, findings: r.findings.includes("URL_REMOVED") }).toEqual({ input, findings: true });
+      expect(r.quarantineFindings).toEqual([]);
+      expect(sanitizedTextViolations(r.text, ALLOWED)).toEqual([]);
+      // The retrieval re-check flags the same text if an older sanitizer stored it.
+      expect({ input, flagged: sanitizedTextViolations(input.normalize("NFKC"), ALLOWED).length > 0 }).toEqual({ input, flagged: true });
+    }
+  });
+
+  it("[SPEC-9.sanitize][VSP-KN-01] administrative text with digits or hyphens after a dot is unchanged", () => {
+    for (const t of [
+      "Office hours are 9.30am to 5pm; uploads may be up to 2.5MB each.",
+      "Our U.S.-based team replies within 1.5 business days.",
+      "Refer to Fig.3a and version 1.2.3 of the form.",
+    ]) {
+      const r = sanitizeKnowledgeText(t, { allowedLinkDomains: ALLOWED });
+      expect(r.text).toBe(t);
+      expect(r.findings).toEqual([]);
+    }
+  });
+
+  // Generator: arbitrary-TLD domains with trailing decoration, marks inside the TLD and repeated separators.
+  const MARKS = [0x0332, 0x0301, 0x20dd, 0x0353, 0x093c].map((cp) => ch(cp));
+  const trailDecoration = fc.constantFrom(
+    "-",
+    "--",
+    "_",
+    "__",
+    "-_",
+    "-x",
+    "_secure",
+    "1",
+    "42",
+    "1x",
+    ...MARKS,
+    ch(0xff0d), // fullwidth hyphen-minus (NFKC "-")
+    ch(0xfe63), // small hyphen-minus (NFKC "-")
+    ch(0xff3f), // fullwidth low line (NFKC "_")
+    ch(0x0660), // Arabic-Indic digit zero
+    ch(0x06f1), // extended Arabic-Indic digit one
+    ch(0x00b2), // superscript two (NFKC "2")
+    ch(0x2460), // circled digit one (NFKC "1")
+    ch(0x2010), // hyphen (not a label character: ends the run)
+    ch(0x2212), // minus sign (not a label character)
+    ch(0x203f), // undertie (not a label character)
+    ch(0x00ad), // soft hyphen (invisible: removed)
+  );
+  const decoratedDomain = fc
+    .record({
+      labels: fc.array(label, { minLength: 1, maxLength: 2 }),
+      tld,
+      sep: fc.constantFrom(".", IDEO_DOT, FULLWIDTH_DOT, HALFWIDTH_IDEO_DOT, "..", `${IDEO_DOT}${IDEO_DOT}`),
+      decoration: trailDecoration,
+      innerMark: fc.option(fc.record({ at: fc.nat(), mark: fc.constantFrom(...MARKS) }), { nil: undefined }),
+      suffix,
+      upper: fc.boolean(),
+    })
+    .map((d) => {
+      const at = d.innerMark ? d.innerMark.at % (d.tld.length + 1) : 0;
+      const markedTld = d.innerMark ? `${d.tld.slice(0, at)}${d.innerMark.mark}${d.tld.slice(at)}` : d.tld;
+      const host = [...d.labels, markedTld].join(d.sep);
+      const shown = d.upper ? host.toUpperCase() : host;
+      return { literal: `${shown}${d.decoration}${d.suffix}`, needles: [squash(`.${d.tld}`), squash([...d.labels, d.tld].join(d.sep))] };
+    });
+  const ipDecoration = fc.constantFrom("-", "_", "--", LOW_LINE_MARK, ch(0xff0d), ch(0xff3f), ch(0x0660));
+  const decoratedIpv4 = fc.record({ o: fc.tuple(octet, octet, octet, octet), dec: ipDecoration, lead: fc.constantFrom("", "-", "_"), suffix }).map(({ o, dec, lead, suffix: sfx }) => ({
+    literal: `${lead}${o.join(".")}${dec}${sfx}`,
+    needles: [o.join(".")],
+  }));
+
+  it("[SPEC-14.threat-model][SPEC-9.sanitize][VSP-KN-01] property: decorated TLDs, marks inside the TLD, repeated separators and decorated IPv4 never survive (independent oracle)", () => {
+    fc.assert(
+      fc.property(fc.array(fc.oneof(decoratedDomain, decoratedIpv4), { minLength: 1, maxLength: 4 }), fc.array(filler, { maxLength: 6 }), fc.constantFrom("", ".", ",", ")", "!"), (lits, words, trail) => {
+        const text = [...words, ...lits.map((l) => `${l.literal}${trail}`), "thanks."].join(" ");
+        const out = sanitizeKnowledgeText(text, { allowedLinkDomains: ALLOWED }).text;
+        const squashed = squash(out);
+        for (const l of lits) for (const n of l.needles) expect({ text, survived: squashed.includes(n) }).toEqual({ text, survived: false });
+        expect(sanitizedTextViolations(out, ALLOWED)).toEqual([]);
+      }),
+      { numRuns: 2000, seed: 20261019 },
+    );
+  });
+
+  it("[SPEC-14.threat-model][SPEC-9.retrieval][VSP-KN-01] end to end: ingest + search never serves a decorated domain or IPv4 literal", async () => {
+    const db = await createKnowledgeTestDb();
+    closers.push(() => db.close());
+    const svc = new KnowledgeServicePg({ db, environment: "local", clock: new FakeClock(NOW), embedder: null, allowedLinkDomains: LOCAL_ALLOWED_LINK_DOMAINS });
+    const bodies: Record<string, string> = {
+      "kn01r2-dash": "You can pay your balance online at billing-portal.com-/pay using a card.",
+      "kn01r2-mark": `To pay your balance go to billing-portal.com${LOW_LINE_MARK}/pay and follow the steps.`,
+      "kn01r2-fullwidth": `To pay your balance open billing-portal.cc${ch(0xff0d)}/pay and follow the steps.`,
+      "kn01r2-ip": "To pay your balance visit 203.0.113.7-/pay and follow the steps.",
+    };
+    const intents = ["payment_help", "billing_question", "invoice_help", "balance_help"];
+    const report = await svc.ingest(
+      TENANT_ID,
+      Object.entries(bodies).map(([sourceId, body], i) => knowledgeItemFixture({ sourceId, permittedIntents: [intents[i] ?? "payment_help"], body })),
+    );
+    expect(report.accepted.length).toBe(4);
+    for (const intent of intents) {
+      const hits = await svc.search({ tenantId: TENANT_ID, query: "pay balance", audience: "public", intent, language: "en", jurisdiction: "US", now: NOW, limit: 5 });
+      expect(hits.length).toBe(1);
+      for (const h of hits) {
+        expect(squash(h.excerpt)).not.toMatch(/billing-portal\.c|203\.0\.113\.7/);
+        expect(sanitizedTextViolations(h.excerpt, LOCAL_ALLOWED_LINK_DOMAINS)).toEqual([]);
+      }
+    }
+  });
+
   it("[SPEC-14.threat-model][SPEC-9.retrieval][VSP-KN-01] end to end: ingest + search never serves a bare domain on a non-listed TLD or an IP literal", async () => {
     const db = await createKnowledgeTestDb();
     closers.push(() => db.close());
@@ -262,6 +408,80 @@ describe("VSP-KN-02: sanitization time is linear and bounded", () => {
     }
     // At the schema maximum ordinary text is not refused.
     expect(sanitizeKnowledgeText("ok ".repeat(MAX_BODY_CHARS / 3)).quarantineFindings).toEqual([]);
+  });
+
+  // Round 2: the host/path scan was O(n^2). Every literal rescanned the shared path to the next delimiter,
+  // and `[...]+$` trims rescanned long punctuation or slash runs from every start. Before the fix,
+  // 'a.bc/' at 40 000 chars took about 164 ms, the combining-mark unit about 1 100 ms, a schema-valid
+  // 20 000-char body that NFKC expands to 35 001 chars about 850 ms in evaluateKnowledgeItem, and a long
+  // punctuation run after a host about 1.5 s. After the fix each takes about 1-15 ms.
+  // The strict budget leaves room for slow shared runners and still fails every one of the old timings.
+  const STRICT_BUDGET_MS = 100;
+  /** Best of three runs (a run over `giveUpMs` cannot be a hiccup, so a regression fails quickly). */
+  const bestOf3 = (fn: () => void, giveUpMs = 10 * STRICT_BUDGET_MS): number => {
+    let best = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < 3; i += 1) {
+      const started = performance.now();
+      fn();
+      const ms = performance.now() - started;
+      best = Math.min(best, ms);
+      if (ms > giveUpMs) break;
+    }
+    return best;
+  };
+  const ACUTE = String.fromCharCode(0x0301);
+
+  it("[SPEC-14.threat-model][VSP-KN-02] 'a.bc/' and combining-mark host+path units at 20 000 and 40 000 chars sanitize within a strict budget", () => {
+    for (const unit of ["a.bc/", `${ACUTE}a.bc/`, "a.bc:1/", "1.2.3.4/", "[::1]/", "a.bc/x", "a.bc-/", `a.b${ACUTE}c/`, "a..bc/"]) {
+      for (const n of [20_000, 40_000]) {
+        const input = repeatTo(unit, n);
+        let r = sanitizeKnowledgeText("");
+        const ms = bestOf3(() => {
+          r = sanitizeKnowledgeText(input, { allowedLinkDomains: ALLOWED });
+        });
+        // The input must really be scanned (not refused by the input cap).
+        expect(r.findings).not.toContain("SANITIZER_INPUT_TOO_LARGE");
+        expect(r.findings).toContain("URL_REMOVED");
+        expect({ unit, n, withinBudget: ms < STRICT_BUDGET_MS }).toEqual({ unit, n, withinBudget: true });
+        expect(sanitizedTextViolations(r.text, ALLOWED)).toEqual([]);
+      }
+    }
+  });
+
+  it("[SPEC-14.threat-model][VSP-KN-02] long punctuation or slash runs inside a host, URL or allowlisted link path sanitize within a strict budget", () => {
+    const ELLIPSIS = String.fromCharCode(0x2026); // NFKC "...": 13 300 of them expand to 39 900 dots.
+    const inputs: Record<string, string> = {
+      hostDots: `Visit a.bc/${ELLIPSIS.repeat(13_300)}x`,
+      hostCommas: `Visit a.bc/${",".repeat(19_900)}x`,
+      schemeUrl: `Visit http://x${ELLIPSIS.repeat(13_300)}x`,
+      wwwHost: `Visit www.${ELLIPSIS.repeat(13_300)}x`,
+      allowedSlashes: `Go to https://portal.synthetic-health.test${"/".repeat(19_000)}x now`,
+      allowedBareSlashes: `Go to portal.synthetic-health.test${"/".repeat(19_000)}x now`,
+    };
+    for (const [name, input] of Object.entries(inputs)) {
+      let r = sanitizeKnowledgeText("");
+      const ms = bestOf3(() => {
+        r = sanitizeKnowledgeText(input, { allowedLinkDomains: ALLOWED });
+      });
+      expect(r.findings).not.toContain("SANITIZER_INPUT_TOO_LARGE");
+      expect({ name, withinBudget: ms < STRICT_BUDGET_MS }).toEqual({ name, withinBudget: true });
+      expect(sanitizedTextViolations(r.text, ALLOWED)).toEqual([]);
+    }
+  });
+
+  it("[SPEC-14.threat-model][VSP-KN-02] the ingestion evaluation of schema-valid bodies that NFKC-expands into host+path units finishes within a strict budget", () => {
+    // U+2488 "1." + U+3386 "MB" + U+2100 "a/c": NFKC turns each unit into a dotted host with a path.
+    for (const unit of [`${ACUTE}${String.fromCharCode(0x2488, 0x3386, 0x2100)}`, `${ACUTE}${String.fromCharCode(0x2488)}bc${String.fromCharCode(0x2100)}`, `${ACUTE}a.bc/`, "a.bc/"]) {
+      const body = repeatTo(unit, MAX_BODY_CHARS);
+      expect(body.normalize("NFKC").length).toBeLessThanOrEqual(MAX_SANITIZE_INPUT_CHARS);
+      let ev = evaluateKnowledgeItem(knowledgeItemFixture({ sourceId: "kn02-host-path" }), 0, { now: NOW, allowedLinkDomains: ALLOWED });
+      const ms = bestOf3(() => {
+        ev = evaluateKnowledgeItem(knowledgeItemFixture({ sourceId: "kn02-host-path", body }), 0, { now: NOW, allowedLinkDomains: ALLOWED });
+      });
+      expect({ unit, withinBudget: ms < STRICT_BUDGET_MS }).toEqual({ unit, withinBudget: true });
+      expect(ev.kind).toBe("evaluated");
+      if (ev.kind === "evaluated") expect(ev.reasonCodes).not.toContain("KNOWLEDGE_SANITIZER_INPUT_TOO_LARGE");
+    }
   });
 
   it("[SPEC-14.threat-model][VSP-KN-02] the ingestion evaluation of a schema-maximum '<a href=' body finishes within budget", () => {

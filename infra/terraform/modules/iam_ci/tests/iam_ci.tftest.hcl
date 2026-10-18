@@ -1,7 +1,8 @@
 # [SPEC-15.ci] [SPEC-14.iam] GitHub OIDC federation: exact repo + environment +
 # deploy workflow@main subjects, audience sts.amazonaws.com, permissions boundary, no
-# long-lived keys, no data-plane reads, no self-modification or escalation through
-# pre-existing roles (VSP-INF-02), read-only state for plan (VSP-INF-03).
+# long-lived keys, the listed data-plane reads and export/sharing calls denied (residual
+# resource-policy paths are documented in infra/terraform/README.md), no self-modification
+# or escalation through pre-existing roles (VSP-INF-02), read-only state for plan (VSP-INF-03).
 # Offline: mock provider, plan only. The semantic escalation probes run in the OPA
 # policy (infra/terraform/policy, rule CI-BOUNDARY) against the rendered boundary.
 
@@ -172,13 +173,14 @@ run "ci_identity_is_immutable_to_ci" {
     error_message = "[VSP-INF-02] CI and CI-created roles cannot assume roles in this account (the audit-account role is cross-account)"
   }
 
-  # [VSP-INF-02][OPS-05] the data-plane deny for CI principals lives in the boundary, which CI cannot change.
+  # [VSP-INF-02][OPS-05] the data-plane deny for CI principals lives in the boundary, which CI cannot change:
+  # every listed read (data_plane_reads) and every listed export/sharing call (data_plane_exports).
   assert {
     condition = length([for s in jsondecode(local.boundary_policy).Statement : s if
-      s.Sid == "NoDataPlaneReadsForCi" && s.Effect == "Deny" && toset(s.Action) == toset(local.data_plane_reads) &&
+      s.Sid == "NoDataPlaneReadsForCi" && s.Effect == "Deny" && toset(s.Action) == toset(concat(local.data_plane_reads, local.data_plane_exports)) &&
       toset(s.Condition.ArnEquals["aws:PrincipalArn"]) == toset(["arn:aws:iam::111111111111:role/vsp-test-gha-plan", "arn:aws:iam::111111111111:role/vsp-test-gha-apply"])
     ]) == 1
-    error_message = "[VSP-INF-02][OPS-05] CI principals cannot read session items, secrets, queue messages, logs or decrypt, even after rewriting an inline policy"
+    error_message = "[VSP-INF-02][OPS-05] the boundary denies CI principals the listed reads (session items, secrets, queue messages, logs, decrypt) and the listed export and sharing calls, independent of their inline policies (residual paths: README)"
   }
 
   assert {
@@ -204,6 +206,78 @@ run "ci_identity_is_immutable_to_ci" {
   assert {
     condition     = length(replace(local.boundary_policy, "/\\s/", "")) <= 6144
     error_message = "the boundary fits the 6,144-character managed policy limit"
+  }
+}
+
+run "ci_cannot_export_or_share_data" {
+  command = plan
+
+  variables {
+    state_kms_key_arn = "arn:aws:kms:us-east-1:111111111111:key/00000000-0000-0000-0000-00000000000a"
+  }
+
+  # [OPS-05][VSP-INF-02] data-moving calls this stack never makes are denied to both CI roles, in the
+  # boundary (which CI cannot change) and in their inline policies: table export to S3 (including the
+  # state prefix, which the apply role can read back), table resource policies, snapshot sharing and
+  # export, log export and subscription filters, bucket replication and ACLs, legacy queue permissions.
+  assert {
+    condition = alltrue([for a in [
+      "dynamodb:ExportTableToPointInTime", "dynamodb:PutResourcePolicy", "rds:ModifyDBClusterSnapshotAttribute", "rds:ModifyDBSnapshotAttribute",
+      "rds:StartExportTask", "logs:CreateExportTask", "logs:PutSubscriptionFilter", "s3:PutReplicationConfiguration", "s3:PutBucketAcl",
+      "s3:PutObjectAcl", "sqs:AddPermission",
+    ] : contains(local.data_plane_exports, a)])
+    error_message = "[OPS-05][VSP-INF-02] the export and sharing list names every data-moving call this stack never makes"
+  }
+
+  assert {
+    condition = length([for s in jsondecode(local.boundary_policy).Statement : s if
+      s.Sid == "NoDataPlaneReadsForCi" && s.Effect == "Deny" &&
+      alltrue([for a in concat(local.data_plane_reads, local.data_plane_exports) : contains(s.Action, a)])
+    ]) == 1
+    error_message = "[OPS-05][VSP-INF-02] the boundary denies the CI roles every listed read, export and sharing call"
+  }
+
+  assert {
+    condition = alltrue([for p in [aws_iam_role_policy.plan.policy, aws_iam_role_policy.apply.policy] : length([for s in jsondecode(p).Statement : s if
+      s.Sid == "NoDataPlaneReads" && s.Effect == "Deny" && toset(s.Action) == toset(concat(local.data_plane_reads, local.data_plane_exports))
+    ]) == 1])
+    error_message = "[OPS-05][VSP-INF-02] both inline policies carry the same read, export and sharing deny as the boundary"
+  }
+
+  # [OPS-05][VSP-INF-02] the sharing calls Terraform does make are scoped by condition for every role under
+  # the boundary (no principal condition): KMS grants only when an AWS service creates them for a
+  # resource, secret policies only with Block Public Policy.
+  assert {
+    condition = length([for s in jsondecode(local.boundary_policy).Statement : s if
+      s.Sid == "SharingOnlyViaAwsServicesOrPrivately" && s.Effect == "Deny" && s.Resource == "*" &&
+      toset(s.Action) == toset(["kms:CreateGrant", "secretsmanager:PutResourcePolicy"]) &&
+      s.Condition == { BoolIfExists = { "kms:GrantIsForAWSResource" = "false", "secretsmanager:BlockPublicPolicy" = "false" } }
+    ]) == 1
+    error_message = "[OPS-05][VSP-INF-02] CI and the roles it creates may create KMS grants only through an AWS service and secret policies only with Block Public Policy"
+  }
+
+  # The exports never overlap what Terraform calls for this stack (bucket, queue, key and secret policies stay allowed).
+  assert {
+    condition     = length(setintersection(toset(local.data_plane_exports), toset(["s3:PutBucketPolicy", "sqs:SetQueueAttributes", "kms:PutKeyPolicy", "secretsmanager:PutResourcePolicy", "logs:PutResourcePolicy", "dynamodb:UpdateTable", "rds:ModifyDBCluster"]))) == 0
+    error_message = "the export deny must not block resource policies this stack manages (residual risk documented in the README)"
+  }
+}
+
+run "boundary_fits_with_longest_inputs" {
+  command = plan
+
+  # Worst case for the 6,144-character managed-policy limit: longest prefix, two regions, state CMK.
+  variables {
+    name_prefix       = "vsp-production-dr-abcdefg"
+    allowed_regions   = ["us-east-1", "us-west-2"]
+    state_bucket_arn  = "arn:aws:s3:::vsp-production-dr-terraform-state-111111111111-us-east-1x"
+    state_key_prefix  = "envs/production-dr/"
+    state_kms_key_arn = "arn:aws:kms:us-east-1:111111111111:key/00000000-0000-0000-0000-00000000000a"
+  }
+
+  assert {
+    condition     = length(replace(local.boundary_policy, "/\\s/", "")) <= 6144
+    error_message = "the boundary fits the 6,144-character managed policy limit with the longest allowed inputs"
   }
 }
 

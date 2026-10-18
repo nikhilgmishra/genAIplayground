@@ -866,10 +866,12 @@ export class TransferCoordinator {
     this.logger.error("transfer.routes_unavailable", { handoffId: j.handoffId, priority: j.priority });
   }
 
-  private async startAttempt(j: TransferJourney, idx: number): Promise<boolean> {
+  private async startAttempt(j: TransferJourney, idx: number): Promise<AttemptResult> {
+    // SAFE-03: checked right before every STANDARD dial (for a new journey: after it was written).
+    if (await this.yieldsToSafety(j)) return "SUPERSEDED";
     const destinationId = j.routePlan[idx] as string;
     const dest = this.destinations.get(destinationId);
-    if (!dest) return false; // unreachable: plan only contains allowlisted ids
+    if (!dest) return "FAILED"; // unreachable: plan only contains allowlisted ids
     const now = this.clock.now();
     const transferId = newId("xfr");
     const record = TransferRecord.parse({
@@ -905,21 +907,49 @@ export class TransferCoordinator {
       }
       await this.auditJourney(j, "transfer.safety_route_initiated", "PENDING", j.safety.withinTarget ? null : "SAFETY_ROUTE_TARGET_MISSED");
     }
+    let transferRef: string | null;
     try {
       const r = await this.telephony.requestTransfer({ callId: j.callId, destinationId, handoffId: j.handoffId, priority: j.priority });
-      if (typeof r?.transferRef === "string" && r.transferRef.length <= 128) j.vendorRefs[transferId] = r.transferRef;
-      await this.persist(j);
-      await this.auditJourney(j, "transfer.attempt_started", "PENDING", null);
-      this.logger.info("transfer.attempt_started", { transferId, destinationId, priority: j.priority });
-      return true;
+      transferRef = typeof r?.transferRef === "string" && r.transferRef.length <= 128 ? r.transferRef : null;
     } catch {
       const at = iso(this.clock.now());
       this.updateAttempt(j, transferId, (a) => ({ ...a, state: "FAILED", history: [...a.history, { state: "FAILED", at, source: "coordinator.dial" }], updatedAt: at }));
       await this.persist(j);
       await this.auditJourney(j, "transfer.dial_failed", "FAILED", "DIAL_COMMAND_FAILED");
       this.logger.warn("transfer.dial_failed", { transferId, destinationId });
-      return false;
+      return "FAILED";
     }
+    if (transferRef !== null) j.vendorRefs[transferId] = transferRef;
+    try {
+      await this.persist(j);
+    } catch (err) {
+      if (err instanceof ConflictError && (await this.recordSupersededDial(j, transferId, transferRef))) return "SUPERSEDED";
+      throw err;
+    }
+    await this.auditJourney(j, "transfer.attempt_started", "PENDING", null);
+    this.logger.info("transfer.attempt_started", { transferId, destinationId, priority: j.priority });
+    return "STARTED";
+  }
+
+  /**
+   * The safety route superseded this STANDARD journey while its dial was in flight (TB-07: the port has
+   * no cancel operation). The dial is recorded on the superseded journey (vendor reference, audit) so its
+   * late vendor events are matched, recorded and rejected; it is never retried or failed over.
+   */
+  private async recordSupersededDial(j: TransferJourney, transferId: string, transferRef: string | null): Promise<boolean> {
+    if (!(await this.adoptIfSuperseded(j))) return false;
+    if (transferRef !== null && j.vendorRefs[transferId] === undefined) {
+      const withRef: TransferJourney = { ...j, vendorRefs: { ...j.vendorRefs, [transferId]: transferRef } };
+      try {
+        await this.persist(withRef);
+        Object.assign(j, withRef);
+      } catch {
+        this.logger.warn("transfer.superseded_dial_unrecorded", { transferId, reasonCode: "TRANSFER_SUPERSEDED_DIAL_UNRECORDED" });
+      }
+    }
+    await this.auditJourney(j, "transfer.attempt_started", "INVALIDATED", "SUPERSEDED_BY_SAFETY_ROUTE");
+    this.logger.warn("transfer.superseded_dial_in_flight", { transferId, reasonCode: "SUPERSEDED_BY_SAFETY_ROUTE" });
+    return true;
   }
 
   private async playUpdate(j: TransferJourney): Promise<void> {

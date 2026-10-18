@@ -127,9 +127,36 @@ export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Removes zero-width, bidirectional-control and other invisible format characters. */
+/**
+ * Every Unicode format character (Cf) and default-ignorable code point: zero-width
+ * and joiner characters, bidirectional controls (incl. U+061C), invisible operators,
+ * deprecated format controls (U+206A-206F), interlinear annotation (U+FFF9-FFFB),
+ * musical format controls, variation selectors and the tag block (U+E0000-E007F).
+ * A hand-maintained list missed several of these, which let them split hosts and
+ * hide tag-encoded text from matching (VSP-KN-01).
+ */
+const INVISIBLE = /[\p{Cf}\p{Default_Ignorable_Code_Point}]/gu;
+
+/** Removes every invisible format / default-ignorable character (see INVISIBLE). */
 export function stripInvisible(text: string): string {
-  return text.replace(/[\u00AD\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g, "");
+  return text.replace(INVISIBLE, "");
+}
+
+/** Unicode tag characters (U+E0000-E007F) encode hidden ASCII; legitimate support text never uses them. */
+const TAG_CHARACTERS = /[\u{E0000}-\u{E007F}]/u;
+
+export function containsTagCharacters(text: string): boolean {
+  return TAG_CHARACTERS.test(text);
+}
+
+/** Decodes tag-encoded ASCII (U+E0020-E007E -> U+0020-007E) so hidden text can be inspected; other characters are dropped. */
+export function decodeTagCharacters(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const cp = ch.codePointAt(0) ?? 0;
+    if (cp >= 0xe0020 && cp <= 0xe007e) out += String.fromCharCode(cp - 0xe0000);
+  }
+  return out;
 }
 
 /** ASCII control characters other than tab and newline. */
