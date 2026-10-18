@@ -28,3 +28,14 @@ condition = "AND"
 paths = ['''(^|/)docs/.*\.md$''']
 regexTarget = "secret"
 regexes = ['''^[a-z]+([/-][a-z]+)*$''']
+
+# SYNTHETIC idempotency-key fixtures in gateway pipeline tests
+# (platform/src/gateway/pipeline.test.ts). They are request-deduplication keys for
+# local test calls, not credentials; the generic rule fires only because the
+# variable is named "key". Exact shape only: fixed prefix plus six digits.
+[[allowlists]]
+description = "SYNTHETIC idempotency-key fixtures in gateway tests"
+condition = "AND"
+paths = ['''^platform/src/gateway/pipeline\.test\.ts$''']
+regexTarget = "secret"
+regexes = ['''^idem_fixtureKey_[0-9]{6}$''']
