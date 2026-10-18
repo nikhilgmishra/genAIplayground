@@ -161,6 +161,7 @@ export function evaluateDeployability(config: PlatformConfig, ctx: GuardContext)
   };
 
   universalRules(config, ctx, v);
+  if (ruleSet !== "offline") consoleWorkforceFixtureRule(config, ctx, v);
   if (ruleSet === "offline") offlineRules(config, ctx, v);
   else if (ruleSet === "sandbox") sandboxRules(config, ctx, v, { referencedValid, hasTrustKey: trustedKey !== null });
   else fullRules(config, ctx, v, { referencedValid, hasTrustKey: trustedKey !== null });
@@ -241,6 +242,31 @@ function universalRules(config: PlatformConfig, ctx: GuardContext, v: Collector)
   if (config.ops && config.ops.admission.safetyReserveSessions > config.ops.admission.maxConcurrentAiSessions) {
     v.add("OPS_SAFETY_RESERVE_EXCEEDS_CAPACITY", "ops.admission.safetyReserveSessions");
   }
+}
+
+/** Workforce IdP adapter key (platform/config/*.json) and the console's local sign-in runtime component. */
+export const WORKFORCE_IDP_ADAPTER_KEY = "workforce-sso";
+export const CONSOLE_LOCAL_SIGN_IN_COMPONENT = "console-local-sign-in";
+
+/**
+ * OPS-04 (console): outside local/ci — including sandbox, where other fixtures may
+ * remain — the console's local workforce sign-in routes and a local_fixture
+ * workforce IdP must never run: they would mint staff tokens for SYNTHETIC
+ * identities without SSO or MFA evidence. The RUNTIME components are rejected in
+ * every non-offline environment (the console also refuses to construct them,
+ * console-api assertConsoleDeps). The DECLARED adapter kind is additionally
+ * rejected in staging/production; in sandbox the declared check is not applied
+ * because sandbox keeps fixtures for not-yet-approved systems (OPS-05 semantics).
+ */
+function consoleWorkforceFixtureRule(config: PlatformConfig, ctx: GuardContext, v: Collector): void {
+  const ruleSet = RULE_SET_BY_ENVIRONMENT[config.environment] ?? "full";
+  if (ruleSet === "full" && config.adapters[WORKFORCE_IDP_ADAPTER_KEY]?.kind === "local_fixture") {
+    v.add("WORKFORCE_IDP_LOCAL_FIXTURE_OUTSIDE_OFFLINE", `adapters.${WORKFORCE_IDP_ADAPTER_KEY}`);
+  }
+  if (Object.hasOwn(ctx.adapterKinds, WORKFORCE_IDP_ADAPTER_KEY) && ctx.adapterKinds[WORKFORCE_IDP_ADAPTER_KEY] === "local_fixture") {
+    v.add("WORKFORCE_IDP_LOCAL_FIXTURE_OUTSIDE_OFFLINE", `runtime.${WORKFORCE_IDP_ADAPTER_KEY}`);
+  }
+  if (Object.hasOwn(ctx.adapterKinds, CONSOLE_LOCAL_SIGN_IN_COMPONENT)) v.add("CONSOLE_LOCAL_SIGN_IN_OUTSIDE_OFFLINE", `runtime.${CONSOLE_LOCAL_SIGN_IN_COMPONENT}`);
 }
 
 function offlineRules(config: PlatformConfig, ctx: GuardContext, v: Collector): void {

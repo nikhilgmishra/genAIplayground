@@ -1005,6 +1005,19 @@ export interface ReleaseReviewItem {
   requiredApprovalScope: ApprovalScope;
   approvalStatus: "MISSING" | "PRESENT" | "EXPIRED" | "SIGNATURE_INVALID";
   approvalId: string | null;
+  /**
+   * KNOWLEDGE_SNAPSHOT only (optional; added compatibly by the backend): knowledge items held
+   * out of the snapshot for human review, quarantined, or expired while in service. Item ids,
+   * versions and reason codes only, never article bodies.
+   */
+  heldItems?: HeldKnowledgeItem[];
+}
+
+export interface HeldKnowledgeItem {
+  ref: string;
+  version: number;
+  status: "HELD_FOR_REVIEW" | "QUARANTINED" | "EXPIRED_IN_SERVICE";
+  reasonCodes: ReasonCode[];
 }
 
 export interface ReleasesResponse {

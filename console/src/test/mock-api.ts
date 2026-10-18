@@ -190,7 +190,8 @@ function defaults(): Record<EndpointKey, Handler> {
       });
     },
     "safetyEvents.list": () => json(200, fx.safetyEvents()),
-    "releases.list": () => json(200, fx.releases()),
+    // Mirrors the backend: knowledge snapshot items carry the (optional, content-free) held-item list.
+    "releases.list": () => json(200, { releases: fx.releases().releases.map((r) => (r.kind === "KNOWLEDGE_SNAPSHOT" ? { ...r, heldItems: [] } : r)) }),
     "releases.review": ({ req, state }) =>
       json(200, { reviewId: nextId(state, "rvw"), releaseId: req.params.releaseId, recordedAt: fx.NOW, auditEventId: nextId(state, "aud"), approvalRecordCreated: false }),
     "budgets.list": () => json(200, fx.budgets()),

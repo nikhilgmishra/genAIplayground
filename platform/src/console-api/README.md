@@ -1,10 +1,12 @@
-# platform/src/console-api: console API contract v1
+# platform/src/console-api: console API v1 (contract + backend)
 
-Status: **IMPLEMENTED_OFFLINE (contract only)**. `contract.ts` defines the operations and
-incident control console API (spec sections 6, 7, 12, 13 and 16). The React console
-(`console/`) is built and tested against it with a labelled mock backend; **the backend
-endpoints are not implemented in this directory yet**. Workforce SSO is BLOCKED (PRQ-036).
-Nothing here has been verified against a vendor, a real IdP or production.
+Status: **IMPLEMENTED_OFFLINE**. `contract.ts` defines the operations and incident control
+console API (spec sections 6, 7, 12, 13 and 16); `plugin.ts` implements every endpoint as a
+Fastify plugin (`registerConsoleApi(app, deps)`), tested with `fastify.inject` over real
+modules on PGlite. The React console (`console/`) is tested against the same contract with a
+labelled mock backend. Workforce SSO is BLOCKED (PRQ-036, VQ-IDP-08): only the LOCAL FIXTURE
+workforce IdP and SYNTHETIC staff exist. Nothing here has been verified against a vendor, a
+real IdP or production, and nothing here claims HIPAA compliance or production readiness.
 
 ## Why types and constants only
 
@@ -124,24 +126,136 @@ Finer rules the server enforces:
 | `budgets.list` | `BudgetService.statusFor` (`platform/src/ops`) |
 | `reconciliation.list`, `reconcile`, `retry` | `ActionService.listNeedingReconciliation`, `reconcile`, commit protocol (`platform/src/actions`) |
 | `reconciliation.list` (dead letters), `outbox.requeue` | `PgOutboxDispatcher.listDead`, `requeueDead` (`platform/src/outbox/dispatcher.ts`) |
-| `actions.pending`, `actions.cancel` | Action ledger (`platform/src/actions`); cancel endpoint not yet in `ActionService` (interface change requested) |
+| `actions.pending`, `actions.cancel` | Pending list: console column-allowlisted read of `action_ledger` (migration 0900). Cancel: `LedgerActionService.cancelPending` (not on the `ActionService` port; interface change requested) |
 | `workflows.tasks`, `workflows.decision` | `WorkflowEngine.openTasks`; for a decision the backend calls `PgWorkflowEngine.issueTaskToken` and then `completeHumanTask` for the same authenticated staff member inside the one request, so the plaintext token never leaves the server. `completeHumanTask` takes no reason code yet (interface change requested); until then the reason is recorded in the console audit event |
 | `safetyEvents.list` | `safety_events` rows written by `SafetyEventRecorder` (`platform/src/safety/safety-events.ts`) |
-| `audit.search` | `auditedSearch` / `PgAuditQuery` (`platform/src/audit/query.ts`) |
-| `calls.transfer`, `destinations.list` | `TransferCoordinator` (`platform/src/workflows/transfer.ts`), trusted `DestinationConfig` |
-| `calls.list`, `calls.get`, `supportRequests.trace`, `overview`, `releases.*` | Not yet backed by a single port; compose from sessions, audit, support records, workflows, ops and the policy/knowledge release pipeline |
+| `audit.search` | `PgAuditQuery` as app_auditor plus a console audit event for the search (same semantics as `auditedSearch`, which does not return the event id) |
+| `calls.transfer` | `HandoffService.requestHuman` (`platform/src/business/contract.ts`), which routes through the `TransferCoordinator` |
+| `destinations.list` | Trusted `DestinationConfig` (vendor queue refs never returned) |
+| `supportRequests.trace` | `SupportRequestService.trace` + ledger `describe` + `WorkflowEngine.get/openTasks` |
+| `calls.list`, `calls.get`, `overview` | `read-models.ts` over `audit_event_metadata` (app_console), `safety_events`, `TransferStore.listActive/get`, kill switches, budgets, capacity, `AuditHealth` |
+| `releases.*` | `console_release_submissions` / `console_release_reviews` (migration 0900), `knowledge_snapshots`, `KnowledgeServicePg.reviewQueue` |
 
 ## Keeping the contract in sync
 
 * `console/src/api/contract.test.ts` reads the platform sources as raw text and fails when
   `StaffRole`, `KillSwitchScope`, `TransferReason`, `KILL_SWITCH_ROLES`, `BUDGET_ROLES`,
   `GLOBAL_SCOPES`, `KILL_SWITCH_REASON` or `BUSINESS_ROLE_STAFF_MAPPING` drift from the contract.
-* The backend should add type-level equality checks between its zod-inferred types and the
-  interfaces here (for example `expectTypeOf<z.infer<typeof MeResponseSchema>>().toEqualTypeOf<MeResponse>()`).
+* `schemas.test.ts` asserts type-level equality between every zod-inferred type and the
+  interface here (`expectTypeOf<z.infer<typeof S.MeResponseS>>().toEqualTypeOf<C.MeResponse>()`).
+* `ReleaseReviewItem.heldItems` was added compatibly (optional) by the backend.
+
+## Backend implementation (`plugin.ts`)
+
+| File | Purpose |
+|---|---|
+| `plugin.ts` | `registerConsoleApi(app, deps)`: every endpoint under `/console/api/v1`, error handler, not-found handler (`LOCAL_FIXTURE_DISABLED` for `auth/local/*` outside local/ci), `no-store` headers. `assertConsoleDeps` refuses local fixture identity components outside local/ci; `consoleRuntimeComponents` reports them to the configuration guard |
+| `deps.ts` | `ConsoleApiDeps`: the explicit ports / narrow class slices the composition root supplies (`HandoffService`, `SupportRequestService` from `business/contract.ts`; ledger, outbox dispatcher, workflow engine, transfer store, knowledge, ops, audit, policy) |
+| `schemas.ts` | Strict zod schemas for every request and response; `schemas.test.ts` asserts the inferred types equal the contract interfaces (`expectTypeOf`) |
+| `auth.ts` | `WorkforceTokenVerifier` (jose: issuer, audience, exp, nbf, iat lifetime, jti, auth_time, MFA amr; local JWKS or remote JWKS URL), `StaffDirectory` port, `LocalStaffDirectoryFixture`, `LocalWorkforceSignInFixture`, `BlockedWorkforceStaffDirectory` |
+| `break-glass.ts` | `PgBreakGlassGrantSource`: authoritative grants from `console_break_glass_grants`, mapped into the console policy input |
+| `authorize.ts` | ENDPOINT_ROLES + `decideConsole` (any one mapped catalogue action allowing suffices) and the deny-reason mapping |
+| `stores.ts` | Console-owned state: idempotency, session revocations, release submissions and reviews, reconciliations; console audit input builder |
+| `read-models.ts` | Content-free read models from audit metadata (`audit_event_metadata`, app_console), `safety_events`, the ledger column allowlist |
+| `fixtures/` | LOCAL TEST FIXTURES: the harness over real modules and the labelled business-service stand-ins |
+| migration `0900_console.sql` | `console_break_glass_grants` (never self-granted, time-bound), `console_token_revocations`, `console_idempotency`, `console_release_submissions`, `console_release_reviews` (`approval_record` is always false), `console_reconciliations`, and a column-allowlisted, tenant-RLS console read policy on `action_ledger` |
+
+### Request pipeline
+
+1. Bearer JWT verified (`WorkforceTokenVerifier`), staff resolved by (issuer, subject) from the
+   `StaffDirectory` (roles re-read on every request), logout revocation checked, the latest
+   break-glass grant loaded. Tokens without an MFA amr are refused (`401 STAFF_MFA_REQUIRED`).
+2. `ENDPOINT_ROLES` (`403 STAFF_ROLE_NOT_PERMITTED`, audited as a denial).
+3. Strict path / query / body validation (`400 VALIDATION_FAILED`; reasons `REASON_NOT_ALLOWED`).
+4. Console policy decision(s) (`403` with the mapped reason code, audited).
+5. `Idempotency-Key` for every mutating POST (first result wins per staff member and endpoint).
+6. Handler with the finer rules (scope roles, task roles, release roles, self-review, typed
+   confirmation, reason allowlists, break-glass for restricted records).
+7. Strict response validation: a response with any field outside the contract is refused
+   (`500 RESPONSE_SCHEMA_VIOLATION`) instead of being sent.
+
+### Policy mapping
+
+The policy catalogue (`policy/vsp/data.json`, policy module) has no dedicated read action for
+several views, so endpoints are mapped to the closest catalogue action(s) whose roles cover the
+endpoint; mapping a read to a mutating action is strictly tighter (auditor taint applies).
+
+| Endpoint | Console policy action(s) (any one) |
+|---|---|
+| `me`, `auth.logout` | `journey:inspect`, `audit:search`, `policy:review`, `knowledge:edit`, `budget:define` (together they cover every role) |
+| `overview` | `journey:inspect`, `budget:define` |
+| `calls.list`, `calls.get`, `supportRequests.trace` | `journey:inspect`; restricted support requests additionally `restricted_record:view` (break-glass) |
+| `calls.transfer` | `call:transfer` |
+| `actions.pending`, `reconciliation.list` | `pending_action:review` |
+| `actions.cancel` | `pending_action:cancel` (supervisor; support_agent only when the call is assigned to them) |
+| `reconciliation.reconcile`, `reconciliation.retry` | `operation:retry_reconciled` |
+| `outbox.requeue` | `dlq:repair` |
+| `workflows.tasks`, `workflows.decision` | `human_task:decide` |
+| `safetyEvents.list` | `safety_event:view` |
+| `releases.list` | per item: `policy:review` (policy bundles), `policy:review` or `knowledge:edit` (knowledge snapshots) |
+| `releases.review` | `policy:approve` with initiator = submitter (policy bundles), `knowledge:submit_release` (knowledge snapshots) |
+| `budgets.list` | `budget:define` |
+| `killSwitches.list` | `kill_switch:engage` for any scope |
+| `killSwitches.set` | `kill_switch:engage` / `kill_switch:release` with the requested scope |
+| `audit.search` | `audit:search` |
+| `destinations.list` | `journey:inspect`, `policy:review` |
+
+### Audit (OPS-01)
+
+* Console-owned effects (logout revocation, release review, console reconciliation record and
+  its retry consumption) are written in ONE app_console transaction with their console audit
+  event (`sourceComponent: "console"`, action `console.<endpoint>`).
+* Effects owned by other modules are audited in-transaction by that module: kill switches
+  (`killswitch.set`, sourceComponent console), ledger cancel (`action.cancel`), ledger
+  reconcile (`action.reconciled` / `action.reconcile.inconclusive`), outbox requeue
+  (`outbox.requeue`), human task completion (`workflow.human_task.complete`). Their module APIs
+  take no transaction, so the console first writes a write-ahead intent event (`PENDING`) that
+  must succeed (`503 AUDIT_UNAVAILABLE` otherwise, nothing attempted), then a best-effort
+  completion event. Responses return the effect's own in-transaction audit event id.
+* Sensitive reads (`calls.get`, `supportRequests.trace`, `safetyEvents.list`) and every
+  `audit.search` are audited before data is returned; if that is impossible nothing is returned.
+* Denials are audited best-effort (`DENIED`); the denial stands either way.
+
+### Content-free read models
+
+* Active calls / investigation timelines: audit METADATA by callId (session lifecycle from
+  `SESSION_AUDIT_ACTIONS`, `tool.invoke` with `db://tool_catalog/<name>/<version>` pointers,
+  `transfer.*` joined to the transfer store, `action.*` joined to the ledger, policy decisions)
+  plus `safety_events` rows. Intent category and caller language are not carried by
+  content-free metadata, so they are reported as `null` / `und`, never guessed.
+* Queue health: transfer journeys per allowlisted destination; staffed-agent availability is
+  `null` (Talkdesk queue telemetry, TB-07 UNKNOWN). AI admission: kill-switch snapshot, budget
+  exhaustion, capacity.
+* Releases: release submissions recorded by the release pipeline (`ReleaseSubmissionRegistryPg.record`,
+  app_worker) for the loaded policy bundle digest and knowledge snapshot digest, held knowledge
+  items (`heldItems`), reviewer opinions. `approvalStatus` is `MISSING`: no signed approval
+  record exists and the console cannot create one.
+
+### Local sign-in (local/ci only)
+
+`LocalWorkforceSignInFixture` issues tokens through `LocalOidcProviderFixture` for
+`IDP.workforceIssuer` / `IDP.consoleAudience` (amr `local_fixture` + `mfa`, 15 minutes) for the
+SYNTHETIC `STAFF`. It refuses to be constructed outside local/ci, `registerConsoleApi` refuses
+local identity components outside local/ci, the routes are not registered there (404
+`LOCAL_FIXTURE_DISABLED`), and the configuration guard rejects the `console-local-sign-in` runtime
+component and a local_fixture `workforce-sso` runtime kind outside local/ci (declared kind:
+staging/production).
 
 ## Known gaps
 
-* No backend implementation of these endpoints yet (`platform/src/console-api` holds only the contract).
+* `auth.oidcExchange` answers `503 OIDC_NOT_CONFIGURED`: no workforce OIDC client, token
+  endpoint, MFA claim definition or role-group mapping exists (PRQ-036, VQ-IDP-08). The live
+  bearer verifier (`WorkforceTokenVerifier.remoteJwks`) and the BLOCKED live directory exist.
+* `reconciliation.retry` enforces every gate (latest unconsumed NOT_FOUND console reconciliation
+  within 10 minutes, ledger back in CONFIRMED) and then answers `503 RETRY_PATH_UNAVAILABLE`:
+  the ledger has no staff-initiated retry entry point (`commit()` needs the caller's live
+  AuthContext). Interface change requested: `ActionService.retryAfterReconcile`.
+* `actions.cancel` for support agents needs a call-ownership source (Talkdesk agent assignment,
+  TB-07); without one only supervisors can cancel (fail closed).
+* `calls.transfer` goes through `HandoffService.requestHuman`, which resolves the destination
+  from trusted configuration by reason; a staff-selected allowlisted destination cannot be
+  passed yet (interface change requested), so a substitution is reported and audited.
+* No rate limiting on the auth endpoints in this plugin (composition root / gateway).
 * No `join` endpoint: the supported Talkdesk join control is unverified (TB-07);
   `CallDetailResponse.controls.join` reports availability only.
 * No endpoint for safety-event acknowledgement, legal holds or policy source text; "inspect a
