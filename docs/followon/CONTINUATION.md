@@ -100,3 +100,4 @@ Waves follow the dependency order in `docs/followon/work-packages.yaml`.
 | Wave | Packages | Run id | State |
 |---|---|---|---|
 | B1 | WP-02, WP-03 (+ ledger fix job) | wf_5abdf51f-ed0 | DONE: both PARTIAL after 3 rounds; the coordinator fixed the residuals (WP-02 snapshot watermark rules, party-URI refs, byte-size args, hand-over notes; WP-03 Step Functions Local TaskSubmitted race, missing-emulation-summary exit, digest pointer). Ledger: 56 rows moved (MISSING 613, IMPLEMENTED 450, VERIFIED_LOCAL 107). Layer-2 `_harness` 72/72 three times; workflow file 20/20 |
+| B2 | WP-01, WP-04, WP-06 | wf_786b1518-a8e | RUNNING (launched 2026-10-19 16:05 UTC; resume with resumeFromRunId after a restart) |
