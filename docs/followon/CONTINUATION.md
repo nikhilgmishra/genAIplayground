@@ -51,8 +51,8 @@ scoped authority exists. No billable endpoint is invoked by a safe local default
 
 | Phase | Scope | State |
 |---|---|---|
-| A | Inventory, requirement extraction, gap ledger, architecture/threat/data-flow diagrams, decision record, implementation and activation registers | IN_PROGRESS (outputs written; critic repair running) |
-| B | Scorer truth, invariant regressions, production composition, storage/session/workforce identity/audit, real transport adapter boundaries | NOT_STARTED (fix wave 5 already repairs part of the scorer and harness) |
+| A | Inventory, requirement extraction, gap ledger, architecture/threat/data-flow diagrams, decision record, implementation and activation registers | DONE (commit bf25655; last minor/one material ledger fix runs with wave B1) |
+| B | Scorer truth, invariant regressions, production composition, storage/session/workforce identity/audit, real transport adapter boundaries | IN_PROGRESS: wave B1 (WP-02, WP-03) running; then B2 (WP-01, WP-04, WP-06), B3 (WP-05), B4 (WP-07) |
 | C | Live model adapters, controllable media (LiveKit/SIP), protected output, fallback audio, turn/session fencing, real local audio-to-action journey | NOT_STARTED |
 | D | Historical/event/live context, entity linking, knowledge ingestion, deletions, model registry, specialist loops, canonical domain adapters | NOT_STARTED |
 | E | Every workflow family, CRM/outbox sync, long-horizon work, secure companion, notifications, accepted human transfer | NOT_STARTED |
@@ -83,3 +83,17 @@ scoped authority exists. No billable endpoint is invoked by a safe local default
 * 2026-10-19: follow-on prompt adopted; committed verbatim under `docs/spec/`.
 * 2026-10-19: Docker-based local composition is feasible in this environment and becomes the
   Layer-2 integration target (production adapters over real protocols against emulators).
+
+## How waves run
+
+Each wave runs the reusable workflow script
+`/root/.claude/projects/-home-user-genAIplayground/f299c1b0-44d2-5934-b2f9-0f6e3fe0b812/workflows/scripts/followon-wave-wf_5abdf51f-ed0.js`
+with `args = {wave, packages: [WP ids], extra: [optional extra jobs]}`: one implementer per package, an
+independent adversarial verifier, up to two refix rounds. Between waves the coordinator runs the full
+gates, applies the implementers' `statusUpdates` to `docs/followon/source/` and regenerates the ledger
+(`python3 -I docs/tools/followon/generate.py`), commits and pushes. Waves follow the dependency order in
+`docs/followon/work-packages.yaml`.
+
+| Wave | Packages | Run id | State |
+|---|---|---|---|
+| B1 | WP-02, WP-03 (+ ledger fix job) | wf_5abdf51f-ed0 | RUNNING |
