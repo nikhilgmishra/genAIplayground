@@ -119,3 +119,9 @@ ownership is finished and no package holds it):
   sprintf-js. Apply pnpm overrides to patched versions (sharp >= 0.35.5, adm-zip >= 0.6.1) between B2 and
   B3, re-run check-deps and the media smoke import, and record the result; if an override breaks the
   media dependency set, hand it to WP-10/WP-17 with the failing evidence.
+* CI on 709125c failed one unit test that passed locally: the WP-02 registry test read
+  `evidence/runs/**/results.jsonl`, which is gitignored local output (fixed in c344192: the test now
+  generates the scorer's output over the committed corpus). The local gates now also run `make test-unit`
+  in a clean worktree of the commit being pushed. After wave B2 completes (not while it runs, so a resume
+  keeps its cache), add to the wave prompt: tests must pass on a fresh checkout and never read gitignored
+  or untracked state (`evidence/runs`, `.tools/`, report directories).
