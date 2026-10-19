@@ -319,10 +319,12 @@ resource "aws_kms_key" "session_replica" {
     Version = "2012-10-17"
     Statement = [
       {
+        # kms:CreateAlias, never kms:Create* (it matches kms:CreateGrant): grants come only from
+        # AttachKeyToAwsResourcesOnly below (same rule as modules/kms).
         Sid       = "KeyAdministrationWithoutCryptographicUse"
         Effect    = "Allow"
         Principal = { AWS = local.key_admins }
-        Action    = ["kms:Create*", "kms:Describe*", "kms:Enable*", "kms:List*", "kms:Put*", "kms:Update*", "kms:Revoke*", "kms:Disable*", "kms:Get*", "kms:Delete*", "kms:TagResource", "kms:UntagResource", "kms:ScheduleKeyDeletion", "kms:CancelKeyDeletion"]
+        Action    = ["kms:CreateAlias", "kms:Describe*", "kms:Enable*", "kms:List*", "kms:Put*", "kms:Update*", "kms:Revoke*", "kms:Disable*", "kms:Get*", "kms:Delete*", "kms:TagResource", "kms:UntagResource", "kms:ScheduleKeyDeletion", "kms:CancelKeyDeletion"]
         Resource  = "*"
       },
       {

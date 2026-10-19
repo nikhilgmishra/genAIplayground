@@ -187,6 +187,27 @@ run "production_primary_with_dr_replica" {
     error_message = "[SPEC-12.recovery] the DR replica gets its own regional CMK"
   }
 
+  # Wildcard-aware (same check as modules/kms): kms:Create* would match kms:CreateGrant.
+  assert {
+    condition = alltrue([
+      for s in jsondecode(aws_kms_key.session_replica[0].policy).Statement : try(s.Condition.Bool["kms:GrantIsForAWSResource"], null) == "true"
+      if s.Effect == "Allow" && (try(s.Principal.AWS, null) != null || try(s.Principal, null) == "*") && (
+        try(s.NotAction, null) == null
+        ? anytrue([for a in flatten([try(s.Action, [])]) : can(regex("^(?i)${replace(replace(a, "*", ".*"), "?", ".")}$", "kms:CreateGrant"))])
+        : !anytrue([for a in flatten([s.NotAction]) : can(regex("^(?i)${replace(replace(a, "*", ".*"), "?", ".")}$", "kms:CreateGrant"))])
+      )
+    ])
+    error_message = "[SPEC-14.kms] no Allow for an IAM principal on the DR replica key (key admins include gha-apply) may match kms:CreateGrant without Bool kms:GrantIsForAWSResource = true"
+  }
+
+  assert {
+    condition = anytrue([
+      for s in jsondecode(aws_kms_key.session_replica[0].policy).Statement : contains(s.Action, "kms:CreateGrant") && s.Condition.Bool["kms:GrantIsForAWSResource"] == "true" && contains(s.Principal.AWS, "arn:aws:iam::111111111111:role/vsp-production-gha-apply")
+      if s.Sid == "AttachKeyToAwsResourcesOnly"
+    ])
+    error_message = "key administrators (including the CI apply role) keep grants for AWS resources (the DynamoDB replica)"
+  }
+
   assert {
     condition     = length(module.dynamodb_sessions[0].table_name) > 0
     error_message = "session table created in the primary"
