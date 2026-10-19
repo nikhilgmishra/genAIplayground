@@ -42,9 +42,22 @@ describe("knowledge sanitizer: invisible host splitters (VSP-KN-01)", () => {
     });
   }
 
-  it("[DATA-01][VSP-KN-01] stripInvisible removes every Cf and default-ignorable code point, and nothing visible", () => {
+  it("[DATA-01][VSP-KN-01] stripInvisible removes every Cf and default-ignorable code point, including the visible format characters (README rendering effects), and keeps letters, digits and accents", () => {
     for (const [, cp] of SPLITTERS) expect(stripInvisible(`a${ch(cp)}b`)).toBe("ab");
     expect(stripInvisible("Plain text, 123 and accents: café, ñ, ü.")).toBe("Plain text, 123 and accents: café, ñ, ü.");
+    // Cf characters that render visibly are removed too (a documented rendering effect, not a claim that nothing
+    // visible goes): the prepended concatenation marks, which draw a sign across the digits after them (U+0600-0605
+    // Arabic number signs, U+06DD ARABIC END OF AYAH, U+070F SYRIAC ABBREVIATION MARK, U+0890-0891, U+08E2, U+110BD and
+    // U+110CD Kaithi number signs), and the Egyptian hieroglyph format controls U+13430-1343F, which lay out quadrats.
+    // The digits and letters they apply to are kept.
+    const arabicDigits = `${ch(0x0661)}${ch(0x0662)}`;
+    for (const cp of [0x0600, 0x0601, 0x0602, 0x0603, 0x0604, 0x0605, 0x06dd, 0x070f, 0x0890, 0x0891, 0x08e2, 0x110bd, 0x110cd, 0x13430, 0x1343f]) {
+      expect({ cp, out: stripInvisible(`${ch(cp)}${arabicDigits}`) }).toEqual({ cp, out: arabicDigits });
+    }
+    // Default-ignorable letters and marks go too: the Hangul fillers and the deprecated Khmer inherent vowels. U+2800
+    // BRAILLE PATTERN BLANK, a blank braille cell, is removed as well, so braille words it separated are joined.
+    for (const cp of [0x115f, 0x1160, 0x3164, 0xffa0, 0x17b4, 0x17b5]) expect({ cp, out: stripInvisible(`a${ch(cp)}b`) }).toEqual({ cp, out: "ab" });
+    expect(stripInvisible(`${ch(0x2801)}${ch(0x2800)}${ch(0x2803)}`)).toBe(`${ch(0x2801)}${ch(0x2803)}`);
   });
 });
 
@@ -228,6 +241,30 @@ describe("knowledge sanitizer: entity-encoded and C1 host splitters (VSP-KN-01)"
     }
     // The allowlisted host itself, and "%2E" that holds no host, are unchanged.
     for (const prose of ["Go to portal.synthetic-health.test/billing now.", "Rates rose 2%2E5 points.", "Code %2E means a stop."]) {
+      expect(sanitizeKnowledgeText(prose, { allowedLinkDomains: allowed }).text).toBe(prose);
+    }
+  });
+
+  it("[DATA-01][SPEC-14.threat-model][VSP-KN-01] a host that spells label characters, a separator or an invisible character as a percent escape is removed; percentages in prose are unchanged", () => {
+    // Only "%2E" used to be decoded: "billing-portal%2Ec%6Fm/pay" and "billing-portal.%63%6F%6D/pay" (both
+    // billing-portal.com to a URL parser) were kept, stored and served.
+    const allowed = ["portal.synthetic-health.test"];
+    for (const [body, expected] of [
+      ["Pay at billing-portal%2Ec%6Fm/pay today.", "Pay at today."],
+      ["Pay at billing-portal.%63%6F%6D/pay today.", "Pay at today."],
+      ["Pay at evil%E3%80%82com/pay today.", "Pay at today."],
+      ["Pay at evil.c%C3%B3m/pay today.", "Pay at today."],
+      ["Pay at evil%E2%80%8B.com/pay today.", "Pay at today."],
+      ["Reach %32%30%33.0.113.7/pay now.", "Reach now."],
+      ["Go to portal.synthetic-health.t%65st/billing now.", "Go to now."],
+    ] as const) {
+      const r = sanitizeKnowledgeText(body, { allowedLinkDomains: allowed });
+      expect({ body, text: r.text }).toEqual({ body, text: expected });
+      expect(r.findings).toContain("URL_REMOVED");
+      expect(sanitizedTextViolations(r.text, allowed)).toEqual([]);
+      expect({ body, flagged: sanitizedTextViolations(body, allowed).some((c) => c === "BARE_DOMAIN_NOT_ALLOWLISTED" || c === "IP_LITERAL") }).toEqual({ body, flagged: true });
+    }
+    for (const prose of ["Save 20% each month; 2.5% of 100% applies.", "A 5%20 fee, a 50%ACME rebate and code %2D5.", "Go to portal.synthetic-health.test/billing now."]) {
       expect(sanitizeKnowledgeText(prose, { allowedLinkDomains: allowed }).text).toBe(prose);
     }
   });

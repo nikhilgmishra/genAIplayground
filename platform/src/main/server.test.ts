@@ -2,8 +2,12 @@
  * Gateway-only entry point (`server.ts`) and its own deferred route-audit queue (ADR-0011). This
  * process runs no worker loops, so nothing but its own bounded timer, and the final flush of a
  * graceful shutdown, can append the handoff audit events it deferred during an audit outage.
- * Graceful shutdown waits (bounded) for requests already being handled, and a request it could
- * not wait for is reported lost by the sealed queue, never silently.
+ * Graceful shutdown waits (bounded) for requests already being handled, then, after the app
+ * force-closed the rest, (bounded) for their handlers to settle, so their route evidence reaches the
+ * queue before the final flush and before the entry exits; a handler it gave up on is logged at error
+ * level, and one that reaches the sealed queue later is reported lost there.
+ * Every assertion about shutdown logs is made at the moment `close()` resolves: the entry point calls
+ * process.exit(0) then, so nothing logged after that moment would exist in a real process.
  * LOCAL FIXTURE composition in `ci` (loopback, ephemeral port), real HTTP over the listener, the
  * LOCAL FIXTURE outage `revoke insert on audit_outbox from app_runtime`, SYNTHETIC data.
  */
@@ -15,7 +19,7 @@ import type { BuildBusiness } from "../business/contract.js";
 import { LOCAL_FIXTURE_TOKENS } from "../gateway/auth.js";
 import { createMemoryLogger } from "../observability/logger.js";
 import { newId } from "../shared/ids.js";
-import { startServer } from "./server.js";
+import { SHUTDOWN_BUDGET_MS, startServer } from "./server.js";
 import type { ServerRuntime } from "./server.js";
 
 let rt: ServerRuntime | null = null;
@@ -225,7 +229,28 @@ describe("gateway-only process drains its own deferred route-audit queue (ADR-00
     expect(records.some((x) => x.event === "audit.deferred.lost_at_shutdown")).toBe(false);
   }, 120_000);
 
-  it("[OPS-01][SAFE-03] a request still open after the bounded drain is force-closed, and the event it defers after the final flush is reported lost at error level, never queued silently", async () => {
+  it("[OPS-01][SAFE-02][SAFE-03] a request force-closed after the drain bound: shutdown waits for its handler, so its route evidence is written before the database closes and the process exits", async () => {
+    const { logger, records } = createMemoryLogger();
+    const g = gatedRouteAudit();
+    rt = await startServer({ env: ENV, port: 0, logger, buildBusiness: g.build, inFlightDrainTimeoutMs: 100, deferredAuditFlush: { intervalMs: 300_000, finalFlushTimeoutMs: 1_000 } });
+    const r = rt;
+    const callId = newCallId();
+    const human = humanRequest(r, callId, await startCall(r, callId));
+    await until(() => g.entered() === 1, 10_000);
+    rt = null;
+    const closing = r.close();
+    // The drain bound expires and the app force-closes the request (the caller sees a connection
+    // error); the handler is still waiting (e.g. a slow transfer call) and resumes a second later.
+    expect(await human).toMatch(/^client error /);
+    setTimeout(() => g.open(), 1_000);
+    await closing;
+    // The moment the entry calls process.exit(0): the handler has settled and its event is written.
+    expect(g.results).toEqual([expect.objectContaining({ written: true, deferred: false, reasonCode: null })]);
+    expect(records).toContainEqual(expect.objectContaining({ level: "warn", event: "server.shutdown_drain_timeout", fields: expect.objectContaining({ inFlight: 1 }) }));
+    expect(records.filter((x) => x.level === "error")).toEqual([]);
+  }, 120_000);
+
+  it("[OPS-01][SAFE-02][SAFE-03] during a persisting outage the event a force-closed handler defers is counted lost at error level before close() resolves (the moment the entry exits)", async () => {
     const { logger, records } = createMemoryLogger();
     const g = gatedRouteAudit();
     rt = await startServer({ env: ENV, port: 0, logger, buildBusiness: g.build, inFlightDrainTimeoutMs: 100, deferredAuditFlush: { intervalMs: 300_000, finalFlushTimeoutMs: 1_000 } });
@@ -236,12 +261,47 @@ describe("gateway-only process drains its own deferred route-audit queue (ADR-00
     const human = humanRequest(r, callId, sessionRef);
     await until(() => g.entered() === 1, 10_000);
     rt = null;
-    // The handler is still waiting when the bound expires: the app force-closes it, the final flush
-    // finds an empty queue, the database closes. Only then does the handler reach the queue.
+    const closing = r.close();
+    expect(await human).toMatch(/^client error /);
+    setTimeout(() => g.open(), 1_000);
+    await closing;
+    const atExit = records.map((x) => `${x.level}:${x.event}`);
+    expect(g.results).toEqual([expect.objectContaining({ written: false, deferred: true, reasonCode: "AUDIT_STORE_UNWRITABLE" })]);
+    expect(records).toContainEqual(
+      expect.objectContaining({ level: "error", event: "audit.deferred.unflushed_at_shutdown", fields: expect.objectContaining({ remaining: 1, inProgress: 0, reasonCode: "AUDIT_STORE_UNWRITABLE" }) }),
+    );
+    expect(atExit).not.toContain("error:server.shutdown_handlers_unsettled");
+    expect(atExit).not.toContain("error:audit.deferred.lost_at_shutdown");
+  }, 120_000);
+
+  it("[OPS-01][SAFE-03] a handler still running when the settle bound expires is logged at error level before close() resolves, and the event it defers later is reported lost by the sealed queue, never queued silently", async () => {
+    const { logger, records } = createMemoryLogger();
+    const g = gatedRouteAudit();
+    rt = await startServer({
+      env: ENV,
+      port: 0,
+      logger,
+      buildBusiness: g.build,
+      inFlightDrainTimeoutMs: 100,
+      handlerSettleTimeoutMs: 100,
+      deferredAuditFlush: { intervalMs: 300_000, finalFlushTimeoutMs: 1_000 },
+    });
+    const r = rt;
+    const callId = newCallId();
+    const sessionRef = await startCall(r, callId);
+    await r.container.db.exec("revoke insert on audit_outbox from app_runtime");
+    const human = humanRequest(r, callId, sessionRef);
+    await until(() => g.entered() === 1, 10_000);
+    rt = null;
+    // The handler is still waiting when both bounds expire: the app force-closes it, the settle wait
+    // gives up (error), the final flush finds an empty queue, the database closes.
     await r.close();
     expect(await human).toMatch(/^client error /);
     expect(records).toContainEqual(expect.objectContaining({ level: "warn", event: "server.shutdown_drain_timeout", fields: expect.objectContaining({ inFlight: 1, reasonCode: "SHUTDOWN_DRAIN_TIMEOUT" }) }));
+    // At the moment the entry exits, the possible loss is on record at error level.
+    expect(records).toContainEqual(expect.objectContaining({ level: "error", event: "server.shutdown_handlers_unsettled", fields: expect.objectContaining({ unsettled: 1, reasonCode: "SHUTDOWN_HANDLERS_UNSETTLED" }) }));
     expect(records.some((x) => x.event === "audit.deferred.unflushed_at_shutdown")).toBe(false);
+    // Only a process that is still alive then sees the handler reach the sealed queue.
     g.open();
     await until(() => g.results.length === 1, 10_000);
     expect(g.results).toEqual([{ written: false, deferred: false, eventId: null, reasonCode: DEFERRED_AUDIT_AFTER_SHUTDOWN }]);
@@ -252,9 +312,22 @@ describe("gateway-only process drains its own deferred route-audit queue (ADR-00
     expect(r.container.metrics.counterValue("vsp_audit_deferred_total", { result: "dropped", reason: "store_unavailable" })).toBe(1);
   }, 120_000);
 
-  it("[OPS-01] the shutdown drain bound is validated before anything is composed or bound", async () => {
+  it("[OPS-01] the shutdown bounds are validated before anything is composed or bound, and together stay within the ECS stop timeout", async () => {
     const { logger, records } = createMemoryLogger();
-    for (const bad of [-1, 20_001, 1.5]) await expect(startServer({ env: ENV, port: 0, logger, inFlightDrainTimeoutMs: bad })).rejects.toThrow("SHUTDOWN_DRAIN_POLICY_INVALID");
+    for (const bad of [-1, 20_001, 1.5]) {
+      await expect(startServer({ env: ENV, port: 0, logger, inFlightDrainTimeoutMs: bad })).rejects.toThrow("SHUTDOWN_DRAIN_POLICY_INVALID");
+      await expect(startServer({ env: ENV, port: 0, logger, handlerSettleTimeoutMs: bad })).rejects.toThrow("SHUTDOWN_DRAIN_POLICY_INVALID");
+    }
+    // Drain + settle + final flush at most SHUTDOWN_BUDGET_MS (25 s of the 30 s ECS stopTimeout).
+    expect(SHUTDOWN_BUDGET_MS).toBe(25_000);
+    for (const over of [
+      { inFlightDrainTimeoutMs: 20_000 },
+      { inFlightDrainTimeoutMs: 10_000, handlerSettleTimeoutMs: 10_000, deferredAuditFlush: { finalFlushTimeoutMs: 5_001 } },
+      { handlerSettleTimeoutMs: 15_000, deferredAuditFlush: { finalFlushTimeoutMs: 5_001 } },
+      { deferredAuditFlush: { finalFlushTimeoutMs: Number.NaN } },
+    ]) {
+      await expect(startServer({ env: ENV, port: 0, logger, ...over }), JSON.stringify(over)).rejects.toThrow("SHUTDOWN_DRAIN_POLICY_INVALID");
+    }
     expect(records.some((x) => x.event === "container.ready")).toBe(false);
   });
 });

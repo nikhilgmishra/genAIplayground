@@ -59,8 +59,11 @@ to `record()` (the subject of the call's authorized session, never a caller, mod
 `subjectId` of every ledger action of the call (prepared only after a policy allow for that subject)
 and the `subject_ref` of the call's support requests (linked only at A2+; restricted rows stay
 invisible to `app_runtime`). Exactly one distinct subject is stored; none is `no_authorized_subject`,
-several are `subject_ambiguous` (stored null, never guessed), an unreadable ledger entry is
-`check_failed`. The gateway's TC-11 does not pass `subjectRef` yet (the interface in `contract.ts`
+several are `subject_ambiguous` (stored null, never guessed), an unreadable ledger entry or a
+failed read of the call's support-request links is `check_failed` (stored null, never guessed from
+the remaining sources, the trusted `subjectRef` included). A failed prior-contact lookup is
+`check_failed` too, never `first_contact` (logged as `business.outcome.repeat_contact_check_failed`,
+no identifiers). In every case the outcome row is still written. The gateway's TC-11 does not pass `subjectRef` yet (the interface in `contract.ts`
 does not carry it; see Interface change requests), so a read-only call with no action and no
 subject-linked support request is counted as `no_authorized_subject` and not measured today.
 `interaction_outcomes.subject_ref` is readable by `app_runtime` and `app_worker` only: migration 0301

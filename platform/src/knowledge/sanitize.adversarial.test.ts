@@ -494,13 +494,22 @@ describe("VSP-KN-02: sanitization time is linear and bounded", () => {
   // punctuation run after a host about 1.5 s. After the fix each takes about 1-15 ms.
   // The strict budget leaves room for slow shared runners and still fails every one of the old timings.
   const STRICT_BUDGET_MS = 100;
+  /**
+   * CPU time this process spends in `fn` (user + system), in milliseconds. Wall-clock time also counts the time other
+   * processes on a shared, loaded runner hold the CPU, which made these checks fail on unmodified code when three
+   * suites ran at once; CPU time still counts all the work `fn` causes in this process, garbage collection included.
+   */
+  const cpuMs = (fn: () => void): number => {
+    const before = process.cpuUsage();
+    fn();
+    const used = process.cpuUsage(before);
+    return (used.user + used.system) / 1000;
+  };
   /** Best of three runs (a run over `giveUpMs` cannot be a hiccup, so a regression fails quickly). */
   const bestOf3 = (fn: () => void, giveUpMs = 10 * STRICT_BUDGET_MS): number => {
     let best = Number.POSITIVE_INFINITY;
     for (let i = 0; i < 3; i += 1) {
-      const started = performance.now();
-      fn();
-      const ms = performance.now() - started;
+      const ms = cpuMs(fn);
       best = Math.min(best, ms);
       if (ms > giveUpMs) break;
     }
@@ -525,9 +534,9 @@ describe("VSP-KN-02: sanitization time is linear and bounded", () => {
     }
   });
 
-  it("[SPEC-14.threat-model][VSP-KN-01][VSP-KN-02] per-decode normalization, '%2E' separators and the normalizing re-check stay linear (growth ratio, not just a budget)", () => {
-    // VSP-KN-01 final: normalization runs after every entity decode, '%2E' is scanned as a separator and
-    // sanitizedTextViolations normalizes and decodes before scanning. Growing the input 8x (sanitizer, capped at
+  it("[SPEC-14.threat-model][VSP-KN-01][VSP-KN-02] per-decode normalization, percent escapes and the normalizing re-check stay linear (growth ratio, not just a budget)", () => {
+    // VSP-KN-01 final: normalization runs after every entity decode, percent escapes are scanned decoded and as
+    // written, and sanitizedTextViolations scans the stored text and its normalized, decoded reading. Growing the input 8x (sanitizer, capped at
     // 40 000) or 16x (re-check, uncapped) costs about 8x or 16x when linear and 64x or 256x when quadratic; the
     // thresholds sit in between. The 0.5 ms floor keeps sub-millisecond timer noise out of the ratio. The absolute
     // bound is the coarse budget: '&#x2024;a' now costs what its raw form '<U+2024>a' (NFKC '.a') always cost, about
@@ -546,6 +555,14 @@ describe("VSP-KN-02: sanitization time is linear and bounded", () => {
       // '%2E' read as the label characters "2E" too: a text holding it is scanned twice.
       "%2E.",
       "%2E.bc/",
+      // Other percent escapes: label characters, a UTF-8 separator, an escaped invisible character and malformed
+      // sequences (all four readings of the host scan; each escape is decoded once per text).
+      "a.%62%63/",
+      "a%2Eb%63/",
+      "a%E3%80%82bc/",
+      "a.b%E2%80%8Bc/",
+      "%E3%80",
+      "%2F1.2.3.4/",
       `a.b${String.fromCharCode(0x81)}c/`,
       `a.b${String.fromCharCode(0x2800)}c/`,
       // Named references (the full HTML table, longest-match legacy names).
@@ -564,20 +581,26 @@ describe("VSP-KN-02: sanitization time is linear and bounded", () => {
     };
     builders.push(["data: chain", dataChain]);
     const ratio = (small: number, large: number): number => large / Math.max(small, 0.5);
+    // Times are CPU times (bestOf3). A loaded runner can still disturb one run of a millisecond-scale unit (cache and
+    // memory-bandwidth contention, a GC at the wrong moment), so both sizes are measured again, interleaved and keeping
+    // the best time of each, until the ratio is under its threshold or five attempts are spent. The thresholds are
+    // unchanged: a quadratic step exceeds them on every attempt, so it still fails.
+    const growth = (at: (n: number) => number, small: number, large: number, limit: number): number => {
+      let [bestSmall, bestLarge] = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        bestSmall = Math.min(bestSmall, at(small));
+        bestLarge = Math.min(bestLarge, at(large));
+        if (ratio(bestSmall, bestLarge) < limit) break;
+      }
+      return ratio(bestSmall, bestLarge);
+    };
     for (const [unit, build] of builders) {
-      const sanitizeAt = (n: number): number => {
-        const input = build(n);
-        return bestOf3(() => sanitizeKnowledgeText(input, { allowedLinkDomains: ALLOWED }));
-      };
-      const recheckAt = (n: number): number => {
-        const input = build(n);
-        return bestOf3(() => sanitizedTextViolations(input, ALLOWED));
-      };
-      const [s5, s40] = [sanitizeAt(5_000), sanitizeAt(40_000)];
-      const [r10, r160] = [recheckAt(10_000), recheckAt(160_000)];
-      expect({ unit, withinBudget: s40 < BUDGET_MS }).toEqual({ unit, withinBudget: true });
-      expect({ unit, sanitizeLinear: ratio(s5, s40) < 24 }).toEqual({ unit, sanitizeLinear: true });
-      expect({ unit, recheckLinear: ratio(r10, r160) < 48 }).toEqual({ unit, recheckLinear: true });
+      const inputs = new Map<number, string>([5_000, 40_000, 10_000, 160_000].map((n) => [n, build(n)]));
+      const sanitizeAt = (n: number): number => bestOf3(() => sanitizeKnowledgeText(inputs.get(n) ?? "", { allowedLinkDomains: ALLOWED }));
+      const recheckAt = (n: number): number => bestOf3(() => sanitizedTextViolations(inputs.get(n) ?? "", ALLOWED));
+      expect({ unit, withinBudget: sanitizeAt(40_000) < BUDGET_MS }).toEqual({ unit, withinBudget: true });
+      expect({ unit, sanitizeLinear: growth(sanitizeAt, 5_000, 40_000, 24) < 24 }).toEqual({ unit, sanitizeLinear: true });
+      expect({ unit, recheckLinear: growth(recheckAt, 10_000, 160_000, 48) < 48 }).toEqual({ unit, recheckLinear: true });
     }
     // The chain fails closed: quarantined, nothing left that violates an invariant.
     const chained = sanitizeKnowledgeText(dataChain(40_000), { allowedLinkDomains: ALLOWED });

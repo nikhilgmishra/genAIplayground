@@ -40,7 +40,15 @@ when no deferral sink is composed.
    `platform/src/worker/loops.ts`; default every 5 s, at most 100 events per run) appends queued
    events FIFO. It attempts nothing while `AuditHealth` reports `AUDIT_STORE_UNWRITABLE`, stops
    at the first store failure and keeps the rest; an event the writer refuses as invalid is
-   dropped and logged at error level.
+   dropped and logged at error level. The gateway-only entry point
+   (`platform/src/main/server.ts`) runs no worker loops, so it drains its own queue with
+   `DeferredAuditFlushTimer` (`platform/src/audit/deferred.ts`; same defaults, unref'd, runs never
+   overlap). On a graceful stop it waits (bounded) for open responses, force-closes the rest,
+   waits (bounded) for the route handlers still running, then runs one bounded final flush that
+   also waits for appends in progress and seals the queue, and only then closes the database.
+   What is still queued, still being appended, still running in a handler, or reaches the sealed
+   queue later is logged at error level (`audit.deferred.unflushed_at_shutdown`,
+   `server.shutdown_handlers_unsettled`, `audit.deferred.lost_at_shutdown`).
 4. **Late events are visible as late.** Each flushed event keeps its original `occurredAt` and
    is followed by an `audit.deferred.recorded` marker (`parentId` = the late event,
    `reasonCode` = why it was deferred, data class `SECURITY_AUDIT`), so the chain itself shows
@@ -70,14 +78,28 @@ outage fault journey is in `platform/test/journeys/faults.test.ts`. Status: IMPL
   queued loses them. The error-level `audit.deferred.queued` log and the depth gauge are the
   signal that evidence is at risk; for a safety route the `safety_events` row remains. The
   queue is labelled `PROCESS-LOCAL DEFERRED ROUTE-AUDIT QUEUE` (`DEFERRED_AUDIT_BADGE`).
-* **Process-local flush.** The loop must run in the process that holds the queue. The local
-  composition (`platform/src/main/local.ts`) runs gateway and worker in one process. The
-  gateway-only entry point (`platform/src/main/server.ts`) runs no worker loops, so in a split
-  gateway/worker deployment the gateway's queue is drained only by its next `appendOrDefer`;
-  the worker's loop flushes its own, separate queue. This is open (see Revisit when).
-* No alarm on `vsp_audit_deferred_depth` exists in `infra/terraform/modules/observability` yet,
-  and [`../RUNBOOKS/audit-sink-outage.md`](../RUNBOOKS/audit-sink-outage.md) does not yet cover
-  the queue; paging needs PRQ-011.
+* **Process-local flush.** The flush must run in the process that holds the queue. The local
+  composition (`platform/src/main/local.ts`) runs gateway and worker in one process and the
+  worker loop drains it. The gateway-only entry point (`platform/src/main/server.ts`) drains its
+  own queue with `DeferredAuditFlushTimer`, and its graceful stop runs the bounded sequence in
+  Decision 3 (the three bounds together at most 25 s, within the ECS stop timeout of 30 s), so on
+  a graceful stop, route evidence that reached the queue, or whose route handler was still
+  running, is written or its possible loss is logged at error level before the process exits (per
+  event for queued events; as a count for handlers or appends still running when a bound expired).
+  Not covered: a `request_human_transfer` or `request_safety_route` execution that its tool
+  timeout detached from the request (the caller got `TIMEOUT`; `withTimeout` does not cancel the
+  module). If the process exits before that work reaches the queue, its route evidence is lost
+  with no log; it is detected only from route-tool `TIMEOUT` results and `vsp_timeouts_total`
+  shortly before a stop, cross-checked against transfer journeys and `safety_events`. The
+  follow-on durable route journal replaces this process-local queue. The worker and local entry points run no final flush and do not
+  seal on shutdown. Tests: `platform/src/audit/deferred-flush.test.ts` and
+  `platform/src/main/server.test.ts` (real HTTP, LOCAL FIXTURE outage, force-closed requests).
+* The `<prefix>-audit-deferred-depth` (high: Maximum above 0 for 5 minutes) and
+  `<prefix>-audit-deferred-dropped` (critical) alarms exist in
+  `infra/terraform/modules/observability` as Terraform plans only, and
+  [`../RUNBOOKS/audit-sink-outage.md`](../RUNBOOKS/audit-sink-outage.md) covers the queue (what it
+  is, the alarms, the crash-loss limit, the shutdown sequence, how to confirm the flush); the
+  metrics export and paging are BLOCKED (PRQ-047, PRQ-011).
 * Only the business handoff uses the queue. Gateway session and screening events
   (`GatewayAudit`) and `TransferCoordinator` transfer events written during an outage are still
   only logged; the coordinator counts them as `auditGaps` on the journey.
@@ -101,6 +123,6 @@ OPS-01, OPS-02, SAFE-02, SAFE-03, SPEC-13 (sink failure, bounded buffer), SPEC-1
 
 ## Revisit when
 
-The live audit sink and audit account exist (PRQ-037, PRQ-040); a split gateway/worker
-deployment is planned (run the flush in the gateway process or add a durable deferral store);
-SRE sets the queue bound and the depth alarm (PRQ-011).
+The live audit sink and audit account exist (PRQ-037, PRQ-040); route evidence must survive a
+crash (add a durable deferral store); the worker and local entry points need the same final
+flush and seal as the gateway; SRE sets the queue bound and the alarm thresholds (PRQ-011).

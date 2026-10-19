@@ -16,6 +16,7 @@ import { ValidationError } from "../shared/errors.js";
 import { LOCAL_ALLOWED_LINK_DOMAINS, loadLocalCorpus } from "./corpus.js";
 import { LocalHashingEmbedder } from "./embedding.js";
 import type { KnowledgeItemInput, KnowledgeService } from "./ports.js";
+import { sanitizeKnowledgeText, sanitizedTextViolations } from "./sanitize.js";
 import { buildExcerpt, searchKnowledge, servedTextSafe } from "./search.js";
 import type { RetrievedRow } from "./search.js";
 import { KnowledgeServicePg } from "./service.js";
@@ -345,6 +346,54 @@ describe("TypeScript re-check before return", () => {
     expect(records.filter((r) => r.event === "knowledge.search.recheck_dropped").map((r) => r.fields.reasonCode)).toEqual(Array(rows.length - 1).fill("RECHECK_EXCERPT_UNSAFE"));
     expect(servedTextSafe({ title: "Rescheduling help", body_sanitized: "ok" }, "You can reschedule at %2E.com/pay today.", LOCAL_ALLOWED_LINK_DOMAINS)).toBe(false);
     expect(servedTextSafe({ title: "Rescheduling help", body_sanitized: "ok" }, "You can reschedule at portal.synthetic-health.test/billing today.", LOCAL_ALLOWED_LINK_DOMAINS)).toBe(true);
+  });
+
+  it("[SPEC-14.threat-model][SPEC-9.retrieval][VSP-KN-01] the re-check also reads stored text as written: constructs NFKC destroys ('<' + U+0338, 'evil<U+2474>.com') still drop the row", async () => {
+    // The re-check that only inspected the normalized reading served these rows: '<' + U+0338 composes to U+226E (no
+    // '<' left to see, but the served text holds a literal '<') and NFKC turns 'evil<U+2474>.com' into 'evil(1).com'.
+    const solidus = String.fromCharCode(0x0338);
+    const paren1 = String.fromCharCode(0x2474);
+    expect(sanitizedTextViolations(`a <${solidus}b`)).toContain("ANGLE_BRACKET");
+    expect(sanitizedTextViolations(`Pay at evil${paren1}.com/pay`, LOCAL_ALLOWED_LINK_DOMAINS)).toContain("BARE_DOMAIN_NOT_ALLOWLISTED");
+    const { logger, records } = createMemoryLogger();
+    const rows = [
+      row({ source_id: "ok-row" }),
+      row({ source_id: "angle-solidus-row", body_sanitized: `You can reschedule <${solidus}script>${solidus} in the portal.` }),
+      row({ source_id: "paren-digit-row", body_sanitized: `You can reschedule at evil${paren1}.com/pay today.` }),
+    ];
+    const out = await searchKnowledge({ db: stubDb(rows), logger, embedder: null, embeddingsAvailable: async () => false, allowedLinkDomains: LOCAL_ALLOWED_LINK_DOMAINS }, input);
+    expect(out.hits.map((h) => h.sourceId)).toEqual(["ok-row"]);
+    expect(out.droppedOnRecheck).toBe(rows.length - 1);
+    expect(records.filter((r) => r.event === "knowledge.search.recheck_dropped").map((r) => r.fields.reasonCode)).toEqual(Array(rows.length - 1).fill("RECHECK_EXCERPT_UNSAFE"));
+    // Titles are re-checked the same way.
+    const titled = [row({ source_id: "ok-row" }), row({ source_id: "paren-digit-title-row", title: `Reschedule at evil${paren1}.com/pay` }), row({ source_id: "angle-solidus-title-row", title: `Reschedule <${solidus}b>${solidus} help` })];
+    const outTitled = await searchKnowledge({ db: stubDb(titled), logger, embedder: null, embeddingsAvailable: async () => false, allowedLinkDomains: LOCAL_ALLOWED_LINK_DOMAINS }, input);
+    expect(outTitled.hits.map((h) => h.sourceId)).toEqual(["ok-row"]);
+    // What the sanitizer itself stores for the same input is NFKC-stable, so the stored-text reading never drops it.
+    for (const body of [`You can reschedule <${solidus}script>${solidus} in the portal.`, `You can reschedule at evil${paren1}.com/pay today.`]) {
+      const stored = sanitizeKnowledgeText(body, { allowedLinkDomains: LOCAL_ALLOWED_LINK_DOMAINS }).text;
+      expect({ body, violations: sanitizedTextViolations(stored, LOCAL_ALLOWED_LINK_DOMAINS) }).toEqual({ body, violations: [] });
+    }
+  });
+
+  it("[SPEC-14.threat-model][SPEC-9.retrieval][VSP-KN-01] stored rows whose host spells label characters, a separator or an invisible character as a percent escape are dropped on re-check", async () => {
+    // A URL parser resolves each of these hosts ('billing-portal%2Ec%6Fm', 'billing-portal.%63%6F%6D', 'evil%E3%80%82com',
+    // 'evil%E2%80%8B.com'); the '%2E'-only reading served the first two end to end.
+    const { logger, records } = createMemoryLogger();
+    const rows = [
+      row({ source_id: "ok-row" }),
+      row({ source_id: "ok-percent-row", body_sanitized: "Save 20% on 2.5% of 100% of the fee." }),
+      row({ source_id: "pct-dot-letter-row", body_sanitized: "You can reschedule at billing-portal%2Ec%6Fm/pay today." }),
+      row({ source_id: "pct-letters-row", body_sanitized: "You can reschedule at billing-portal.%63%6F%6D/pay today." }),
+      row({ source_id: "pct-ideo-dot-row", body_sanitized: "You can reschedule at evil%E3%80%82com/pay today." }),
+      row({ source_id: "pct-zwsp-row", body_sanitized: "You can reschedule at evil%E2%80%8B.com/pay today." }),
+      row({ source_id: "pct-ipv4-row", body_sanitized: "You can reschedule at %32%30%33.0.113.7/pay today." }),
+      row({ source_id: "pct-title-row", title: "Reschedule at billing-portal.c%6F%6D/pay" }),
+    ];
+    const out = await searchKnowledge({ db: stubDb(rows), logger, embedder: null, embeddingsAvailable: async () => false, allowedLinkDomains: LOCAL_ALLOWED_LINK_DOMAINS }, input);
+    expect(out.hits.map((h) => h.sourceId)).toEqual(["ok-row", "ok-percent-row"]);
+    expect(out.droppedOnRecheck).toBe(rows.length - 2);
+    expect(records.filter((r) => r.event === "knowledge.search.recheck_dropped").map((r) => r.fields.reasonCode)).toEqual(Array(rows.length - 2).fill("RECHECK_EXCERPT_UNSAFE"));
   });
 
   it("[SPEC-9.retrieval] excerpts are the best-matching sentence, bounded", () => {

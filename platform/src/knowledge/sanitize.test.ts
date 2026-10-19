@@ -237,6 +237,24 @@ describe("sanitizeKnowledgeText", () => {
   });
 });
 
+describe("sanitizeKnowledgeText: a round is stable only when nothing after its last pass changed the text (VSP-KN-01)", () => {
+  it("[SPEC-9.sanitize][VSP-KN-01] '://[a]: b' and 'x\\n  ://[a]: b': the hard scrub exposes a reference definition, which another round removes (deterministic)", () => {
+    // The hard scrub turns "://[a]: b" into "[a]: b" and whitespace normalization moves "[a]: b" to the start of its
+    // line, where it is a reference definition: only another round removes it. Counting a round as stable because its
+    // passes converged, ignoring what the scrub changed after them, returned "[a]: b" (and "x\n[a]: b"), which a second
+    // run then sanitized to "" (and "x"). The seeded idempotence properties above do not generate this input.
+    for (const [input, expected] of [
+      ["://[a]: b", ""],
+      ["x\n  ://[a]: b", "x"],
+    ] as const) {
+      const once = sanitizeKnowledgeText(input, { allowedLinkDomains: ALLOWED });
+      expect({ input, once: once.text }).toEqual({ input, once: expected });
+      expect({ input, twice: sanitizeKnowledgeText(once.text, { allowedLinkDomains: ALLOWED }).text }).toEqual({ input, twice: once.text });
+      expect(once.quarantineFindings).toEqual(["SANITIZER_HARD_SCRUB_APPLIED"]);
+    }
+  });
+});
+
 describe("sanitizeKnowledgeText: idempotence past the round budget (VSP-KN-01)", () => {
   // Each pass rewrites only the innermost of nested links, and a round runs at most 6 passes: 25 or more nested
   // markdown or reference links did not settle within the 4 rounds, came back as "[x](t24)" (or "[x][r]") the first

@@ -16,7 +16,7 @@
 * Dashboard `<prefix>-audit`; `AuditHealth.status()` reason codes `AUDIT_STORE_UNWRITABLE`, `AUDIT_BACKLOG_EXCEEDED`, `AUDIT_SINK_STALE`.
 * `<prefix>-audit-not-recorded-ratio` alarm (critical) and the panel "Protected actions without decision or audit": the share of accepted consequential tool calls whose `tool.invoke` append failed (`vsp_protected_actions_total{audit="not_recorded"}` divided by all accepted ones) is above 0 percent. The commit's own ledger event is reconciled by `audit.verify`.
 * `vsp_audit_events_rejected_total` above zero: the audit writer refused an event by schema (VSP-GW-04). That is a code defect, not an outage; the event was retried once minimised.
-* `<prefix>-audit-deferred-depth` alarm (high): some process has held handoff route audit events in its deferred queue for 5 minutes (Maximum of `vsp_audit_deferred_depth` above 0 in 5 consecutive minutes). `<prefix>-audit-deferred-dropped` alarm (critical): a deferred event was dropped, because the bounded queue was full, the writer refused it as invalid, or it arrived after a graceful shutdown's final flush; that route evidence is lost. Dashboard panel "Deferred route audit" on `<prefix>-audit`; error-level logs `audit.deferred.queued`, `audit.deferred.dropped`, `audit.deferred.unflushed_at_shutdown` and `audit.deferred.lost_at_shutdown`. See [Deferred route-audit queue](#deferred-route-audit-queue) and [ADR-0011](../adr/ADR-0011-deferred-route-audit.md).
+* `<prefix>-audit-deferred-depth` alarm (high): some process has held handoff route audit events in its deferred queue for 5 minutes (Maximum of `vsp_audit_deferred_depth` above 0 in 5 consecutive minutes). `<prefix>-audit-deferred-dropped` alarm (critical): a deferred event was dropped, because the bounded queue was full, the writer refused it as invalid, or it arrived after a graceful shutdown's final flush; that route evidence is lost. Dashboard panel "Deferred route audit" on `<prefix>-audit`; error-level logs `audit.deferred.queued`, `audit.deferred.dropped`, `audit.deferred.unflushed_at_shutdown`, `audit.deferred.lost_at_shutdown` and, from a gateway stop, `server.shutdown_handlers_unsettled` (route handlers still running when the process gave up waiting: their route evidence may be lost; counts only); the warn log `server.shutdown_drain_timeout` means a gateway stop force-closed requests (their callers saw a connection error). See [Deferred route-audit queue](#deferred-route-audit-queue) and [ADR-0011](../adr/ADR-0011-deferred-route-audit.md).
 
 ## Immediate containment
 
@@ -46,24 +46,41 @@
   engineering proposals pending SRE review (PRQ-011).
 * **Crash-loss limit.** Queued events are lost when the process holding them exits without a
   graceful shutdown: a crash, an out-of-memory kill, a forced task stop, or a stop that runs past
-  the container stop timeout. On a graceful shutdown (SIGTERM) the gateway:
-  1. stops accepting connections and waits, for at most 5 s, for the requests it is still
-     handling, so a human or safety request in flight completes and appends or queues its
-     event first (`server.shutdown_drain_timeout` warns when the bound expires);
+  the container stop timeout. Nothing is logged then. On a graceful shutdown (SIGTERM) the
+  gateway exits as soon as these steps return, in this order:
+  1. stops accepting connections and waits, for at most 5 s, for the open responses, so a human
+     or safety request in flight completes with its answer (`server.shutdown_drain_timeout`
+     warns when the bound expires);
   2. closes the HTTP app, which force-closes any request still open; the caller of such a
-     request sees a connection error;
-  3. attempts one final flush, bounded by 5 s, and logs any event still queued at error level
-     as `audit.deferred.unflushed_at_shutdown`, with the count (`remaining`) and the reason code;
-  4. closes the database.
+     request sees a connection error, but its handler keeps running;
+  3. waits, for at most 10 s, for every route handler still running to finish, so its event is
+     appended or queued before the final flush. When this bound expires it logs
+     `server.shutdown_handlers_unsettled` at error level with the count (`unsettled`): those
+     handlers may not reach the queue before the process exits, and their route evidence is
+     then lost with **no per-event log**;
+  4. attempts one final flush, bounded by 5 s, which also waits for appends still in progress;
+     it logs at error level as `audit.deferred.unflushed_at_shutdown` the events still queued
+     (`remaining`) and the appends still running (`inProgress`, e.g. hung in the store), with
+     the reason code, then seals the queue;
+  5. closes the database.
 
-  A force-closed request's handler keeps running and can reach the queue after step 3. The
-  queue is sealed then: it does not hold the event but drops it and logs it at error level as
-  `audit.deferred.lost_at_shutdown` (reason `AUDIT_DEFERRED_AFTER_SHUTDOWN`, counted as
-  `vsp_audit_deferred_total{result="dropped"}`). So a graceful stop never loses route evidence
-  silently, but a request it could not wait for can still lose it. All of this is logged only
-  while the process is alive; after a crash nothing is. The `safety_events` row
-  (`audit_status = AUDIT_UNAVAILABLE`) remains the durable record of a safety route. For a human
-  route only the error-level log lines (action code and opaque ids) remain.
+  The three bounds together are at most 25 s, within the 30 s ECS stop timeout. A handler that
+  reaches the sealed queue after step 4, while the process is still alive, has its event dropped
+  and logged at error level as `audit.deferred.lost_at_shutdown` (reason
+  `AUDIT_DEFERRED_AFTER_SHUTDOWN`, counted as `vsp_audit_deferred_total{result="dropped"}`).
+  So on a graceful stop, route evidence that reached the queue, or whose route handler was still
+  running, is either written or its possible loss is on record at error level before the process
+  exits: per event for queued events, **as a count only** for `server.shutdown_handlers_unsettled`
+  and `inProgress`. **Not covered:** a `request_human_transfer` or `request_safety_route` execution
+  that its tool timeout (5 s) detached from the request. The caller got `TIMEOUT` while the handoff
+  work kept running; if the process exits before that work reaches the queue, its route evidence
+  is lost with **no log at all**. A count tells you how many events may be
+  missing, not which calls; find the calls from the window's `handoff.*` and telephony logs. The
+  worker and local entry points do not run this sequence today (no final flush, no seal): a stop
+  of those processes during an outage loses their queued events without these logs. The
+  `safety_events` row (`audit_status = AUDIT_UNAVAILABLE`) remains the durable record of a
+  safety route. For a human route only the error-level log lines (action code and opaque ids)
+  remain.
 * **How to confirm the flush.**
   1. `vsp_audit_deferred_depth` is back to 0 and `<prefix>-audit-deferred-depth` is OK.
   2. The `audit.deferred.flushed` warn logs and `vsp_audit_deferred_total{result="flushed"}` for
@@ -73,9 +90,18 @@
   4. Each `safety_events` row with `audit_status = AUDIT_UNAVAILABLE` in the window has a
      matching late `handoff.safety_requested` event.
   5. `audit.verify` reports PASS for the `runtime` stream.
-  6. There is no `audit.deferred.dropped`, `audit.deferred.unflushed_at_shutdown` or
-     `audit.deferred.lost_at_shutdown` log in the window. Otherwise, document each lost event
-     as an evidence gap (SEV-1; step 3 below).
+  6. There is no `audit.deferred.dropped`, `audit.deferred.unflushed_at_shutdown`,
+     `audit.deferred.lost_at_shutdown` or `server.shutdown_handlers_unsettled` log in the window.
+     Otherwise, document each lost event as an evidence gap (SEV-1; step 3 below). For
+     `server.shutdown_handlers_unsettled` and an `unflushed_at_shutdown` with `inProgress` above
+     0, only a count is logged: identify the affected calls from the `handoff.*` and telephony
+     logs of that task around the stop, and document each call without a matching audit event.
+     Also look for `TIMEOUT` results and a rise in `vsp_timeouts_total` for
+     `request_human_transfer` and `request_safety_route` shortly before the stop: each such call
+     may have lost its route evidence with no log. Cross-check its transfer journey and
+     `safety_events` row against the `handoff.*` audit events and document each call without one.
+     A `server.shutdown_drain_timeout` warning with no error log after it means callers were cut
+     off; it rules out lost evidence only when no route tool timed out shortly before the stop.
 
 ## Evidence preservation
 
@@ -98,7 +124,7 @@ Privacy counsel determines any reporting obligations and deadlines; the software
 ## Verification
 
 * Backlog drained; `vsp_audit_export_completeness_ratio` back to 1 and the `audit-export-incomplete` alarm cleared; `audit.verify` verdict PASS (not INCONCLUSIVE) for every stream touched; reconciliation shows every accepted consequential action has an audit event.
-* `vsp_audit_deferred_depth` back to 0 on every process, with an `audit.deferred.recorded` marker for every deferred handoff event and no `dropped` count, `audit.deferred.unflushed_at_shutdown` or `audit.deferred.lost_at_shutdown` log in the window (or each lost event documented); see [How to confirm the flush](#deferred-route-audit-queue).
+* `vsp_audit_deferred_depth` back to 0 on every process, with an `audit.deferred.recorded` marker for every deferred handoff event and no `dropped` count, `audit.deferred.unflushed_at_shutdown`, `audit.deferred.lost_at_shutdown` or `server.shutdown_handlers_unsettled` log in the window (or each lost event, or each call behind a logged count, documented), and every route-tool `TIMEOUT` shortly before a gateway stop cross-checked against its transfer journey and `safety_events` row; see [How to confirm the flush](#deferred-route-audit-queue).
 * `<prefix>-audit-not-recorded-ratio` back to OK, with every affected accepted action reconciled against the ledger.
 
 ## Communication roles
@@ -107,4 +133,4 @@ Security operations on-call; SRE on-call; incident commander (SEV-1); security l
 
 ## Drill requirement
 
-Audit outage drill (sink down, store unwritable) with SYNTHETIC events before pilot, proving consequential actions block, safety and human routes continue and their deferred events are appended after recovery, in a split gateway/worker deployment, by the gateway's own flush and by a graceful gateway stop during the outage with a human request in flight (which must complete, and its event must be logged as `audit.deferred.unflushed_at_shutdown`); a lost-response (412) recovery with the verifier role; integrity-gap tabletop before production.
+Audit outage drill (sink down, store unwritable) with SYNTHETIC events before pilot, proving consequential actions block, safety and human routes continue and their deferred events are appended after recovery, in a split gateway/worker deployment, by the gateway's own flush and by a graceful gateway stop during the outage with a human request in flight (which must complete, and its event must be logged as `audit.deferred.unflushed_at_shutdown`) and with a human request whose handler outlasts the drain bound (force-closed; the stop must wait for it and log its event the same way, or log `server.shutdown_handlers_unsettled` if it outlasts the settle bound too), plus a route tool that times out and is still running at the stop, to show the gap is detected from `TIMEOUT` / `vsp_timeouts_total` and the transfer journey; a lost-response (412) recovery with the verifier role; integrity-gap tabletop before production.

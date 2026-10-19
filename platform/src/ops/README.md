@@ -37,9 +37,23 @@ approved budgets.
     (`NotificationBlockedError`, DependencyError NOT_STARTED, reason
     `KILL_SWITCH_OUTBOUND_NOTIFICATIONS` / `KILL_SWITCH_INTEGRATION`). Only a sender composed
     with purpose `SAFETY_ESCALATION` (staff paging) is exempt; the purpose is fixed at
-    composition, never per call (OPS-KS-01). The verification service keeps its neutral,
-    anti-enumeration caller response; it does not yet tell the caller that no message was
-    sent (identity/gateway follow-up, see BLOCKED below).
+    composition, never per call (OPS-KS-01). The container also passes the same snapshot
+    reader to the verification service (`notificationSwitches`, a required dependency), which
+    applies the same `notificationBlock()` rule (purpose ROUTINE) before any account lookup,
+    counter or throttle: while either switch is engaged or the state is unreadable, a
+    secure-link, OTP or step-up begin answers `VERIFICATION_UNAVAILABLE_USE_HUMAN` (MCP
+    `nextStep: HUMAN_VERIFICATION`, template `verification.failed_generic`, still DRAFT pending
+    support-operations review) instead of "if eligible, a link/code was sent". The switch state
+    is global, so the answer is identical for zero, one and many matches; the reason code is
+    audit-only (`tool.invoke` `SUCCEEDED` over MCP, `verification.begun` `DENIED` over telephony
+    control). This decision is made in the verification service, not by the pipeline's policy
+    kill-switch check (the policy catalogue still maps `verification:begin` to
+    `identity-directory` only). The gate here stays the enforcement point for the send itself:
+    a begin that read the state just before the switch took effect still has its send refused,
+    and that one caller hears the generic "if eligible" answer. Both decisions use the same
+    INTEGRATION target only while the gate is composed without a custom `integrationId` (the
+    container sets none). Composed tests: `notification-gate.test.ts`; details in
+    `platform/src/identity/README.md` (OPS-KS-01).
   - `integration-gate.ts` — `KillSwitchGatedSupportRecords` wraps the Salesforce
     SupportRecordSystem port: upserts are held while `INTEGRATION salesforce` or `WRITES` is
     engaged, lookups while `INTEGRATION salesforce` is engaged, everything while the state is
@@ -119,7 +133,7 @@ fixture, synthetic staff), `InMemorySessionCapacity` is per process.
 | Automatic degradation thresholds | Load-test evidence (spec section 12); `ManualLoadSignal` is operator-controlled today |
 | Metrics/traces export | Approved CloudWatch / Datadog configuration and PHI-aware export policy |
 | SLO measurement | Real telephone-path measurements; all targets remain PROPOSED |
-| Caller-facing routing while notifications are switched off (OPS-KS-01 follow-up) | Identity/gateway owners: the verification service still answers with the neutral "if eligible, a link was sent" response and the policy catalogue does not map `begin_verification` to the `notifications` integration; a `VERIFICATION_UNAVAILABLE_USE_HUMAN` response (switch state is global, so it leaks nothing about the account) needs those modules |
+| Approved caller wording for the notifications-off human route (OPS-KS-01) | Support operations and the Talkdesk package owner: the composed LOCAL container answers `VERIFICATION_UNAVAILABLE_USE_HUMAN` with template `verification.failed_generic` (IMPLEMENTED_OFFLINE, see above), but that template is DRAFT pending support-operations review, and the Talkdesk package names a different Studio template for this response (`verification.unavailable_use_human`, not in the platform registry); one approved template id is needed |
 | Kill-switch gates for other background provider calls and the console reconciled retry under WRITES (OPS-KS-02 follow-up) | Business / console-api owners; only the Salesforce support-record sync is gated here (the only background call into a switchable integration found by the review) |
 
 ## How to test

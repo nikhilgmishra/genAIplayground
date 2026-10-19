@@ -443,6 +443,25 @@ test_waf_rate_re2_invalid_pattern_is_undecidable if {
 	}
 }
 
+# [SAFE-02][SAFE-03] the RE2-validity check is load-bearing on its own: a repeat count above 1000 is rejected
+# by RE2 but not by PCRE, and such a pattern passes every other portability filter (printable ASCII, "(?" only
+# as "(?:", no backslash). It must be undecidable: as a positive Block scope it matches the safety-route paths
+# in WAF, while OPA's regex.match cannot evaluate it and would otherwise read the scope as "never matches"
+test_waf_rate_re2_uncompilable_repeat_is_undecidable if {
+	big := "^/(?:mcp|telephony/)x{0,1001}"
+	not regex.is_valid(big)
+
+	# Its neighbour one repeat lower compiles and is portable: validity is the only difference.
+	terraform.waf_portable_regex("^/(?:mcp|telephony/)x{0,1000}")
+	not terraform.waf_portable_regex(big)
+	scope := {"RegexMatchStatement": {"RegexString": big, "FieldToMatch": {"UriPath": {}}, "TextTransformations": [{"Priority": 0, "Type": "NONE"}]}}
+	msgs := waf_rate_denies([rate_rule("rate-limit-per-source-ip", "Block", {"ScopeDownStatement": scope})])
+	every p in terraform.waf_safety_route_paths {
+		some m in msgs
+		contains(m, sprintf("can rate-block %s ", [p]))
+	}
+}
+
 # [SAFE-02][SAFE-03] a pattern RE2 compiles is decided exactly only in the subset where RE2 and AWS WAF's PCRE
 # agree: under (?i) RE2 folds U+017F (long s) to "s", so this exclusion holds in OPA but not byte-wise in WAF
 test_waf_rate_non_portable_regex_is_undecidable if {

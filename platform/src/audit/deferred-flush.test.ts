@@ -12,7 +12,7 @@ import { FakeClock } from "../shared/clock.js";
 import { AuditUnavailableError, ValidationError } from "../shared/errors.js";
 import { DEFERRED_AUDIT_AFTER_SHUTDOWN, DEFERRED_AUDIT_MARKER_ACTION, DeferredAuditFlushTimer, DeferredAuditQueue } from "./deferred.js";
 import type { DeferredFlushResult } from "./deferred.js";
-import type { AuditWriter } from "./ports.js";
+import type { AuditWriter, DeferredAppendResult } from "./ports.js";
 import { sampleAuditInput } from "./testing.js";
 
 const clock = new FakeClock("2026-10-18T10:00:00.000Z");
@@ -106,6 +106,9 @@ describe("DeferredAuditFlushTimer (gateway-side flush of the deferred route-audi
       get depth() {
         return queue.depth;
       },
+      get inProgress() {
+        return queue.inProgress;
+      },
       seal: () => queue.seal(),
       flush: async (limit?: number): Promise<DeferredFlushResult> => {
         runs += 1;
@@ -131,6 +134,7 @@ describe("DeferredAuditFlushTimer (gateway-side flush of the deferred route-audi
     let calls = 0;
     const failing = {
       depth: 1,
+      inProgress: 0,
       seal: () => undefined,
       flush: async (): Promise<DeferredFlushResult> => {
         calls += 1;
@@ -154,12 +158,12 @@ describe("DeferredAuditFlushTimer (gateway-side flush of the deferred route-audi
     // The interval is long: only the final flush can append these.
     const timer = new DeferredAuditFlushTimer(queue, { intervalMs: 300_000, limit: 100, logger });
     timer.start();
-    expect(await timer.stop()).toEqual({ written: 250, dropped: 0, remaining: 0, reasonCode: null });
+    expect(await timer.stop()).toEqual({ written: 250, dropped: 0, remaining: 0, inProgress: 0, reasonCode: null });
     expect(accepted.filter((a) => a.startsWith("handoff.requested:")).map((a) => a.slice(-4))).toEqual(Array.from({ length: 250 }, (_, i) => String(i).padStart(4, "0")));
     expect(records).toContainEqual(expect.objectContaining({ level: "warn", event: "audit.deferred.final_flush", fields: expect.objectContaining({ written: 250 }) }));
     expect(records.some((r) => r.event === "audit.deferred.unflushed_at_shutdown")).toBe(false);
     // Idempotent.
-    expect(await timer.stop()).toEqual({ written: 250, dropped: 0, remaining: 0, reasonCode: null });
+    expect(await timer.stop()).toEqual({ written: 250, dropped: 0, remaining: 0, inProgress: 0, reasonCode: null });
 
     // A stopped timer never restarts (a fresh queue: `stop` sealed this one).
     const again = compose(w);
@@ -178,7 +182,7 @@ describe("DeferredAuditFlushTimer (gateway-side flush of the deferred route-audi
     const a = compose(down.w);
     await a.queue.appendOrDefer(route("handoff.requested", "hnd_synthGatewayLost00001"));
     await a.queue.appendOrDefer(route("handoff.requested", "hnd_synthGatewayLost00002"));
-    expect(await new DeferredAuditFlushTimer(a.queue, { logger: a.logger }).stop()).toEqual({ written: 0, dropped: 0, remaining: 2, reasonCode: "AUDIT_STORE_UNWRITABLE" });
+    expect(await new DeferredAuditFlushTimer(a.queue, { logger: a.logger }).stop()).toEqual({ written: 0, dropped: 0, remaining: 2, inProgress: 0, reasonCode: "AUDIT_STORE_UNWRITABLE" });
     expect(a.records).toContainEqual(
       expect.objectContaining({ level: "error", event: "audit.deferred.unflushed_at_shutdown", fields: expect.objectContaining({ remaining: 2, reasonCode: "AUDIT_STORE_UNWRITABLE" }) }),
     );
@@ -193,6 +197,7 @@ describe("DeferredAuditFlushTimer (gateway-side flush of the deferred route-audi
       written: 0,
       dropped: 0,
       remaining: 1,
+      inProgress: 0,
       reasonCode: "DEFERRED_AUDIT_FINAL_FLUSH_TIMEOUT",
     });
     expect(Date.now() - t0).toBeLessThan(2_000);
@@ -218,7 +223,7 @@ describe("DeferredAuditFlushTimer (gateway-side flush of the deferred route-audi
     // A lost promise holds no handle: an unref'd deadline would let the process exit before the bound,
     // silently. Measured synchronously around stop(), so no other timer can interfere.
     const { logger, records } = createMemoryLogger();
-    const lost = { depth: 1, seal: () => undefined, flush: () => new Promise<DeferredFlushResult>(() => undefined) };
+    const lost = { depth: 1, inProgress: 0, seal: () => undefined, flush: () => new Promise<DeferredFlushResult>(() => undefined) };
     const refTimers = () => process.getActiveResourcesInfo().filter((x) => x === "Timeout").length;
     const before = refTimers();
     const stopping = new DeferredAuditFlushTimer(lost, { finalFlushTimeoutMs: 200, logger }).stop();
@@ -234,7 +239,7 @@ describe("DeferredAuditFlushTimer (gateway-side flush of the deferred route-audi
     const timer = new DeferredAuditFlushTimer(queue, { intervalMs: 300_000, finalFlushTimeoutMs: 1_000, logger });
     timer.start();
     expect(queue.isSealed).toBe(false);
-    expect(await timer.stop()).toEqual({ written: 0, dropped: 0, remaining: 1, reasonCode: "AUDIT_STORE_UNWRITABLE" });
+    expect(await timer.stop()).toEqual({ written: 0, dropped: 0, remaining: 1, inProgress: 0, reasonCode: "AUDIT_STORE_UNWRITABLE" });
     expect(queue.isSealed).toBe(true);
 
     // A handler the shutdown could not wait for reaches the queue now: nothing would flush it.
@@ -267,6 +272,7 @@ describe("DeferredAuditFlushTimer (gateway-side flush of the deferred route-audi
     const c = createMemoryLogger();
     const broken = {
       depth: 1,
+      inProgress: 0,
       seal: () => {
         throw new Error("seal unavailable");
       },
@@ -275,6 +281,53 @@ describe("DeferredAuditFlushTimer (gateway-side flush of the deferred route-audi
     expect(await new DeferredAuditFlushTimer(broken, { logger: c.logger }).stop()).toMatchObject({ remaining: 1, reasonCode: "AUDIT_STORE_UNWRITABLE" });
     expect(c.records).toContainEqual(expect.objectContaining({ level: "error", event: "audit.deferred.seal_failed", fields: expect.objectContaining({ reasonCode: "DEFERRED_AUDIT_SEAL_FAILED" }) }));
     expect(c.records).toContainEqual(expect.objectContaining({ level: "error", event: "audit.deferred.unflushed_at_shutdown", fields: expect.objectContaining({ remaining: 1 }) }));
+  });
+
+  it("[OPS-01][SAFE-03] the final flush waits (bounded) for an append still in progress, and reports one still running at the seal at error level", async () => {
+    // Store up but slow: stop returns only once the append in progress was written.
+    const slowUp = writer({ delayMs: 300 });
+    slowUp.state.down = false;
+    const a = compose(slowUp.w);
+    const appended: DeferredAppendResult[] = [];
+    const pendingA = a.queue.appendOrDefer(route("handoff.requested", "hnd_synthGatewayInProg001")).then((r) => appended.push(r));
+    expect(a.queue.inProgress).toBe(1);
+    expect(await new DeferredAuditFlushTimer(a.queue, { finalFlushTimeoutMs: 2_000, logger: a.logger }).stop()).toEqual({ written: 0, dropped: 0, remaining: 0, inProgress: 0, reasonCode: null });
+    expect(appended).toEqual([expect.objectContaining({ written: true, deferred: false })]);
+    await pendingA;
+    expect(a.records.filter((r) => r.level === "error")).toEqual([]);
+
+    // Store down and slow: the append in progress fails and is queued; the final flush then counts it.
+    const slowDown = writer({ delayMs: 300 });
+    const b = compose(slowDown.w);
+    const pendingB = b.queue.appendOrDefer(route("handoff.safety_requested", "hnd_synthGatewayInProg002"));
+    expect(await new DeferredAuditFlushTimer(b.queue, { finalFlushTimeoutMs: 2_000, logger: b.logger }).stop()).toEqual({
+      written: 0,
+      dropped: 0,
+      remaining: 1,
+      inProgress: 0,
+      reasonCode: "AUDIT_STORE_UNWRITABLE",
+    });
+    expect(await pendingB).toMatchObject({ deferred: true, reasonCode: "AUDIT_STORE_UNWRITABLE" });
+    expect(b.records).toContainEqual(expect.objectContaining({ level: "error", event: "audit.deferred.unflushed_at_shutdown", fields: expect.objectContaining({ remaining: 1, inProgress: 0 }) }));
+
+    // An append hung in the store when shutdown begins: neither queued nor written, so it is counted as in progress.
+    const hung = writer();
+    hung.state.down = false;
+    hung.state.hang = true;
+    const c = compose(hung.w);
+    void c.queue.appendOrDefer(route("handoff.requested", "hnd_synthGatewayInProg003"));
+    const t0 = Date.now();
+    expect(await new DeferredAuditFlushTimer(c.queue, { finalFlushTimeoutMs: 200, logger: c.logger }).stop()).toEqual({
+      written: 0,
+      dropped: 0,
+      remaining: 0,
+      inProgress: 1,
+      reasonCode: "DEFERRED_AUDIT_FINAL_FLUSH_TIMEOUT",
+    });
+    expect(Date.now() - t0).toBeLessThan(2_000);
+    expect(c.records).toContainEqual(
+      expect.objectContaining({ level: "error", event: "audit.deferred.unflushed_at_shutdown", fields: expect.objectContaining({ remaining: 0, inProgress: 1, reasonCode: "DEFERRED_AUDIT_FINAL_FLUSH_TIMEOUT" }) }),
+    );
   });
 
   it("[OPS-01] the run timer never keeps the process alive (unref'd)", async () => {

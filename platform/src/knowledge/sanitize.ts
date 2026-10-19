@@ -47,20 +47,26 @@
  * ">", no "://", no "www.", no javascript:/vbscript:/data: URI, no bare domain
  * outside the allowlist, no IP literal, no invisible, default-ignorable, tag, C0
  * or C1 character and no decodable entity reference (numeric, or any name in the
- * HTML table, also after NFKC). sanitizedTextViolations checks them on the text
- * as this sanitizer normalizes, decodes and strips it; the retrieval re-check
- * applies the same function to stored titles and excerpts, so rows stored by an
- * older sanitizer are dropped. The sanitizer is idempotent: every output is
- * either a text one more round leaves unchanged or "" (the fail-closed outputs),
- * so sanitizing its own output gives it back (property-tested on the same
- * generators, and on links nested past the round budget).
+ * HTML table, also after NFKC). sanitizedTextViolations checks them on two
+ * readings and reports the union: the text as stored, and the text as this
+ * sanitizer normalizes, decodes and strips it (the first keeps what NFKC would
+ * destroy, such as "<" + U+0338, which composes to U+226E); the retrieval
+ * re-check applies the same function to stored titles and excerpts, so rows
+ * stored by an older sanitizer, or by none, are dropped. The sanitizer is
+ * idempotent: every output is either a text one more round leaves unchanged or
+ * "" (the fail-closed outputs), so sanitizing its own output gives it back
+ * (property-tested on the same generators, and on links nested past the round
+ * budget; '://[a]: b', whose scrub exposes a reference definition, is a
+ * deterministic case).
  *
  * A "bare domain" is a dotted run of labels (letters of any script, combining
- * marks, digits, "_" or "-", joined by "." or an IDNA separator; "%2E" is read
- * both as a separator and as the label characters "2E") in which some label
- * after the first, with combining marks deleted, begins with 2-63 letters;
- * anything after that letter run is decoration ("evil.com-/reset",
- * "evil.co<U+0332>m", "evil.com1" are domains; xn-- A-labels are covered). An
+ * marks, digits, "_" or "-", joined by "." or an IDNA separator; percent escapes
+ * are read both as written and decoded, so "%2E" is a separator and the label
+ * characters "2E", and "%6F", "%C3%B3", "%E3%80%82" and "%E2%80%8B" are "o",
+ * U+00F3, a separator and nothing) in which some label after the first, with
+ * combining marks deleted, begins with 2-63 letters; anything after that letter
+ * run is decoration ("evil.com-/reset", "evil.co<U+0332>m", "evil.com1" are
+ * domains; xn-- A-labels are covered). An
  * IPv4 literal is a run of four or more numeric labels (optionally decorated
  * with "-"/"_"); an IPv6 literal is a (bracketed) colon-hex group sequence with
  * "::" or eight groups. Spelled-out or visibly spaced forms ("evil dot com",
@@ -73,9 +79,14 @@
  * variation selectors splits emoji ZWJ sequences into separate glyphs, turns
  * emoji presentation into text presentation ("U+2764 U+FE0F" becomes U+2764, a
  * keycap loses U+FE0F) and changes Persian or Devanagari shaping where
- * ZWNJ/ZWJ was used. A subdivision flag (Scotland, Wales, England) is built from
- * tag characters: it becomes a plain black flag and the item is quarantined
- * (HIDDEN_TAG_CHARACTERS), a false positive that fails closed.
+ * ZWNJ/ZWJ was used. Format characters that render visibly are removed too: the
+ * prepended concatenation marks (U+0600-0605, U+06DD, U+070F, U+0890-0891,
+ * U+08E2, U+110BD, U+110CD: a sign drawn across the digits after it, which are
+ * kept) and the Egyptian hieroglyph format controls; so are the
+ * default-ignorable Hangul fillers (letters) and Khmer inherent vowels, and
+ * U+2800 (a blank braille cell). A subdivision flag (Scotland, Wales, England) is
+ * built from tag characters: it becomes a plain black flag and the item is
+ * quarantined (HIDDEN_TAG_CHARACTERS), a false positive that fails closed.
  *
  * Sanitization time is linear in the input (VSP-KN-02): element matching
  * (blocks, anchors) pairs opening and closing tags in one pass (markup.ts)
@@ -525,12 +536,15 @@ function normalizeWhitespace(s: string): string {
 
 /**
  * Output-invariant violations (empty = clean). Used by the sanitizer on its own output and by the
- * retrieval re-check on stored titles and excerpts. The text is first normalized, entity-decoded
- * and stripped exactly as the sanitizer does (decodeToFixpoint), so a host that an invisible,
- * control or entity-encoded character splits in a row stored by an older sanitizer is still seen.
- * Any such character left in the text, and any entity reference decodable as written or after NFKC
- * (a stored fullwidth "<U+FF06>#x200b;" is "&#x200b;" to the sanitizer), is a violation itself: the
- * sanitizer never outputs either.
+ * retrieval re-check on stored titles and excerpts. Every construct check runs on two readings and
+ * reports the union: the text as stored, and the text normalized, entity-decoded and stripped
+ * exactly as the sanitizer does (decodeToFixpoint). The second reading sees a host that an
+ * invisible, control or entity-encoded character splits in a row stored by an older sanitizer; the
+ * first sees what NFKC would destroy before the second looks ("<" + U+0338 composes to U+226E, and
+ * "evil<U+2474>.com" becomes "evil(1).com", no host), which a stored row written by no sanitizer
+ * version can still serve as written. Any hidden character left in the text, and any entity
+ * reference decodable as written or after NFKC (a stored fullwidth "<U+FF06>#x200b;" is "&#x200b;"
+ * to the sanitizer), is a violation itself: the sanitizer never outputs either.
  */
 export function sanitizedTextViolations(text: string, allowedDomains?: readonly string[]): string[] {
   const allowed = normalizeAllowedDomains(allowedDomains);
@@ -539,20 +553,24 @@ export function sanitizedTextViolations(text: string, allowedDomains?: readonly 
   const folded = text.normalize("NFKC");
   if (decodeEntitiesOnce(text) !== text || decodeEntitiesOnce(folded) !== folded) v.push("ENTITY_REFERENCE");
   const seen = decodeToFixpoint(text, newState(false));
-  if (/[<>]/.test(seen)) v.push("ANGLE_BRACKET");
-  if (/:\/\//.test(seen)) v.push("SCHEME_SEPARATOR");
-  if (/www\./i.test(seen)) v.push("WWW_HOST");
-  if (/(?:java|vb|live)script\s*:/i.test(seen)) v.push("EXECUTABLE_URI");
-  if (/\bdata\s*:\s*[a-z]+\/[a-z0-9.+-]+[;,]/i.test(seen)) v.push("DATA_URI");
-  const literals = hostLiterals(seen);
+  const readings = seen === text ? [text] : [text, seen];
+  const found = (re: RegExp): boolean => readings.some((r) => re.test(r));
+  if (found(/[<>]/)) v.push("ANGLE_BRACKET");
+  if (found(/:\/\//)) v.push("SCHEME_SEPARATOR");
+  if (found(/www\./i)) v.push("WWW_HOST");
+  if (found(/(?:java|vb|live)script\s*:/i)) v.push("EXECUTABLE_URI");
+  if (found(/\bdata\s*:\s*[a-z]+\/[a-z0-9.+-]+[;,]/i)) v.push("DATA_URI");
+  const literals = readings.flatMap((r) => hostLiterals(r));
   if (literals.some((l) => l.kind === "DOMAIN" && !hostAllowed(l.host, allowed))) v.push("BARE_DOMAIN_NOT_ALLOWLISTED");
   if (literals.some((l) => l.kind !== "DOMAIN")) v.push("IP_LITERAL");
   return v;
 }
 
 /**
- * One hard-scrub step: normalize, decode and strip the text as the sanitizer does (what
- * sanitizedTextViolations inspects), then remove every construct an output invariant forbids.
+ * One hard-scrub step: normalize, decode and strip the text as the sanitizer does (the second reading
+ * sanitizedTextViolations inspects), then remove every construct an output invariant forbids. The scrub
+ * stops only at a step that changes nothing, where the text as stored (the first reading) is that
+ * scrubbed form itself.
  */
 function hardScrubStep(text: string, allowed: ReadonlySet<string>): string {
   const s = decodeToFixpoint(text, newState(false))

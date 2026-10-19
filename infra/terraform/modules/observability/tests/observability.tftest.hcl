@@ -93,7 +93,7 @@ run "dashboards_and_alarms" {
   }
 
   assert {
-    condition     = aws_cloudwatch_metric_alarm.app["audit-deferred-dropped"].metric_name == "vsp_audit_deferred_total" && aws_cloudwatch_metric_alarm.app["audit-deferred-dropped"].dimensions == tomap({ result = "dropped" }) && aws_cloudwatch_metric_alarm.app["audit-deferred-dropped"].threshold == 0 && aws_cloudwatch_metric_alarm.app["audit-deferred-dropped"].alarm_description == "[CRITICAL] A handoff route audit event was dropped (deferred queue full, or the event was refused as invalid); that route evidence is lost. Runbook RB-AUDIT-GAP. Document every dropped event."
+    condition     = aws_cloudwatch_metric_alarm.app["audit-deferred-dropped"].metric_name == "vsp_audit_deferred_total" && aws_cloudwatch_metric_alarm.app["audit-deferred-dropped"].dimensions == tomap({ result = "dropped" }) && aws_cloudwatch_metric_alarm.app["audit-deferred-dropped"].threshold == 0 && aws_cloudwatch_metric_alarm.app["audit-deferred-dropped"].alarm_description == "[CRITICAL] A handoff route audit event was dropped (deferred queue full, the event was refused as invalid, or it reached the queue after a graceful shutdown sealed it); that route evidence is lost. Runbook RB-AUDIT-GAP. Document every dropped event."
     error_message = "[OPS-01] a dropped deferred route-audit event is critical (evidence lost)"
   }
 

@@ -48,8 +48,11 @@ BLOCKED, PRQ-011 and PRQ-047). Alarm descriptions carry the runbook id.
 | SQS dead-letter alarms (`infra/terraform/modules/sqs`) | RB-DLQ-REPAIR | [reconciliation-and-dlq-repair.md](reconciliation-and-dlq-repair.md) |
 | `audit-backlog-not-draining` | RB-AUDIT-OUTAGE | [audit-sink-outage.md](audit-sink-outage.md) |
 | `audit-ingestion-gap`, `audit-export-incomplete` | RB-AUDIT-GAP | [audit-sink-outage.md](audit-sink-outage.md) |
+| `audit-deferred-depth` | RB-AUDIT-OUTAGE | [audit-sink-outage.md](audit-sink-outage.md) |
+| `audit-deferred-dropped`, `audit-not-recorded-ratio` | RB-AUDIT-GAP | [audit-sink-outage.md](audit-sink-outage.md) |
+| `verification-abuse-signals` | RB-AUTH-BYPASS | [authentication-bypass.md](authentication-bypass.md) |
 | `tool-latency-p95` | RB-TOOL-LATENCY | [dependency-outage.md](dependency-outage.md) |
-| `ingress-5xx-rate`, `gateway-no-healthy-targets` | RB-DEPENDENCY-OUTAGE | [dependency-outage.md](dependency-outage.md) |
+| `ingress-5xx-rate`, `gateway-no-healthy-targets`, `waf-tool-path-rate-observed` | RB-DEPENDENCY-OUTAGE | [dependency-outage.md](dependency-outage.md) |
 | `budget-burn` | RB-UNEXPECTED-SPEND | [unexpected-spending.md](unexpected-spending.md) |
 | `admission-rejections` | RB-ADMISSION | [ai-off-route.md](ai-off-route.md) |
 
@@ -92,7 +95,7 @@ and PRQ-011 (on-call roster and paging).
 | Admission control and budgets (`AdmissionController`, `BudgetService`, `platform/src/ops`) | Exists (offline) |
 | Audit metadata search (`auditedSearch`, `platform/src/audit`) | Exists (offline); console Audit search page exists (offline) |
 | Audit integrity and completeness (`IntegrityVerifier`, `assessCompleteness`, `AuditCompletenessMonitor`, `platform/src/audit`) | Exists (offline); runs as the worker loop `audit.verify` (OPS-AUD-01); live verifier role BLOCKED (PRQ-037, PRQ-040) |
-| Deferred route audit (`DeferredAuditQueue`, worker loop `audit.deferred_flush`) | Exists (offline); process-local ([ADR-0011](../adr/ADR-0011-deferred-route-audit.md)) |
+| Deferred route audit (`DeferredAuditQueue`; worker loop `audit.deferred_flush`; in the gateway-only process `DeferredAuditFlushTimer` and the bounded shutdown sequence of `platform/src/main/server.ts`) | Exists (offline); process-local; alarms `audit-deferred-depth` and `audit-deferred-dropped` as plans only ([ADR-0011](../adr/ADR-0011-deferred-route-audit.md)) |
 | `cd platform && npx tsx src/workflows/generate-asl.ts --check` | Exists |
 | `node talkdesk/tools/drift-check.mjs`, `node talkdesk/tools/validate-package.mjs` | Exist (offline); live tenant comparison BLOCKED |
 | `bash scripts/fetch-tools.sh` (pinned OPA and Terraform) | Exists |

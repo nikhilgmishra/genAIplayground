@@ -23,9 +23,18 @@
  *  - Sealed at graceful shutdown (`seal`, called by `DeferredAuditFlushTimer.stop` once its final
  *    flush returned): an event that cannot be appended at once is then no longer queued, because
  *    nothing would flush it; it is dropped, counted and logged at error level as
- *    `audit.deferred.lost_at_shutdown` (reason AUDIT_DEFERRED_AFTER_SHUTDOWN). A request the
- *    shutdown could not wait for can still reach `appendOrDefer` after that point; its loss is
- *    reported, never silent.
+ *    `audit.deferred.lost_at_shutdown` (reason AUDIT_DEFERRED_AFTER_SHUTDOWN). `inProgress` counts
+ *    the `appendOrDefer` calls that have not returned, so the final flush can wait for them and
+ *    report those still running at the seal.
+ *  - LIMIT: the queue can only report what reaches it while the process is alive. A caller that has
+ *    not called `appendOrDefer` yet when the process exits (e.g. a request handler still waiting for
+ *    a slow transfer call) loses its event without any log from this module. The gateway entry point
+ *    (`platform/src/main/server.ts`) therefore waits, bounded, for its request handlers to settle
+ *    before the final flush, and logs those it gave up on at error level. It does not wait for a
+ *    route-tool execution that its tool timeout detached from the request (the pipeline answered
+ *    TIMEOUT while the handoff work continues): such an event is lost with no log if the process
+ *    exits first. Detect it from TIMEOUT results / `vsp_timeouts_total` for request_human_transfer
+ *    and request_safety_route shortly before a stop.
  *
  * CRASH-LOSS LIMIT (documented, not hidden): the queue is in process memory. A process crash or
  * restart while events are queued loses them. For a safety route the `safety_events` row (written
@@ -101,6 +110,7 @@ export class DeferredAuditQueue implements DeferredAuditSink {
   private tail: Promise<unknown> = Promise.resolve();
   private sealed = false;
   private lostAfterSeal = 0;
+  private appending = 0;
 
   constructor(private readonly opts: DeferredAuditQueueOptions) {
     this.logger = (opts.logger ?? silentLogger).child({ component: "audit_deferred" });
@@ -128,6 +138,14 @@ export class DeferredAuditQueue implements DeferredAuditSink {
   }
 
   /**
+   * `appendOrDefer` calls that have not returned yet (waiting for their turn or for the store): each
+   * ends written, queued, or (once sealed) reported lost. A `flush` started now runs after all of them.
+   */
+  get inProgress(): number {
+    return this.appending;
+  }
+
+  /**
    * Graceful shutdown (`DeferredAuditFlushTimer.stop`, after its final flush): from now on an event
    * that cannot be appended at once is dropped and reported as lost (`audit.deferred.lost_at_shutdown`,
    * error level, reason AUDIT_DEFERRED_AFTER_SHUTDOWN, counted as dropped) instead of being queued
@@ -146,20 +164,27 @@ export class DeferredAuditQueue implements DeferredAuditSink {
   async appendOrDefer(input: AuditEventInput, stream?: string): Promise<DeferredAppendResult> {
     // An invalid event is a programming error: refused now, never queued.
     const valid = validateAuditInput(input);
-    return this.exclusive(async () => {
-      if (this.entries.length > 0) {
-        // Order first: older deferred events go before this one.
-        const drained = this.maxInlineDrain > 0 ? await this.drain(this.maxInlineDrain) : null;
-        if (this.entries.length > 0) return this.enqueue(valid, stream, drained?.reasonCode ?? "AUDIT_DEFERRED_QUEUE_PENDING");
-      }
-      try {
-        const ev = await this.opts.writer.appendStandalone(valid, stream);
-        return { written: true, deferred: false, eventId: ev.eventId, reasonCode: null };
-      } catch (err) {
-        if (isPermanent(err)) throw err;
-        return this.enqueue(valid, stream, reasonOf(err));
-      }
-    });
+    // Counted from the call on (synchronously, before it joins the serialized chain), so a shutdown
+    // can wait for it and report it if it is still running when the queue is sealed.
+    this.appending += 1;
+    try {
+      return await this.exclusive(async () => {
+        if (this.entries.length > 0) {
+          // Order first: older deferred events go before this one.
+          const drained = this.maxInlineDrain > 0 ? await this.drain(this.maxInlineDrain) : null;
+          if (this.entries.length > 0) return this.enqueue(valid, stream, drained?.reasonCode ?? "AUDIT_DEFERRED_QUEUE_PENDING");
+        }
+        try {
+          const ev = await this.opts.writer.appendStandalone(valid, stream);
+          return { written: true, deferred: false, eventId: ev.eventId, reasonCode: null };
+        } catch (err) {
+          if (isPermanent(err)) throw err;
+          return this.enqueue(valid, stream, reasonOf(err));
+        }
+      });
+    } finally {
+      this.appending -= 1;
+    }
   }
 
   /** Appends queued events in order (bounded); skipped while the audit store reports itself unwritable. */
@@ -315,7 +340,13 @@ export interface DeferredFinalFlushResult {
   dropped: number;
   /** Events still queued when `stop` returned: lost with the process (crash-loss limit). */
   remaining: number;
-  /** Why events remain (the store's reason code, or DEFERRED_AUDIT_FINAL_FLUSH_TIMEOUT / _DISABLED); null when the queue drained. */
+  /**
+   * `appendOrDefer` calls still running when `stop` sealed the queue (e.g. hung in the store): their
+   * events may be lost with the process; one that then fails is reported by the sealed queue only if
+   * it settles before the process exits.
+   */
+  inProgress: number;
+  /** Why events remain (the store's reason code, or DEFERRED_AUDIT_FINAL_FLUSH_TIMEOUT / _DISABLED); null when the queue drained and no append was in progress. */
   reasonCode: string | null;
 }
 
@@ -326,15 +357,19 @@ export interface DeferredFinalFlushResult {
  *  - Runs `queue.flush(limit)` every `intervalMs` on an unref'd setTimeout chain: at most one run at a
  *    time (no pile-up while the store is slow), and the timer never keeps the process alive.
  *  - A run never throws: a failing flush is logged with its reason code and the events stay queued.
- *  - `stop` (graceful shutdown, called once the listener closed and the requests it waited for
- *    finished) cancels the timer, waits for a run in progress, then drains the queue in bounded
- *    batches until it is empty or the store refuses; all of that within `finalFlushTimeoutMs`.
- *    Events still queued then are lost with the process (crash-loss limit) and are logged at error
- *    level with their count. The bound's own timer keeps the process alive until then, so the loss
- *    is logged even when the stuck flush holds no handle that would. In the same synchronous step
- *    that counts them, `stop` seals the queue: a request the shutdown force-closed may still reach
- *    `appendOrDefer` later, and each such event is reported lost by the queue itself
- *    (`audit.deferred.lost_at_shutdown`), never queued silently.
+ *  - `stop` (graceful shutdown, called once the process stopped taking work: in the gateway after its
+ *    listener closed and its request handlers settled or the wait for them expired) cancels the
+ *    timer, waits for a run in progress and for `appendOrDefer` calls in progress, then drains the
+ *    queue in bounded batches until it is empty or the store refuses; all of that within
+ *    `finalFlushTimeoutMs`. Events still queued then are lost with the process (crash-loss limit),
+ *    and appends still running may be; both are logged at error level with their counts
+ *    (`audit.deferred.unflushed_at_shutdown`, `remaining` and `inProgress`). The bound's own timer
+ *    keeps the process alive until then, so the loss is logged even when the stuck flush holds no
+ *    handle that would. In the same synchronous step that counts them, `stop` seals the queue: an
+ *    event that reaches `appendOrDefer` later and cannot be appended at once is reported lost by the
+ *    queue itself (`audit.deferred.lost_at_shutdown`), not queued. That report needs the caller to
+ *    reach the queue before the process exits: `stop` cannot see a caller that has not called
+ *    `appendOrDefer` yet (the caller's process must wait for its own work first; see server.ts).
  * Order and the `audit.deferred.recorded` markers are the queue's own (flush is FIFO and serialized),
  * and every run reports vsp_audit_deferred_depth.
  */
@@ -349,7 +384,7 @@ export class DeferredAuditFlushTimer {
   private stopping: Promise<DeferredFinalFlushResult> | null = null;
 
   constructor(
-    private readonly queue: Pick<DeferredAuditQueue, "flush" | "depth" | "seal">,
+    private readonly queue: Pick<DeferredAuditQueue, "flush" | "depth" | "seal" | "inProgress">,
     opts: DeferredAuditFlushTimerOptions = {},
   ) {
     this.logger = (opts.logger ?? silentLogger).child({ component: "audit_deferred_flush" });
@@ -408,9 +443,15 @@ export class DeferredAuditFlushTimer {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     const result = this.finalFlushTimeoutMs > 0 ? await this.finalFlush() : this.sealCounting(0, 0, "DEFERRED_AUDIT_FINAL_FLUSH_DISABLED");
-    if (result.remaining > 0) {
-      // Loud and content-free: this route evidence is lost when the process exits.
-      this.logger.error("audit.deferred.unflushed_at_shutdown", { remaining: result.remaining, written: result.written, dropped: result.dropped, reasonCode: result.reasonCode });
+    if (result.remaining > 0 || result.inProgress > 0) {
+      // Loud and content-free: this route evidence is lost (remaining) or may be lost (inProgress) when the process exits.
+      this.logger.error("audit.deferred.unflushed_at_shutdown", {
+        remaining: result.remaining,
+        inProgress: result.inProgress,
+        written: result.written,
+        dropped: result.dropped,
+        reasonCode: result.reasonCode,
+      });
     } else if (result.written + result.dropped > 0) {
       this.logger.warn("audit.deferred.final_flush", { written: result.written, dropped: result.dropped });
     }
@@ -423,7 +464,9 @@ export class DeferredAuditFlushTimer {
     const drain = (async () => {
       // A timer run still in progress counts toward the bound (a hung store must not stall shutdown).
       await this.running;
-      while (!expired && this.queue.depth > 0) {
+      // An append still in progress is waited for too: `flush` is serialized behind it, so it is
+      // written, or queued and then flushed here, or still running when the bound expires (counted).
+      while (!expired && (this.queue.depth > 0 || this.queue.inProgress > 0)) {
         const r = await this.runOnce();
         done.written += r.written;
         done.dropped += r.dropped;
@@ -431,6 +474,7 @@ export class DeferredAuditFlushTimer {
           done.reasonCode = r.reasonCode;
           return;
         }
+        // Nothing was queued once the appends it waited for returned; a later one is counted at the seal.
         if (r.written + r.dropped === 0) return;
       }
     })();
@@ -448,18 +492,22 @@ export class DeferredAuditFlushTimer {
       expired = true;
       done.reasonCode = "DEFERRED_AUDIT_FINAL_FLUSH_TIMEOUT";
     }
-    return this.sealCounting(done.written, done.dropped, done.reasonCode ?? "AUDIT_DEFERRED_QUEUE_PENDING");
+    return this.sealCounting(done.written, done.dropped, done.reasonCode ?? (this.queue.depth > 0 ? "AUDIT_DEFERRED_QUEUE_PENDING" : "AUDIT_DEFERRED_APPEND_IN_PROGRESS"));
   }
 
-  /** Counts what is still queued and seals the queue in one synchronous step: every later event is reported by the queue. */
+  /**
+   * Counts what is still queued and the appends still running, and seals the queue, in one synchronous
+   * step: every later event that cannot be appended at once is reported by the queue itself.
+   */
   private sealCounting(written: number, dropped: number, reasonIfRemaining: string): DeferredFinalFlushResult {
     const remaining = this.queue.depth;
+    const inProgress = this.queue.inProgress;
     try {
       this.queue.seal();
     } catch (err) {
       // Never blocks the shutdown report; a later event could then be queued unreported, so say so.
       this.logger.error("audit.deferred.seal_failed", { reasonCode: reasonOf(err, "DEFERRED_AUDIT_SEAL_FAILED") });
     }
-    return { written, dropped, remaining, reasonCode: remaining > 0 ? reasonIfRemaining : null };
+    return { written, dropped, remaining, inProgress, reasonCode: remaining > 0 || inProgress > 0 ? reasonIfRemaining : null };
   }
 }

@@ -78,6 +78,31 @@ function recordingDb(inner: Db): { db: Db; txs: { sql: string; params: unknown[]
   return { db, txs };
 }
 
+/** The harness database with every statement matching `failing` rejected (an outage of that one read). */
+function failingDb(inner: Db, failing: RegExp): Db {
+  const fail = <R>(sql: string, run: () => Promise<QueryResult<R>>): Promise<QueryResult<R>> => (failing.test(sql) ? Promise.reject(new Error("DB_UNAVAILABLE")) : run());
+  return {
+    engine: inner.engine,
+    query<T>(sql: string, params?: unknown[]): Promise<QueryResult<T>> {
+      return fail(sql, () => inner.query<T>(sql, params));
+    },
+    exec: (sql: string) => inner.exec(sql),
+    close: () => inner.close(),
+    tx<T>(fn: (tx: Queryable) => Promise<T>, opts?: TxOptions): Promise<T> {
+      return inner.tx(
+        (q) =>
+          fn({
+            query<R>(sql: string, params?: unknown[]): Promise<QueryResult<R>> {
+              return fail(sql, () => q.query<R>(sql, params));
+            },
+            exec: (sql: string) => q.exec(sql),
+          }),
+        opts,
+      );
+    },
+  };
+}
+
 /** Verified reschedule of Avery's appointment: prepare -> trusted confirmation -> commit. Returns the receipt id. */
 async function commitReschedule(auth: AuthContext, slot: (typeof SLOTS)[number] = SLOTS[0] as (typeof SLOTS)[number]): Promise<{ actionId: string; receiptId: string }> {
   const appointment = APPOINTMENTS[0] as (typeof APPOINTMENTS)[number];
@@ -407,6 +432,52 @@ describe("repeat contact", () => {
     await record(mixed, { informationProvided: true }, { subjectRef: PEOPLE.blake.subjectId as string });
     expect(checks("subject_ambiguous")).toBe(1);
     expect(await subjectRefOf(mixed.callId)).toEqual([null]);
+  });
+
+  it("[SPEC-13.resolution-metrics][ACT-04] a failed subject lookup (support-request links unreadable) never blocks the outcome: it is recorded with no subject and the check is check_failed", async () => {
+    const svc = new BusinessOutcomeService({ ...h.deps, db: failingDb(h.deps.db, /from support_requests/) }, new InteractionIndex(h.deps.db, h.deps.clock));
+    const auth = await verifiedCall(PEOPLE.avery, "SubjectLookupDown");
+    // Even the trusted session subject is not stored: the unread links could name another subject.
+    const d = await svc.record({ tenantId: auth.tenantId, callId: auth.callId, contractId: "invoice_explanation@1", evidence: { ...NONE, informationProvided: true }, subjectRef: auth.subjectId });
+    expect(d).toEqual({ outcome: "INFORMATION_PROVIDED", reasonCode: "INFORMATION_PROVIDED" });
+    expect(await subjectRefOf(auth.callId)).toEqual([null]);
+    expect(h.metrics.counterValue("vsp_interaction_outcomes_total", { outcome: "INFORMATION_PROVIDED", intent: "invoice_explanation" })).toBe(1);
+    expect(h.metrics.counterValue("vsp_contained_interactions_total")).toBe(1);
+    expect(checks("check_failed")).toBe(1);
+    expect(h.metrics.counterValue("vsp_repeat_contact_checks_total")).toBe(1);
+  });
+
+  it("[SPEC-13.resolution-metrics][AUTH-02] an unreadable ledger entry makes the subject undeterminable (check_failed, stored null), never guessed from the trusted subject or the support-request links", async () => {
+    const auth = await verifiedCall(PEOPLE.avery, "LedgerDown");
+    await prepareReschedule(auth);
+    const actions = { get: () => Promise.reject(new Error("LEDGER_UNAVAILABLE")) } as unknown as ToolDeps["actions"];
+    const svc = new BusinessOutcomeService({ ...h.deps, actions }, new InteractionIndex(h.deps.db, h.deps.clock));
+    // The same unreadable entry also leaves the call's commit unsettled (ACT-03), never INFORMATION_PROVIDED.
+    expect(await svc.record({ tenantId: auth.tenantId, callId: auth.callId, contractId: null, evidence: { ...NONE, informationProvided: true }, subjectRef: auth.subjectId })).toEqual({
+      outcome: "OUTCOME_UNKNOWN",
+      reasonCode: "COMMIT_OUTCOME_UNKNOWN",
+    });
+    expect(await subjectRefOf(auth.callId)).toEqual([null]);
+    expect(checks("check_failed")).toBe(1);
+    expect(h.metrics.counterValue("vsp_repeat_contact_checks_total")).toBe(1);
+  });
+
+  it("[SPEC-13.resolution-metrics][DATA-01] a failed prior-contact lookup is check_failed, never first_contact, and is logged without identifiers", async () => {
+    const { logger, records } = createMemoryLogger();
+    const svc = new BusinessOutcomeService({ ...h.deps, db: failingDb(h.deps.db, /cross join lateral/), logger }, new InteractionIndex(h.deps.db, h.deps.clock));
+    const auth = await verifiedCall(PEOPLE.avery, "PriorLookupDown");
+    const d = await svc.record({ tenantId: auth.tenantId, callId: auth.callId, contractId: null, evidence: { ...NONE, informationProvided: true }, subjectRef: auth.subjectId });
+    expect(d.outcome).toBe("INFORMATION_PROVIDED");
+    // The subject was determinable; only the prior-contact read failed.
+    expect(await subjectRefOf(auth.callId)).toEqual([PEOPLE.avery.subjectId]);
+    expect(checks("check_failed")).toBe(1);
+    expect(checks("first_contact")).toBe(0);
+    expect(checks("repeat")).toBe(0);
+    expect(repeats()).toBe(0);
+    expect(records.find((rec) => rec.event === "business.outcome.repeat_contact_check_failed")?.level).toBe("warn");
+    // DATA-01: the log line names no call or subject.
+    expect(JSON.stringify(records)).not.toContain(auth.callId);
+    expect(JSON.stringify(records)).not.toContain(PEOPLE.avery.subjectId);
   });
 
   it("[SPEC-13.resolution-metrics][DATA-01] the console role reads a call's outcome but never its subject reference; the runtime and worker roles do", async () => {

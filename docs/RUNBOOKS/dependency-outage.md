@@ -15,6 +15,7 @@
 * Dashboard `<prefix>-tools-dependencies`: dependency errors (`vsp_dependency_errors_total`), dependency health, circuit transitions (`vsp_circuit_transitions_total`), bulkhead rejections.
 * Dashboard `<prefix>-crm-reconciliation`: CRM reconciliation failures and sync lag (Salesforce).
 * Aurora or DynamoDB errors and throttles (dashboard `<prefix>-platform`).
+* `<prefix>-waf-tool-path-rate-observed` alarm (medium): a source exceeded the edge rate limit on the tool-caller paths (`/mcp`, `/telephony/`), where the WAF rule only counts (WAF metric `<prefix>-rate-observe-tool-paths`). See [Edge rate limit on the tool-caller paths](#edge-rate-limit-on-the-tool-caller-paths).
 
 ## Immediate containment
 
@@ -22,6 +23,12 @@
 2. Circuit breakers and bulkheads isolate the failing dependency automatically; do not add manual retries on top of automatic ones (no retry stacking).
 3. Engage `INTEGRATION` for the failing integration if it flaps; engage `WRITES` if the business ledger (Aurora) is impaired — a database outage blocks protected reads and writes while the telephone route stays usable.
 4. Load-shed noncritical analytics and model work first (admission degradation levels in `platform/src/ops`).
+
+## Edge rate limit on the tool-caller paths
+
+* On `/mcp` and `/telephony/` the edge rate limit is counted, never enforced, so that safety and human-route calls are never blocked at the edge (SAFE-02, SAFE-03, [ADR-0012](../adr/ADR-0012-safety-routes-exempt-from-limits.md)). The gateway still authenticates every request there and meters every non-safety tool call per call and per integration.
+* Find the source IP in the WAF logs (redacted, VSP-INF-01) and check it against the Talkdesk egress inventory (VQ-TD-45, capability gate MC-09; not published yet). A Talkdesk source is a capacity question: compare with gateway `429` responses and the admission dashboard, and raise it with SRE and the vendor; do not lower the limit. An unknown source is possible abuse (T-19): check gateway authentication failures for that source and window and escalate to security on-call ([authentication-bypass.md](authentication-bypass.md)). Once the egress inventory exists, `supplemental_allowlist_cidrs` blocks every other source (a reviewed Terraform change).
+* **Never switch this rule to Block, Captcha or Challenge**, and never add a label-based or rule-group block on these paths: it would stop safety and human-route calls, and the `WAF-RATE` policy gate refuses such a plan.
 
 ## Salesforce outage specifically
 

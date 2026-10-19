@@ -2,32 +2,12 @@
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 90,
+      "row": 888,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_log_group_without_cmk_denied",
-    "duration": 13497237
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 121,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_alb_https_ingress_allowed",
-    "duration": 18032676
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 65,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_bucket_without_encryption_denied",
-    "duration": 11989230
+    "name": "test_deleted_resources_are_ignored",
+    "duration": 8384681
   },
   {
     "location": {
@@ -37,327 +17,7 @@
     },
     "package": "data.vsp.terraform_test",
     "name": "test_unencrypted_rds_denied",
-    "duration": 27983991
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 59,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_public_bucket_policy_denied",
-    "duration": 41408833
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 80,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_queue_without_cmk_denied",
-    "duration": 13377692
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 69,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_sse_s3_without_exception_denied",
-    "duration": 33535605
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 74,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_sse_s3_with_service_exception_allowed",
-    "duration": 38502643
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 85,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_wired_cmk_accepted_when_unknown",
-    "duration": 26204646
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 38,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_compliant_bucket_passes",
-    "duration": 39579921
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 43,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_bucket_without_public_access_block_denied",
-    "duration": 40095302
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 54,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_public_acl_denied",
-    "duration": 26092128
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 100,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_kms_key_without_rotation_denied",
-    "duration": 5235133
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 110,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_legacy_tls_policy_denied",
-    "duration": 13171779
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 47,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_partial_public_access_block_denied",
-    "duration": 35873052
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 105,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_plain_http_listener_denied",
-    "duration": 11819209
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 135,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_ipv6_open_ingress_denied",
-    "duration": 7027600
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 125,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_open_ssh_denied",
-    "duration": 18228609
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 130,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_untagged_open_443_denied",
-    "duration": 17795218
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 148,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_public_task_ip_denied",
-    "duration": 2951813
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 164,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_dynamodb_without_pitr_denied",
-    "duration": 13664990
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 158,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_public_database_denied",
-    "duration": 15353393
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 140,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_http_redirect_ingress_allowed_only_for_redirect_listener",
-    "duration": 36999872
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 153,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_second_internet_facing_lb_denied",
-    "duration": 26426228
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 181,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_dynamodb_compliant",
-    "duration": 9569012
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 169,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_dynamodb_replica_without_pitr_denied",
-    "duration": 15439617
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 187,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_queue_without_dlq_denied",
-    "duration": 15682969
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 197,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_unbounded_redrive_denied",
-    "duration": 12877681
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 192,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_dlq_itself_needs_no_redrive",
-    "duration": 21014499
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 217,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_audit_bucket_without_lock_configuration_denied",
-    "duration": 16565724
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 221,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_audit_bucket_without_object_lock_denied",
-    "duration": 24164263
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 213,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_audit_bucket_compliant",
-    "duration": 40708403
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 226,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_audit_bucket_zero_retention_denied",
-    "duration": 43693650
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 231,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_audit_bucket_unversioned_denied",
-    "duration": 44595122
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 250,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_sfn_logging_off_denied",
-    "duration": 6496251
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 242,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_sfn_compliant",
-    "duration": 23302960
+    "duration": 10338841
   },
   {
     "location": {
@@ -367,107 +27,117 @@
     },
     "package": "data.vsp.terraform_test",
     "name": "test_sfn_execution_data_denied",
-    "duration": 18851622
+    "duration": 11056786
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 264,
+      "row": 38,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_email_in_name_denied",
-    "duration": 3709706
+    "name": "test_compliant_bucket_passes",
+    "duration": 15783253
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 275,
+      "row": 43,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_public_trust_denied",
-    "duration": 13237870
+    "name": "test_bucket_without_public_access_block_denied",
+    "duration": 17008300
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 254,
+      "row": 47,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_sfn_express_denied",
-    "duration": 22650579
+    "name": "test_partial_public_access_block_denied",
+    "duration": 17006769
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 259,
+      "row": 54,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_phone_number_in_alarm_text_denied",
-    "duration": 23944890
+    "name": "test_public_acl_denied",
+    "duration": 12599875
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 270,
+      "row": 65,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_iam_star_action_denied",
-    "duration": 21985263
+    "name": "test_bucket_without_encryption_denied",
+    "duration": 14225501
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 295,
+      "row": 69,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_github_environment_only_subject_denied",
-    "duration": 31167891
+    "name": "test_sse_s3_without_exception_denied",
+    "duration": 11987335
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 305,
+      "row": 59,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_github_wildcard_subject_denied",
-    "duration": 29511034
+    "name": "test_public_bucket_policy_denied",
+    "duration": 21715811
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 300,
+      "row": 85,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_github_wildcard_workflow_ref_denied",
-    "duration": 34118785
+    "name": "test_wired_cmk_accepted_when_unknown",
+    "duration": 3469693
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 289,
+      "row": 74,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_github_exact_subject_allowed",
-    "duration": 44147498
+    "name": "test_sse_s3_with_service_exception_allowed",
+    "duration": 13225378
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 309,
+      "row": 80,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_github_branch_subject_denied",
-    "duration": 20962297
+    "name": "test_queue_without_cmk_denied",
+    "duration": 8065217
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 513,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_custom_rule_group_denied",
+    "duration": 63291931
   },
   {
     "location": {
@@ -477,17 +147,127 @@
     },
     "package": "data.vsp.terraform_test",
     "name": "test_waf_logging_without_query_string_denied",
-    "duration": 16395255
+    "duration": 8698585
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 344,
+      "row": 90,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_waf_logging_uppercase_header_does_not_count",
-    "duration": 6541977
+    "name": "test_log_group_without_cmk_denied",
+    "duration": 11713942
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 250,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_sfn_logging_off_denied",
+    "duration": 7718439
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 259,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_phone_number_in_alarm_text_denied",
+    "duration": 5032443
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 254,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_sfn_express_denied",
+    "duration": 6724300
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 264,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_email_in_name_denied",
+    "duration": 11590758
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 270,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_iam_star_action_denied",
+    "duration": 13299207
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 275,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_public_trust_denied",
+    "duration": 10171132
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 289,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_github_exact_subject_allowed",
+    "duration": 13914452
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 295,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_github_environment_only_subject_denied",
+    "duration": 12835433
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 309,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_github_branch_subject_denied",
+    "duration": 6120809
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 305,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_github_wildcard_subject_denied",
+    "duration": 12235240
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 300,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_github_wildcard_workflow_ref_denied",
+    "duration": 21569204
   },
   {
     "location": {
@@ -497,7 +277,7 @@
     },
     "package": "data.vsp.terraform_test",
     "name": "test_waf_logging_with_all_redactions_passes",
-    "duration": 27540989
+    "duration": 11407806
   },
   {
     "location": {
@@ -507,127 +287,357 @@
     },
     "package": "data.vsp.terraform_test",
     "name": "test_waf_logging_without_session_ref_denied",
-    "duration": 38221867
+    "duration": 12092625
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 352,
+      "row": 187,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_queue_without_dlq_denied",
+    "duration": 10716245
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 100,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_kms_key_without_rotation_denied",
+    "duration": 3027609
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 105,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_plain_http_listener_denied",
+    "duration": 6476736
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 125,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_open_ssh_denied",
+    "duration": 8109330
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 110,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_legacy_tls_policy_denied",
+    "duration": 10282178
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 130,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_untagged_open_443_denied",
+    "duration": 7418325
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 121,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_alb_https_ingress_allowed",
+    "duration": 13023921
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 135,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_ipv6_open_ingress_denied",
+    "duration": 6845837
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 148,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_public_task_ip_denied",
+    "duration": 8702176
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 153,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_second_internet_facing_lb_denied",
+    "duration": 9789168
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 158,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_public_database_denied",
+    "duration": 7873944
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 164,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_dynamodb_without_pitr_denied",
+    "duration": 3958325
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 169,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_dynamodb_replica_without_pitr_denied",
+    "duration": 7144629
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 140,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_http_redirect_ingress_allowed_only_for_redirect_listener",
+    "duration": 21816315
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 181,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_dynamodb_compliant",
+    "duration": 7097924
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 360,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_block_outside_tool_paths_and_count_on_them_passes",
+    "duration": 10977012
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 369,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_unscoped_block_denied",
+    "duration": 14765079
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 344,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_logging_uppercase_header_does_not_count",
+    "duration": 20446989
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 378,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_unscoped_count_allowed",
+    "duration": 9734760
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 392,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_positive_scope_elsewhere_allowed",
+    "duration": 29516368
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 383,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_partial_exclusion_denied",
+    "duration": 12372866
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 192,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_dlq_itself_needs_no_redrive",
+    "duration": 9694255
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 197,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_unbounded_redrive_denied",
+    "duration": 9485887
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 213,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_audit_bucket_compliant",
+    "duration": 17880715
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 400,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_undecidable_scope_denied",
+    "duration": 35961720
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 450,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_re2_uncompilable_repeat_is_undecidable",
+    "duration": 12581097
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 231,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_audit_bucket_unversioned_denied",
+    "duration": 14182064
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 217,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_audit_bucket_without_lock_configuration_denied",
+    "duration": 11773739
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 434,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_re2_invalid_pattern_is_undecidable",
+    "duration": 68926425
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 411,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_any_action_but_count_is_blocking",
+    "duration": 86682189
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 221,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_audit_bucket_without_object_lock_denied",
+    "duration": 18498967
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 467,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_non_portable_regex_is_undecidable",
+    "duration": 95065474
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 226,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_audit_bucket_zero_retention_denied",
+    "duration": 19373549
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 543,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
     "name": "test_iam_evaluator_bool_semantics",
-    "duration": 28589891
+    "duration": 12840265
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 367,
+      "row": 531,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_iam_evaluator_semantics",
-    "duration": 60600080
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 461,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_ci_boundary_without_self_requirement_denied",
-    "duration": 56516843
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 440,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_ci_boundary_compliant",
-    "duration": 754267388
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 445,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_ci_boundary_before_fix_denied",
-    "duration": 789706468
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 468,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_ci_boundary_round1_export_and_sharing_denied",
-    "duration": 924555459
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 505,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_ci_boundary_keeps_deploy_paths",
-    "duration": 276139834
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 535,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_plan_role_state_write_denied",
-    "duration": 104754969
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 541,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_plan_role_lock_only_allowed",
-    "duration": 48205860
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 545,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_apply_role_wildcard_s3_needs_explicit_delete_deny",
-    "duration": 88519211
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 552,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_apply_role_state_delete_denied",
-    "duration": 62419779
-  },
-  {
-    "location": {
-      "file": "terraform_test.rego",
-      "row": 565,
-      "col": 1
-    },
-    "package": "data.vsp.terraform_test",
-    "name": "test_ci_identity_creation_and_other_modules_allowed",
-    "duration": 29416613
+    "name": "test_waf_rate_rule_blocks_denied",
+    "duration": 14572702
   },
   {
     "location": {
@@ -636,47 +646,237 @@
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_ci_identity_change_denied",
-    "duration": 37138566
+    "name": "test_iam_evaluator_semantics",
+    "duration": 25839554
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 578,
+      "row": 653,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
-    "name": "test_deleted_resources_are_ignored",
-    "duration": 17401953
+    "name": "test_ci_boundary_without_self_requirement_denied",
+    "duration": 14841151
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 574,
+      "row": 637,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_ci_boundary_before_fix_denied",
+    "duration": 261189163
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 632,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_ci_boundary_compliant",
+    "duration": 294020168
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 660,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_ci_boundary_round1_export_and_sharing_denied",
+    "duration": 329887839
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 726,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_ci_boundary_object_acl_exemption_reported",
+    "duration": 363552285
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 242,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_sfn_compliant",
+    "duration": 4302161
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 491,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_waf_rate_label_chain_denied",
+    "duration": 59750926
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 682,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_ci_boundary_object_acls_probed",
+    "duration": 587749505
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 769,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_ci_boundary_keeps_deploy_paths",
+    "duration": 88910034
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 799,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_plan_role_state_write_denied",
+    "duration": 26348219
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 805,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_plan_role_lock_only_allowed",
+    "duration": 19083211
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 712,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_ci_boundary_s3_probes_name_the_authorized_resource",
+    "duration": 704940432
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 816,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_apply_role_state_delete_denied",
+    "duration": 17231345
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 809,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_apply_role_wildcard_s3_needs_explicit_delete_deny",
+    "duration": 34396644
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 829,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_ci_identity_creation_and_other_modules_allowed",
+    "duration": 11985563
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 822,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_ci_identity_change_denied",
+    "duration": 19458409
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 855,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_kms_key_policy_with_explicit_admin_actions_passes",
+    "duration": 13121705
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 860,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_kms_admin_create_wildcard_denied",
+    "duration": 12746466
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 884,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
     "name": "test_summary_reports_fail",
-    "duration": 21537217
+    "duration": 7753817
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 497,
+      "row": 867,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_kms_create_grant_without_aws_resource_condition_denied",
+    "duration": 47432986
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 876,
+      "col": 1
+    },
+    "package": "data.vsp.terraform_test",
+    "name": "test_kms_create_grant_scoped_to_aws_resources_allowed",
+    "duration": 27300597
+  },
+  {
+    "location": {
+      "file": "terraform_test.rego",
+      "row": 761,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
     "name": "test_ci_boundary_each_deny_is_needed",
-    "duration": 3294311088
+    "duration": 1529726892
   },
   {
     "location": {
       "file": "terraform_test.rego",
-      "row": 485,
+      "row": 749,
       "col": 1
     },
     "package": "data.vsp.terraform_test",
     "name": "test_ci_boundary_each_export_is_needed",
-    "duration": 4348479307
+    "duration": 2670295290
   }
 ]

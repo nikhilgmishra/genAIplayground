@@ -159,9 +159,11 @@ Design (fail-safe):
   backslash before a letter or digit. In that subset RE2 and AWS WAF's PCRE agree on the fixed
   ASCII probe paths. Any other pattern is undecidable, like every other statement, and counts as
   possibly matching (fail closed). That covers a PCRE lookahead or backreference, which RE2
-  rejects and AWS WAF can accept, and a pattern both accept but match differently: under
-  `(?i)` RE2 folds U+017F (long s) to `s`, PCRE matching byte-wise does not, so an exclusion
-  would hold in OPA only.
+  rejects and AWS WAF can accept; a repeat count above 1000 (`x{0,1001}`), which RE2 rejects
+  and PCRE accepts, in a pattern that passes every other filter, so the RE2 compile check alone
+  catches it (`test_waf_rate_re2_uncompilable_repeat_is_undecidable`); and a pattern both
+  accept but match differently: under `(?i)` RE2 folds U+017F (long s) to `s`, PCRE matching
+  byte-wise does not, so an exclusion would hold in OPA only.
 * The same rule closes three indirect ways to rate-block the safety paths:
   * A rate-based rule with any action, Count included, can label the requests over its limit
     (`RuleLabels`), and a later rule can block on that label (`LabelMatchStatement`).

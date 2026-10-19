@@ -10,9 +10,9 @@ It records what is being done and where; results live in the evidence and status
 |---|---|
 | Follow-on prompt (verbatim, 1 536 lines) | [`../spec/voice-support-followon-specification.txt`](../spec/voice-support-followon-specification.txt) |
 | Original specification (verbatim) | [`../spec/voice-support-specification.txt`](../spec/voice-support-specification.txt) |
-| Requirement extraction (machine-readable) | [`requirements.yaml`](requirements.yaml) (FO-* ids, mapped to the original ids) |
-| Gap ledger | [`gap-ledger.yaml`](gap-ledger.yaml) and [`../GAP_CLOSURE.md`](../GAP_CLOSURE.md) |
-| Work packages, dependencies, file ownership | [`work-packages.yaml`](work-packages.yaml) |
+| Requirement extraction (machine-readable) | `docs/followon/requirements.yaml` (Phase A output) (FO-* ids, mapped to the original ids) |
+| Gap ledger | `docs/followon/gap-ledger.yaml` and `docs/GAP_CLOSURE.md` (Phase A output) |
+| Work packages, dependencies, file ownership | `docs/followon/work-packages.yaml` (Phase A output) |
 
 Precedence (prompt section 0 and 22): the follow-on prompt supersedes the earlier preference to defer a
 custom speech runtime and a bounded agent harness; the 27 invariant ids keep their meaning; the offline

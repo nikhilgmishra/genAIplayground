@@ -101,6 +101,13 @@ const HUMAN = [
   /\bconnect me (to|with) (someone|somebody|a person)\b/i,
 ];
 const ACK = /^(\W*)(thanks|thank you|okay|ok|fine|great|sure|yes|yeah|no|right|got it|alright)\b|\b(that'?s all|that'?s what i needed|makes sense|thank you|thanks)\b/i;
+const ACK_TERM = "(thanks|thank you)( so much| very much| a lot)?|okay|ok|fine|great|perfect|sure|yes|yeah|no|right|got it|alright|that'?s (all|it)( i needed| for now| for today)?|that'?s what i needed|makes sense|bye|goodbye";
+/**
+ * A WHOLE utterance that only acknowledges ("Thanks.", "Okay, great.", "No, that's all, thank you."): it asks for
+ * nothing. ACK also matches a request that merely STARTS with an acknowledgement ("Okay, can you give me the
+ * reference number again?"); where skipping a turn would leave a request unanswered, only this may skip it.
+ */
+const ACK_ONLY = new RegExp(`^\\W*(${ACK_TERM})(\\W+(${ACK_TERM}))*\\W*$`, "i");
 /** An opening-hours question (A0 public information). */
 const HOURS = /\b(hours|open on weekends|when you'?re open|when are you open|when do you open|what time (do|are) you (open|close)|what time (are you|is the office) open|reach somebody)\b/;
 /** An EXPLICIT hours question: it outranks a bare billing mention in the same utterance ("on hold for hours about my bill" does not). */
@@ -789,10 +796,11 @@ export class SimulatedCoordinator {
         if (this.reviewSubmitted) {
           // After a submitted review a turn is a follow-up ("the reference again?"), never a new review: answered by
           // the backend-authorized read (the backend renders the recap; the coordinator composes nothing). A new
-          // intent goes to classification like any other skill's follow-up.
+          // intent goes to classification like any other skill's follow-up. Only a turn that is nothing but an
+          // acknowledgement ("Thanks.") is left unanswered; "Okay, what was the reference again?" is still a request.
           const again = this.classify(t);
           if (again && again.skill !== c.skill && again.skill !== "faq") return false;
-          if (!ACK.test(t)) await this.call("get_authorized_case_status", { supportReference: null }, this.presented());
+          if (!ACK_ONLY.test(t)) await this.call("get_authorized_case_status", { supportReference: null }, this.presented());
           return true;
         }
         if (!this.pendingAction && this.invoiceId) {

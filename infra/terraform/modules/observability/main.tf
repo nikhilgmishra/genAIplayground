@@ -236,7 +236,7 @@ locals {
       severity    = "high"
     }
     audit-deferred-dropped = {
-      description = "A handoff route audit event was dropped (deferred queue full, or the event was refused as invalid); that route evidence is lost. Runbook RB-AUDIT-GAP. Document every dropped event."
+      description = "A handoff route audit event was dropped (deferred queue full, the event was refused as invalid, or it reached the queue after a graceful shutdown sealed it); that route evidence is lost. Runbook RB-AUDIT-GAP. Document every dropped event."
       metric      = "vsp_audit_deferred_total"
       dims        = { result = "dropped" }
       stat        = "Sum"

@@ -88,6 +88,31 @@ describe("SimulatedCoordinator — keyword rules (LOCAL FIXTURE; not model evalu
     }
   });
 
+  it("[SAFE-02] [SPEC-14.intent-corpus] the attendance guard: a non-attendance WITH an explicit time next to a guarded word (anymore, on my own, much longer, through, this far) is screened, no tool, reported uninterpreted", async () => {
+    // Each line's first clause alone is the cancellation handoff, so the time phrase matched and only the guard keeps
+    // the line out of the administrative path. The backend screen may raise no signal for lines like these (the fake
+    // screen here never does), which is why the coordinator must not read them as an appointment request.
+    const lines = [
+      "I can't make it next week, I can't manage on my own anymore.",
+      "I can't make it tomorrow, I can't keep up anymore.",
+      "I can't make it next week, I'm on my own with all of it.",
+      "I won't be able to make it tomorrow, I don't know how much longer I can keep going.",
+      "I can't make it today, I'm not sure I'll get through the week.",
+      "I'm not going to make it on Friday, I never thought it would get this far.",
+    ];
+    for (const line of lines) {
+      const clause = coordinatorFor("client");
+      await clause.say(`${line.split(",")[0] ?? line}.`);
+      expect(clause.s.calls, line).toEqual(["select_role:client", "begin_verification"]);
+
+      const { s, c, say } = coordinatorFor("client");
+      await say(line);
+      expect(s.screenings, line).toHaveLength(1);
+      expect(s.calls, line).toEqual([]);
+      expect(c.unsupported(), line).toEqual(["COORDINATOR_COULD_NOT_INTERPRET_TURNS:0"]);
+    }
+  });
+
   it("[SPEC-4.workflow-catalogue] a stated non-attendance with an explicit time is the cancellation handoff: verification, then a person, never a mutation", async () => {
     const { s, say, approve } = coordinatorFor("client");
     await say("I'm not going to be able to make it next week after all.");

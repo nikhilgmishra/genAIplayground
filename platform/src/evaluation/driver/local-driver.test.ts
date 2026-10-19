@@ -695,6 +695,33 @@ describe("LocalConversationDriver — simulated coordinator keyword rules (LOCAL
     TIMEOUT,
   );
 
+  // Only a turn that is NOTHING but an acknowledgement goes unanswered; a request that starts with "Okay" or "Yes"
+  // is still a request (a leading-word test dropped it silently: no tool, no speech, not reported, run PASS).
+  for (const [line, answered] of [
+    ["Okay, can you give me the reference number again?", true],
+    ["Yes, what was the reference number again?", true],
+    ["Thanks.", false],
+  ] as const) {
+    it(
+      `[ACT-04] [DATA-04] after a submitted billing review ${JSON.stringify(line)} ${answered ? "is answered by the backend-authorized case read" : "is only an acknowledgement: no read, nothing spoken"}`,
+      async () => {
+        const base = scenario("scn_risk_duplicate_webhook_002");
+        const last = base.script.length - 1;
+        expect(base.script[last]?.speaker).toBe("caller");
+        const s: ScenarioDefinition = { ...base, scenarioId: "scn_test_followup_after_review", script: base.script.map((t, i) => (i === last ? { ...t, text: line } : t)) };
+        const r = await run(s);
+        expect(r.call.tools.filter((t) => t.name === "submit_billing_review").map((t) => t.status)).toEqual(["SUCCESS"]);
+        expect(r.call.tools.filter((t) => t.turnIndex === last).map((t) => `${t.name}:${t.status}`)).toEqual(answered ? ["get_authorized_case_status:SUCCESS"] : []);
+        expect(r.call.spoken.filter((l) => l.turnIndex === last).map((l) => l.templateId)).toEqual(answered ? ["case.recap_open_issue"] : []);
+        expect(r.call.screenings.map((x) => x.turnIndex)).toEqual(callerTurns(s));
+        expect(r.evidence.unsupported).toEqual([]);
+        expect(r.call.details.ledger.map((l) => `${l.kind}:${l.state}:${l.effectCount}`)).toEqual(["billing.review.submit:COMMITTED:1"]);
+        expect(r.result.verdict).toBe("PASS");
+      },
+      TIMEOUT,
+    );
+  }
+
   for (const id of ["scn_risk_safety_negation_005", "scn_risk_safety_idiom_009"]) {
     it(
       `[SPEC-4.workflow-catalogue] [SAFE-02] ${id}: the hours question outranks the billing mention (no role asked), after the screen ran on the turn and found no signal`,

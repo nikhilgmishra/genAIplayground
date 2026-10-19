@@ -76,8 +76,18 @@ The worker entry point is `platform/src/worker/main.ts`.
   storage exists) and `privacy.egressReport`.
 * **Deferred route audit** (`platform/src/audit/deferred.ts`): `deferredAudit` is passed to the business
   layer as `ToolDeps.deferredAudit`; handoff audit events that cannot be written during an audit
-  outage are appended in order by the worker loop `audit.deferred_flush` (process-local, bounded;
-  never for mutations).
+  outage are queued in the process that served the call (process-local, bounded; never for
+  mutations) and appended in order by that process: the worker loop `audit.deferred_flush` in the
+  worker and local compositions, and `DeferredAuditFlushTimer` in the gateway-only entry point
+  (`server.ts`, which runs no worker loops; every 5 s, at most 100 events per run). Graceful
+  shutdown of `server.ts`, in order: stop accepting connections and wait for open responses
+  (bounded, 5 s); close the app, which force-closes the rest; wait for route handlers still running
+  (bounded, 10 s; `server.shutdown_handlers_unsettled` at error level when it expires); one final
+  flush (bounded, 5 s) that waits for appends in progress, logs `audit.deferred.unflushed_at_shutdown`
+  (`remaining`, `inProgress`) and seals the queue, so a later event is reported as
+  `audit.deferred.lost_at_shutdown`; then the database closes. The three bounds together are at
+  most 25 s (ECS stop timeout 30 s). The worker and local entry points run no final flush and do
+  not seal.
 * **Console**: `ConsoleApiDeps.reconciledRetry` = `LedgerReconciledRetry(c.actions, c.business.providers)`.
 
 ## End-to-end journeys
