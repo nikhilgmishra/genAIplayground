@@ -1,0 +1,554 @@
+# Follow-on requirement source records, prompt section 21. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '21'
+requirements:
+- id: FO-21-01
+  section: '21'
+  kind: constraint
+  text: Finish the deployable software, integrate modules, run checks and fix failures; do not stop at architecture, added tests, passing fixtures or missing credentials.
+  acceptance: Live composition starts and journeys pass on composed stack.
+  originalIds:
+  - SPEC-16.offline-first
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/main/container.ts:309-313
+  - 'README.md (''Status: IMPLEMENTED_OFFLINE only'')'
+  gap: Product remains a fixture slice.
+  remediation: Phases B-G.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+- id: FO-21-02
+  section: '21'
+  kind: operations
+  text: Deliver the actual release bundle plus executable external qualification/activation steps.
+  acceptance: Bundle and commands exist and are documented.
+  originalIds:
+  - SPEC-16.release-manifest
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - see FO-19-98, FO-19-40
+  gap: Neither exists.
+  remediation: build-release and activation register commands.
+  size: L
+  environmentDependency: none
+  workPackage: WP-40
+  provenance:
+    origin: extraction
+- id: FO-21-03
+  section: '21'
+  kind: software
+  text: Software completion requires functional production composition.
+  acceptance: As FO-19-06.
+  originalIds:
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/main/container.ts:309-313
+  gap: Refused.
+  remediation: FO-19-06.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-07
+  provenance:
+    origin: extraction
+- id: FO-21-04
+  section: '21'
+  kind: software
+  text: Software completion requires documented real voice/model routes.
+  acceptance: Documented, tested model and voice routes.
+  originalIds:
+  - SPEC-11.voice-selection
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no model or TTS/ASR adapter in platform/src
+  gap: Absent.
+  remediation: FO-19-09/10.
+  size: XL
+  environmentDependency: model/voice credentials
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+- id: FO-21-05
+  section: '21'
+  kind: software
+  text: Software completion requires real connector transports and configurable domain contracts.
+  acceptance: As FO-19-08/21.
+  originalIds:
+  - SPEC-16.integration-records
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/business-systems-blocked.ts
+  - platform/src/adapters/live/salesforce-rest-support-records.ts (only real business transport)
+  gap: Mostly blocked stubs.
+  remediation: Connector framework.
+  size: XL
+  environmentDependency: tenant system specs
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-21-06
+  section: '21'
+  kind: software
+  text: Software completion requires durable context, case, action and audit.
+  acceptance: All four durable on PostgreSQL with tested recovery.
+  originalIds:
+  - OPS-01
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0100_action_ledger.sql, 0110_outbox.sql, 0201_audit_evidence.sql, 0300_support_requests.sql, 0401_workflows.sql
+  - platform/src/actions/action-service.reconciliation.test.ts
+  gap: Context engine missing; tested on PGlite only.
+  remediation: Requires FO-19-15 (context store) plus Postgres-container tests for the ledger, outbox, support requests, workflows and audit (crash-after-commit with `docker kill`, concurrent workers on a real pool). Add a durable deferred-audit table (migration 02xx) that replaces the in-memory queue.
+  size: L
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-21-07
+  section: '21'
+  kind: software
+  text: Software completion requires complete operator surfaces.
+  acceptance: As FO-19-28/29.
+  originalIds:
+  - SPEC-13.console
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/navigation.ts:13-25
+  gap: Ops console only.
+  remediation: Onboarding/studio.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-21-08
+  section: '21'
+  kind: software
+  text: Software completion requires working packaging, migrations, rollback and privacy operations.
+  acceptance: Images build; migrations roll back; privacy-delete works.
+  originalIds:
+  - SPEC-15.rollback
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - operations.commands
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/Dockerfile (never built)
+  - platform/migrations (forward-only)
+  - platform/src/retention/job.ts (no subject deletion)
+  gap: Rollback and privacy operations absent.
+  remediation: FO-19-34/35, FO-19-83.
+  size: L
+  environmentDependency: none
+  workPackage: WP-41
+  provenance:
+    origin: extraction
+- id: FO-21-09
+  section: '21'
+  kind: evaluation
+  text: Software completion requires executed local verification.
+  acceptance: All local layers executed with recorded results.
+  originalIds:
+  - SPEC-14.test-layers
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - evidence/test-reports/vitest-platform.json (3350/3350)
+  - docs/TEST_EVIDENCE.md (OPA 225/225, Terraform 64/0, corpus 2711 runs)
+  gap: Follow-on layers (integration, audio, model) not executed.
+  remediation: Run as they appear.
+  size: M
+  environmentDependency: none
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+- id: FO-21-10
+  section: '21'
+  kind: constraint
+  text: No mandatory operation may silently return canned success, TEST IDs, an empty history, a log message or a permanent not-implemented exception in live mode.
+  acceptance: Static and runtime checks show no live code path ends in a blocked stub or canned result.
+  originalIds:
+  - OPS-04
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/blocked-base.ts:28-40 (permanent BlockedCapabilityError)
+  - platform/src/main/container.ts:309-313
+  gap: Live mode consists of blocked stubs; fixtures are correctly refused outside local/ci.
+  remediation: Replace stubs with real adapters; add a test scanning the live registry.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-07
+  provenance:
+    origin: extraction
+- id: FO-21-11
+  section: '21'
+  kind: environment
+  text: Tenant activation requires exact configurations, contracts, identity/permissions, approvals, staffed routes, capacity and live qualification evidence, as a separate truthful state.
+  acceptance: Per-capability Environment state machine gated by evidence.
+  originalIds:
+  - OPS-04
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - activation.qualification
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/guard.ts:52
+  - docs/prerequisites.yaml
+  - docs/release/phase-gates.md
+  gap: No per-capability Environment axis; staffed routes/capacity not machine-checked.
+  remediation: Add an ActivationRecord schema {capabilityId, tenantId, environmentStatus NOT_CONFIGURED|CONFIGURED|VERIFIED_SANDBOX|APPROVED_PILOT|VERIFIED_PRODUCTION, qualification NOT_RUN|FAIL|INCONCLUSIVE|PASS, evidenceRefs, approvals, staffedRouteIds, capacityEvidence} stored per tenant. Transitions are allowed only with qualify-tenant evidence (FO-19-81) and matching ApprovalRecords. The runtime refuses to enable a capability below CONFIGURED.
+  size: L
+  environmentDependency: tenant inputs
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-21-12
+  section: '21'
+  kind: document
+  text: Where vendor capability cannot be confirmed, describe its precise limit and the working documented reference path.
+  acceptance: Each unconfirmed vendor capability names limit and a working reference path.
+  originalIds:
+  - SPEC-3.vendor-capability-gate
+  derivedFrom: []
+  capabilityIds:
+  - activation.qualification
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/capability-gate.md (TB-01..TB-10 limits)
+  - docs/vendor-integration-inventory.md
+  gap: Limits described; no working reference path (LiveKit runtime) exists.
+  remediation: After FO-22-16.
+  size: L
+  environmentDependency: none
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+- id: FO-21-13
+  section: '21'
+  kind: constraint
+  text: Do not claim an arbitrary internal API is integrated before its mapping and behaviour are validated.
+  acceptance: Adapters refuse unvalidated mappings; inventory never claims integration.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/salesforce-rest.contract.test.ts:372-392
+  - platform/src/adapters/integration-inventory.ts (rules), integration-inventory.test.ts
+  gap: None.
+  remediation: Apply to new connectors.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-43
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-21-14
+  section: '21'
+  kind: document
+  text: Final response states release artifact and start commands.
+  acceptance: Final response lists bundle path and commands.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - README.md (pnpm start/demo, fixture slice)
+  gap: No release artifact.
+  remediation: The final response quotes dist/release/<releaseId>/SHA256SUMS, the manifest path and the runner commands from docs/HANDOFF.md (FO-19-58). A docs test checks that HANDOFF lists the bundle path.
+  size: S
+  environmentDependency: none
+  workPackage: WP-40
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-21-15
+  section: '21'
+  kind: document
+  text: Final response lists completed capabilities with both status axes.
+  acceptance: Generated from status register.
+  originalIds:
+  - SPEC-16.status-vocabulary
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/IMPLEMENTATION_STATUS.md (old vocabulary)
+  gap: No two-axis register.
+  remediation: FO-19-41.
+  size: M
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-21-16
+  section: '21'
+  kind: document
+  text: Final response states exact tests run and results.
+  acceptance: From TEST_EVIDENCE.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/TEST_EVIDENCE.md
+  - evidence/test-reports/
+  gap: 'TEST_EVIDENCE.md is stale: 2 957 platform tests vs 3 350, and Terraform 64/0 vs 78/0. The follow-on layers have no rows.'
+  remediation: Regenerate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-21-17
+  section: '21'
+  kind: document
+  text: Final response lists failures, inconclusive and unrun checks.
+  acceptance: Explicit list.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/TEST_EVIDENCE.md (BLOCKED/NOT_RUN layers, corpus FAIL/INCONCLUSIVE)
+  gap: Follow-on unrun layers not yet listed.
+  remediation: Generate the failure/inconclusive/unrun list from the evidence envelopes (FO-19-92) and the capability register, including every follow-on layer marked NOT_RUN.
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-21-18
+  section: '21'
+  kind: document
+  text: Final response lists remaining tenant configuration/approval evidence.
+  acceptance: From activation register.
+  originalIds:
+  - SPEC-5.prerequisite-register
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/PREREQUISITES.md
+  - docs/release/approval-requests.md
+  gap: Original scope.
+  remediation: Extend register.
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-21-19
+  section: '21'
+  kind: document
+  text: Final response states cost actually incurred.
+  acceptance: Stated with evidence.
+  originalIds:
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'docs/IMPLEMENTATION_STATUS.md (''Spend incurred: None'')'
+  gap: None so far.
+  remediation: Keep updated.
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-21-20
+  section: '21'
+  kind: document
+  text: Final response states the precise next operational step.
+  acceptance: One precise step with owner.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/IMPLEMENTATION_STATUS.md 'Next steps'
+  gap: Original-scope steps.
+  remediation: Keep a `nextStep` field (action, owner, command, blocking FO ids) in docs/followon/CONTINUATION.md and HANDOFF.md, generated from the work-package plan. Replace IMPLEMENTATION_STATUS 'Next steps' with that generated block.
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-21-21
+  section: '21'
+  kind: constraint
+  text: No unsupported completion percentage, legal certificate, zero-risk claim, benchmark superiority or production-readiness label.
+  acceptance: Docs test rejects these claims.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/docs/docs-pack.test.ts:101 (no affirmative compliance or production-readiness claims)
+  gap: Test does not check completion percentages, zero-risk or benchmark superiority wording.
+  remediation: 'Add rejection patterns, with the same negation guard, for: a number followed by ''% complete'' or ''% done''; ''certified'' or ''certificate'' (legal certificate); ''zero risk'' or ''zero-risk''; ''outperform'', ''better than'' or ''superior to''; and ''production-ready''. Extend the scan to README.md, talkdesk/**/*.md, console/README.md and docs/ARCHITECTURE.md.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-21-22
+  section: '21'
+  kind: operations
+  text: Maintain continuation state so a context reset does not lose requirements.
+  acceptance: Continuation file current with phase state.
+  originalIds:
+  - SPEC-16.progress-handoff
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/followon/CONTINUATION.md
+  gap: Phase table B-H NOT_STARTED; must be updated per phase.
+  remediation: Update per phase.
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-21-23
+  section: '21'
+  kind: software
+  text: 'Integrate the modules: every production component the product depends on is wired into a composition root and has a call site.'
+  acceptance: A composition-coverage test enumerates every port and production guard and fails when a live implementation is not registered in the live composition root or an exported deployment guard has no call site.
+  originalIds:
+  - OPS-04
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/registry.ts:302-317 assertCatalogDeployable (only re-exported, platform/src/voice/index.ts:20; no call site)
+  - platform/src/safety/detector.ts:508 safetyDetectorDeploymentViolations (only re-exported, platform/src/safety/index.ts:23)
+  - platform/src/workflows/notification-policy.ts decideNotification (no call site)
+  - platform/src/business/support/support-request-service.ts:1025 observeCaseStatus (no caller)
+  - platform/src/observability/metrics.ts:15 OpenTelemetryMetrics (never composed)
+  - platform/src/adapters/support-record-cache.ts CachingSupportRecords (never composed)
+  - platform/src/workflows/definitions/claim-investigation.ts, callback-request.ts, provider-document-review.ts, support-request-sync.ts (never started)
+  gap: Several production modules, guards and workflows exist with no caller, so tests pass on code that the running product never executes.
+  remediation: Wire each into the live composition root (FO-19-06) or delete it with an ADR. Add platform/src/main/composition-coverage.test.ts that imports every exported guard and port and asserts a registration or call site in container.ts or the live root.
+  size: M
+  environmentDependency: none
+  workPackage: WP-43
+  provenance:
+    origin: challenge-missed

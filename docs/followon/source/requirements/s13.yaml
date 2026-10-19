@@ -1,0 +1,916 @@
+# Follow-on requirement source records, prompt section 13. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '13'
+requirements:
+- id: FO-13-01
+  section: '13'
+  kind: software
+  text: Implement semantic safety routing signals (a real, qualified semantic classifier) alongside rules.
+  acceptance: Production SemanticSignalDetector adapter evaluated on a reviewed held-out set with sensitivity/specificity and CIs; deployment check passes only with approval.
+  originalIds:
+  - SAFE-02
+  - SPEC-10.safety-signals
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/safety/detector.test.ts:321,363 (fixture label; deployment violation outside local/ci). NOTE: safetyDetectorDeploymentViolations (platform/src/safety/detector.ts:508-514) has no call site outside tests. CompositeSafetySignalDetector defaults to LocalHeuristicSemanticDetector when no semantic stage is passed (detector.ts:454), and platform/src/main/container.ts:439 builds SafetyPipeline() with defaults. The heuristic fixture is therefore composed implicitly, and nothing would refuse it at startup.'
+  gap: Interface + heuristic fixture only.
+  remediation: Adapter over a qualified model (FO-09-30/48); evaluation report.
+  size: L
+  environmentDependency: Approved classifier model/endpoint, privacy approval, clinical evaluation
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - evidence
+- id: FO-13-02
+  section: '13'
+  kind: software
+  text: Deterministic safety rules plus caller and human requests route to the safety path.
+  acceptance: Rule detector, caller-request rules and HUMAN_INTERVENTION signals route to SAFETY_PRIORITY_HUMAN.
+  originalIds:
+  - SAFE-02
+  - SPEC-10.safety-response
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/detector.ts RuleBasedSafetySignalDetector, humanInterventionSignal()
+  - platform/src/safety/router.ts DeterministicSafetyRouter
+  - platform/src/safety/router.test.ts:42-140
+  - platform/src/safety/detector.test.ts:372
+  gap: Lexicon is a LOCAL DRAFT pending clinical approval.
+  remediation: Approval only.
+  size: S
+  environmentDependency: Clinical approval of the lexicon (PRQ-008)
+  regressionPackage: WP-15
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-13-03
+  section: '13'
+  kind: evaluation
+  text: Cover explicit and indirect concerns, negation, past/third-party speech, idioms, uncertain ASR and supported languages.
+  acceptance: Category coverage over a reviewed held-out corpus with recall/precision and CIs; per-category regression tests.
+  originalIds:
+  - SAFE-02
+  - SPEC-10.signal-test-coverage
+  - SPEC-10.safety-signals
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/safety/detector.test.ts:84-296 (231-case synthetic corpus: explicit 23/23, indirect 34/34, negation 15/15, historical 11/11, third_party 18/18, idiom 17/17, asr_uncertain 8/8, unsupported_locale 6/6 in this review run)'
+  - platform/src/safety/detector.property.test.ts
+  gap: Corpus is developer-authored and partly written from misses; a developer held-out probe missed 11/17 risk phrasings before widening (safety/README 'Known limitations'). Not held-out evidence.
+  remediation: Reviewed held-out set; report recall with CIs; never tune on held-out.
+  size: M
+  environmentDependency: Clinician and native-speaker reviewed corpus (PRQ-008, PRQ-012)
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-10.signal-test-coverage'
+- id: FO-13-04
+  section: '13'
+  kind: software
+  text: Do not label every frustrated caller an emergency.
+  acceptance: Administrative-object distress phrases produce no signal; precision measured on routine scenarios.
+  originalIds:
+  - SPEC-10.signal-test-coverage
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/detector.ts:409 (administrative-object frustration)
+  - platform/src/safety/detector.test.ts:328
+  - platform/src/safety/detector.property.test.ts:74
+  - 'platform/src/safety/README.md (scenario-corpus precision 87.9%: 18 deliberate conservative FPs)'
+  gap: Conservative over-escalation is documented, not clinically decided.
+  remediation: Clinical decision on borderline cases (PRQ-008).
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-15
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-13-05
+  section: '13'
+  kind: software
+  text: Classifier failure or uncertainty uses an approved fallback; never a silent fail-open into unrestricted conversation.
+  acceptance: Malformed/oversize input, failed rule or semantic stage and malformed signals raise FAIL_SAFE signals that route to the safety human.
+  originalIds:
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/detector.ts failSafeSignal()
+  - platform/src/safety/fail-safe.test.ts:45-126
+  - platform/migrations/0611_safety_fail_safe_source.sql
+  gap: None beyond synthetic input.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-15
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-13-06
+  section: '13'
+  kind: software
+  text: On a validated or unresolved safety concern pause ordinary administrative work and invalidate pending nonessential actions.
+  acceptance: Safety route invalidates pending mutations, sets SAFETY_ESCALATION_ACTIVE; later commit impossible.
+  originalIds:
+  - SAFE-03
+  - ACT-01
+  - SPEC-10.safety-response
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/business/handoff.ts (safety route: invalidatePending + escalation)'
+  - platform/src/business/handoff.test.ts:152,297
+  - platform/src/actions/action-service.test.ts:488
+  gap: Local fixtures.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-15
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-10.safety-response'
+- id: FO-13-07
+  section: '13'
+  kind: software
+  text: Play the approved fixed safety acknowledgment.
+  acceptance: safety.acknowledgment renders at A0 without authorization and is played (audio) before/while the route starts.
+  originalIds:
+  - SAFE-01
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/templates/en-US.json safety.acknowledgment (PENDING_CLINICAL_APPROVAL)
+  - platform/src/safety/router.ts (acknowledgmentTemplateId)
+  - platform/src/safety/safety-flow.test.ts:48,78
+  gap: Text only; no audio playback. Outside local/ci the template cannot render until approved, and there is no independent clip (FO-10-50). Ids also disagree. The screening route returns speechTemplateId safety.acknowledgment (platform/src/gateway/http/telephony-routes.ts:645), while the Studio flow plays safety.priority_acknowledgment (talkdesk/expected-config.yaml:378), which is not in the registry. For a session-less safety route through the tool pipeline, no SpeechDirective is returned at all (platform/src/gateway/pipeline.ts:821 'Studio plays the fixed route prompt').
+  remediation: Approved wording + pre-rendered clip.
+  size: S
+  environmentDependency: Clinical safety lead approval of the acknowledgment wording (PRQ-008)
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-13-08
+  section: '13'
+  kind: software
+  text: Initiate the appropriate human route on a safety concern.
+  acceptance: Priority SAFETY journey to the configured safety destination; route timing recorded.
+  originalIds:
+  - SAFE-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/handoff.ts
+  - platform/src/workflows/transfer.ts TransferCoordinator
+  - platform/src/business/handoff.test.ts:134,275
+  - platform/test/journeys/j6-safety-handoff.test.ts
+  gap: Telephony is the LOCAL telephony fixture; live TelephonyControl is BLOCKED (adapters/live/talkdesk-blocked.ts).
+  remediation: Live telephony control (FO-13-18 dependencies).
+  size: S
+  environmentDependency: Staffed safety queue in Talkdesk
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-13-09
+  section: '13'
+  kind: constraint
+  text: No authentication or payment prerequisite for safety routing or human requests.
+  acceptance: Session-less safety/human tools succeed over HTTP and MCP with no, expired or revoked sessions.
+  originalIds:
+  - SAFE-02
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/router.test.ts:61
+  - platform/src/main/sessionless-routing.test.ts
+  - platform/src/business/handoff.test.ts:39,52
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-15
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-13-10
+  section: '13'
+  kind: constraint
+  text: No diagnosis, clinical risk assessment, therapy, medication guidance or autonomous emergency determination.
+  acceptance: Clinical-boundary detector routes clinical questions; templates refuse prohibited content; router never automates emergency conferencing.
+  originalIds:
+  - SAFE-01
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  - safety.routing
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/clinical-boundary.ts
+  - platform/src/safety/clinical-boundary.test.ts
+  - platform/src/safety/router.test.ts:100,118
+  - platform/src/voice/registry.ts:91
+  gap: 'No model output exists yet to test against. IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: no model output exists to test against (WP-10 output validator).'
+  remediation: Add output monitors for model text when the harness lands.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: no model output exists to test against (WP-10 output validator).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-10
+- id: FO-13-11
+  section: '13'
+  kind: document
+  text: The clinical safety owner defines immediate-danger, ambiguous, third-party, refusal, disconnect, after-hours and unavailable-responder procedures, including lawful disclosures and jurisdictions.
+  acceptance: Signed procedure document per jurisdiction referenced by the activation register; runtime configuration references its version.
+  originalIds:
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/README.md BLOCKED (clinical approval of routing procedures)
+  - docs/RUNBOOKS/failed-safety-transfer.md
+  gap: No procedure-record schema, version reference or preflight check exists; the procedures themselves are human-owned activation input AIN-21 (PRQ-008).
+  remediation: Procedure record schema (procedure kind, jurisdiction, version, digest, CLINICAL_SCRIPTS approval ref) referenced by the per-procedure runtime configuration (FO-13-12); preflight refuses safety routing outside local without a verified record.
+  size: S
+  environmentDependency: Clinical safety owner and counsel (PRQ-008, PRQ-028)
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (planner open question 1): NOT_APPLICABLE -> MISSING: not a constraint awaiting a trigger: the content is human-owned (AIN-21), but the runtime must reference a versioned, signed procedure record and refuse safety routing outside local without it; that software does not exist'
+    repairStatusFrom: NOT_APPLICABLE
+  workPackage: WP-15
+- id: FO-13-12
+  section: '13'
+  kind: software
+  text: The runtime supports configurable per-procedure behaviour (third-party concern, caller refusal, disconnect, after-hours, unavailable responder) once procedures are approved.
+  acceptance: SafetyProcedureConfig drives routing/notification per situation; tests per situation; disconnect notifies the safety responder.
+  originalIds:
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/router.ts (single fixed route; after hours identical)
+  - 'platform/src/safety/conversation-guard.ts (UPDATE_CALLER / NOTIFY_SAFETY_RESPONDER actions in a pure policy model; README: not wired into a runtime path)'
+  gap: Procedure variants are not configurable and the guard that models disconnect/refusal handling is not wired.
+  remediation: Wire ConversationGuard into the runtime and add a procedure configuration section.
+  size: M
+  environmentDependency: Approved procedures (FO-13-11)
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+- id: FO-13-13
+  section: '13'
+  kind: software
+  text: Route selection comes from trusted allowlisted queues/destinations.
+  acceptance: DestinationConfig allowlist only; dial-target-like ids refused; bad safety destination replaced by configured safety route.
+  originalIds:
+  - SAFE-05
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts:201-221 looksLikeDialTarget/validateDestinations
+  - platform/src/business/handoff.ts resolveDestination
+  - platform/src/workflows/transfer.test.ts:360-388,623
+  - platform/src/business/handoff.test.ts:69,77
+  gap: vendorQueueRef values are placeholders.
+  remediation: Tenant configuration.
+  size: S
+  environmentDependency: Real Talkdesk queue references (placeholders today)
+  regressionPackage: WP-28
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-13-14
+  section: '13'
+  kind: software
+  text: Route selection uses actual service hours and capacity of the destinations.
+  acceptance: DestinationConfig carries hours (timezone) and capacity/availability signals; selection skips closed/full queues to the next approved staffed route; tests.
+  originalIds:
+  - OPS-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/config/ports.ts:25-32 DestinationConfig (destinationId, purpose, vendorQueueRef, fallbackDestinationIds, languages: no hours or capacity)'
+  gap: No hours/capacity awareness; fallbacks are tried only after timeouts.
+  remediation: Add schedule/capacity fields + availability adapter.
+  size: M
+  environmentDependency: Staffing schedules and queue capacity feed from the contact center
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-13-15
+  section: '13'
+  kind: constraint
+  text: Never dial arbitrary user-, model- or document-supplied numbers.
+  acceptance: 'Property test: any destination with >=7 digits, tel/sip/http URI or email is never dialled.'
+  originalIds:
+  - SAFE-05
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.test.ts:376,388
+  - platform/src/safety/router.test.ts:108
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-28
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-13-16
+  section: '13'
+  kind: constraint
+  text: External emergency/crisis contact requires an approved operational protocol, geography, consent or legal basis, minimum disclosure and a failed-connection procedure (never automated by keyword).
+  acceptance: No automated external emergency conferencing; decision field NOT_AUTOMATED_HUMAN_OWNED; protocol recorded in activation register.
+  originalIds:
+  - SAFE-01
+  - SAFE-05
+  - SPEC-10.no-auto-external-crisis
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/router.ts externalEmergencyConferencing 'NOT_AUTOMATED_HUMAN_OWNED'
+  - platform/src/safety/router.test.ts:118
+  gap: Software correctly abstains; the protocol itself is a human deliverable.
+  remediation: Activation register entry.
+  size: S
+  environmentDependency: Human safety responder procedures and operational agreements
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+    repair:
+    - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-10.no-auto-external-crisis'
+- id: FO-13-17
+  section: '13'
+  kind: software
+  text: Transfer event model REQUESTED, QUEUED, RECEIVER_ACCEPTED, BRIDGED, CALLER_CONFIRMED_CONNECTED, COMPLETED plus timeout/failure/disconnect.
+  acceptance: Pure transition function with property test; TRANSFERRED only after CALLER_CONFIRMED_CONNECTED.
+  originalIds:
+  - SAFE-04
+  - SPEC-10.transfer
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/support.ts:69-81 TransferState
+  - platform/src/workflows/transfer.ts:89-200 transferTransition
+  - platform/src/workflows/transfer.test.ts:104-184
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-28
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-13-18
+  section: '13'
+  kind: software
+  text: Persist authenticated provider transfer events with event ids and causal timestamps.
+  acceptance: Durable event store keyed by provider event id with provider-reported timestamp and receive time; vendor-documented authentication verified.
+  originalIds:
+  - SAFE-04
+  - OPS-01
+  derivedFrom:
+  - TB-07
+  - TB-09
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts:307-320 (TransferStore port; MemoryTransferStore is the only implementation, kind local_fixture)
+  - platform/src/gateway/http/webhook-routes.ts (LOCAL FIXTURE HMAC in local/ci only; every other environment refuses WEBHOOK_AUTH_UNVERIFIED; TransferEventBody has transferId/event/eventId only)
+  gap: Events are held in process memory; no provider causal timestamp; production webhook refused.
+  remediation: Postgres/DynamoDB TransferStore + event table; vendor auth adapter when documented, LiveKit/SIP events for the reference route.
+  size: L
+  environmentDependency: Talkdesk transfer event export and webhook authentication documentation (PRQ-019, PRQ-021)
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-13-19
+  section: '13'
+  kind: software
+  text: Accept duplicate and out-of-order delivery and derive state only when prerequisites are evidenced.
+  acceptance: Duplicates idempotent; early progress events held and applied after predecessors; never applied early; timeouts unaffected.
+  originalIds:
+  - SAFE-04
+  - SPEC-10.transfer
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts applyEvent deferral (ADR-0017)
+  - platform/src/workflows/transfer.out-of-order.test.ts
+  - platform/src/workflows/transfer.test.ts:400,437
+  - docs/adr/ADR-0017-out-of-order-transfer-events.md
+  gap: Held events live in the in-memory store (FO-13-20).
+  remediation: Keep logic; persist.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-28
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-13-20
+  section: '13'
+  kind: software
+  text: Use a durable inbox for transfer/carrier events.
+  acceptance: Events written to a durable inbox before 2xx; processing survives restart; redelivery after crash creates no duplicate transitions.
+  originalIds:
+  - SAFE-04
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts:307-320 (TransferStore port; MemoryTransferStore is the only implementation, kind local_fixture)
+  - platform/migrations (no transfer/carrier event inbox table)
+  gap: No durable inbox.
+  remediation: carrier_event_inbox table + consumer with dedup (reuse outbox/consumer-dedup.ts).
+  size: M
+  environmentDependency: none
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-13-21
+  section: '13'
+  kind: constraint
+  text: A late event cannot rewrite a failed historical audio connection into success.
+  acceptance: Terminal attempt states absorb later events; a held CALLER_CONFIRMED_CONNECTED never connects a timed-out or replaced attempt.
+  originalIds:
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts transferTransition (TERMINAL_TRANSFER_STATES absorb)
+  - platform/src/workflows/transfer.out-of-order.test.ts
+  - platform/src/workflows/transfer.test.ts:463
+  gap: In-memory store only.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-28
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-13-22
+  section: '13'
+  kind: software
+  text: Verify receiver identity and queue eligibility before counting acceptance.
+  acceptance: RECEIVER_ACCEPTED requires a verified receiver (workforce identity / queue membership) consistent with the destination purpose; tests with an ineligible receiver.
+  originalIds:
+  - SAFE-04
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts (RECEIVER_ACCEPTED applied from the event alone)
+  - platform/src/business/handoff.ts:498-511 (single-use transfer_receiver assertion minted for the receiver; nothing verifies who presented it)
+  gap: Receiver identity/eligibility is never checked.
+  remediation: Receiver verification step consuming the transfer_receiver assertion redemption + queue membership.
+  size: M
+  environmentDependency: Contact-center agent identity/queue membership feed
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-13-23
+  section: '13'
+  kind: software
+  text: Verify receipt of the HandoffPackage by the receiver.
+  acceptance: PACKAGE_ACKNOWLEDGED required (or explicitly waived by policy) before COMPLETED is credited; absence flagged.
+  originalIds:
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts:173-176 PACKAGE_ACKNOWLEDGED, receiverAcknowledgedPackage
+  - platform/src/workflows/transfer.test.ts:184 (recorded; absence flagged at completion)
+  gap: Acknowledgment is recorded and flagged but does not gate TRANSFERRED; it arrives only from the fixture.
+  remediation: Make acknowledgment a configurable prerequisite.
+  size: S
+  environmentDependency: Receiver workspace integration
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-13-24
+  section: '13'
+  kind: software
+  text: Require human acceptance and carrier/media connection evidence; a self-reported model 'connected' or a successful dial command is insufficient.
+  acceptance: TRANSFERRED only after RECEIVER_ACCEPTED -> BRIDGED -> CALLER_CONFIRMED_CONNECTED from authenticated events; dial success alone is not a transfer.
+  originalIds:
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.test.ts:158,169
+  - platform/src/workflows/transfer.ts:354 journeyOutcome
+  - platform/src/business/outcomes.ts decideOutcome (transferConnected)
+  gap: Evidence comes from fixture events; no real carrier/media connection evidence source exists.
+  remediation: Media-layer connection evidence from the LiveKit SIP bridge.
+  size: S
+  environmentDependency: Carrier/media connection events from Talkdesk or LiveKit SIP
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-13-25
+  section: '13'
+  kind: software
+  text: Keep the caller on the line during a warm transfer (never end the call).
+  acceptance: TelephonyControl has no hang-up; failures play an update and try the next route; continuity at the end.
+  originalIds:
+  - OPS-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts header (no hang-up operation)
+  - platform/src/workflows/transfer.test.ts:340,474
+  gap: Fixture telephony.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-13-26
+  section: '13'
+  kind: software
+  text: Correct hold/media mixing during warm transfer and measure both legs.
+  acceptance: 'Warm-transfer audio test: caller hears hold/announcement, agent leg receives whisper/package, bridge joins both; per-leg latency and audio continuity measured.'
+  originalIds:
+  - SAFE-04
+  derivedFrom:
+  - FOLLOWON-17 (latency targets)
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no media runtime (see FO-10-01)
+  gap: No media mixing or leg measurement.
+  remediation: LiveKit room-based warm transfer (SIP participant for agent leg) + measurements.
+  size: L
+  environmentDependency: none
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-13-27
+  section: '13'
+  kind: software
+  text: If the receiver is unavailable, retain ownership, give truthful status and follow the next approved staffed route.
+  acceptance: Receiver unavailable/timeout/dial failure plays the approved update and dials the next route; safety journeys never abandoned.
+  originalIds:
+  - SAFE-03
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.test.ts:199,474,561,571
+  gap: 'Update templates are DRAFT/PENDING. ''Next approved staffed route'' is really ''next configured fallback'': destinations carry no hours or capacity (FO-13-14). The truthful status update reaches the caller only through the fixture''s playApprovedUpdate; the live TalkdeskTelephonyLive.playApprovedUpdate is BLOCKED (platform/src/adapters/live/talkdesk-blocked.ts). IMPLEMENTED, not VERIFIED_LOCAL: Destinations have no hours or capacity, so "next approved staffed route" is the next configured fallback, and the status update plays only through the fixture (TalkdeskTelephonyLive.playApprovedUpdate is BLOCKED).'
+  remediation: Approval only.
+  size: S
+  environmentDependency: Approved update wording
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: destinations have no hours or capacity, so "next approved staffed route" is the next configured fallback, and the status update plays only through the fixture (TalkdeskTelephonyLive.playApprovedUpdate is BLOCKED).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-28
+- id: FO-13-28
+  section: '13'
+  kind: software
+  text: HandoffPackage contains permitted issue summary, assurance and its limits, subject/role scope, consent, attempted actions/receipts, outstanding tasks, support/Case reference, language/accommodation and minimum necessary routing context.
+  acceptance: Strict schema; template-assembled; tests for verified and unverified callers.
+  originalIds:
+  - DATA-01
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/support.ts:102-128 HandoffPackage
+  - platform/src/business/handoff.test.ts:109
+  gap: No explicit role scope field (only authorizedSubjectRef and assurance).
+  remediation: Add selectedRole/scope to the package.
+  size: S
+  environmentDependency: none
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-13-29
+  section: '13'
+  kind: software
+  text: Avoid making callers repeat information already delivered (package is delivered to and shown in the receiver's workspace).
+  acceptance: Receiver workspace (Talkdesk or console) displays the package for the accepted transfer; journey J10 asserts no re-ask.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/handoff.ts (package built and stored; no delivery to a receiver UI)
+  - platform/src/adapters/live/talkdesk-blocked.ts (TelephonyControl BLOCKED)
+  gap: No delivery mechanism to the human.
+  remediation: Console agent screen pop + Talkdesk context API when documented.
+  size: M
+  environmentDependency: Talkdesk agent workspace integration or console agent view
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-13-30
+  section: '13'
+  kind: software
+  text: 'A human can decline: record the decline and route explicitly instead of abandoning the case.'
+  acceptance: RECEIVER_DECLINED event recorded with reason; next approved route dialled; case ownership retained.
+  originalIds:
+  - SAFE-03
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts:89-101 TransferEventName (no decline event; RECEIVER_UNAVAILABLE is the closest)
+  gap: Decline is not modelled distinctly.
+  remediation: Add RECEIVER_DECLINED to the event model and failover.
+  size: S
+  environmentDependency: none
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-13-31
+  section: '13'
+  kind: evaluation
+  text: Priority-route initiation within 2 seconds after the validated signal, measured.
+  acceptance: Time from validated signal to first dial command recorded per incident; misses audited, never abandon; real-path measurement in sandbox.
+  originalIds:
+  - SAFE-03
+  - SPEC-10.safety-latency
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts:449 safetyRouteTargetMs 2000
+  - platform/src/workflows/transfer.test.ts:504,518
+  - platform/src/safety/safety-events.test.ts:51,66
+  gap: Measured with FakeClock in-process only.
+  remediation: Measure on the LiveKit/SIP path in test-audio and sandbox.
+  size: S
+  environmentDependency: PSTN/vendor path for real measurement
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-10.safety-latency'
+- id: FO-13-32
+  section: '13'
+  kind: evaluation
+  text: Also measure time from the actual utterance to detection.
+  acceptance: Utterance end timestamp from endpointing feeds safety_events utterance-to-detection latency.
+  originalIds:
+  - SPEC-10.safety-latency
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/safety-events.test.ts:76 (measured when an end-of-utterance time is supplied)
+  - platform/src/safety/README.md BLOCKED (end-of-utterance timestamps unavailable)
+  gap: No source of end-of-utterance timestamps exists (no media/endpointing).
+  remediation: Feed from FO-10-05 endpointing.
+  size: S
+  environmentDependency: none
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+- id: FO-13-33
+  section: '13'
+  kind: operations
+  text: A <=30-second staffed connection is a separate operations commitment, not an LLM guarantee (documented as such).
+  acceptance: SLO catalogue/activation register lists staffed-connection time as an operations-owned target with its own evidence source.
+  originalIds:
+  - SAFE-03
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/observability/slo.ts (ids: routing_usable_path ... handoff_completion; no staffed-connection-time objective)'
+  gap: Not documented or measured.
+  remediation: Add an operations-owned SLO entry and activation-register line.
+  size: S
+  environmentDependency: Contact-center operations owner commitment
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+- id: FO-13-34
+  section: '13'
+  kind: software
+  text: Expiring timers, refusal counters, cost limits and max turns never silently abandon the safety flow.
+  acceptance: 'Runtime test: with every limit exhausted during a safety route, the route continues; guard wired into the runtime.'
+  originalIds:
+  - SAFE-03
+  - SPEC-2.guardrail-exit
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.test.ts:474 (safety transfer never abandoned by timeouts)
+  - platform/src/ops/budgets.ts (safety reserve; exhaustion stops nonessential automation only)
+  - platform/src/safety/conversation-guard.property.test.ts (policy model)
+  - platform/src/safety/README.md (guard not wired into a runtime path)
+  gap: Transfer and budget layers are verified; the turn/refusal/silence guard is a property-tested model not wired to any runtime.
+  remediation: Wire ConversationGuard into the harness/media loop.
+  size: M
+  environmentDependency: none
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+    repair:
+    - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-2.guardrail-exit'
+- id: FO-13-35
+  section: '13'
+  kind: environment
+  text: An independent telephony continuity route remains available.
+  acceptance: Continuity route configured in Talkdesk (and SIP reference route) and drilled with AI service down.
+  originalIds:
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - continuity.ai_off
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/studio-flow-spec.md SF-C
+  - docs/RUNBOOKS/ai-off-route.md
+  - platform/src/workflows/transfer.test.ts:340 (OUTAGE_CONTINUITY)
+  gap: Specification and runbook only; not configured or drilled; no SIP-reference continuity.
+  remediation: Activation + drill; SIP reference continuity (FO-10-49).
+  size: S
+  environmentDependency: Talkdesk Studio configuration and drill (PRQ-004, PRQ-014)
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED

@@ -112,6 +112,63 @@ VQ-TD-04, VQ-SF-10 and VQ-AWS-06 are answered.
 | DF-25 | Evaluation and LLM judges | Processors for evaluation | Synthetic or consented scenarios only; production-derived scenarios only after approved access and minimisation | Approved environments only (UNKNOWN) | QA reviewers | Scorecards (append-only) | Per RM-03 | UNKNOWN | RM-03 | Not used with real data |
 | DF-26 | Hosted payment page / PCI provider | External; link only | Card data never enters this platform | Provider (UNKNOWN) | Provider | — | — | UNKNOWN | — | UNKNOWN (PRQ-050) |
 
+## Follow-on components (reference runtime, models, context and improvement)
+
+Added 2026-10-19 for the follow-on programme. These rows cover the flows that `docs/ARCHITECTURE.md`
+section 6.5 adds (TDF-01 to TDF-04, TDF-09, TDF-15 and TDF-17 to TDF-21); the flows it maps to existing
+rows keep those rows. Every component below is a design target: no code for it exists yet, and nothing
+here was inspected in a vendor or production account. The Status column states the two status axes of
+[ADR-0018](../adr/ADR-0018-followon-product-architecture.md) decision 7 and names the work package
+(`docs/followon/work-packages.yaml`) that builds the component ([`../DECISIONS.md`](../DECISIONS.md)
+D-09). External inputs are named by their activation register id (`AIN-NN`,
+`docs/followon/activation-register.yaml`). The principles above apply unchanged: raw audio and
+pre-redaction transcripts stay sensitive wherever they are received (DATA-02), and zero retention is
+verified per feature and endpoint, never assumed. Threats for these components are in
+[`../security/threat-model.md`](../security/threat-model.md) section 8.
+
+```mermaid
+flowchart LR
+  caller(["Caller"]) -->|"audio, DTMF"| sip["DF-27 SIP trunk provider"]
+  sip -->|"SIP and RTP"| lk["DF-28 LiveKit media plane"]
+  brw(["Caller browser"]) -->|"WebRTC"| lk
+  lk -.-> bus[("DF-29 LiveKit bus, if required")]
+  lk <-->|"audio"| rt["DF-30 Conversation runtime"]
+  rt -->|"audio and text"| spch["DF-31 ASR and TTS"]
+  rt -->|"scoped input only"| txt["DF-32 Text model endpoints"]
+  rt -->|"unprotected scope only"| nat["DF-33 Native-audio model endpoints"]
+  rt --> aux["DF-34 Safety, embedding and reranker sidecars"]
+  rt -->|"tool proposals, SpeechPlan requests"| gw["DF-07 Gateway"]
+  rt -.->|"DTMF digits to verification only"| gw
+  brw -->|"HTTPS, one call session"| comp["DF-37 Secure web companion"]
+  comp --> gw
+  evs["Event sources: webhooks, CDC, CDP, receipts"] --> inb[("DF-35 Inbound event inbox")]
+  inb --> ctx[("DF-36 Context store")]
+  gw --> ctx
+  ctx <-->|"reviewed templates only"| wh[("DF-38 Warehouse, lakehouse and CDP")]
+  kb["DF-40 Knowledge sources"] -->|"approved items only"| aur[("DF-08 Aurora PostgreSQL")]
+  aur -.->|"approved observations only"| imp[("DF-39 Improvement datasets")]
+  rt -.->|"only with recording consent and policy"| qa[("DF-11 S3 restricted QA media")]
+```
+
+Solid arrows carry PHI in the designed flow. Dotted arrows are restricted or conditional.
+
+| ID | Component | Role | Data classes and classification | Storage location | Support-access path | Backups and derived copies | Deletion path | BAA status | Retention ref | Status |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DF-27 | SIP trunk provider (reference route) | Processor; carries inbound and outbound calls and SIP transfer legs for the LiveKit runtime (TDF-01) | RM-01 audio (PHI; DATA-02); signalling with calling and called numbers; DTMF events (VERIFICATION_SECRET whenever OTP over DTMF is enabled, which stays disabled until qualified) | Carrier networks and call-detail records (UNKNOWN) | Carrier support (UNKNOWN) | Call-detail records; any carrier-side recording (UNKNOWN; carrier recording must stay off unless consent and policy allow it) | Carrier contract terms (UNKNOWN) | UNKNOWN (AIN-02, AIN-50) | RM-01 | Software `MISSING` (WP-12 trunk profiles, WP-27 outbound calls, WP-28 SIP transfers); environment `NOT_CONFIGURED` (AIN-50) |
+| DF-28 | LiveKit media plane (`livekit-server`, `livekit-sip`, TURN), self-hosted | Processor; media routing and SIP gateway (TDF-01) | RM-01 raw audio (PHI; DATA-02); participant identities and attributes (may include the caller number); DTMF events | Media-host memory only; LiveKit egress recording off unless recording consent and policy allow it, and then written to DF-11 only | No interactive access; changes through the deploy path; LiveKit admin API not exposed publicly | None by design; host logs content-free | Process exit; no media written to disk | AWS: UNKNOWN (AIN-02); self-hosted software, so no additional vendor processor | RM-01 | Software `MISSING` (WP-11, WP-12, WP-39); environment `NOT_CONFIGURED` (AIN-01, AIN-47, AIN-50; security review AIN-46) |
+| DF-29 | LiveKit internal bus (Redis; ElastiCache in AWS), only if the pinned LiveKit version needs it | Store; media-plane signalling state (TDF-15) | RM-01 room and participant state (may include the caller number); no business state | Private subnet; a container locally | No interactive access | Snapshots: none planned (decided in WP-39) | Key expiry and process exit | AWS: UNKNOWN (AIN-02) | RM-01 | Software `MISSING` (WP-11, WP-39); whether the bus is needed is unverified (ADR-0018 open item 2); environment `NOT_CONFIGURED` |
+| DF-30 | Conversation runtime worker (`media/` package with the harness, model adapters and release guard) | Processor; in memory only; source of TDF-02 to TDF-04 | RM-01 audio frames, partial and final transcripts, harness state and masked facts from the gateway (PHI, FINANCIAL); model credentials; never verification secrets | Container memory; minimized turn envelopes go through the gateway to DF-08 | No interactive access; deploys via CI | None (stateless); audio evidence only to DF-11, with consent | Process exit | AWS: UNKNOWN (AIN-02) | RM-01 | Software `MISSING` (WP-10 to WP-17); environment `NOT_CONFIGURED` |
+| DF-31 | ASR and TTS: self-hosted sidecars (`sidecars/speech`) or managed providers | Processors; receive raw audio and text to synthesize (TDF-02; replaces DF-03 and DF-05 on the reference runtime) | RM-01 raw audio and pre-redaction transcripts (PHI; DATA-02); text for synthesis (PHI, FINANCIAL) | Self-hosted: sidecar memory in private subnets; managed: provider (region UNKNOWN, recorded per registry entry) | Self-hosted: none interactive; managed: provider support (UNKNOWN) | Self-hosted: none; managed: provider logs (UNKNOWN; zero retention verified per endpoint) | Self-hosted: process exit; managed: provider deletion terms (UNKNOWN) | Self-hosted: AWS UNKNOWN (AIN-02); managed: UNKNOWN (AIN-49) | RM-01 | Software `MISSING` (WP-13; registry entries WP-09); environment `NOT_CONFIGURED` (AIN-26, AIN-27 for real-time GPU throughput) |
+| DF-32 | Text model endpoints: Amazon Bedrock, OpenAI Responses, self-hosted vLLM | Processors; receive scoped model input and return proposals only (TDF-03; replaces DF-04 on the reference runtime) | RM-01 transcript, policy-masked ContextSnapshot facts and the permitted tool list (PHI, FINANCIAL); never verification secrets | Managed: provider (region UNKNOWN, recorded per registry entry); vLLM: GPU host memory in private subnets | Managed: provider support (UNKNOWN); vLLM: none interactive | Managed: provider logging and abuse-monitoring terms (UNKNOWN, verified per endpoint); vLLM: none | Managed: provider terms (UNKNOWN); vLLM: process exit | UNKNOWN per provider, endpoint and region (AIN-49) | RM-01 | Software `MISSING` (WP-08 adapters, WP-09 registry, WP-10 scope builder); environment `NOT_CONFIGURED` (AIN-26, AIN-27, AIN-29) |
+| DF-33 | Native-audio model endpoints: GPT-Live client delegation, Nova 2.5 Sonic, opt-in open-weight experiments | Processors; full-duplex audio (TDF-04) | RM-01 caller audio both ways (PHI; DATA-02 applies even with an unprotected context scope, because callers volunteer details); no protected facts in the session scope | Provider (region UNKNOWN); experiments: GPU host memory | Provider support (UNKNOWN) | Provider session and audio retention (UNKNOWN; API details unverified, ADR-0018 open item 1) | Provider terms (UNKNOWN) | UNKNOWN per provider, region and data path (AIN-49) | RM-01 | Software `MISSING` (WP-16); environment `NOT_CONFIGURED` (AIN-26, AIN-29) |
+| DF-34 | Safety classifier, embedding and reranker sidecars (`sidecars/safety`, `sidecars/retrieval`) | Processors; receive transcript text and retrieval queries (TDF-18) | RM-01 transcript and query text (PHI possible); embeddings of the approved corpus only, never an embedding index of caller transcripts | Sidecar memory in private subnets | None interactive | None for queries; corpus embeddings live in DF-08 | Process exit; corpus embeddings purged on source deletion (DF-40) | AWS: UNKNOWN (AIN-02) | RM-01 (queries), RM-02 (corpus embeddings) | Software `MISSING` (WP-15, WP-20); the WildGuard auxiliary stays disabled until its gated terms are accepted (AIN-28); environment `NOT_CONFIGURED` |
+| DF-35 | Authenticated event ingress and inbound inbox: vendor webhooks, CDC, CDP events, delivery receipts, LiveKit and Talkdesk carrier events | Store; durable inbox written before acknowledgment (TDF-09) | RM-02 event payloads (PHI possible), payload digests and verifying credential versions; quarantined unknown fields; restricted raw replay artifacts | Aurora (inbound inbox and carrier-event inbox), payloads encrypted | Operators only through audited replay of dead-lettered events | Database backups; raw replay artifacts in restricted storage, not ordinary logs | Retention job per approved class; deletion orchestrator (WP-22) | AWS: UNKNOWN | RM-02 | Software `MISSING` (WP-04 inbox, WP-28 carrier events); environment `NOT_CONFIGURED` (AIN-07, AIN-38) |
+| DF-36 | Context store: support timeline, ContextFacts, projections, source watermarks, identity links and ContextSnapshot caches | Store; permissioned history plus event-fed current state (TDF-09, TDF-06) | RM-02 timeline events and facts with provenance and source versions (PHI, PHI_RESTRICTED, FINANCIAL); the identity graph, which is sensitive in itself (FO-07-15); special-note record types refused | Aurora with RLS; caches keyed by tenant, subject, role, purpose, policy and data revision and session generation | Staff through the console within the identity scope; restricted records per DP-01 | Database backups; projections and caches are derived copies | Deletion, correction and tombstones across timeline, facts, projections, embeddings and caches, re-applied on restore (WP-22) | AWS: UNKNOWN | RM-02 | Software `MISSING` (WP-18, WP-19, WP-24, WP-22); environment `NOT_CONFIGURED` (AIN-38) |
+| DF-37 | Secure web companion (caller browser and the companion service) | Presentation to the caller; review, confirmations and asynchronous replies (TDF-17) | Minimum necessary prepared-action summaries and case status (PHI, FINANCIAL); no PHI or secrets in URLs | Browser memory only; the service is stateless and writes through the gateway | Caller only; no staff access path | None (no downloads planned) | Session end and idle expiry | Hosting: AWS UNKNOWN; caller IdP: UNKNOWN (AIN-12) | RM-01, RM-02 | Software `MISSING` (WP-27); environment `NOT_CONFIGURED` (AIN-12) |
+| DF-38 | Warehouse, lakehouse and CDP sources: Snowflake SQL API, Iceberg through Athena and Glue, Segment-compatible CDP | Systems of record and processors for context (TDF-19) | RM-02 bounded query results through reviewed templates (PHI, FINANCIAL); CDP events limited by purpose and field filters; no transcript, inferred distress or treatment fact to marketing destinations (FO-06-59) | Tenant accounts (region UNKNOWN) | Tenant data owners | Source-managed; time travel off by default on queries | Source-managed; suppression and deletion consumer for CDP events | UNKNOWN (AIN-38) | RM-02 (owner schedules) | Software `MISSING` (WP-21); environment `NOT_CONFIGURED` (AIN-38) |
+| DF-39 | Improvement pipeline, datasets and trained artifacts | Processor and store for evaluation, tuning and training (TDF-20) | Synthetic by default; production-derived items only with a DATASET_USE approval bound to the dataset digest, minimized, with provenance, licence and consent; trained artifacts may memorize their training data | Approved bounded environment only (location to be set by WP-37 and approved) | Named reviewers; the improvement service identity has no publish or permission rights | Dataset versions and trained artifacts | Dataset registry retention and deletion; handling of artifacts trained on later-deleted data is an open question for privacy counsel | Not a PHI processor unless a dataset approval exists (AIN-44) | RM-03 | Software `MISSING` (WP-36, WP-37); environment `NOT_CONFIGURED` (AIN-44) |
+| DF-40 | Knowledge source connectors: Salesforce Knowledge, reviewed URL allowlists, object storage, KB APIs | Sources of the approved corpus (TDF-21) | Approved public and internal content; not caller data by design; items with detected PHI or hidden instructions are quarantined | Source systems; approved snapshots in DF-08 | Knowledge owners and editors | Snapshots, full-text and pgvector indexes of the approved corpus | Deletion and archival propagation with re-embedding and purge of embeddings (FO-06-82) | Not a PHI processor by design; Salesforce: UNKNOWN (AIN-09) | RM-02 | Software `MISSING` (WP-20); environment `NOT_CONFIGURED` (AIN-32) |
+
 ## Deletion and derived copies
 
 Deletion is not complete until every derived copy is handled: indexes (full-text and pgvector
@@ -130,6 +187,11 @@ recorded. Durations and mechanisms per class are in [`retention-matrix.md`](rete
 | Which AWS accounts and components are covered by the BAA? | Privacy counsel / cloud platform owner | VQ-AWS-01, VQ-AWS-02 |
 | Is any observability vendor beyond CloudWatch in scope? | Security leadership | VQ-OBS-01 |
 | Applicability of Part 2, psychotherapy-note, state and minor rules per record type | Privacy counsel | VQ-LEG-03 |
+| Which managed model, ASR and TTS endpoints, regions and features are covered by an agreement, and is zero retention verified for each (DF-31 to DF-33)? | Privacy counsel / procurement | AIN-49, AIN-02, AIN-26 |
+| Does the SIP carrier record calls or keep DTMF digits in call-detail records (DF-27)? | Telephony owner | AIN-50 |
+| What do GPT-Live and Nova 2.5 Sonic retain from a session (DF-33)? | Privacy counsel / engineering | AIN-26; ADR-0018 open item 1 |
+| Does the pinned LiveKit version need the Redis bus, and what does it hold (DF-29)? | Engineering (WP-03, WP-11) | ADR-0018 open item 2 |
+| How are trained artifacts handled when a subject in their training data is later deleted (DF-39)? | Privacy counsel | AIN-44 |
 
 ## Review record
 

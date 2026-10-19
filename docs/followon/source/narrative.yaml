@@ -1,0 +1,281 @@
+# Prose inputs of docs/GAP_CLOSURE.md and ledger metadata. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+meta:
+  asOf: '2026-10-19'
+  baseCommit: 8c0f5a0
+  branch: claude/spec-prompt-implementation-l9zicg
+  method: 'Requirement extraction per prompt-section group (five chunks) followed by an independent skeptic challenge per chunk; challenge corrections override the original values and missed requirements are appended. A Phase A completeness critic then re-checked the result and this repair applied its findings: every VERIFIED_LOCAL row was re-opened against its cited tests under the strict rule, stale rows were refreshed against 8c0f5a0, the fault matrix was split per fault, section 23 constraints were added, original ids were reconciled with docs/requirements/catalog.yaml, and every row gained capability ids.'
+sectionTitles:
+  '0': Mission and working authority
+  '1': Baseline to reconcile
+  '2': Nonnegotiable acceptance invariants
+  '3': Reference architecture and responsibility boundaries
+  '4': Strict contracts and data ownership
+  '5': Identity, authorization, consent and delegation
+  '6': Configurable connectors that actually work
+  '7': 'Context engine: history plus live truth'
+  '8': Knowledge, memory and grounding
+  '9': Model harness and qualified model portfolio
+  '10': 'Voice: natural conversation with an enforced audio boundary'
+  '11': Controlled actions and independent effect verification
+  '12': Durable case ownership and long-horizon work
+  '13': Safety, accessibility and accepted human handoff
+  '14': 'Operator product: configure, test, activate, operate'
+  '15': Security, privacy, compliance support and auditability
+  '16': Deployment, resilience and cost
+  '17': Evaluation, test truth and release targets
+  '18': Controlled self-improvement
+  '19': Execution sequence and concrete delivery
+  '20': Mandatory end-to-end journeys
+  '21': Definition of done and final response
+  '22': Original-specification changes and preservation
+  '23': Research and public-source basis
+crossCuttingFindings:
+- Non-local composition is refused wholesale (`platform/src/main/container.ts:308-313`, `LIVE_COMPOSITION_NOT_IMPLEMENTED`); every live business and Talkdesk slot is a BLOCKED stub (`platform/src/adapters/live/blocked-set.ts`). This is the single largest software gap; WP-07 closes it for phase B and each phase integration package extends it.
+- There is no model of any kind (no Bedrock, OpenAI, vLLM, ASR, TTS or VAD code) and no media runtime; the only conversational driver is the rule-based LOCAL SIMULATED COORDINATOR (`platform/src/evaluation/driver`). Sections 9, 10 and most of 13 and 17 are MISSING (WP-08 to WP-17). Rows that held only because no model or runtime exists are IMPLEMENTED with a not-yet-triggered note, not VERIFIED_LOCAL.
+- 17 of the 34 named contracts are absent (CallBinding, TurnEnvelope, ContextSnapshot, ContextFact, SourceWatermark, IdentityLink, KnowledgeCitation, ModelInvocation, ModelDecision, EffectVerification, CaseLink, CarrierEvent, SpeechPlan, AudioReleaseReceipt, ConnectorProfile, ChangeProposal, ActivationReport), and the existing ones lack the common envelope (schema_version, causation_id); WP-02 defines them first with the exact enum values later packages consume.
+- 'Real adapters exist but never ran against a real service or emulator: PgPoolDb (no test), DynamoKvStore, SqsPublisher (stub-client test), S3ObjectLockAuditSink (fixture S3 client), KmsAssertionSigner. Docker is available, so WP-03/WP-04 move them to Layer-2 verification without external authority.'
+- All database evidence comes from single-connection PGlite; concurrency, fencing, lease and duplicate-effect claims stay IMPLEMENTED until the multi-connection postgres:16 runs in WP-04 and WP-25 (ADR-0018 decision 7.2).
+- EgressGuard sits on no outbound path (only the never-called RedactionService uses it); WP-06 adds the egress-classified client and WP-07 moves the existing outbound clients onto it.
+- Context engine, entity linking, configurable connectors beyond the Salesforce Case upsert, notification senders, consent/identity/relationship registries and Step Functions execution do not exist (WP-06, WP-18 to WP-29).
+- 'Operator product: 14 console pages (plus a not-found page), none for onboarding, connector testing, knowledge management, studio, evaluation, review or improvement; tenant configuration is files plus code with no publication lifecycle (WP-31 to WP-38).'
+- 'Status vocabulary drift: protocol, traceability generator, IMPLEMENTATION_STATUS and module READMEs still use the single-axis IMPLEMENTED_OFFLINE/BLOCKED model (WP-01, WP-02, WP-44). Until WP-44 regenerates IMPLEMENTATION_STATUS, docs/followon/gap-ledger.yaml with docs/followon/capabilities.yaml is the two-axis register.'
+- 'Evaluation evidence: the w4 corpus (2,711 runs, 2,386 PASS, 305 FAIL, 20 INCONCLUSIVE, 7 critical) is local-fixture evidence that predates fix wave 5; taskCompletionRate drops INCONCLUSIVE from the denominator and splits are per scenario id (WP-01). Of the 50 fault-matrix ids, 25 have plans, 23 are injectable into the fixture stack and none has a run over its real injection point.'
+- Human-approval items (templates, lexicon, procedures, retention, BAAs, model/voice licences) are correctly refused in code; they are activation inputs (ACTIVATION_REGISTER.md), and they do not excuse the software gaps above.
+defects:
+- defect: Case upserts, notification sends and transfers bypass the action ledger (more than one external-effect executor).
+  evidence: c1 challenge, FO-03-03
+  requirement: FO-03-03
+  package: WP-25
+- defect: Step Functions definitions wait on SQS task tokens that nothing consumes; a deployed state machine would hang.
+  evidence: '`infra/stepfunctions/*.asl.json`; `@aws-sdk/client-sfn` unused'
+  requirement: FO-00-07
+  package: WP-26
+- defect: OpenTelemetryMetrics is never composed and no SDK exists; production telemetry would go to the no-op meter.
+  evidence: '`platform/src/observability/metrics.ts`'
+  requirement: FO-03-30
+  package: WP-07
+- defect: A route-tool execution detached by its tool timeout loses its safety/human route event with no log if the process exits.
+  evidence: '`platform/src/audit/deferred.ts:29-37`'
+  requirement: FO-01-34
+  package: WP-04
+- defect: 'Composed stale-turn check is a tautology: a tool result after barge-in still carries speech for the old turn.'
+  evidence: '`platform/src/gateway/pipeline.ts:826-830`'
+  requirement: FO-10-41
+  package: WP-14
+- defect: 'Deployment guards with no call site: assertCatalogDeployable, safetyDetectorDeploymentViolations; the composite safety detector silently defaults to the heuristic fixture.'
+  evidence: '`platform/src/voice/registry.ts:302-317`; `platform/src/safety/detector.ts:454,508`'
+  requirement: FO-10-30
+  package: WP-14
+- defect: 15 of 16 Studio-played template ids are absent from the template registry (WP-14 owns `talkdesk/expected-config.yaml` for this fix).
+  evidence: '`talkdesk/expected-config.yaml:366-399`'
+  requirement: FO-10-11
+  package: WP-14
+- defect: 'reconcile_attempts is counted but never capped: an endless polling loop.'
+  evidence: '`platform/src/worker/loops.ts:295-330`'
+  requirement: FO-11-18
+  package: WP-25
+- defect: TransferCoordinator refuses fixtures only in production, not staging or sandbox.
+  evidence: '`platform/src/workflows/transfer.ts:439`'
+  requirement: FO-19-27
+  package: WP-28
+- defect: Knowledge approval is self-asserted in the ingest payload; the gate citation check is presence-only (gate part fixed in WP-24); retrieval jurisdiction is the constant US.
+  evidence: '`platform/src/knowledge/ingest.ts:91-95`; `platform/src/voice/gate.ts:196`; `platform/src/business/services/knowledge.ts:33`'
+  requirement: FO-08-37
+  package: WP-20
+- defect: A never-contacted Salesforce adapter reports healthy (fail-open health).
+  evidence: '`platform/src/adapters/live/salesforce-rest-support-records.ts:307-309`'
+  requirement: FO-06-11
+  package: WP-06
+- defect: decideNotification, CachingSupportRecords, observeCaseStatus, RetentionPolicyStorePg, ReleaseSubmissionRegistryPg.record and KnowledgeServicePg.releaseHeld/rejectHeld have no production call site.
+  evidence: c2-c5 challenge notes
+  requirement: FO-21-23
+  package: WP-43
+- defect: The composed audit verifier runs as the shipper identity with the same sink client; audit manifests are unsigned.
+  evidence: '`platform/src/worker/worker.ts:163-176`'
+  requirement: FO-15-40
+  package: WP-04
+- defect: EgressGuard is called only by RedactionService, which nothing calls; no outbound client checks egress per request.
+  evidence: '`platform/src/privacy/redaction-service.ts:109`; `platform/src/main/container.ts:375-376`'
+  requirement: FO-15-19
+  package: WP-06
+- defect: Scenario review status is free text, so HUMAN_REVIEWED can be self-declared and the live gate accepts it.
+  evidence: scenario files under `scenarios/`
+  requirement: FO-17-19
+  package: WP-35
+- defect: 'Release manifest: signature required for production but never produced or verified; every evidence file is bound regardless of the commit that produced it; deploy.yml never passes --source-commit; rollbackTarget is a free string.'
+  evidence: '`scripts/ci/check-release-manifest.ts:117`; `platform/src/evaluation/manifest.ts:356`; `platform/src/protocol/release.ts:145`'
+  requirement: FO-19-92
+  package: WP-40
+- defect: Declared SLO metrics with no emitter (routing outcomes, turn latency, barge-in stop, transfers, duplicate effects).
+  evidence: '`platform/src/observability/slo.ts:84-99`'
+  requirement: FO-17-31
+  package: WP-15
+- defect: The kill switch is reachable only through console SSO, so an IdP outage removes the only kill-switch path.
+  evidence: c4 challenge, FO-14-51
+  requirement: FO-14-51
+  package: WP-05
+- defect: Key administrators keep kms:PutKeyPolicy, which can undo the CreateGrant narrowing.
+  evidence: '`infra/terraform/modules/kms/main.tf:14-30`'
+  requirement: FO-01-18
+  package: WP-39
+section1Reconciliation:
+- requirement: FO-01-02
+  observation: Control plane, thin MCP interface, OPA WASM, strict schemas, prepare/confirm/commit/reconcile, SQL outbox/audit, workflow definitions, safety/voice templates and a React console exist.
+  currentTruth: Confirmed. 27 protocol schemas drift-checked; existence does not imply live operation.
+- requirement: FO-01-03
+  observation: Local composition uses PGlite, memory sessions, synthetic identity and business adapters; non-local composition is refused.
+  currentTruth: 'Still true at 8c0f5a0: `platform/src/main/container.ts:308-313` refuses sandbox, staging and production.'
+- requirement: FO-01-04
+  observation: No real conversational LLM powers the local driver.
+  currentTruth: 'Still true: the driver is the rule-based LOCAL SIMULATED COORDINATOR; no model SDK is a dependency.'
+- requirement: FO-01-05
+  observation: Speech queue and turn tracker are local fixtures.
+  currentTruth: 'Still true: `platform/src/voice/speech-queue.ts`, `platform/src/voice/turns.ts` (InMemoryTurnTracker).'
+- requirement: FO-01-06
+  observation: Eighteen tools and seven workflow definitions are catalogued; recount.
+  currentTruth: 'Recounted: 18 tools (`schemas/tools/catalog.json`), 7 definitions and 7 ASL files; protected reads and commits resolve to BLOCKED live adapters, so none is operational outside fixtures.'
+- requirement: FO-01-07
+  observation: 'Committed corpus: 2,711 runs, 2,386 PASS, 305 FAIL, 20 INCONCLUSIVE; historical offline records.'
+  currentTruth: Confirmed from `evidence/evaluation/corpus-local-20261018w4.summary.json` (7 critical failures); it predates fix wave 5 (8c0f5a0) and no rerun is committed; qualification FAIL (local fixture).
+- requirement: FO-01-08
+  observation: AWS infrastructure is plan-only.
+  currentTruth: 'Still true: never applied; Terraform tests run with mock providers only.'
+- requirement: FO-01-09
+  observation: Workforce SSO needs completion.
+  currentTruth: 'Still true: `auth.oidcExchange` throws OIDC_NOT_CONFIGURED; BlockedWorkforceStaffDirectory.'
+- requirement: FO-01-10
+  observation: Actual call takeover needs completion.
+  currentTruth: 'Still true: transfers exist only against the telephony fixture.'
+- requirement: FO-01-11
+  observation: Live IdP needs completion.
+  currentTruth: 'Partly: JwksOidcVerifier is live code tested over loopback HTTP; discovery, directory and composition are absent.'
+- requirement: FO-01-12
+  observation: Vendor events need completion.
+  currentTruth: 'Still true: only a LOCAL FIXTURE HMAC webhook scheme (local/ci only).'
+- requirement: FO-01-13
+  observation: Independent audit export needs completion and qualification.
+  currentTruth: S3 Object Lock sink exists but was tested only with a stub client and is not composed outside local.
+- requirement: FO-01-14
+  observation: Domain effects need completion.
+  currentTruth: 'Still true: scheduling, billing, claims and provider live adapters are BLOCKED stubs.'
+- requirement: FO-01-15
+  observation: PSTN behaviour needs completion and qualification.
+  currentTruth: 'Still true: channel `pstn` is declared with no executor; no SIP path. Split: software FO-01-15 (WP-12), qualification FO-01-15a (WP-45).'
+- requirement: FO-01-16
+  observation: Draft templates are not approved live scripts.
+  currentTruth: 'Confirmed and enforced: templates stay DRAFT/PENDING and the gate refuses them outside local.'
+- requirement: FO-01-17
+  observation: 'PR #2 KMS grant narrowing merged into the feature branch, not main.'
+  currentTruth: 'Still true: `origin/main` = 4b0a5f9; 7d7ccfc reachable only from this branch (via 1f9d210).'
+- requirement: FO-01-18
+  observation: Review remaining policy-editor authority.
+  currentTruth: Key administrators keep kms:PutKeyPolicy and can undo the CreateGrant narrowing; documented residual VSP-INF-02.
+- requirement: FO-01-19
+  observation: Emergency-route audit deferral was process-local.
+  currentTruth: 'Still process-local at 8c0f5a0 (`platform/src/audit/deferred.ts:39-44`): fix wave 5 added draining at shutdown, not durability; a detached route-tool execution can also lose its event (FO-01-34).'
+- requirement: FO-01-20
+  observation: Retention declarations need direct review.
+  currentTruth: Declared and tested; durations are null pending counsel; new datasets (audio, timelines, model logs) are not yet declared.
+- requirement: FO-01-21
+  observation: Release checks need direct review.
+  currentTruth: Never executed; the image was never built; the base image is not digest-pinned; manifest signature is never produced.
+- requirement: FO-01-22
+  observation: Transfer event ordering needs direct review.
+  currentTruth: Verified locally with fixture events (ADR-0017, out-of-order tests).
+- requirement: FO-01-23
+  observation: Scorer truthfulness needs direct review.
+  currentTruth: Repairs merged in fix wave 5 (8c0f5a0) but not re-verified by a fresh corpus run; INCONCLUSIVE leaves the goal-completion denominator.
+- requirement: FO-01-24
+  observation: 'Lesson 1: in-app chat does not authenticate a phone caller.'
+  currentTruth: Verified locally with the fixture IdP (secure link binds call and generation).
+- requirement: FO-01-25
+  observation: 'Lesson 2: separate client support from provider-approved actions.'
+  currentTruth: Separation holds; provider-approved actions and shared domain contracts do not exist.
+- requirement: FO-01-26
+  observation: 'Lesson 3: provider actions use immutable proposals, digests, leases, idempotency, reconciliation.'
+  currentTruth: Verified for client actions on single-connection PGlite; no provider-side action path.
+- requirement: FO-01-27
+  observation: 'Lesson 4: separate transport, conversation, case and action authority.'
+  currentTruth: Case/action authority separated (durable grants); transport and conversation layers and CallBinding do not exist.
+- requirement: FO-01-28
+  observation: 'Lesson 5: judge audio before release; safety/error audio survives speaker or judge failure.'
+  currentTruth: 'Missing: no audio generation, judge or fallback audio.'
+- requirement: FO-01-29
+  observation: 'Lesson 6: a mock CRM is not a Case integration.'
+  currentTruth: The Salesforce REST adapter is real and emulator-tested but held in BLOCKED state and not composed.
+- requirement: FO-01-30
+  observation: 'Lesson 7: memory is not clinical truth; membership is not an authority service.'
+  currentTruth: Memory part verified; no eligibility, referral or authorization connector ports exist.
+- requirement: FO-01-31
+  observation: 'Lesson 8: refresh, idle expiry, generation fencing, duplicates and accepted handoffs are cross-component.'
+  currentTruth: Generation fencing, dedupe and accepted-handoff modelling verified locally; token refresh and idle expiry are absent.
+overlaps:
+- ids:
+  - FO-10-49
+  - FO-13-35
+  - FO-15-47
+  - FO-16-57
+  - FO-22-10
+  note: One independent continuity route (OPS-02); all assigned to WP-15.
+- ids:
+  - FO-01-19
+  - FO-15-45
+  - FO-22-08
+  - FO-01-34
+  - FO-15-48
+  note: Durable route-audit deferral and detached route-tool evidence; all assigned to WP-04.
+- ids:
+  - FO-03-01
+  - FO-03-42
+  - FO-10-42
+  note: Call-owner lease and single conversation adapter per call; all assigned to WP-14.
+- ids:
+  - FO-12-25
+  - FO-12-28
+  - FO-05-54
+  - FO-06-88
+  - FO-19-26
+  note: Production notification senders; all assigned to WP-27.
+- ids:
+  - FO-00-26
+  - FO-01-03
+  - FO-16-11
+  - FO-19-06
+  - FO-21-03
+  - FO-22-20
+  note: Live composition root; all assigned to WP-07 (phase integration packages extend it).
+- ids:
+  - FO-09-12
+  - FO-19-09
+  - FO-22-25
+  - FO-01-04
+  note: First complete real model path; adapters in WP-08, end-to-end path in WP-10.
+- ids:
+  - FO-14-14
+  - FO-08-02
+  - FO-18-15
+  - FO-08-37
+  note: 'Knowledge approval: backend decision record in WP-20 (gate citation check in WP-24), operator surfaces in WP-33.'
+- ids:
+  - FO-10-43
+  - FO-11-13
+  - FO-16-41
+  - FO-06-10
+  note: Multi-connection contention and ElasticMQ DLQ in the WP-04 postgres:16 suite.
+- ids:
+  - FO-16-44
+  - FO-16-44a
+  - FO-17-24.REGIONAL_FAILOVER
+  note: 'Region failover: infrastructure in WP-39, application fence and fault in WP-42.'
+- ids:
+  - FO-03-49
+  - FO-03-49a
+  note: 'Deployable console: composition in WP-07, Terraform access path in WP-39.'
+- ids:
+  - FO-01-15
+  - FO-01-15a
+  note: 'PSTN: SIP route software in WP-12, qualification in WP-45.'
+- ids:
+  - FO-20-11
+  - FO-20-11a
+  note: 'J11: safety legs in WP-15, failed-transfer leg in WP-28.'

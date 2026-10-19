@@ -1,0 +1,1212 @@
+# Follow-on requirement source records, prompt section 3. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '3'
+requirements:
+- id: FO-03-01
+  section: '3'
+  kind: software
+  text: Exactly one conversational owner per call.
+  acceptance: Runtime enforces a single owner lease per call; a second adapter is refused.
+  originalIds:
+  - SPEC-3.trust-boundaries
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no conversation runtime in platform/src; platform/src/evaluation/driver/local-driver.ts is a test harness
+  gap: No conversational owner component.
+  remediation: 'Add a call-ownership lease to the CallBinding record in DynamoDB (conditional put on callId with ownerAdapter, sessionGeneration and leaseExpiresAt; renew by heartbeat; fenced takeover bumps the generation). The gateway refuses tool calls whose adapter identity is not the lease holder. Tests on DynamoDB Local: a second adapter is refused, expiry hand-over works, and stale-holder writes are rejected.'
+  size: L
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-03-02
+  section: '3'
+  kind: software
+  text: Exactly one durable case owner.
+  acceptance: Workflows/human tasks/SLAs owned by one engine; graph checkpoints never own business workflows.
+  originalIds:
+  - SPEC-3.workflow-engine
+  - SPEC-9.workflow
+  derivedFrom: []
+  capabilityIds:
+  - workflows.durable
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/engine.ts:367
+  - infra/stepfunctions/manifest.json
+  - platform/src/workflows/README.md:329 (SFN bridge not implemented)
+  gap: Local engine only.
+  remediation: SFN adapter as the single live case owner.
+  size: L
+  environmentDependency: AWS Step Functions for live
+  workPackage: WP-26
+  provenance:
+    origin: extraction
+- id: FO-03-03
+  section: '3'
+  kind: software
+  text: Exactly one controlled action executor.
+  acceptance: All consequential effects pass LedgerActionService.
+  originalIds:
+  - SPEC-8.prepare-commit
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.ts
+  - platform/src/actions/action-service.test.ts
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Verified on PGlite.
+  remediation: Decide in an ADR which effect classes are 'consequential' (domain commits, case upserts, notifications, transfers) and route each through one executor interface with ledger rows, idempotency and receipts. Add a static or registry test that fails when an adapter write method is invoked outside platform/src/actions (for example a lint rule restricting imports of commit/write ports).
+  size: S
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-03-04
+  section: '3'
+  kind: software
+  text: Multiple specialists may investigate in parallel but cannot each speak, reassign the case or commit changes independently.
+  acceptance: Specialist outputs are proposals; only owners speak/reassign/commit (tests).
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no specialist framework in platform/src
+  gap: Absent.
+  remediation: Specialist sub-agents with proposal-only outputs.
+  size: L
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-03-05
+  section: '3'
+  kind: software
+  text: 'Responsive loop: listen, turn-take, clarify and play approved speech.'
+  acceptance: Responsive loop handles turns with measured latency in local audio tests.
+  originalIds:
+  - SPEC-11.endpointing
+  - SPEC-11.barge-in
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/turns.ts (in-memory turn ids only)
+  gap: Absent.
+  remediation: 'Build the media runtime (platform/media or a new workspace package media/) as a LiveKit Agents Node worker: VAD and endpointing, streaming ASR, turn tracker with session-generation fencing, barge-in that cancels queued audio, and a speech queue that accepts only gate-registered SpeechPlans. Test against livekit-server in docker with synthetic audio, and measure turn latency p50/p95.'
+  size: XL
+  environmentDependency: none
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-03-06
+  section: '3'
+  kind: software
+  text: 'Investigation loop: bounded reasoning with authorized reads.'
+  acceptance: Bounded loop (step/time/tool budgets) performs reads only through the gateway.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no investigation loop in platform/src
+  gap: Absent.
+  remediation: Bounded graph/state machine (section 9).
+  size: L
+  environmentDependency: model access
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-03-07
+  section: '3'
+  kind: software
+  text: Trusted gateway with identity and OPA between conversation runtime and context/action engines.
+  acceptance: Every runtime read/action goes through the gateway pipeline.
+  originalIds:
+  - AUTH-02
+  - SPEC-8.tool-surface
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/pipeline.ts
+  - platform/src/gateway/pipeline.test.ts
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: 'Runtime does not exist yet to use it. IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: no conversation runtime exists to route its reads and actions through the gateway (WP-10).'
+  remediation: Runtime calls gateway with trusted CallBinding.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: no conversation runtime exists to route its reads and actions through the gateway (WP-10).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-10
+- id: FO-03-08
+  section: '3'
+  kind: software
+  text: Context/knowledge engine combining history and recent events.
+  acceptance: Engine returns ContextSnapshots from history, projections and live reads.
+  originalIds:
+  - SPEC-9.retrieval
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/service.ts (approved-corpus knowledge only)
+  - no history/event projection code
+  gap: Knowledge exists; context engine does not.
+  remediation: Section 7 context engine.
+  size: XL
+  environmentDependency: tenant event sources
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-03-09
+  section: '3'
+  kind: software
+  text: Action executor over domain APIs plus ledger.
+  acceptance: Executor commits through real connectors with receipts.
+  originalIds:
+  - SPEC-8.ledger
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/ports.ts
+  - platform/src/adapters/live/business-systems-blocked.ts
+  gap: Ledger verified; domain API connectors blocked.
+  remediation: 'Implement domain commit adapters through the configurable connector framework (section 6): a REST/FHIR scheduling connector and a billing connector first, each with an OpenAPI-described emulator in docker-compose, provider idempotency keys, optimistic-concurrency versions (ActionTarget.beforeVersion) and an UNKNOWN-on-timeout path. Register them in place of the BLOCKED stubs and rerun action-service.property.test.ts and faults.test.ts against the emulators.'
+  size: L
+  environmentDependency: domain APIs
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-03-10
+  section: '3'
+  kind: software
+  text: Independent audit plus operations console fed by the durable case owner.
+  acceptance: Console shows workflows/tasks/SLAs and audit from independent export.
+  originalIds:
+  - OPS-01
+  - SPEC-13.console
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/audit
+  - console/src/pages
+  - platform/src/console-api/plugin.ts
+  gap: Fixture-backed; independent export unverified. The console composition is refused outside local/ci and 'the deployed console access path is not in the infrastructure plan' (platform/src/main/console.ts:1-8), so there is no deployable operations console at all.
+  remediation: Compose live; MinIO tests.
+  size: M
+  environmentDependency: audit account
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-03-11
+  section: '3'
+  kind: constraint
+  text: Keep modules clear; avoid a microservice per prompt.
+  acceptance: Module boundaries documented; no per-prompt services.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/ARCHITECTURE.md:39-70 (module layout)
+  - platform/src (single package, module directories)
+  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: No test enforces module boundaries; the documented layout is not checked (WP-06 module-boundary allowlist and dependency test).'
+  remediation: Keep as runtime is added.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: no test enforces module boundaries; the documented layout is not checked (WP-06 module-boundary allowlist and dependency test).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-06
+- id: FO-03-12
+  section: '3'
+  kind: software
+  text: Independently deploy media, API/control plane, asynchronous workers and audit exporter where scaling or trust boundaries differ.
+  acceptance: Separate deployable units with their own task definitions/roles for media, API, worker, audit exporter.
+  originalIds:
+  - SPEC-3.ingress
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/Dockerfile:1-4 (gateway and worker share one image, command selected)
+  - platform/src/worker/main.ts
+  - no media service; audit shipper runs as a worker loop (platform/src/worker/loops.ts)
+  gap: API and worker separable; media and audit exporter do not exist as units.
+  remediation: Add media service and separate audit-exporter task with its own IAM.
+  size: M
+  environmentDependency: none
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-03-13
+  section: '3'
+  kind: software
+  text: Models receive only scoped data and tool proposals.
+  acceptance: Model inputs are built from ContextSnapshot with field masks; tests show no unscoped fields reach a model.
+  originalIds:
+  - DATA-01
+  - AUTH-03
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/mask.ts (tool output masks exist)
+  - no model invocation path
+  gap: No model path to scope.
+  remediation: ModelInvocation built from scoped snapshot.
+  size: M
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-03-14
+  section: '3'
+  kind: constraint
+  text: 'Default stack: TypeScript, supported Node LTS, Fastify and the existing React/TypeScript console.'
+  acceptance: Runtime versions pinned to supported LTS.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.workspace
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - .nvmrc (22.22.0)
+  - platform/package.json (fastify 5.12.7, typescript 6.0.3)
+  - console/package.json
+  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: The pin is a configuration fact (.nvmrc 22.22.0, package.json engines >=22.12 <23, CI node-version-file) but no check asserts that the pinned runtime is a supported LTS line, a named element (WP-03 doctor/CI check).'
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the pin is a configuration fact (.nvmrc 22.22.0, package.json engines >=22.12 <23, CI node-version-file) but no check asserts that the pinned runtime is a supported LTS line, a named element (WP-03 doctor/CI check).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-03
+- id: FO-03-15
+  section: '3'
+  kind: constraint
+  text: Python sidecars only for model inference/evaluation, not a rewrite of working TypeScript business logic.
+  acceptance: Any Python component is limited to inference/evaluation.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scripts/capacity_model.py (only Python)
+  gap: No check limits Python sidecars to inference/evaluation code; sidecars arrive with WP-13, WP-15 and WP-20.
+  remediation: Release-gate inventory check (WP-40) that lists every Python file under sidecars/ and scripts/, refuses business-logic modules (imports of platform contracts, database clients or connector code) and records the inventory in the release manifest.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 13): NOT_APPLICABLE -> MISSING: WP-13, WP-15 and WP-20 add Python sidecars, so the constraint will trigger; no inventory or lint check limits sidecars to inference/evaluation code'
+    repairStatusFrom: NOT_APPLICABLE
+  workPackage: WP-40
+- id: FO-03-16
+  section: '3'
+  kind: software
+  text: Pin runtimes, lockfiles and image digests.
+  acceptance: Lockfile frozen, exact dependency versions, base and runtime images pinned by digest.
+  originalIds:
+  - OPS-06
+  - SPEC-14.supply-chain
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - pnpm-lock.yaml; package.json packageManager pnpm@10.28.0
+  - platform/package.json (exact versions)
+  - platform/Dockerfile:12-17 (base image by tag only; digest unresolved)
+  gap: Image digests not pinned; image never built. GitHub Actions are pinned by tag, not commit SHA (.github/workflows/ci.yml:5-8,33,37). The Dockerfile labels digest pinning as a 'PREREQUISITE' (platform/Dockerfile:13-16), although resolving a digest is software work and Docker Hub is now reachable (docs/followon/CONTINUATION.md environment facts).
+  remediation: Build image, pin base digest, record image digest in manifest.
+  size: S
+  environmentDependency: none
+  workPackage: WP-40
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-03-17
+  section: '3'
+  kind: software
+  text: LiveKit Agents with self-hostable media and SIP for the controllable voice reference path.
+  acceptance: Self-hosted LiveKit server + SIP service run in Docker; agent worker joins calls in local tests.
+  originalIds:
+  - SPEC-3.vendor-capability-gate
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/package.json (no livekit dependency)
+  - docs/followon/CONTINUATION.md:39 (livekit-server image pulled)
+  gap: Absent.
+  remediation: Add LiveKit server/SIP compose and Node agent worker.
+  size: XL
+  environmentDependency: none (livekit/livekit-server image already pulls)
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-03-18
+  section: '3'
+  kind: constraint
+  text: Prefer LiveKit's supported Node SDK; isolate a Python media worker only if a required plugin demands it.
+  acceptance: Decision record lists plugins and SDK choice.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no ADR for runtime SDK choice
+  gap: Absent.
+  remediation: ADR plus implementation.
+  size: S
+  environmentDependency: none
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-03-19
+  section: '3'
+  kind: software
+  text: Bounded conversation/investigation graph (LangGraph.js where it simplifies typed state, otherwise an explicit state machine) behind one contract; no second agent framework.
+  acceptance: Graph/state machine with typed state, bounded steps, single framework.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no graph or agent framework dependency in platform/package.json
+  gap: Absent.
+  remediation: Implement bounded graph.
+  size: L
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-03-20
+  section: '3'
+  kind: constraint
+  text: Retain AWS Step Functions Standard as the durable case/workflow orchestrator; graph checkpoints are not a second owner; framework retries never imply exactly-once external effects.
+  acceptance: Graph state is per-call only; external effects only via ledger.
+  originalIds:
+  - SPEC-3.workflow-engine
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - workflows.durable
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/asl.ts; infra/terraform/modules/step_functions
+  - platform/src/actions/action-service.ts (idempotent commits)
+  gap: SFN not wired; graph not yet built.
+  remediation: 'Implement platform/src/workflows/sfn-bridge.ts: an SQS consumer for the task-token queues that applies each step through PgWorkflowEngine''s event rules and calls SendTaskSuccess, SendTaskFailure and SendTaskHeartbeat (KMS-encrypted token at rest). Add an SfnWorkflowStarter that starts executions idempotently by workflowId. Decide in an ADR which of SFN and PgWorkflowEngine owns state, so there is one owner. Test against Step Functions Local plus ElasticMQ in docker-compose (start, heartbeat, timeout, worker crash and resume).'
+  size: M
+  environmentDependency: AWS account
+  workPackage: WP-26
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-03-21
+  section: '3'
+  kind: software
+  text: Aurora/PostgreSQL for action ledger, case links, event inbox/outbox, timelines, knowledge metadata/full-text search and pgvector.
+  acceptance: Migrations apply and suites pass on PostgreSQL 16 + pgvector container.
+  originalIds:
+  - SPEC-8.ledger
+  - SPEC-9.retrieval
+  derivedFrom: []
+  capabilityIds:
+  - ingress.events
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/db/pg.ts (PgPoolDb, never run against a real server)
+  - platform/migrations (ledger, outbox, support links, knowledge FTS; pgvector optional at 0500_knowledge.sql:150)
+  gap: No event inbox or timeline tables; PostgreSQL never exercised (PGlite only).
+  remediation: Run migrations/suites on PostgreSQL+pgvector container; add inbox/timeline tables.
+  size: M
+  environmentDependency: Aurora cluster for live
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+- id: FO-03-22
+  section: '3'
+  kind: software
+  text: DynamoDB conditional records for call binding, revocation and ownership leases.
+  acceptance: DynamoKvStore suite passes on DynamoDB Local; binding/lease records use conditional writes.
+  originalIds:
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/kv/dynamo-kv-store.ts
+  - platform/src/identity/kv/kv-store.test.ts:5-7 (expression stub; DynamoDB Local NOT RUN)
+  - infra/terraform/modules/dynamodb_sessions
+  gap: No ownership-lease records; not run on DynamoDB Local.
+  remediation: DynamoDB Local tests; lease records.
+  size: M
+  environmentDependency: DynamoDB table for live
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+- id: FO-03-23
+  section: '3'
+  kind: constraint
+  text: PGlite stays local only.
+  acceptance: Guard refuses PGlite outside local/ci.
+  originalIds:
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/main/container.ts:268-313
+  - platform/src/workflows/engine.ts:383 (pglite => local_fixture kind)
+  - platform/src/config/guard.test.ts
+  - platform/src/config/guard.ts:352 and guard.test.ts:183,208 (DATABASE_ENGINE_PGLITE violation outside local/ci)
+  gap: Satisfied.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-07
+  provenance:
+    origin: extraction
+    repair:
+    - VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1); evidence lines added
+- id: FO-03-24
+  section: '3'
+  kind: software
+  text: SQS with DLQ for delivery.
+  acceptance: SqsPublisher passes against ElasticMQ/LocalStack; DLQ redrive tested.
+  originalIds:
+  - SPEC-8.outbox
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/outbox/sqs-publisher.ts:53
+  - platform/src/outbox/sqs-publisher.contract.test.ts:1-5 (stub client)
+  - infra/terraform/modules/sqs
+  gap: Stub-tested only.
+  remediation: Emulator tests.
+  size: S
+  environmentDependency: SQS queues for live
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+- id: FO-03-25
+  section: '3'
+  kind: constraint
+  text: EventBridge only when fan-out is justified.
+  acceptance: Decision recorded when fan-out is introduced.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: NOT_APPLICABLE
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no EventBridge usage
+  gap: Not needed yet.
+  remediation: Decide with event ingestion design.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
+  notApplicableReason: 'No component uses EventBridge and no work package introduces it: ADR-0018 decision 4 keeps SQS/SNS for delivery. Revisit if a package proposes EventBridge fan-out.'
+- id: FO-03-26
+  section: '3'
+  kind: software
+  text: Consume an existing Kafka/MSK/Kinesis stream through an adapter when the tenant has one; never require a new Kafka installation.
+  acceptance: Stream consumer adapter tested against Redpanda/Kafka and Kinesis emulators.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - ingress.events
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no stream consumer in platform/src
+  gap: Absent.
+  remediation: Stream ingestion adapters (section 6/7).
+  size: M
+  environmentDependency: tenant stream access
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+- id: FO-03-27
+  section: '3'
+  kind: software
+  text: OPA locally evaluated policy bundles.
+  acceptance: WASM bundle evaluated in-process with golden tests.
+  originalIds:
+  - SPEC-3.trust-boundaries
+  derivedFrom:
+  - ADR-0002
+  capabilityIds:
+  - platform.composition
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/policy/engine.ts
+  - policy/build/policy.wasm
+  - docs/TEST_EVIDENCE.md:50 (225/225 Rego tests)
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-07
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-03-28
+  section: '3'
+  kind: software
+  text: Use existing OIDC IdPs and workforce SSO.
+  acceptance: Caller and workforce OIDC flows work against a containerised IdP.
+  originalIds:
+  - SPEC-7.workforce-separation
+  derivedFrom: []
+  capabilityIds:
+  - identity.workforce
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/oidc-verifier.ts
+  - platform/src/console-api/plugin.ts:454-459
+  gap: Workforce exchange missing (see section 5).
+  remediation: Implement FO-05-07 (discovery), FO-05-09/FO-05-13 (workforce code exchange with PKCE and a redirect allowlist), FO-05-41 (live staff directory and group-to-role mapping) and compose JwksOidcVerifier for callers. Verify both flows against a Keycloak container in the integration profile.
+  size: L
+  environmentDependency: PRQ-005, PRQ-036
+  workPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-03-29
+  section: '3'
+  kind: software
+  text: AWS workload identity, Secrets Manager, KMS, S3 and an independent audit account.
+  acceptance: Runtime reads secrets from Secrets Manager, signs with KMS, ships audit to S3 in another account; emulator tests.
+  originalIds:
+  - SPEC-14.supply-chain
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/secrets, kms, audit
+  - platform/src/identity/assertions/signers.ts:68 (KmsAssertionSigner)
+  - '@aws-sdk/client-secrets-manager in platform/package.json but no usage in platform/src'
+  gap: No runtime secret retrieval code; none composed.
+  remediation: Secret resolver over Secrets Manager; LocalStack tests.
+  size: M
+  environmentDependency: AWS accounts
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+- id: FO-03-30
+  section: '3'
+  kind: software
+  text: OpenTelemetry with approved CloudWatch/Datadog or self-hosted observability; content disabled by default.
+  acceptance: OTel SDK + exporter configured; logs/metrics content-free by test.
+  originalIds:
+  - SPEC-13.dashboards
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/metrics.ts:807 (OTel bridge, exporter out of scope)
+  - platform/src/observability/tracing.ts:143
+  - platform/src/observability/logger.test.ts
+  gap: No SDK/exporter wiring.
+  remediation: Add @opentelemetry/sdk-node with OTLP metric and trace exporters, configured from PlatformConfig.observability (endpoint on the egress allowlist, content attributes disabled by default), and construct OpenTelemetryMetrics and the tracer in the live composition. Test against an OpenTelemetry Collector container that writes to a file exporter, asserting that metric names and labels arrive and that no attribute outside the label allowlist or containing content is exported.
+  size: S
+  environmentDependency: observability backend approval
+  workPackage: WP-07
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-03-31
+  section: '3'
+  kind: software
+  text: Terraform, OIDC-based CI and signed build/release manifests.
+  acceptance: CI assumes roles via OIDC; release signs image and manifest; executed once.
+  originalIds:
+  - SPEC-14.supply-chain
+  - SPEC-16.release-manifest
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - .github/workflows/release.yml:40,116-131
+  - infra/terraform/modules/iam_ci
+  gap: Never executed.
+  remediation: Dry-run release job.
+  size: S
+  environmentDependency: GitHub/AWS OIDC trust
+  workPackage: WP-40
+  provenance:
+    origin: extraction
+- id: FO-03-32
+  section: '3'
+  kind: software
+  text: 'Voice mode A, controlled cascade: streaming ASR -> bounded reasoning -> response validation -> independently controlled TTS/audio queue; default route for protected facts, confirmations, disclosures, safety and error responses.'
+  acceptance: Cascade runs locally (open ASR/TTS models acceptable) and audio tests prove gating per response class.
+  originalIds:
+  - ACT-05
+  - SPEC-11.response-gate
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts (text gate only)
+  - no ASR/TTS code
+  gap: Absent.
+  remediation: 'Implement the cascade in the media runtime: a streaming ASR plugin (local whisper.cpp or faster-whisper sidecar for tests), the bounded reasoning loop, the response gate (platform/src/voice/gate.ts) producing a SpeechPlan, TTS (local Piper or Kokoro in tests), and an audio queue that releases frames only with an AudioReleaseReceipt. Audio tests per response class: protected classes never emit before authorization.'
+  size: XL
+  environmentDependency: ASR/TTS vendors for production
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-03-33
+  section: '3'
+  kind: software
+  text: 'Voice mode B, native full-duplex: qualified native audio model adapters (OpenAI GPT-Live client delegation, AWS Nova 2.5 Sonic) with the same authority and outcome contracts.'
+  acceptance: Adapters implemented and tested against recorded/mock protocol servers; qualification job defined.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.native
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no native audio adapter in platform/src
+  gap: Absent.
+  remediation: Implement adapters behind the runtime contract.
+  size: XL
+  environmentDependency: OpenAI and AWS Bedrock credentials, BAA
+  workPackage: WP-16
+  provenance:
+    origin: extraction
+- id: FO-03-34
+  section: '3'
+  kind: constraint
+  text: Hybrid provider paths are separately authenticated and qualified per provider/region/data path; GPT-Live is separate from Responses/Chat Completions; AWS credentials are not a drop-in credential for it.
+  acceptance: Config schema requires per-provider credentials and qualification evidence.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/schema.ts (no model provider config)
+  gap: Absent.
+  remediation: Provider-path config and qualification records.
+  size: M
+  environmentDependency: provider contracts
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-03-35
+  section: '3'
+  kind: software
+  text: The runtime, not a prompt, owns which audio may reach the caller; response classes native speech cannot pre-emission-control are routed through the controlled path.
+  acceptance: Runtime routing table by response class with tests.
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/tools.ts:85-97 (ResponseClass exists)
+  gap: No runtime.
+  remediation: Add a response-class routing table in the runtime config (ResponseClass -> CONTROLLED | NATIVE_ALLOWED) with a default of CONTROLLED for IDENTITY, FINANCIAL_FACT, COMMITMENT, PROTECTED_FACT, SAFETY, CLINICAL_BOUNDARY and RECORDING_DISCLOSURE. The runtime enforces it before any audio frame leaves. Unit tests per class, plus an audio test that a native speaker attempting a protected class is muted and routed.
+  size: L
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-03-36
+  section: '3'
+  kind: constraint
+  text: Never send protected context to an unrestricted native speaker.
+  acceptance: Tests show protected facts never enter native-mode model context.
+  originalIds:
+  - DATA-01
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.native
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no native mode
+  gap: Absent.
+  remediation: Context scoping per mode.
+  size: M
+  environmentDependency: none
+  workPackage: WP-16
+  provenance:
+    origin: extraction
+- id: FO-03-37
+  section: '3'
+  kind: software
+  text: Mode switching avoids overlapping speakers and revokes old buffers.
+  acceptance: 'Audio test: switch mid-utterance yields no overlap and no stale buffer playback.'
+  originalIds:
+  - SPEC-11.barge-in
+  derivedFrom: []
+  capabilityIds:
+  - voice.native
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/speech-queue.ts (barge-in drops queued segments in-process)
+  gap: No modes or audio buffers.
+  remediation: 'Implement speaker hand-over in the runtime: one active output track per call, generation bump on switch, cancellation and flushing of the old provider''s buffered frames before the new speaker starts, and an AudioReleaseReceipt per segment with playback status. Audio test: switch mid-utterance, assert no overlapping frames and no frame from the old generation after the switch.'
+  size: M
+  environmentDependency: none
+  workPackage: WP-16
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-03-38
+  section: '3'
+  kind: evaluation
+  text: Qualify native-mode continuity and latency; do not market native mode as protected-ready because the SDK connects.
+  acceptance: Qualification report per mode with latency/continuity metrics.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.native
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no qualification harness
+  gap: Absent.
+  remediation: Section 17 qualification.
+  size: M
+  environmentDependency: provider access
+  workPackage: WP-16
+  provenance:
+    origin: extraction
+- id: FO-03-39
+  section: '3'
+  kind: environment
+  text: Keep Talkdesk numbers, routing, queues, human workspace and continuity routes when configured.
+  acceptance: Talkdesk package validated; drift check against exported config.
+  originalIds:
+  - SPEC-3.independent-human-route
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/studio-flow-spec.md; talkdesk/expected-config.yaml; talkdesk/drift-check.md
+  - docs/TEST_EVIDENCE.md:58 (package consistency 30/30, not tenant evidence)
+  gap: No tenant evidence.
+  remediation: Run drift check against tenant export.
+  size: S
+  environmentDependency: Talkdesk tenant export (PRQ-004)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-03-40
+  section: '3'
+  kind: software
+  text: Implement a documented SIP reference route so the product runs without a proprietary AI entitlement.
+  acceptance: SIP trunk -> LiveKit SIP -> runtime -> human queue works in local tests with a SIP client (e.g. SIPp/baresip).
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - telephony.sip
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no SIP code or docs
+  gap: Absent.
+  remediation: Implement and document the SIP route.
+  size: XL
+  environmentDependency: SIP trunk for PSTN
+  workPackage: WP-12
+  provenance:
+    origin: extraction
+- id: FO-03-41
+  section: '3'
+  kind: software
+  text: Talkdesk AI Agent Platform/MCP is an optional conversation adapter requiring the same tests.
+  acceptance: MCP Streamable HTTP adapter passes the same invariant suite.
+  originalIds:
+  - SPEC-8.service-identities
+  derivedFrom: []
+  capabilityIds:
+  - conversation.talkdesk_native
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/mcp.ts
+  - platform/src/gateway/mcp.test.ts:52,265 (real MCP SDK client)
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Not qualified with tenant.
+  remediation: Keep as optional adapter.
+  size: S
+  environmentDependency: Talkdesk entitlement
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-03-42
+  section: '3'
+  kind: software
+  text: Only one conversation adapter owns a call.
+  acceptance: Second adapter for the same call is refused (lease test).
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/call-state.ts (SessionLeaseRegistry is an admission lease, not adapter ownership)
+  gap: Absent.
+  remediation: 'Same lease as FO-03-01: the gateway and the media runtime check CallBinding.ownerAdapter on every turn. A Talkdesk MCP session and a LiveKit agent for the same call cannot both hold it (two-adapter race test on DynamoDB Local).'
+  size: M
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-03-43
+  section: '3'
+  kind: constraint
+  text: Use supported SIP/media interfaces and documented authentication; do not invent a Talkdesk media or transfer API.
+  acceptance: No undocumented vendor endpoint in code.
+  originalIds:
+  - SPEC-3.vendor-capability-gate
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/talkdesk-blocked.ts:1-26
+  - platform/src/adapters/live/blocked.test.ts
+  gap: Respected by refusing everything; the documented SIP path is not built.
+  remediation: Build documented SIP route.
+  size: S
+  environmentDependency: Talkdesk documentation
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-03-44
+  section: '3'
+  kind: constraint
+  text: Do not wait for vendor uncertainty before building the independent runtime.
+  acceptance: Runtime built regardless of VQ-TD-42.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/adr/ADR-0006-fallback-speech-runtime.md:3-5 (conditional on TB-04/TB-05)
+  - talkdesk/vendor-questions.md:75 (VQ-TD-42 UNANSWERED)
+  gap: Runtime still waits on vendor answers.
+  remediation: Supersede ADR-0006.
+  size: S
+  environmentDependency: none
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-03-45
+  section: '3'
+  kind: environment
+  text: ECS Fargate for suitable control services.
+  acceptance: Fargate services for API/worker defined and planned.
+  originalIds:
+  - SPEC-3.ingress
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/ecs_service/main.tf:355-386 (FARGATE, awsvpc)
+  gap: Plan-only.
+  remediation: Sandbox apply.
+  size: S
+  environmentDependency: AWS account
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-03-46
+  section: '3'
+  kind: environment
+  text: Provide an explicit deployment topology for media/SIP UDP, host networking, GPU inference and TURN (EC2/ECS-on-EC2 or other supported topology).
+  acceptance: Terraform module for media hosts with UDP port ranges, TURN, optional GPU; plan tests.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules (no EC2/UDP/TURN resources)
+  gap: Absent.
+  remediation: 'Add infra/terraform/modules/media_hosts: an ECS-on-EC2 capacity provider (or EC2 Auto Scaling) with host networking for livekit-server and livekit-sip, security groups for the SIP (5060/5061) and RTP UDP ranges, a TURN server (coturn or LiveKit''s embedded TURN) with TLS, an optional GPU instance class, and an NLB with UDP listeners. Add plan tests and OPA rules for port ranges and source CIDRs (carrier allowlist).'
+  size: L
+  environmentDependency: AWS account
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-03-47
+  section: '3'
+  kind: constraint
+  text: An HTTP load balancer alone is not a working RTP/TURN architecture; contracts and actual network behaviour determine eligibility.
+  acceptance: Network tests show RTP/TURN connectivity through the chosen topology.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/ingress/main.tf:230-232 (application load balancer only)
+  gap: Only an ALB.
+  remediation: 'Same module as FO-03-46: NLB UDP and TCP listeners or host-networked instances with Elastic IPs for RTP/SIP, plus TURN/TLS on 443. Add a docker-based network test that places a SIP call (SIPp) and a WebRTC client through TURN and asserts RTP flows both ways.'
+  size: M
+  environmentDependency: AWS account
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-03-48
+  section: '3'
+  kind: document
+  text: Separate the reference deployment from optional managed services.
+  acceptance: Deployment docs and modules distinguish self-hosted reference from optional managed services.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/README.md (AWS-managed only)
+  gap: Absent.
+  remediation: 'Write docs/deployment/reference.md and infra/compose/ (self-hosted reference: compose or Helm with PostgreSQL, LiveKit, OPA bundle, MinIO, OIDC IdP) separately from infra/terraform (AWS managed). Give each optional managed service (Aurora, DynamoDB, SQS, Step Functions, Bedrock/OpenAI) an adapter flag and an eligibility checklist.'
+  size: M
+  environmentDependency: none
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-03-49
+  section: '3'
+  kind: software
+  text: The operations console (investigation, work queues, approvals, kill switches) is a deployable unit composed from the live container with workforce SSO, the live staff directory and its own least-privilege role, separate from the public gateway surface (application part; the infrastructure access path is FO-03-49a).
+  acceptance: A non-local composition of the console API starts from the live container with workforce OIDC and the live staff directory, and the console static bundle is served from it.
+  originalIds:
+  - SPEC-7.workforce-separation
+  - SPEC-13.console
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/main/console.ts:1-8 (LOCAL FIXTURE composition; 'the deployed console access path is not in the infrastructure plan'; refused outside local/ci)
+  - infra/terraform/modules (no console service or access path)
+  gap: The console exists only as a loopback local composition, so every console-backed capability (investigation, approvals, DLQ repair, kill switches) has no deployable path.
+  remediation: Add buildLiveConsole in platform/src/main/console.ts that reuses the live container and the WorkforceTokenVerifier with remote JWKS (WP-07).
+  size: M
+  environmentDependency: workforce IdP client (PRQ-036) for activation only
+  workPackage: WP-07
+  provenance:
+    origin: challenge-missed
+    repair:
+    - 'split (critic gap 6h): application part stays in WP-07; Terraform access path is FO-03-49a (WP-39)'
+- id: FO-03-49a
+  section: '3'
+  kind: software
+  text: 'The operations console has its own private access path in infrastructure: an internal ALB, VPN or zero-trust proxy with WAF and its own least-privilege task role, separate from the public gateway surface (infrastructure part split from FO-03-49).'
+  acceptance: Terraform module console_service defines the private access path, WAF and task role; a plan test proves the console is not reachable on the public gateway listener; an OPA rule forbids a public listener for it.
+  originalIds:
+  - SPEC-7.workforce-separation
+  - SPEC-13.console
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules (no console service or access path)
+  gap: No console service, access path or plan test in infra/terraform.
+  remediation: infra/terraform/modules/console_service (internal ALB, WAF, task definition, role limited to the console DB role app_console), plan tests and an OPA rule forbidding a public listener (WP-39).
+  size: M
+  environmentDependency: AWS sandbox account (PRQ-037) for VERIFIED_SANDBOX
+  provenance:
+    origin: repair-split
+    splitFrom: FO-03-49
+    repair:
+    - 'Phase A repair (critic gap 6h): Terraform part split from FO-03-49 and assigned to WP-39'
+  workPackage: WP-39

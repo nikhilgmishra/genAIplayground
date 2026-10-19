@@ -1,0 +1,696 @@
+# Follow-on requirement source records, prompt section 18. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '18'
+requirements:
+- id: FO-18-01
+  section: '18'
+  kind: software
+  text: 'Continuous improvement service: collect approved observations.'
+  acceptance: Service ingests approved, minimized observations (outcomes, monitor findings, reviews).
+  originalIds:
+  - SPEC-15.no-self-promotion
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: 'Add platform/src/improvement/observations.ts: an ImprovementObservation protocol type (source EVALUATION_RESULT | OUTCOME | MONITOR_FINDING | HUMAN_REVIEW; opaque refs only; data class; approval reference) and an append-only table (new migration, tenant RLS, an app_improvement role with no access to raw content). Ingest EvaluationResult files and interaction_outcomes from a worker loop, register the dataset in platform/src/retention/datasets.ts, and test that unapproved sources and content fields are refused.'
+  size: L
+  environmentDependency: Approved observation sources
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-02
+  section: '18'
+  kind: software
+  text: Detect failure clusters and drift automatically.
+  acceptance: Clustering/drift jobs produce findings with evidence.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - evidence/evaluation/tools (manual offline root-cause attribution)
+  gap: Manual root-cause scripts only.
+  remediation: Add an analysis job that clusters FAIL/INCONCLUSIVE EvaluationResults and observations by failureCode, assertionId, intent, variant, fault and versions, with counts, first/last seen and slice deltas against the previous run (reuse aggregate.ts compareAggregates). It replaces the one-off rules in evidence/evaluation/tools/attribute-root-causes.mts. Flag drift when a slice rate moves outside its Wilson interval (stats.ts). Test on the w3 -> w4 results.
+  size: M
+  environmentDependency: none
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-03
+  section: '18'
+  kind: software
+  text: Propose changes automatically (prepare useful changes, not merely charts).
+  acceptance: Generates ChangeProposals with diffs for prompt/knowledge/config.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: Implement a ProposalGenerator that turns a failure cluster into a draft ChangeProposal of an allowed kind only (knowledge draft, corpus-expectation change request, prompt variant, retrieval parameter, routing threshold), with an exact diff against the pinned configuration digest. It runs only in the approved optimizer environment (FO-18-10) and cannot write production configuration.
+  size: L
+  environmentDependency: Bounded optimizer environment
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-04
+  section: '18'
+  kind: software
+  text: Replay/evaluate proposals.
+  acceptance: Proposals replayed on dev/tuning corpora with regression comparison.
+  originalIds:
+  - SPEC-14.test-layers
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/run-corpus.ts (substrate)
+  gap: No proposal replay.
+  remediation: Add an improve:replay command that applies a ChangeProposal's diff as an override to the corpus runner (platform/src/evaluation/driver/run-corpus.ts) on the development and tuning splits only. It records EvaluationResults with the proposalId and compares them to the baseline with compareAggregates; a new critical failure or slice regression marks the proposal REJECTED_BY_EVAL.
+  size: M
+  environmentDependency: none
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-05
+  section: '18'
+  kind: software
+  text: Review proposals.
+  acceptance: Human review with separation of duties before canary.
+  originalIds:
+  - SPEC-15.no-self-promotion
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: Add a ChangeProposal review state machine (DRAFT -> EVALUATED -> IN_REVIEW -> APPROVED/REJECTED) in Postgres, with console endpoints proposals.list/get/review. The reviewer must differ from the author and from the service identity and hold the role for the proposal's kind. Moving to canary needs a signed approval (platform/src/config/approvals.ts scope), not a console click. Add rules to policy/vsp/console.rego with golden tests.
+  size: M
+  environmentDependency: Reviewers
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-06
+  section: '18'
+  kind: software
+  text: Canary -> measure -> promote or rollback.
+  acceptance: Canary controller with metrics and automatic rollback.
+  originalIds:
+  - SPEC-15.pilot-promotion
+  - SPEC-15.rollback
+  derivedFrom: []
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: Implement a canary controller worker loop that reads an approved CanarySpec (FO-18-24), assigns cohorts (FO-18-25) and compares canary against control on verified resolution, critical failures and safety transfers within the spec's error budget. On a breach it reverts the configuration pin and engages the matching INTENT or MODEL_VERSION kill switch; promotion needs a second signed approval. Test with a simulated metric stream.
+  size: L
+  environmentDependency: Pilot authority
+  workPackage: WP-37
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-07
+  section: '18'
+  kind: software
+  text: Self-improvement UI.
+  acceptance: Console pages for findings, proposals, evaluations, reviews, canaries.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/navigation.ts
+  gap: Not present.
+  remediation: Add console routes /improvement/clusters, /improvement/proposals/:id (diff, evidence, evaluation comparison, review actions through ReasonActionDialog) and /improvement/canaries (limits, live metrics, rollback state), backed by the endpoints above, with loading, empty and error states, RBAC tests and axe checks.
+  size: M
+  environmentDependency: none
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-08
+  section: '18'
+  kind: software
+  text: ChangeProposal binds evidence, suspected cause, exact prompt/knowledge/model/tool/config diff, affected capabilities, expected benefit, risks, tests and rollback.
+  acceptance: Strict schema with digests; validation tests.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/release.ts (release manifest only)
+  gap: No ChangeProposal type.
+  remediation: Add ChangeProposal to platform/src/protocol as a strictObject (proposalId, evidenceRefs, suspectedCause, diff {target PROMPT|KNOWLEDGE|MODEL|TOOL|CONFIG, baseDigest, patch}, affectedCapabilities, expectedBenefit, risks, tests, rollback {pinDigest}). Generate its JSON Schema into schemas/, persist it append-only, and test that a proposal touching the tool catalogue or the policy bundle is refused.
+  size: S
+  environmentDependency: none
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-09
+  section: '18'
+  kind: software
+  text: Distinguish verified cause from hypothesis.
+  acceptance: Cause field typed VERIFIED (with evidence) or HYPOTHESIS.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: Make suspectedCause a discriminated union in the ChangeProposal schema. VERIFIED requires at least one reproducing EvaluationResult ref and a failing-then-passing replay; HYPOTHESIS cannot be promoted past canary. Test both.
+  size: S
+  environmentDependency: none
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-10
+  section: '18'
+  kind: constraint
+  text: Candidate generation and offline optimization may run autonomously only in a bounded approved environment.
+  acceptance: Optimizer jobs refuse outside approved environment; no production access.
+  originalIds:
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: No optimizer.
+  remediation: Add an optimizer entry point (pnpm improve:optimize) that refuses to run unless the environment is the approved optimization environment named in configuration with an OPTIMIZATION_SCOPE approval and no production DB or credential variables. It reads only the development and tuning splits and writes only ChangeProposal drafts. Test each refusal.
+  size: S
+  environmentDependency: Approved optimization environment
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-11
+  section: '18'
+  kind: constraint
+  text: No self-promotion of production behavior, self-editing permissions, unrestricted online RL or training on unreviewed production conversations.
+  acceptance: Promotion requires signed human approvals; service identities cannot change policies/approvals.
+  originalIds:
+  - SPEC-15.no-self-promotion
+  - OPS-05
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/approvals.ts
+  - platform/src/config/approvals.test.ts
+  - console/src/pages/ReleasesPage.tsx:1-6 (console cannot create approvals)
+  gap: 'Will need re-verification once the improvement service exists. IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: no improvement service exists whose identity could be constrained (WP-37).'
+  remediation: Add tests that the improvement service identity cannot publish.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: no improvement service exists whose identity could be constrained (WP-37).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-37
+- id: FO-18-12
+  section: '18'
+  kind: software
+  text: Support retrieval tuning.
+  acceptance: Retrieval parameters tunable with offline evaluation and promotion gate.
+  originalIds:
+  - SPEC-9.retrieval
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/search.ts (fixed ranking)
+  gap: Not present.
+  remediation: Expose the ranking parameters in platform/src/knowledge/search.ts (full-text and vector weights, k, freshness boost) as a versioned RetrievalProfile in configuration. Build a retrieval evaluation set (query -> relevant source ids) from the approved corpus with recall@k and MRR in platform/src/evaluation. Tuning runs on the tuning split only and produces a ChangeProposal.
+  size: M
+  environmentDependency: none
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-13
+  section: '18'
+  kind: software
+  text: Prompt optimization.
+  acceptance: Prompt variants optimized offline against tuning split; held-out untouched.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: No prompts/harness.
+  remediation: After the section 9 harness lands, store prompt templates as versioned, digest-pinned artefacts. Add an offline prompt-optimization recipe (candidate generation plus evaluation on the tuning split) that outputs ChangeProposals, with held-out results reported only as aggregates.
+  size: M
+  environmentDependency: Model credential
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-14
+  section: '18'
+  kind: software
+  text: Router calibration.
+  acceptance: Intent/model router thresholds calibrated with reliability diagrams.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: No router.
+  remediation: When the harness router exists, add a calibration job that fits routing thresholds on the tuning split, reports reliability diagrams and expected calibration error per intent and language, and proposes threshold changes as ChangeProposals.
+  size: M
+  environmentDependency: none
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-15
+  section: '18'
+  kind: software
+  text: Approved knowledge updates.
+  acceptance: Knowledge changes go through ingestion holds, review and signed KNOWLEDGE_RELEASE.
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  derivedFrom: []
+  capabilityIds:
+  - operator.studio
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/service.ts
+  - platform/src/knowledge/ingest.test.ts
+  - platform/src/knowledge/snapshot.ts
+  gap: Not connected to proposals.
+  remediation: Wire releaseHeld and rejectHeld to authenticated console decisions (FO-14-14), drop payload-asserted approval in favour of the decision record, pin the approved snapshot digest at serve time in platform/src/knowledge/search.ts, and let ChangeProposals of kind KNOWLEDGE create ingest drafts only.
+  size: S
+  environmentDependency: Knowledge owner approvals
+  workPackage: WP-33
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-18-16
+  section: '18'
+  kind: software
+  text: Task-specific fine-tuning/LoRA recipes with evaluation and promotion gates, only where evidence warrants.
+  acceptance: Runnable recipes (disabled without approval) with eval gates.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: Ship recipes under a new improvement/recipes/ directory (for example a LoRA fine-tune of an approved open-weight model with pinned versions and hyperparameters). They refuse to run without a dataset approval and a compute scope. Each recipe outputs a model artefact digest, aggregate-only held-out EvaluationResults and memorization/bias reports (FO-18-18), and can only become a ChangeProposal.
+  size: L
+  environmentDependency: GPU/compute approval; licensed data
+  workPackage: WP-37
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-17
+  section: '18'
+  kind: software
+  text: Training data provenance, license, consent/purpose, minimization, leakage checks and retention.
+  acceptance: Dataset cards enforced by schema; leakage check against held-out.
+  originalIds:
+  - DATA-01
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: Add a TrainingDataset registry (protocol type plus table) with required provenance, licence, consent/purpose, minimization notes, PHI class, retention policy ref, approvalRef and a leakage-check result against held-out scenario families (normalized-text hash overlap). Recipes refuse datasets missing any field; add tests.
+  size: M
+  environmentDependency: none
+  workPackage: WP-37
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-18
+  section: '18'
+  kind: evaluation
+  text: Memorization/extraction and bias tests for trained artifacts.
+  acceptance: Test suites run before promotion of any trained artifact.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: 'Add suites that must pass before a trained artefact can be proposed: canary-string extraction tests (seeded synthetic secrets in the training data must not be reproducible), membership-inference probes, and slice parity checks across language, audience and accessibility groups with stats.ts intervals. Results attach to the ChangeProposal.'
+  size: M
+  environmentDependency: none
+  workPackage: WP-37
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-19
+  section: '18'
+  kind: constraint
+  text: Held-out tests are inaccessible to optimizer feedback; refresh tests under review.
+  acceptance: Optimizer jobs cannot read held-out content or per-item results; refresh workflow reviewed.
+  originalIds:
+  - SPEC-14.intent-corpus
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/split.ts
+  - scenarios/generated/heldout_acceptance (readable in repo)
+  gap: Held-out split exists but is openly readable.
+  remediation: Separate storage with access control and aggregate-only feedback.
+  size: M
+  environmentDependency: none
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+- id: FO-18-20
+  section: '18'
+  kind: operations
+  text: Review all detected critical events and pilot safety transfers, plus stratified and random routine samples.
+  acceptance: Review queue with full coverage of critical/safety and sampled routine; completion tracked.
+  originalIds:
+  - SAFE-01
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/SafetyEventsPage.tsx (list only)
+  gap: No review workflow.
+  remediation: Add a review queue (console endpoint reviews.queue; safety_responder and QA roles) that enrols 100% of safety events and pilot safety transfers plus a stratified random sample of routine interactions (seed and rate recorded per stratum). It tracks completion and reviewer and produces the human labels used by FO-17-27 and FO-17-28.
+  size: M
+  environmentDependency: Reviewers
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-21
+  section: '18'
+  kind: evaluation
+  text: Evaluate the monitors continuously.
+  acceptance: Monitor precision/recall tracked over time.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: No monitors.
+  remediation: After monitors and judges exist, add a scheduled job that computes each monitor's precision, recall, sensitivity and specificity with intervals against human labels from the review queue (FO-18-20), and alerts on drift outside the interval.
+  size: M
+  environmentDependency: Labels
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-22
+  section: '18'
+  kind: software
+  text: Track repeat contact 24h/7d, reopens, unresolved promises, inappropriate handoff suppression and complaints.
+  acceptance: Metrics for each with dashboards.
+  originalIds:
+  - SPEC-13.resolution-metrics
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/outcomes.ts:70-77 (24h, 72h, 7d, 14d, 30d)
+  - platform/src/observability/metrics.ts:444-451
+  - platform/src/evaluation/aggregate.ts:180 (requiredHandoffMissed)
+  gap: 'No unresolved-promise or complaint metrics; handoff suppression only in evaluation. Reopens are never counted: vsp_cases_reopened_total is emitted only by SupportRequestService.observeCaseStatus (platform/src/business/support/support-request-service.ts:1025,1099), and the file''s own header says ''No schedule calls it yet'' (line 35).'
+  remediation: Schedule observeCaseStatus (Salesforce change feed or a bounded poll loop in platform/src/worker/loops.ts). Add unresolved-promise records with due dates and a complaint category on support requests, emit their metrics, and add inappropriate-handoff-suppression counts from reviewed samples (FO-18-20).
+  size: S
+  environmentDependency: none
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    - remediation
+- id: FO-18-23
+  section: '18'
+  kind: constraint
+  text: Optimize verified outcomes AND naturalness; do not reward containment at all costs.
+  acceptance: Objectives exclude containment; containment never a success metric.
+  originalIds:
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/aggregate.ts:20,321
+  - platform/src/observability/metrics.ts:436-443
+  gap: No optimizer objective exists yet to enforce.
+  remediation: 'Define the optimizer objective in the improvement service as a constrained score: verified resolution rate and human-rated naturalness (FO-17-39) as objectives, critical failures and inappropriate handoff suppression as hard constraints, and containment excluded. Test that a proposal which raises containment while lowering verified resolution is rejected.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-18-24
+  section: '18'
+  kind: software
+  text: Canaries have signed limits by tenant/cohort/intents/language, sample/period targets, error budget and automatic rollback thresholds.
+  acceptance: Canary spec schema signed; controller enforces and auto-rolls back.
+  originalIds:
+  - SPEC-15.pilot-promotion
+  derivedFrom: []
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: Add a CanarySpec protocol type (tenant, cohorts, intents, languages, sample and period targets, error budget, rollback thresholds, protected-area flags) that is valid only with a signed approval (a new CANARY_RELEASE scope in platform/src/config/approvals.ts bound to the spec digest). The controller (FO-18-06) refuses unsigned or expired specs.
+  size: L
+  environmentDependency: Signed approvals
+  workPackage: WP-37
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-25
+  section: '18'
+  kind: software
+  text: Stable, auditable cohort assignment; current permissions always apply.
+  acceptance: Deterministic assignment with audit; policy evaluated per request regardless of cohort.
+  originalIds:
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/budgets.ts (cohort token only)
+  gap: No assignment service.
+  remediation: 'Add a CohortAssignmentService: deterministic hash(tenantId, opaque subject id, experimentId, salt) -> cohort, persisted on first assignment with an audit event and stable across sessions. Policy is still evaluated per request, so permissions never depend on the cohort. Test stability and the permission checks under every cohort.'
+  size: M
+  environmentDependency: none
+  workPackage: WP-37
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-26
+  section: '18'
+  kind: constraint
+  text: No experimentation on crisis instructions, consent or authority controls without separately governed review.
+  acceptance: Experiment framework rejects variants touching protected areas without governed approval.
+  originalIds:
+  - SAFE-01
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/approvals.ts (CLINICAL_SCRIPTS scope)
+  gap: No experiment framework to enforce.
+  remediation: Add a protected-area check to ChangeProposal and CanarySpec validation that rejects diffs touching crisis/safety templates, consent wording, identity/assurance policy or authority controls unless a CLINICAL_SCRIPTS or policy-release approval from the governed body is attached. Test each area.
+  size: S
+  environmentDependency: Governance body
+  workPackage: WP-37
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-18-27
+  section: '18'
+  kind: constraint
+  text: Manual and automatic containment preserve human/safety routing.
+  acceptance: Rollback/kill paths leave safety routes admitted.
+  originalIds:
+  - OPS-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/kill-switches.ts:118-128
+  - platform/src/ops/admission.test.ts
+  gap: Canary auto-rollback not built.
+  remediation: Test with canary controller.
+  size: S
+  environmentDependency: none
+  workPackage: WP-37
+  provenance:
+    origin: extraction
+- id: FO-18-28
+  section: '18'
+  kind: software
+  text: Record releases and in-flight workflow compatibility.
+  acceptance: Release manifests record versions and compatibility of in-flight workflows.
+  originalIds:
+  - SPEC-16.release-manifest
+  - SPEC-15.rollback
+  derivedFrom: []
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/manifest.ts
+  - platform/src/protocol/release.ts
+  gap: No in-flight workflow compatibility field.
+  remediation: Add compatibility section.
+  size: S
+  environmentDependency: none
+  workPackage: WP-37
+  provenance:
+    origin: extraction
+- id: FO-18-29
+  section: '18'
+  kind: constraint
+  text: An external dataset label or provenance (for example a Hugging Face clinical label or a therapist-style dataset) is not approval. Any dataset used for training, tuning or evaluation needs an internal approval record for its specific purpose.
+  acceptance: The dataset registry rejects a dataset without an internal approvalRef bound to purpose and digest, whatever its external labels. Recipes and corpus import refuse unregistered datasets. Tests cover both.
+  originalIds:
+  - DATA-01
+  - DATA-03
+  - SAFE-01
+  derivedFrom: []
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/corpus.ts (synthetic corpus loader, refused outside local/CI)
+  - docs/INVENTORY.md:61 (dependency licences only)
+  gap: No dataset registry or approval record type exists, and no training or tuning path exists to enforce it on.
+  remediation: Make approvalRef (a signed DATASET_USE approval bound to the dataset digest and purpose) a required field of the TrainingDataset registry (FO-18-17). Treat sourceLabels and model-card fields as descriptive only, and add tests that recipes and corpus import refuse a dataset that carries only external labels.
+  size: S
+  environmentDependency: Data governance and clinical safety approvers
+  workPackage: WP-37
+  provenance:
+    origin: challenge-missed

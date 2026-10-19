@@ -1,0 +1,1279 @@
+# Follow-on requirement source records, prompt section 9. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '9'
+requirements:
+- id: FO-09-01
+  section: '9'
+  kind: software
+  text: Use frontier models for difficult planning/reasoning roles in the harness.
+  acceptance: Model role 'planner' bound to a configured frontier endpoint; harness test drives a multi-step investigation through it (emulated in CI, real in model-qualify).
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-22 (bounded graph harness)
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No model of any kind powers any path; there is no planner role.
+  remediation: Add platform/src/models (ModelPort, roles planner/router/extractor/monitor/judge) and a bounded investigation loop that uses the planner role behind the gateway.
+  size: XL
+  environmentDependency: Tenant Bedrock and/or OpenAI account, entitlements and BAA/data-processing approval for the chosen region
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-09-02
+  section: '9'
+  kind: software
+  text: Use smaller qualified models for routing, extraction, retrieval and monitoring when they meet task-level gates; do not deploy a large model for every classification.
+  acceptance: Registry assigns distinct roles to distinct models; qualification report shows each small-model role passing its task gate; routing tests use the router role.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No role-based model assignment; no routing/extraction/monitor model.
+  remediation: Role-to-model mapping in the ModelRegistry with per-role task gates enforced by the qualification runner.
+  size: L
+  environmentDependency: Hosting for the small model (Bedrock/OpenAI small tier or self-hosted vLLM capacity)
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-03
+  section: '9'
+  kind: evaluation
+  text: Choose models on measured quality/latency/cost/privacy, not prestige, download count or a single public leaderboard.
+  acceptance: Selection record for every role cites the qualification run ids and metrics; a selection without evidence is refused by the release preflight.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No qualification data or selection records exist.
+  remediation: Model selection record schema (ModelDecision) bound to EvaluationResult ids; release preflight check.
+  size: M
+  environmentDependency: Real-model qualification runs (paid endpoints or GPU capacity) under OPS-05 authorization
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-04
+  section: '9'
+  kind: software
+  text: Keep model routing and version selection deterministic and reviewable (pinned, versioned configuration).
+  acceptance: Routing is a pure function of (role, intent, tenant config); config diff review shows exact model ids; guard rejects an unpinned/unapproved model.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/guard.ts:358-362 (models.active must match models.approved with a verified MODEL_VOICE_SELECTION approval)
+  - 'platform/src/config/ports.ts:45-48 (models: single active {model, voice, agentConfig} label for the vendor-native agent)'
+  - platform/src/protocol/common.ts:125-134 (VersionSet.model/voice labels)
+  gap: Only one opaque label for the vendor-native agent is pinned; there is no per-role routing table, no revision/digest pin and no reviewable routing function.
+  remediation: Extend PlatformConfig with a ModelRegistry/routing table per role; keep the existing approval check and add digest/revision pins.
+  size: M
+  environmentDependency: none
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-05
+  section: '9'
+  kind: constraint
+  text: An unavailable model cannot silently fall back to an unapproved region, endpoint, provider, tool format or retention policy (explicit approved fallback graph).
+  acceptance: 'Fault test: primary model down -> only the registry''s approved fallback is used; an unapproved fallback is refused and the call degrades to the controlled template/human route.'
+  originalIds:
+  - DATA-01
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  - platform/src/privacy (EgressGuard composed in platform/src/main/container.ts) approves endpoints but has no model fallback graph
+  gap: No fallback graph exists.
+  remediation: Approved fallback graph per role in the registry; harness resolver refuses edges not in the graph; chaos test.
+  size: M
+  environmentDependency: none
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-06
+  section: '9'
+  kind: software
+  text: Implement an actual managed-model adapter for Amazon Bedrock's documented API (streaming, tool use, cancellation, refusal, usage, errors).
+  acceptance: Adapter contract test against a local Bedrock-protocol emulator (SigV4, event-stream framing); sandbox qualification command NOT_RUN until credentials exist.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No Bedrock client or adapter.
+  remediation: Bedrock adapter using @aws-sdk/client-bedrock-runtime ConverseStream; emulator-backed contract tests.
+  size: L
+  environmentDependency: AWS account with Bedrock model access in an approved region, IAM role, BAA coverage for the model
+  workPackage: WP-08
+  provenance:
+    origin: extraction
+- id: FO-09-07
+  section: '9'
+  kind: software
+  text: Implement an actual managed-model adapter for OpenAI's documented APIs (Responses API streaming, tool calls, refusal, usage, errors).
+  acceptance: Contract test against a local OpenAI-protocol emulator (SSE events, tool-call deltas, refusal objects); sandbox qualification NOT_RUN without credentials.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No OpenAI client or adapter.
+  remediation: OpenAI Responses adapter with streaming and tool-result handling; emulator contract tests.
+  size: L
+  environmentDependency: OpenAI organization/project key with approved data controls (zero retention / BAA) for the tenant
+  workPackage: WP-08
+  provenance:
+    origin: extraction
+- id: FO-09-08
+  section: '9'
+  kind: software
+  text: Implement a self-hosted OpenAI-compatible text inference adapter using vLLM where the chosen architecture is supported.
+  acceptance: Adapter runs against a real vLLM (or protocol-exact emulator) in Docker; tool-call parser verified for the pinned model family.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No vLLM adapter, no inference deployment topology.
+  remediation: OpenAI-compatible adapter variant with vLLM-specific tool-parser/guided-decoding config; Docker compose service for CPU-sized test model or emulator.
+  size: L
+  environmentDependency: GPU capacity for real vLLM qualification (session has 4 CPUs, no GPU)
+  workPackage: WP-08
+  provenance:
+    origin: extraction
+- id: FO-09-09
+  section: '9'
+  kind: software
+  text: Keep provider-specific streaming, tool-result, cancellation, refusal, usage and error semantics; do not assume compatibility is universal.
+  acceptance: 'Per-provider adapter test matrix: stream abort, tool result round-trip, refusal classification, usage accounting, error-class mapping to RETRYABLE/PERMANENT/UNKNOWN.'
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No adapters, so no per-provider semantics.
+  remediation: Shared ModelPort with typed provider-specific result unions; resilience mapping via platform/src/resilience/classify.ts.
+  size: M
+  environmentDependency: none
+  workPackage: WP-08
+  provenance:
+    origin: extraction
+- id: FO-09-10
+  section: '9'
+  kind: constraint
+  text: Do not claim every audio model can run through vLLM; run each audio model on its documented runtime.
+  acceptance: MODEL_REGISTRY lists the runtime per audio model; no code path routes audio models through the text vLLM adapter.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No audio model runtime or registry entry exists to carry this constraint.
+  remediation: Registry field 'runtime' with an enum and a validation rule rejecting audio models on the text vLLM runtime.
+  size: S
+  environmentDependency: none
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-11
+  section: '9'
+  kind: environment
+  text: Govern the release pin by current provider catalogues, entitlements and endpoint-specific contracts (exact model ids discovered from official catalogues).
+  acceptance: model-qualify discovery step records catalogue snapshot (date, id, region) into the registry; release manifest binds those ids.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No catalogue discovery, no pinned model ids.
+  remediation: Discovery command per provider writing a catalogue snapshot; release manifest model-lock section.
+  size: M
+  environmentDependency: Tenant provider accounts to list available models and entitlements
+  workPackage: WP-08
+  provenance:
+    origin: extraction
+- id: FO-09-12
+  section: '9'
+  kind: software
+  text: 'Make at least one complete real model path configurable now (end to end: config -> adapter -> harness -> gateway tools -> speech plan).'
+  acceptance: Local run with the emulator passes the J01/J02 journeys through the real adapter code; switching config to real credentials requires no code change.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-22 (offline slice is not the delivery endpoint)
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  - platform/src/main/container.ts (local composition wires no model)
+  gap: The only conversational driver is the rule-based LOCAL SIMULATED COORDINATOR.
+  remediation: Implement one provider adapter (OpenAI or Bedrock) plus harness loop and compose it in local and live compositions.
+  size: XL
+  environmentDependency: Credentials for the chosen provider to activate (code must not wait for them)
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-09-13
+  section: '9'
+  kind: software
+  text: ModelRegistry records role, publisher/model/revision and endpoint/API/region for every model.
+  acceptance: Strict schema (additionalProperties=false) with tests; generated MODEL_REGISTRY doc from the same source.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  - 'docs/: no MODEL_REGISTRY document exists'
+  gap: No ModelRegistry contract.
+  remediation: platform/src/models/registry.ts + JSON Schema + docs/MODEL_REGISTRY.md generator with drift check.
+  size: M
+  environmentDependency: none
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-14
+  section: '9'
+  kind: software
+  text: ModelRegistry records license and usage restrictions, gated-access terms and voice rights per artifact.
+  acceptance: Registry validation refuses an entry without license id, terms reference and reviewer; guard refuses non-approved terms outside local.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No licence fields anywhere.
+  remediation: License/terms/voice-rights fields + approval scope MODEL_LICENSE in config/approvals.
+  size: S
+  environmentDependency: Legal review of model and voice licences
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-15
+  section: '9'
+  kind: software
+  text: ModelRegistry records weight and tokenizer digests where hosted locally, and accepted hardware/quantization.
+  acceptance: Loader verifies sha256 of weights/tokenizer against the registry before serving; mismatch fails closed.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No local model hosting or digest verification.
+  remediation: Digest fields + verification step in the self-hosted runtime entrypoint.
+  size: M
+  environmentDependency: none
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-16
+  section: '9'
+  kind: software
+  text: ModelRegistry records context window, structured-output, tool and audio capabilities and language qualification.
+  acceptance: Harness refuses to assign a role whose capability requirements the model entry does not declare; language qualification gates locale routing.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No capability metadata.
+  remediation: Capability fields + harness assignment check.
+  size: S
+  environmentDependency: none
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-17
+  section: '9'
+  kind: software
+  text: ModelRegistry records data egress/retention terms, timeout, token/compute budget and cost version.
+  acceptance: EgressGuard consults the registry's egress/retention class; harness enforces the timeout/budget; cost model reads the cost version.
+  originalIds:
+  - DATA-01
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  - platform/src/ops/budgets.ts (cost budgets exist by vendor/cohort, not per model)
+  gap: No per-model egress/retention/timeout/budget/cost metadata.
+  remediation: Fields + wiring into privacy egress policy and ops budgets.
+  size: M
+  environmentDependency: Provider contract terms (retention, BAA)
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-18
+  section: '9'
+  kind: software
+  text: ModelRegistry records evaluation results and the approved fallback graph.
+  acceptance: Registry entries reference EvaluationResult ids; an entry without passing evidence cannot be champion.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No evaluation linkage.
+  remediation: Evaluation-result refs + fallback edges in registry; release preflight.
+  size: S
+  environmentDependency: none
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-19
+  section: '9'
+  kind: evaluation
+  text: 'Frontier planner candidates: compare at least two model families in the qualification runner and pin exact ids from official catalogues (GPT-6 Astra/Sol/Luna are candidates only).'
+  acceptance: model-qualify run with >=2 families on the planner task set; report stored under evidence/; no winner claimed without results.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No qualification runner.
+  remediation: 'Add platform/src/models/qualify with a planner task set derived from scenarios/journeys: multi-step investigations, each with a gold tool sequence, gold per-issue outcome label and prohibited-disclosure probes. The runner executes each candidate through the same harness and adapters, covering at least two families (for example an OpenAI Responses model and a Bedrock Converse model) with N>=5 trials per task. It writes evidence/model-qualify/<runId>.json with per-task success, pass^k reliability, p50/p95 latency, source accuracy and cost, plus the catalogue snapshot ids (FO-09-11). Without credentials the run records status NOT_RUN.'
+  size: L
+  environmentDependency: Paid access to >=2 frontier families (Bedrock and/or OpenAI) under OPS-05 authorization
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-09-20
+  section: '9'
+  kind: evaluation
+  text: Qualify the open-weight text/tool candidate Qwen/Qwen3.6-35B-A3B against the baseline Qwen/Qwen3-30B-A3B-Instruct-2507 (baseline is not a permanent 'latest').
+  acceptance: Registry entries with revisions/digests; vLLM-hosted qualification run comparing both on tool-calling tasks.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No entries, no runs.
+  remediation: 'Add MODEL_REGISTRY entries for Qwen/Qwen3.6-35B-A3B and Qwen/Qwen3-30B-A3B-Instruct-2507, each with the Hugging Face revision sha, the safetensors and tokenizer sha256 values, the licence id and a review record. Add a vLLM serving profile: docker compose with a pinned vllm image digest, the Qwen-family --tool-call-parser, --enable-auto-tool-choice and no trust-remote-code. Serve it behind the OpenAI-compatible adapter (FO-09-08), and run the tool-calling subset of the FO-09-19 task set against both models. Record NOT_RUN until GPU capacity is approved; this environment has no GPU.'
+  size: L
+  environmentDependency: GPU hosting in approved infrastructure; Hugging Face download (reachable) and licence review
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-09-21
+  section: '9'
+  kind: constraint
+  text: Treat deepseek-ai/DeepSeek-V4-Pro (MIT, preview) and Qwen/Qwen3.8-Flash-Next (Qwen Community 1.0, not Apache 2.0) as optional qualification challengers, not default laptop dependencies.
+  acceptance: Registry marks them optional/challenger with exact licence; default local profile never downloads them.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No registry entries.
+  remediation: Challenger entries with licence and size metadata; opt-in profile.
+  size: S
+  environmentDependency: Licence review; large GPU capacity
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-22
+  section: '9'
+  kind: constraint
+  text: Open weights hosted in approved infrastructure are a different data path from a publisher-hosted API; a hosted API never inherits approval from a weight licence.
+  acceptance: Registry distinguishes hosting mode; approval scopes are per endpoint, and the guard refuses a hosted endpoint approved only via a weight licence.
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No hosting-mode distinction.
+  remediation: hostingMode field + per-endpoint approval check in config/guard.ts.
+  size: S
+  environmentDependency: none
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-23
+  section: '9'
+  kind: software
+  text: 'Retrieval models: BAAI/bge-m3 embeddings and BAAI/bge-reranker-v2-m3 reranker, with a smaller qualified option if the pairing misses the latency budget.'
+  acceptance: Embedding/reranker adapters behind KnowledgeEmbedder; retrieval latency and recall measured on the knowledge corpus.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/embedding.ts:20 (KnowledgeEmbedder port), :89 (LocalHashingEmbedder fixture only)
+  gap: Only a hashing embedder fixture exists; no reranker.
+  remediation: Self-hosted embedding/rerank sidecar (Python, pinned) + TS adapter; latency qualification.
+  size: L
+  environmentDependency: CPU/GPU hosting for the embedding service (CPU feasible for qualification)
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-09-24
+  section: '9'
+  kind: software
+  text: ASR and independent audio corroboration with openai/whisper-large-v3-turbo, adding buffering, VAD and endpointing (or a qualified streaming ASR provider).
+  acceptance: Streaming ASR service consumes 8 kHz/16 kHz frames, emits partial/final hypotheses with timestamps; WER and entity error measured on test audio.
+  originalIds:
+  - DATA-02
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No ASR of any kind.
+  remediation: ASR sidecar (faster-whisper/CTranslate2 or provider adapter) with chunked streaming, VAD gating and endpointing.
+  size: XL
+  environmentDependency: GPU for real-time throughput (CPU-only qualification is slower than real time); or a contracted streaming ASR with BAA
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-09-25
+  section: '9'
+  kind: software
+  text: 'VAD: maintained Silero VAD through its supported runtime, tested for speech impairment, pauses and background speech; endpointing is distinct from speech detection.'
+  acceptance: VAD component with audio fixture tests (pauses, stutter, background talker); separate endpointing policy with its own tests.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No VAD or endpointing.
+  remediation: Silero VAD (ONNX runtime) in the media worker; endpointing state machine; audio test set.
+  size: L
+  environmentDependency: none
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-09-26
+  section: '9'
+  kind: software
+  text: Controlled local TTS candidate hexgrad/Kokoro-82M, subject to voice provenance, artifacts, exact-readout and performance qualification.
+  acceptance: TTS adapter renders approved template text; exact-readout tests (numbers, dates, money, names) with independent ASR listen-back; latency measured.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No TTS.
+  remediation: Kokoro sidecar adapter + readout qualification suite.
+  size: L
+  environmentDependency: Voice-rights review for the selected voice
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-09-27
+  section: '9'
+  kind: software
+  text: Implement a managed controlled-TTS adapter (in addition to the local candidate).
+  acceptance: Adapter contract test against an emulator of the provider API; selection by registry role 'tts'.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No managed TTS adapter.
+  remediation: Managed TTS adapter (e.g. Polly or OpenAI TTS) behind a TtsPort.
+  size: M
+  environmentDependency: Contracted TTS provider with BAA/zero retention
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-09-28
+  section: '9'
+  kind: software
+  text: Provide independent pre-rendered fallback clips (not produced at runtime by the generative path).
+  acceptance: Versioned, digested clip set for every fallback/safety/error template per locale; playback works with model, ASR, TTS and judge all down (see FO-10-47).
+  originalIds:
+  - OPS-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'find . -name ''*.wav'' -o -name ''*.mp3'' -o -name ''*.opus'' (excluding node_modules): no audio assets in the repository'
+  gap: No audio assets.
+  remediation: Clip build pipeline (offline render + manual listen-back approval) and clip manifest with sha256.
+  size: M
+  environmentDependency: Approved wording and licensed voice for the clips
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+- id: FO-09-29
+  section: '9'
+  kind: constraint
+  text: 'A model licence does not license an arbitrary cloned voice: record voice provenance and rights per voice.'
+  acceptance: Registry voice entries require provenance and rights evidence; guard refuses a voice without it outside local.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No voice registry.
+  remediation: Voice entries in ModelRegistry with rights evidence and approval scope.
+  size: S
+  environmentDependency: Legal review of voice rights
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-30
+  section: '9'
+  kind: evaluation
+  text: 'General safety auxiliary allenai/wildguard: evaluate permitted use (gated, responsible-use terms) before enabling; it is not a clinically validated crisis detector and never the sole safety authority.'
+  acceptance: Licence review record; adapter behind SemanticSignalDetector only as an additional signal; tests show deterministic rules still route when it is down or disagrees.
+  originalIds:
+  - SAFE-01
+  - SAFE-02
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/detector.ts (SemanticSignalDetector interface; LocalHeuristicSemanticDetector is a LOCAL FIXTURE)
+  - platform/src/safety/detector.test.ts:321 (local heuristic labelled fixture without evaluation evidence)
+  gap: Only the interface and a heuristic fixture exist.
+  remediation: WildGuard adapter (self-hosted) under the semantic detector port, disabled until approval; composite detector keeps rules authoritative.
+  size: M
+  environmentDependency: Gated-access acceptance by an authorized human; clinical safety owner approval for use
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+- id: FO-09-31
+  section: '9'
+  kind: evaluation
+  text: Native-audio experiments (nvidia/personaplex-7b-v1, Qwen/Qwen3-Omni-30B-A3B-Instruct) with independent qualification of audio generation/tool fidelity, hardware and safe output behaviour; inspect actual licence terms.
+  acceptance: Experiment profile runs behind the native-mode boundary with pre-emission checks; qualification report; licence review recorded.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.native
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No native-audio runtime.
+  remediation: Add an opt-in native-audio experiment profile. It needs registry entries with gated-licence review records, and a NativeAudioPort adapter per model on its documented runtime (never the text vLLM adapter). A buffer-and-verify wrapper withholds generated audio until the independent ASR (FO-09-24) and the protected-slot match pass. A qualification script measures tool-call fidelity, unsafe-output rate, latency and GPU memory on the audio test set. The profile can never be selected for protected response classes, and it records NOT_RUN without GPU and gated access.
+  size: XL
+  environmentDependency: GPU hardware; gated licence acceptance
+  workPackage: WP-16
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-09-32
+  section: '9'
+  kind: software
+  text: Managed native voice adapters for GPT-Live and Nova 2.5 Sonic under their exact supported contracts and documented APIs, with the controlled route available.
+  acceptance: Adapters connect through documented realtime APIs (emulated in CI); protected response classes are forced to the controlled route in tests.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.native
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No native voice adapters.
+  remediation: Native-mode adapters with class-based routing to controlled cascade (see FO-10-35).
+  size: XL
+  environmentDependency: Separate entitlements/credentials per provider and region (AWS credentials are not GPT-Live credentials)
+  workPackage: WP-16
+  provenance:
+    origin: extraction
+- id: FO-09-33
+  section: '9'
+  kind: document
+  text: Verify every model card, exact artifact licence, dependencies, commercial/healthcare terms, voice rights, gated access and upstream restrictions; never silently accept terms or download restricted weights.
+  acceptance: MODEL_REGISTRY entries carry a review record (reviewer, date, terms digest); download tooling refuses gated artifacts without a recorded human acceptance.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No review records or download tooling.
+  remediation: Model review template + download script with gated-terms refusal.
+  size: M
+  environmentDependency: Human legal/licensing reviewer
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-34
+  section: '9'
+  kind: constraint
+  text: Never load arbitrary pickle/remote code; prefer safe formats (safetensors) or a reviewed conversion/sandbox for legacy artifacts.
+  acceptance: Loader allowlist of formats; trust_remote_code disabled; test that a .bin/.pkl artifact is refused.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No model loading code exists to enforce this.
+  remediation: Format allowlist in self-hosted runtime config; CI check.
+  size: S
+  environmentDependency: none
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-35
+  section: '9'
+  kind: software
+  text: Pin model revisions/checksums, scan images, generate SBOM and model manifests, disable unnecessary telemetry.
+  acceptance: Release build emits a model manifest (revisions, sha256) alongside the code SBOM; image scan step; telemetry env flags (e.g. HF/vLLM usage stats) disabled in images.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scripts/ci/sbom.mjs, scripts/ci/sbom.test.mjs (code dependency SBOM exists)
+  - .github/workflows/release.yml (release manifest step)
+  gap: Code SBOM exists; no model manifest, no model image, no telemetry controls for inference runtimes.
+  remediation: Model manifest generator + release.yml step; image scanning for inference images.
+  size: M
+  environmentDependency: none
+  workPackage: WP-40
+  provenance:
+    origin: extraction
+- id: FO-09-36
+  section: '9'
+  kind: constraint
+  text: All mandatory features remain buildable and testable with emulators and without model downloads; real-model qualification stays explicitly NOT_RUN until available.
+  acceptance: CI runs the harness against model/ASR/TTS emulators with no network; qualification records show NOT_RUN for real models.
+  originalIds:
+  - OPS-03
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: There are no model, ASR or TTS emulators because there are no adapters; CI trivially builds because nothing model-related exists.
+  remediation: Protocol-exact emulators for OpenAI/Bedrock/ASR/TTS in platform/test/emulators; qualification status file.
+  size: L
+  environmentDependency: none
+  workPackage: WP-08
+  provenance:
+    origin: extraction
+- id: FO-09-37
+  section: '9'
+  kind: software
+  text: 'Harness keeps typed state: current verified goal, candidate intents, context refs, pending questions, proposed reads/actions, receipts, speech plan, task progress and budgets.'
+  acceptance: Strict zod schema for HarnessState; state-machine tests over turns; state persisted per turn with session generation.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-22 (bounded graph harness)
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No harness or typed conversation state (the evaluation coordinator is scripted).
+  remediation: platform/src/harness/state.ts + bounded graph/state machine (LangGraph.js or explicit).
+  size: L
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-09-38
+  section: '9'
+  kind: software
+  text: Bounded iterations, parallelism, wall-clock deadlines and token/compute budgets per turn and per task.
+  acceptance: 'Tests: iteration cap, parallel specialist cap, deadline expiry produce a safe fallback (never silence, never safety abandonment).'
+  originalIds:
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  - platform/src/ops/budgets.ts (spend budgets per vendor/cohort; not per-turn token budgets)
+  - platform/src/resilience/timeout.ts (withTimeout primitive reusable)
+  gap: No harness budgets.
+  remediation: Budget object in harness state enforced by the loop; reuse resilience primitives.
+  size: M
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-09-39
+  section: '9'
+  kind: software
+  text: A specialist can return evidence and proposals but cannot overwrite trusted state, speak, reassign the case or commit.
+  acceptance: Type-level separation (Proposal vs TrustedState) and tests that a specialist output cannot set server-established fields or trigger commit.
+  originalIds:
+  - AUTH-03
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  - platform/src/protocol/common.ts:138 (SERVER_ESTABLISHED_FIELDS exist for tool arguments)
+  gap: No specialists exist.
+  remediation: Specialist contract returning {evidenceRefs, proposals}; only the conversation owner may act.
+  size: M
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-09-40
+  section: '9'
+  kind: software
+  text: Capability allowlists per role/intent in the harness (which tools a model may propose for the current intent and audience).
+  acceptance: Harness exposes only the allowlisted tool subset per intent; test that an out-of-scope tool proposal is never sent to the gateway.
+  originalIds:
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No harness-side allowlists (the gateway authorizes per call, see FO-09-41).
+  remediation: Intent->tool allowlist derived from ResolutionContracts (platform/src/business/contracts).
+  size: M
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-09-41
+  section: '9'
+  kind: software
+  text: Strict tool schema and output validation at the trusted boundary; no general shell, browser, SQL or network tool in the customer-facing runtime.
+  acceptance: Pinned catalogue with additionalProperties=false; output schema enforced; catalogue contains only the domain tools.
+  originalIds:
+  - AUTH-02
+  - AUTH-03
+  - SPEC-8.ledger
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/catalog.ts (strict JSON Schemas, forbidden identity fields, digest)
+  - 'platform/src/gateway/pipeline.ts (steps c and m: strict input and output)'
+  - schemas/tools/catalog.json (18 domain tools, none general-purpose)
+  - platform/src/gateway/catalog.test.ts, platform/src/gateway/pipeline.test.ts
+  gap: 'Verified only for the gateway HTTP/MCP surface with local fixtures; no model is attached yet. IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: verified only on the gateway HTTP/MCP surface with local fixtures; no customer-facing model runtime exists (WP-10).'
+  remediation: Keep; add harness-side test that the model-facing tool list equals the pinned catalogue subset.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: verified only on the gateway HTTP/MCP surface with local fixtures; no customer-facing model runtime exists (WP-10).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-10
+- id: FO-09-42
+  section: '9'
+  kind: software
+  text: Model instructions are kept separate from caller, document and tool-content data in prompt assembly (delimiters alone are not relied upon).
+  acceptance: Prompt builder places untrusted content only in data channels (tool results/user content), never in system instructions; injection test set.
+  originalIds:
+  - SPEC-3.trust-boundaries
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  - platform/src/knowledge/injection.ts, platform/src/knowledge/sanitize.ts (knowledge-side sanitization exists)
+  gap: No prompt assembly exists.
+  remediation: Prompt builder with channel separation and an adversarial prompt-injection suite.
+  size: M
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-09-43
+  section: '9'
+  kind: software
+  text: 'Enforce scopes outside the model: authorization, tenant, subject and destination decisions are made by trusted code regardless of model output.'
+  acceptance: Direct hostile API tests bypassing the conversational layer are rejected by the gateway/OPA/allowlists.
+  originalIds:
+  - AUTH-02
+  - SAFE-05
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/pipeline.ts (OPA decision per permission, deny by default)
+  - platform/src/workflows/transfer.ts:201 looksLikeDialTarget
+  - platform/src/gateway/pipeline.test.ts
+  - platform/src/main/sessionless-routing.test.ts
+  - platform/test/journeys/j3-j4-authorization.test.ts
+  gap: 'Verified against local fixtures only; no model in the loop yet. IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: no model is in the loop, so hostile tests bypass a conversational layer that does not exist (WP-10).'
+  remediation: Keep; add J19-style tests once a model adapter exists.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: no model is in the loop, so hostile tests bypass a conversational layer that does not exist (WP-10).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-10
+- id: FO-09-44
+  section: '9'
+  kind: constraint
+  text: Deterministic authorization, confirmation and effect verification always outrank model confidence; schema-valid hallucinations remain incorrect.
+  acceptance: No code path accepts a model confidence as authority; tests with schema-valid but false proposals are denied or corrected by authoritative checks.
+  originalIds:
+  - ACT-01
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.ts:462 confirm (trusted channels only), :650 commit (reauthorize, version check)
+  - platform/src/business/outcomes.ts decideOutcome (RESOLVED only with verified receipt)
+  gap: Authorization and confirmation are deterministic; independent effect verification does not exist yet (FO-11-19); no model exists to test against.
+  remediation: Add EffectVerification and hallucination tests once the harness exists.
+  size: S
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-09-45
+  section: '9'
+  kind: software
+  text: Model calls use deadline propagation, cancellation, backpressure and circuit breakers.
+  acceptance: Model adapter wrapped by callDependency; abort propagates to the provider stream; breaker opens on failures; tests with emulator faults.
+  originalIds:
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  - platform/src/resilience/policy.ts:38 callDependency (retry->breaker->bulkhead->timeout with AbortSignal) is reusable
+  - platform/src/resilience/resilience.test.ts
+  gap: Primitives exist and are verified for tool dependencies, but there is no model call to apply them to.
+  remediation: Wrap every ModelPort call in callDependency with model-specific policy.
+  size: S
+  environmentDependency: none
+  workPackage: WP-08
+  provenance:
+    origin: extraction
+- id: FO-09-46
+  section: '9'
+  kind: software
+  text: Model refusal handling and a safe, useful fallback (approved template or human route) on refusal, hang or overload.
+  acceptance: Emulator injects refusal/hang/overload; harness answers with the approved fallback and offers a human; safety flow unaffected.
+  originalIds:
+  - SAFE-03
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No model, so no refusal handling.
+  remediation: Refusal classifier in adapters + harness fallback path to fallback.safe_explanation and human route.
+  size: M
+  environmentDependency: none
+  workPackage: WP-08
+  provenance:
+    origin: extraction
+- id: FO-09-47
+  section: '9'
+  kind: software
+  text: Audit model invocations with minimized metadata (ModelInvocation / ModelDecision contracts); restricted content only under its retention/purpose policy.
+  acceptance: ModelInvocation audit events contain model id/revision, role, token usage, latency, outcome codes and content digests only; retention class assigned.
+  originalIds:
+  - OPS-06
+  - DATA-01
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  - platform/src/protocol/audit.ts (AuditEvent exists; no ModelInvocation contract)
+  gap: Required contracts ModelInvocation and ModelDecision are absent.
+  remediation: Add contracts to platform/src/protocol and audit writer action names.
+  size: M
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-09-48
+  section: '9'
+  kind: software
+  text: A safety semantic classifier produces routing signals with uncertainty/reason codes, not a diagnosis or clinical risk score.
+  acceptance: Production semantic detector adapter emits SafetySignal (strength, rule/reason code) only; schema forbids scores/diagnoses; evaluated on reviewed corpus.
+  originalIds:
+  - SAFE-01
+  - SAFE-02
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/detector.ts (SafetySignalSchema; SemanticSignalDetector interface; LocalHeuristicSemanticDetector LOCAL FIXTURE)
+  - platform/src/safety/README.md BLOCKED 'Real semantic classifier'
+  gap: Interface plus heuristic fixture only; per section 21 that is MISSING for production.
+  remediation: Semantic detector adapter over a qualified model (see FO-09-30) behind the existing schema.
+  size: M
+  environmentDependency: Approved classifier model/endpoint and clinical evaluation
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+- id: FO-09-49
+  section: '9'
+  kind: evaluation
+  text: Build a clinician-reviewed safety routing evaluation dataset; never train on scraped therapy or patient conversations.
+  acceptance: Dataset with provenance, split and per-item review records; review status PENDING until real clinicians sign; no scraped data sources.
+  originalIds:
+  - SAFE-01
+  - SAFE-02
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/__fixtures__/utterances.json (231 SYNTHETIC cases, not clinician-reviewed)
+  - platform/src/safety/detector.test.ts:84-105 (corpus coverage and confusion matrix)
+  - scenarios/risk (generated risk scenarios)
+  gap: Candidate set exists but there is no review-record capture, no reviewer workflow, and the passing corpus was partly written from misses (safety/README 'Known limitations').
+  remediation: Review-record schema and console review queue; held-out split owned by reviewers.
+  size: M
+  environmentDependency: Clinical reviewers (PRQ-008, PRQ-012)
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-09-50
+  section: '9'
+  kind: constraint
+  text: Own prompt/tool/model version boundaries; a framework or SDK does not supply caller identity, HIPAA compliance, consent, side-effect idempotency or oversight.
+  acceptance: VersionSet pins every boundary; identity/consent/idempotency are implemented in platform code, not delegated to a framework.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/common.ts:125-134 VersionSet
+  - platform/src/voice/registry.ts digest() (prompt template digest)
+  - platform/src/gateway/catalog.ts (tool catalogue digest)
+  - platform/src/actions/tool-idempotency.ts
+  gap: Model and prompt-for-model versions are placeholders because no model exists.
+  remediation: Add model revision and harness prompt digests to VersionSet when FO-09-13 lands.
+  size: S
+  environmentDependency: none
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-51
+  section: '9'
+  kind: evaluation
+  text: Executable model bake-off reporting per-task success, repeated-trial reliability, latency distribution, source accuracy, unsafe disclosure rate, false escalation/missed routing, accessibility and total cost.
+  acceptance: '`model-qualify` command runs the bake-off on emulators locally and on real endpoints when authorized; report includes every listed metric with sample counts.'
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  - platform/src/evaluation/aggregate.ts (corpus aggregation of rule-based coordinator runs, not models)
+  - package.json scripts (no model-qualify entry)
+  gap: No bake-off runner or command.
+  remediation: Bake-off runner reusing evaluation scorer/aggregate with model dimensions; Makefile/task target model-qualify.
+  size: L
+  environmentDependency: Paid endpoint access / GPU under OPS-05 authorization
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-52
+  section: '9'
+  kind: software
+  text: 'Champion/challenger configuration: real results select a champion; absent results select no claimed winner.'
+  acceptance: Config schema for champion/challenger per role; preflight refuses a champion without passing qualification evidence.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no model/ASR/TTS/VAD code: source grep for bedrock|openai|vllm|whisper|silero|kokoro|qwen|wildguard over platform/, console/, infra/, scripts/ returns nothing'
+  - platform/src/evaluation/driver/labels.ts:10 (rule-based LOCAL SIMULATED COORDINATOR, not a language model)
+  gap: No champion/challenger config.
+  remediation: Registry champion/challenger fields + canary assignment (shared with section 18).
+  size: M
+  environmentDependency: none
+  workPackage: WP-09
+  provenance:
+    origin: extraction
+- id: FO-09-53
+  section: '9'
+  kind: constraint
+  text: 'Public availability of a model or its weights is not patient-use validation: a model becomes usable for a role only after tenant-specific qualification evidence and an explicit approval, never because it is published, downloadable or licence-compatible.'
+  acceptance: ModelRegistry entries carry approvalState (CANDIDATE -> QUALIFIED -> APPROVED_FOR_ROLE) with qualification run ids and an approval record; the config guard refuses any non-local role binding to an entry that is not APPROVED_FOR_ROLE; a test shows a published, licence-compatible but unqualified model is refused.
+  originalIds:
+  - OPS-03
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/guard.ts:357-362 (only one active vendor-native model/voice label approved through MODEL_VOICE_SELECTION; no per-model qualification state)
+  - no ModelRegistry or MODEL_REGISTRY in platform/src or docs (grep 2026-10-19)
+  gap: No registry exists, so nothing separates 'available or licensed' from 'qualified and approved for patient use'.
+  remediation: Add approvalState and qualificationRunIds to the ModelRegistry entry schema (FO-09-13) and an approval scope MODEL_ROLE_USE in config/approvals. Extend platform/src/config/guard.ts to refuse role bindings without it outside local/ci, with a unit test per state.
+  size: S
+  environmentDependency: Real qualification runs and an authorized approver (clinical safety and privacy sign-off for patient-facing roles)
+  workPackage: WP-09
+  provenance:
+    origin: challenge-missed
+- id: FO-09-54
+  section: '9'
+  kind: constraint
+  text: Never train, fine-tune or tune prompts/classifiers on scraped therapy or patient conversations; every evaluation or tuning item carries provenance proving it is synthetic, consented or licensed for that purpose.
+  acceptance: 'A shared dataset-item schema requires provenance {source: SYNTHETIC | CONSENTED_PRODUCTION | LICENSED, consentRef or approvalRef, createdBy}; a CI check rejects items without it or with an unknown/scraped source; tuning and self-improvement jobs (section 18) read only items whose provenance permits that purpose.'
+  originalIds:
+  - DATA-01
+  - DATA-02
+  - SAFE-01
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/__fixtures__/utterances.json (corpus-level label only; per-case fields id/category/locale/asrConfidence/text/expect, no provenance)
+  - scenarios/generated/development/*.json (no provenance or consent field)
+  - 'no training or tuning pipeline exists (grep fine-tune/training over platform/src: none), so the constraint holds only vacuously'
+  gap: The constraint holds only because nothing is trained. No provenance field or check would stop scraped data from entering the safety dataset (FO-09-49) or section 18 tuning. c3 had merged this constraint into FO-09-49.
+  remediation: Add a DatasetItem provenance schema shared by the safety corpus, scenarios and evaluation sets. Add a validate-datasets step under scripts/ci that fails on missing or disallowed provenance. Check purpose binding in every tuning or self-improvement job.
+  size: S
+  environmentDependency: none for software; privacy counsel approval before any consented production data is used
+  workPackage: WP-35
+  provenance:
+    origin: challenge-missed

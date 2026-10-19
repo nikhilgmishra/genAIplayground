@@ -1,0 +1,1458 @@
+# Follow-on requirement source records, prompt section 14. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '14'
+requirements:
+- id: FO-14-01
+  section: '14'
+  kind: software
+  text: Console controls work against actual APIs (no hard-coded metrics) with useful error, empty and loading states.
+  acceptance: Every console page reads a console-api endpoint backed by real stores; tests cover loading/error/empty states; an integration test runs the console UI against the real console API (not the mock).
+  originalIds:
+  - SPEC-13.console
+  - SPEC-16.console-functional
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/components/QueryView.tsx:5-12
+  - platform/src/console-api/plugin.ts
+  - platform/src/main/console.test.ts
+  - console/src/pages/a11y.test.tsx
+  - console/src/test/mock-api.ts
+  gap: UI tests run against console/src/test/mock-api.ts; only platform/src/main/console.test.ts (2 tests) exercises the console API over the real local container; no browser end-to-end run of UI plus API; composition exists only for local/ci.
+  remediation: Add a Playwright end-to-end suite that serves the built console against the composed console API (local container profile) and asserts data, empty and error states per page.
+  size: M
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-14-02
+  section: '14'
+  kind: software
+  text: 'Console is a workforce-SSO product in production composition: live OIDC verification plus server-side staff directory and role-group mapping.'
+  acceptance: Non-local console composition starts with WorkforceTokenVerifier.remoteJwks and a live StaffDirectory (OIDC groups or SCIM); Layer-2 test against a local OIDC realm container signs in, maps roles and denies unknown subjects.
+  originalIds:
+  - SPEC-7.workforce-separation
+  - AUTH-02
+  - AUTH-03
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - identity.workforce
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/auth.ts:131-152 (remoteJwks exists)
+  - platform/src/console-api/auth.ts:305-330 (BlockedWorkforceStaffDirectory throws WORKFORCE_DIRECTORY_BLOCKED)
+  - platform/src/main/console.ts:52 (CONSOLE_LOCAL_COMPOSITION_OUTSIDE_LOCAL_CI)
+  - 'platform/src/main/console.ts:92 (oidc: null)'
+  gap: 'Only buildLocalConsole exists and it refuses outside local/ci; the live staff directory is a blocked stub; no OIDC authorization-code exchange is composed (oidc: null); no deployed console access path in Terraform.'
+  remediation: Implement a live StaffDirectory (OIDC group claim mapping and/or SCIM pull with cache and revocation), compose a production console entry point with remote JWKS and PKCE code exchange, add the console to infra (private ALB path or separate ingress) and test against a Keycloak/Dex realm in the local compose.
+  size: L
+  environmentDependency: Workforce OIDC client, JWKS URI, MFA amr values and role-group mapping from the identity owner (PRQ-036, VQ-IDP-08)
+  workPackage: WP-05
+  provenance:
+    origin: extraction
+- id: FO-14-03
+  section: '14'
+  kind: software
+  text: Server-enforced role separation for every console endpoint, with authorization tests.
+  acceptance: Every endpoint has ENDPOINT_ROLES plus an OPA console decision; rbac tests prove denials for every other role; UI hiding is not the control.
+  originalIds:
+  - AUTH-02
+  - SPEC-7.workforce-separation
+  - SPEC-13.audit-access
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/contract.ts:340-390
+  - policy/vsp/console.rego
+  - policy/vsp/console_test.rego
+  - platform/src/console-api/rbac.test.ts
+  - platform/src/console-api/policy-alignment.test.ts
+  - console/src/auth/rbac.test.tsx
+  gap: Verified only with SYNTHETIC staff from the local directory fixture; new operator surfaces (onboarding, studio, evaluation, insights, improvement) have no roles defined yet.
+  remediation: Extend ENDPOINT_ROLES/console.rego for each new surface (separate config author, reviewer, publisher roles) and keep policy-alignment tests mandatory for new endpoints.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-38
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-14-04
+  section: '14'
+  kind: software
+  text: 'Tenant onboarding: connector catalogue.'
+  acceptance: Console onboarding page lists every connector type from a typed registry with capability, status, auth mechanism and required inputs, read from an API.
+  originalIds:
+  - SPEC-16.integration-records
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/navigation.ts:12-26 (no onboarding route)
+  - platform/src/adapters/integration-inventory.ts (code-level inventory only)
+  gap: No onboarding API or UI; the integration inventory is a static TypeScript file used for docs.
+  remediation: Add a connector registry API derived from adapters/integration-inventory.ts plus connector manifests, and an onboarding catalogue page.
+  size: M
+  environmentDependency: none
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-14-05
+  section: '14'
+  kind: software
+  text: 'Tenant onboarding: credential references (never secret values) managed through the product.'
+  acceptance: Operator can bind a Secrets Manager/KMS reference to a connector; schema rejects pasted secrets; change is audited and versioned.
+  originalIds:
+  - OPS-06
+  - SPEC-8.service-identities
+  derivedFrom: []
+  capabilityIds:
+  - operator.configuration
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/schema.ts (credential fields accept references only)
+  - platform/src/config/loader.ts (allowlisted VSP_CONFIG_* reference overrides)
+  gap: Reference-only validation exists in file config, but there is no operator API/UI or audited configuration store for credential references.
+  remediation: Build a tenant configuration store (versioned, audited) whose credential fields reuse the config reference schema; expose a reference-binding form validated by the same zod schema.
+  size: M
+  environmentDependency: Secrets Manager entries per connector (owners)
+  workPackage: WP-31
+  provenance:
+    origin: extraction
+- id: FO-14-06
+  section: '14'
+  kind: software
+  text: 'Tenant onboarding: field and identity mapping per connector.'
+  acceptance: Typed mapping definitions (source field to canonical field, identity keys) editable in onboarding, validated, previewed against sandbox/synthetic records, versioned.
+  originalIds:
+  - SPEC-4.audience-permissions
+  - AUTH-03
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/support-records-schema.ts (fixed mapping in code)
+  - platform/src/adapters/live/salesforce-rest-support-records.ts (field names in code)
+  gap: Mappings are hard-coded in adapters; no configurable mapping model or UI.
+  remediation: Introduce a declarative mapping schema consumed by adapters, with validation and preview endpoints and an onboarding mapping editor.
+  size: L
+  environmentDependency: Source system schemas from connector owners
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-14-07
+  section: '14'
+  kind: software
+  text: 'Tenant onboarding: source coverage and freshness view.'
+  acceptance: 'Per source: coverage of entities, last sync, lag distribution and freshness SLO status from real ingestion metadata.'
+  originalIds:
+  - SPEC-9.retrieval
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/support-record-cache.ts (bounded cache only)
+  - console/src/navigation.ts
+  gap: No ingestion/projection layer with freshness metadata (section 7 context engine absent), hence nothing to display.
+  remediation: After the context engine records per-source watermarks, add a freshness API and onboarding coverage page.
+  size: M
+  environmentDependency: none
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-14-08
+  section: '14'
+  kind: software
+  text: 'Tenant onboarding: purposes, regions and retention configured per tenant.'
+  acceptance: Operator UI/API sets processing purposes, allowed regions and per-class retention references (approval-bound), with unknown values explicit.
+  originalIds:
+  - DATA-03
+  - SPEC-6.data-classes
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/retention/policies.ts (RetentionPolicyStorePg API, no console endpoint)
+  - platform/config/production.json (retention null)
+  - infra/terraform/envs/production/production.tfvars:9-12 (regions in tfvars)
+  gap: Retention policy store exists without an operator surface; purposes and regions are not tenant configuration at all.
+  remediation: Add tenant purpose/region/retention configuration endpoints reusing RetentionPolicyStorePg and approval verification, and an onboarding page.
+  size: M
+  environmentDependency: Counsel-approved retention schedule (PRQ-025) and purpose determinations
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-14-09
+  section: '14'
+  kind: software
+  text: 'Tenant onboarding: test wizard and capability-by-capability readiness.'
+  acceptance: Wizard runs connector connectivity/contract tests and shows readiness per capability (identity, scheduling, CRM, telephony, model, voice) with blocking reasons.
+  originalIds:
+  - OPS-03
+  - OPS-04
+  - SPEC-16.prod-guard
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/guard.ts (whole-environment violation list)
+  - platform/src/adapters/registry.ts (healthReport)
+  gap: Readiness is a single environment-level guard verdict; no per-capability readiness model or test wizard.
+  remediation: Define a capability readiness registry (capability -> required config, approvals, tests, evidence) evaluated by guard and exposed through a wizard UI that runs contract tests.
+  size: L
+  environmentDependency: Sandbox credentials per connector
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-14-10
+  section: '14'
+  kind: software
+  text: Import/export of reviewed configuration, safely (no secrets, signed/digested, validated on import).
+  acceptance: Export produces a digest-pinned bundle without secret values; import validates schema, diff and approval before staging as a draft.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - operator.configuration
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/loader.ts (records file digest)
+  gap: No export/import function; configuration is edited as repository JSON.
+  remediation: Implement configuration bundle export/import with canonical JSON digest, schema validation and draft creation.
+  size: M
+  environmentDependency: none
+  workPackage: WP-31
+  provenance:
+    origin: extraction
+- id: FO-14-11
+  section: '14'
+  kind: software
+  text: 'Agent Studio: brand, voice and locale settings.'
+  acceptance: Studio edits a versioned agent configuration (brand name, approved voice, locales) validated against approved model/voice list; changes flow through draft/review/publish.
+  originalIds:
+  - SPEC-11.voice-selection
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - operator.studio
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/templates/en-US.json
+  - platform/src/voice/templates/es-US.json
+  - platform/config/local.json (models.active)
+  gap: Voice templates and model/voice selection are static files; no studio API or UI.
+  remediation: Create an AgentConfiguration aggregate (versioned, digest-pinned) and Studio pages for brand/voice/locale bound to approval scopes.
+  size: L
+  environmentDependency: Approved voice/model selection record (MODEL_VOICE_SELECTION)
+  workPackage: WP-33
+  provenance:
+    origin: extraction
+- id: FO-14-12
+  section: '14'
+  kind: software
+  text: 'Agent Studio: supported intents configuration.'
+  acceptance: Operator enables/disables intents from the catalogue of resolution contracts per tenant/audience; disabled intents route to accountable escalation.
+  originalIds:
+  - SPEC-4.resolution-contracts
+  - SPEC-4.workflow-catalogue
+  derivedFrom: []
+  capabilityIds:
+  - operator.studio
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/contracts/index.ts (contracts in code)
+  - platform/src/policy/catalogue.ts
+  gap: Intents are compiled into code and the policy catalogue; only a kill switch can disable an intent.
+  remediation: Expose the contract catalogue as data with per-tenant enablement stored in the configuration store and enforced in the gateway.
+  size: M
+  environmentDependency: none
+  workPackage: WP-33
+  provenance:
+    origin: extraction
+- id: FO-14-13
+  section: '14'
+  kind: software
+  text: 'Agent Studio: bounded workflows configuration.'
+  acceptance: Operator selects and parameterizes approved workflow templates (deadlines, owners, notifications) without adding arbitrary steps; ASL regenerated and pinned.
+  originalIds:
+  - SPEC-9.workflow
+  - SPEC-3.workflow-engine
+  derivedFrom: []
+  capabilityIds:
+  - operator.studio
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/definitions/index.ts
+  - infra/stepfunctions/manifest.json
+  gap: Workflow definitions are TypeScript code; no parameter schema or Studio surface.
+  remediation: Add parameter schemas to workflow definitions and a Studio workflow page that edits only declared parameters.
+  size: M
+  environmentDependency: none
+  workPackage: WP-33
+  provenance:
+    origin: extraction
+- id: FO-14-14
+  section: '14'
+  kind: software
+  text: 'Agent Studio: knowledge ingestion and approval.'
+  acceptance: Operator uploads/syncs knowledge, sees sanitizer/injection holds, approves or rejects items, and publishes a pinned snapshot with a KNOWLEDGE_RELEASE approval.
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - operator.studio
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/service.ts (ingest, review queue, release/reject held items)
+  - platform/src/knowledge/ingest.test.ts
+  - console/src/pages/ReleasesPage.tsx (snapshot review opinion, held items)
+  - platform/src/console-api/plugin.ts:1070-1106
+  gap: Backend pipeline is verified locally but the console cannot ingest content or release held items; the release review is an opinion, not an approval; corpus loader is local-only.
+  remediation: Add console endpoints knowledge.ingest (a source batch through KnowledgeServicePg.ingestDetailed), knowledge.queue (reviewQueue) and knowledge.decide (releaseHeld/rejectHeld; knowledge_editor role; decider must differ from the uploader; reason code; audited). Replace payload-asserted approval with the authenticated decision record, and add Studio pages with loading, empty and error states and RBAC tests. KNOWLEDGE_RELEASE stays a signed approval outside the console and is also checked when search serves a snapshot.
+  size: M
+  environmentDependency: Knowledge owner approvals (PRQ-032)
+  workPackage: WP-33
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-14-15
+  section: '14'
+  kind: software
+  text: 'Agent Studio: prompt and model role configuration.'
+  acceptance: Studio assigns qualified models to roles (fast conversation, reasoning, judge) from the model registry, with prompt templates versioned and evaluated before publish.
+  originalIds:
+  - OPS-06
+  - SPEC-2.model-evidence
+  derivedFrom: []
+  capabilityIds:
+  - operator.studio
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/schema.ts (models.active pair only)
+  gap: No model harness, model registry or prompt store exists in the repository.
+  remediation: After the section 9 model harness lands, expose model-role assignments and prompt versions in Studio with evaluation gating.
+  size: L
+  environmentDependency: Qualified model credentials or licensed weights
+  workPackage: WP-33
+  provenance:
+    origin: extraction
+- id: FO-14-16
+  section: '14'
+  kind: software
+  text: 'Agent Studio: allowed actions and escalation routes.'
+  acceptance: Operator selects allowed catalogued actions per intent/audience and destination allowlist entries; arbitrary dial strings rejected.
+  originalIds:
+  - SPEC-10.transfer
+  - SPEC-8.tool-surface
+  - SAFE-02
+  derivedFrom: []
+  capabilityIds:
+  - operator.studio
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/DestinationsPage.tsx (read-only allowlist)
+  - platform/src/gateway/catalog.ts (fixed tool catalogue)
+  gap: Destinations and allowed actions are read-only configuration/code; no editing surface.
+  remediation: Add Studio forms for action allowlists and destination selection bound to the trusted destination schema and policy catalogue.
+  size: M
+  environmentDependency: Approved destination list from contact-centre owner
+  workPackage: WP-33
+  provenance:
+    origin: extraction
+- id: FO-14-17
+  section: '14'
+  kind: software
+  text: 'Agent configuration lifecycle: draft -> test -> independent review -> publish -> rollback.'
+  acceptance: Configuration versions move through states with separation of author/reviewer/publisher, mandatory evaluation run, signed approval to publish and one-step rollback to a prior pinned version; all audited.
+  originalIds:
+  - SPEC-15.pilot-promotion
+  - SPEC-15.rollback
+  - SPEC-15.no-self-promotion
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - operator.configuration
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/ReleasesPage.tsx (review opinions for policy/knowledge only)
+  - platform/src/config/approvals.ts (signed approvals)
+  gap: No configuration draft model, publish or rollback; only release reviews of policy bundles and knowledge snapshots.
+  remediation: Implement a versioned configuration state machine with digests, evaluation hooks, approval binding and rollback, plus Studio UI.
+  size: L
+  environmentDependency: Human reviewers/approvers
+  workPackage: WP-31
+  provenance:
+    origin: extraction
+- id: FO-14-18
+  section: '14'
+  kind: constraint
+  text: No natural-language setting may override an invariant or add arbitrary executable tools.
+  acceptance: Studio settings are typed; free text is never interpreted as policy or tool definitions; tool catalogue digest stays pinned; tests attempt overrides via settings.
+  originalIds:
+  - SPEC-8.tool-surface
+  - OPS-06
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - operator.configuration
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/catalog.ts
+  - platform/src/gateway/catalog.test.ts
+  - platform/src/config/guard.ts (tool-catalogue digest pin)
+  - policy/vsp/authz.rego
+  gap: Holds today only because no configurable settings exist; no tests target Studio-supplied text.
+  remediation: When Studio lands, add adversarial tests that settings cannot change policy, tool catalogue or invariants.
+  size: S
+  environmentDependency: none
+  workPackage: WP-31
+  provenance:
+    origin: extraction
+- id: FO-14-19
+  section: '14'
+  kind: software
+  text: 'Calls and cases: live call state.'
+  acceptance: Active calls view reflects live session state (in AI, in transfer, safety route) from authoritative events within seconds.
+  originalIds:
+  - SPEC-13.console
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/ActiveCallsPage.tsx
+  - platform/src/console-api/plugin.ts:495-510 (summaries from audit events and transfer journeys)
+  - platform/src/console-api/views.test.ts
+  gap: State is derived from audit events by polling within a fixed window; no media/session-runtime state (no speech runtime) and no push updates.
+  remediation: Feed live session state from the speech runtime/session store via server-sent events once section 10 runtime exists.
+  size: M
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-14-20
+  section: '14'
+  kind: software
+  text: 'Calls and cases: source-grounded timeline and current identity scope.'
+  acceptance: Timeline shows events with source references across calls, messages, cases and source systems; identity scope (actor, subject, role, assurance, consent, expiry) is shown current.
+  originalIds:
+  - SPEC-13.console
+  - AUTH-03
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/CallInvestigationPage.tsx:1-6,370-405
+  - console/src/pages/CallInvestigationPage.test.tsx
+  gap: Timeline covers only the platform's own audit events for one call; no canonical cross-source support timeline (section 7) and identity scope is limited to assurance labels.
+  remediation: Back the timeline with the canonical support timeline projection and add an identity-scope panel from the session store.
+  size: M
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-21
+  section: '14'
+  kind: software
+  text: 'Calls and cases: tasks, pending actions, receipts and failures.'
+  acceptance: Operators see pending/committed/unknown actions with receipts and failure reasons, workflow tasks and their state.
+  originalIds:
+  - ACT-04
+  - SPEC-13.console
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/PendingActionsPage.tsx
+  - console/src/pages/PendingActionsPage.test.tsx
+  - console/src/pages/SupportTracePage.tsx:218-300
+  - platform/src/console-api/views.test.ts
+  gap: Local composition only.
+  remediation: Carry into production console composition (FO-14-02).
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-38
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-14-22
+  section: '14'
+  kind: software
+  text: 'Calls and cases: handoff and authorized takeover/join of a live call.'
+  acceptance: Authorized staff can transfer and join/take over a live call through the media runtime with audit; unauthorized attempts are denied.
+  originalIds:
+  - SAFE-04
+  - SPEC-10.transfer
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/plugin.ts:573-604 (transfer only with local fixture telephony; join always TALKDESK_CONTROL_UNAVAILABLE)
+  gap: Join/takeover does not exist; transfer works only with the local telephony fixture.
+  remediation: Implement join/takeover against the LiveKit room / SIP bridge with permission checks and audit; expose in CallInvestigationPage.
+  size: L
+  environmentDependency: Media runtime / carrier control (LiveKit/SIP or vendor API)
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-23
+  section: '14'
+  kind: software
+  text: 'Work queue: approvals (human workflow tasks).'
+  acceptance: Approvals queue lists open human tasks with required roles; decisions are authorized, audited and signal the workflow.
+  originalIds:
+  - SPEC-9.task-tokens
+  - SPEC-9.workflow
+  derivedFrom: []
+  capabilityIds:
+  - workflows.durable
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/ApprovalsPage.tsx
+  - console/src/pages/ApprovalsPage.test.tsx
+  - platform/src/console-api/workflows.test.ts
+  gap: Local workflow engine only; Step Functions callback path not exercised.
+  remediation: 'Implement the Step Functions task-token bridge: a worker consumer for the waitForTaskToken SQS messages that stores the token against the human task and calls SendTaskSuccess/SendTaskFailure with the console decision. Test it end to end with amazon/aws-stepfunctions-local plus ElasticMQ in the local compose, including a duplicate decision and an expired token.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-26
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-14-24
+  section: '14'
+  kind: software
+  text: 'Work queue: uncertain outcomes and reconciliation.'
+  acceptance: UNKNOWN actions appear in a reconciliation queue; reconcile and retry-after-NOT_FOUND are authorized and audited.
+  originalIds:
+  - ACT-03
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/ReconciliationPage.tsx:89
+  - console/src/pages/ReconciliationPage.test.tsx
+  - platform/src/console-api/reconciliation.test.ts
+  - platform/src/console-api/reconciled-retry.ts
+  gap: Against fixture providers only.
+  remediation: Re-run against provider emulators in the local compose.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-38
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-14-25
+  section: '14'
+  kind: software
+  text: 'Work queue: dead-letter queue repair.'
+  acceptance: DLQ messages listed with reason codes; requeue requires reason and supervisor role; audited.
+  originalIds:
+  - SPEC-8.outbox
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/ReconciliationPage.tsx:175
+  - platform/src/console-api/support-repair.test.ts
+  - platform/src/outbox/outbox.test.ts
+  gap: 'Postgres outbox DLQ only; SQS DLQ (infra/terraform/modules/sqs) repair not wired. IMPLEMENTED, not VERIFIED_LOCAL: Only the Postgres outbox DLQ is repairable; SQS DLQ (infra/terraform/modules/sqs) repair is not wired.'
+  remediation: Add SQS DLQ source once the live publisher path is composed.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: only the Postgres outbox DLQ is repairable; SQS DLQ (infra/terraform/modules/sqs) repair is not wired.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-38
+- id: FO-14-26
+  section: '14'
+  kind: software
+  text: 'Work queue: missed deadlines.'
+  acceptance: Cases/workflows past their promised deadline are listed with owner and escalation.
+  originalIds:
+  - SPEC-9.workflow
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/navigation.ts:12-26
+  - platform/src/workflows/engine.ts
+  gap: 'No deadline-breach query or queue. Workflow deadlines already exist: every nonterminal workflow state has one, PgWorkflowEngine.tick escalates overdue instances to the escalation owner queue (platform/src/workflows/engine.ts:14-15,355-356), and the support trace shows each workflow''s deadline (platform/src/console-api/contract.ts:792). Case-level promise dates are not modelled (see FO-14-37).'
+  remediation: Add a workflows.overdue console endpoint (supervisor role) that lists instances with deadline < now or escalation_count > 0 (index on tenant_id, deadline), with owner queue and escalation state. Add case promises once FO-14-37 models them. Add a 'Missed deadlines' page with empty and error states, and an RBAC test.
+  size: S
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    - remediation
+- id: FO-14-27
+  section: '14'
+  kind: software
+  text: 'Work queue: stale context.'
+  acceptance: Items whose context sources exceeded freshness bounds are listed for repair.
+  originalIds:
+  - SPEC-9.retrieval
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/navigation.ts:12-26
+  gap: No context freshness model exists.
+  remediation: Build after the context engine; queue from freshness watermarks.
+  size: S
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-28
+  section: '14'
+  kind: software
+  text: 'Work queue: consent and deletion work.'
+  acceptance: Consent withdrawals, deletion requests and vendor deletion confirmations appear as owned work items with evidence capture.
+  originalIds:
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/retention/policies.ts:319-370 (VendorDeletionQueuePg, no console endpoint)
+  - platform/src/privacy/consent.ts
+  gap: Vendor deletion queue has no operator surface; no subject deletion requests exist.
+  remediation: Expose vendor deletion queue and new subject-deletion workflow as a console queue.
+  size: M
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-29
+  section: '14'
+  kind: software
+  text: 'Work queue: human-owned exceptions.'
+  acceptance: Escalated support requests and exceptions have an owner, SLA and state visible in a queue.
+  originalIds:
+  - ACT-04
+  - SPEC-4.outcomes
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/SafetyEventsPage.tsx (safety events only)
+  - console/src/pages/SupportTracePage.tsx (lookup by reference only)
+  gap: No ownership queue of open human exceptions; support requests are only looked up by reference.
+  remediation: Add an exceptions queue over support_requests with owner assignment.
+  size: M
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-30
+  section: '14'
+  kind: software
+  text: 'Evaluation Studio: corpus and version management.'
+  acceptance: UI/API lists corpora, splits, scenario versions and lineage; changes create new versions.
+  originalIds:
+  - SPEC-14.intent-corpus
+  - SPEC-16.scenario-definition
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/cli.ts (CLI only)
+  - platform/src/evaluation/corpus.ts
+  gap: Evaluation is a CLI and repository files; no studio.
+  remediation: Add an evaluation API over corpus/results and a console Evaluation Studio section.
+  size: L
+  environmentDependency: none
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+- id: FO-14-31
+  section: '14'
+  kind: software
+  text: 'Evaluation Studio: scenario builder.'
+  acceptance: Builder creates ScenarioDefinition drafts validated against the protocol schema, marked UNREVIEWED.
+  originalIds:
+  - SPEC-16.scenario-definition
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/evaluation.ts:36-71
+  - scenarios/skeletons/*.yaml (hand-written)
+  gap: Scenarios are authored as YAML skeletons and generators only.
+  remediation: Build a schema-driven scenario builder form writing drafts through an API.
+  size: M
+  environmentDependency: none
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+- id: FO-14-32
+  section: '14'
+  kind: software
+  text: 'Evaluation Studio: waveform and timeline replay.'
+  acceptance: Replay shows audio waveform aligned to turns, tool calls and emitted audio with access control.
+  originalIds:
+  - SPEC-14.test-layers
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/local-driver.ts (text-only simulated calls)
+  gap: No audio capture exists anywhere.
+  remediation: After Layer 4 audio harness, store restricted audio evidence and build a replay view.
+  size: L
+  environmentDependency: none
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+- id: FO-14-33
+  section: '14'
+  kind: software
+  text: 'Evaluation Studio: expected versus observed state.'
+  acceptance: Per run, show expected final state against authoritative observed state with assertion verdicts.
+  originalIds:
+  - SPEC-14.scorecard
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/scorer.ts
+  - evidence/evaluation/corpus-local-20261018w4.report.md
+  gap: Data is computed and written to reports, but there is no studio view.
+  remediation: Render EvaluationResult assertions and committedState in the studio run view.
+  size: S
+  environmentDependency: none
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+- id: FO-14-34
+  section: '14'
+  kind: software
+  text: 'Evaluation Studio: judge/human disagreement view.'
+  acceptance: Disagreements between judge and human labels listed for adjudication.
+  originalIds:
+  - SPEC-14.scorecard
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/runner.ts:151 (qualityScoreSource enum only)
+  gap: No judges and no human label store.
+  remediation: Implement label store and judge pipeline (FO-17-27) then the disagreement view.
+  size: M
+  environmentDependency: Human reviewers
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+- id: FO-14-35
+  section: '14'
+  kind: software
+  text: 'Evaluation Studio: slices and regression.'
+  acceptance: Slice tables and regression against a baseline viewable per run set.
+  originalIds:
+  - SPEC-14.aggregation
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/aggregate.ts:229 (compareAggregates)
+  - evidence/evaluation/corpus-local-20261018w4.summary.json
+  gap: Slices/regression exist in the aggregator and markdown reports only.
+  remediation: Expose aggregates through the evaluation API and studio.
+  size: S
+  environmentDependency: none
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+- id: FO-14-36
+  section: '14'
+  kind: software
+  text: 'Insights: verified resolution, repeat contact and reopens.'
+  acceptance: Insights page shows verified resolution rate, repeat contact (24h/7d) and reopen rates per intent from real metrics, never containment as success.
+  originalIds:
+  - SPEC-13.resolution-metrics
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/metrics.ts:436-451 (vsp_verified_resolutions_total, vsp_repeat_contacts_total, vsp_cases_reopened_total)
+  - platform/src/business/outcomes.ts:70-77
+  - infra/terraform/modules/observability/main.tf (dashboards)
+  gap: Metrics and CloudWatch dashboards exist; no console Insights surface or queryable aggregate store.
+  remediation: Add an insights read model (from interaction_outcomes and case observations) and console page.
+  size: M
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-37
+  section: '14'
+  kind: software
+  text: 'Insights: unresolved promises, demand, customer effort, CSAT/response rate.'
+  acceptance: Each metric defined, computed from durable records, with sample sizes and response rate for CSAT.
+  originalIds:
+  - SPEC-13.resolution-metrics
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/metrics.ts
+  gap: No promise tracking metric, demand/effort model or CSAT collection.
+  remediation: Define metrics, add durable promise records and survey ingestion, and render in Insights.
+  size: M
+  environmentDependency: CSAT survey channel approval
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-38
+  section: '14'
+  kind: software
+  text: 'Insights: escalation appropriateness and cost per resolution.'
+  acceptance: Escalation appropriateness from reviewed samples and cost per verified resolution from spend ledger joined to outcomes.
+  originalIds:
+  - SPEC-13.resolution-metrics
+  - SPEC-12.capacity-model
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/budgets.ts (spend ledger)
+  - docs/capacity-cost-model.md:152 (planned)
+  gap: No join of spend to outcomes and no escalation review labels.
+  remediation: Attribute spend per call/case and compute cost per verified resolution; add escalation review sampling.
+  size: M
+  environmentDependency: Rate cards (PRQ-010) and reviewer labels
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-39
+  section: '14'
+  kind: software
+  text: 'Investigations: trace call -> context -> model proposal -> policy -> action -> source effect -> CRM -> human acceptance -> audit export.'
+  acceptance: One trace view links every hop by opaque ids with evidence pointers, including context snapshot id, model proposal digest, effect receipt and audit export manifest.
+  originalIds:
+  - SPEC-13.audit-model
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/CallInvestigationPage.tsx
+  - console/src/pages/SupportTracePage.tsx:84-300 (support request, Salesforce sync, actions, workflows, audit events)
+  - console/src/pages/SupportTracePage.test.tsx
+  gap: Context snapshot, model proposal, independent source-effect verification and audit export hops do not exist; trace covers policy, actions, CRM sync, workflows and audit only.
+  remediation: Add context snapshot and model proposal ids to audit events and the trace; link effect receipts and shipped manifest ids.
+  size: M
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-40
+  section: '14'
+  kind: constraint
+  text: Investigations use access-controlled content references; no arbitrary SQL or unrestricted transcript download.
+  acceptance: Only parameterized metadata search; content via short-lived permission-checked references; tests show no transcript/raw content in responses.
+  originalIds:
+  - DATA-01
+  - AUTH-02
+  - SPEC-13.audit-access
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/audit/query.ts (metadata-only, audited search)
+  - console/src/pages/AuditSearchPage.tsx
+  - platform/src/console-api/views.test.ts:61,126,225 (canary content never returned)
+  gap: 'Content-reference retrieval for authorized investigators does not exist yet (only metadata). IMPLEMENTED, not VERIFIED_LOCAL: Content-reference retrieval for authorized investigators, a named element, does not exist (metadata only).'
+  remediation: Add an evidence broker issuing short-lived, audited, purpose-bound content references (FO-15-22).
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: content-reference retrieval for authorized investigators, a named element, does not exist (metadata only).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-38
+- id: FO-14-41
+  section: '14'
+  kind: software
+  text: 'Controls: per-intent, per-model, per-integration, write, outbound and new-admission kill switches.'
+  acceptance: Each scope engages/releases with role check, reason and audit; gateway/worker/notification paths honor it; unreadable state fails closed for nonessential work.
+  originalIds:
+  - SPEC-13.killswitch
+  - OPS-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/kill-switches.ts:34-128
+  - platform/src/ops/kill-switches.test.ts
+  - platform/src/console-api/kill-switches.test.ts
+  - console/src/pages/KillSwitchesPage.test.tsx
+  - platform/src/ops/notification-gate.test.ts
+  gap: 'MODEL_VERSION switch exists but no model routing exists to fall back to; per-tool-family and per-tenant scopes absent. IMPLEMENTED, not VERIFIED_LOCAL: The MODEL_VERSION and VOICE_VERSION switches have no consumer and "outbound" covers OUTBOUND_NOTIFICATIONS only (platform/src/ops/kill-switches.ts:34,89-95); per-tool-family and per-tenant scopes are absent.'
+  remediation: Wire MODEL_VERSION to the model harness router and add tenant scope.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the MODEL_VERSION and VOICE_VERSION switches have no consumer and "outbound" covers OUTBOUND_NOTIFICATIONS only (platform/src/ops/kill-switches.ts:34,89-95); per-tool-family and per-tenant scopes are absent.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-38
+- id: FO-14-42
+  section: '14'
+  kind: software
+  text: 'Controls: quota and budget settings.'
+  acceptance: Authorized operators define/adjust budgets, concurrency caps and quotas from the console with audit.
+  originalIds:
+  - SPEC-12.budget-cutoff
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/budgets.ts:166 (defineBudget with staff authorization)
+  - console/src/pages/BudgetsPage.tsx (read-only)
+  - platform/src/console-api/contract.ts:308 (budgets.list only)
+  gap: Backend budget definition exists; console has no set endpoint or form; concurrency caps and quotas are static config.
+  remediation: Add budgets.define/quota endpoints with reason codes and a settings form.
+  size: S
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-43
+  section: '14'
+  kind: software
+  text: 'Controls: rollout and rollback.'
+  acceptance: Operators see current release/config versions per cohort, start staged rollout and roll back with audit.
+  originalIds:
+  - SPEC-15.rollback
+  - SPEC-15.pilot-promotion
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - .github/workflows/deploy.yml:23 (rollbackTarget dispatch only)
+  gap: No console rollout/rollback control or cohort model.
+  remediation: Add a release/configuration pin view (current digests per cohort, from the configuration store and the release manifest) and endpoints rollout.start and rollout.rollback (deployment_operator role, signed approval, typed confirmation dialog). These drive the canary controller (FO-18-06) and the configuration state machine (FO-14-17). Audit both, and add an RBAC test.
+  size: M
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-14-44
+  section: '14'
+  kind: software
+  text: 'Controls: policy and knowledge version comparison.'
+  acceptance: Release review shows previous version, digest and diff entries for policy bundles and knowledge snapshots.
+  originalIds:
+  - OPS-06
+  - SPEC-14.policy-expansion
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/ReleasesPage.tsx:109-175
+  - console/src/pages/ReleasesPage.test.tsx
+  - platform/src/console-api/plugin.ts:1070-1106
+  gap: No comparison for agent configuration, prompts or model versions.
+  remediation: Add release-candidate producers. In scripts/policy.sh build, emit a policy bundle diff (rule ids added/removed/changed between bundle manifests). In platform/src/knowledge/snapshot.ts, emit a knowledge snapshot diff (source ids and versions). Both call ReleaseSubmissionRegistryPg.record on submission. Test that a changed rule appears as a CHANGED entry. Extend the same mechanism to configuration versions (FO-14-17).
+  size: S
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-14-45
+  section: '14'
+  kind: software
+  text: 'Controls: incident workflows.'
+  acceptance: Incident can be declared, owned, linked to kill-switch actions and evidence, and closed with a drill/incident record.
+  originalIds:
+  - SPEC-13.incident-playbooks
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/PlaybooksPage.tsx (static content)
+  - console/src/content/playbooks.ts
+  - docs/RUNBOOKS/README.md
+  gap: Runbooks are documents; no incident record or workflow in the product.
+  remediation: Add incident aggregate with audit, linked kill-switch changes and runbook steps.
+  size: M
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-46
+  section: '14'
+  kind: constraint
+  text: Killing AI retains appropriate human and safety continuity.
+  acceptance: With AI_ADMISSION/WRITES engaged, safety and human routes remain admitted; tests prove it.
+  originalIds:
+  - OPS-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/kill-switches.ts:118-128
+  - platform/src/ops/admission.test.ts
+  - platform/src/ops/kill-switches.test.ts
+  - platform/src/main/sessionless-routing.test.ts
+  gap: Proven in the gateway only; the custom media path has no independent continuity route yet.
+  remediation: Add carrier-level fallback routing for the SIP/LiveKit path and test with AI killed.
+  size: S
+  environmentDependency: Independent telephony route configuration
+  regressionPackage: WP-38
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-14-47
+  section: '14'
+  kind: software
+  text: Validate console forms against runtime schemas.
+  acceptance: Client forms validate with the same runtime schemas the server uses; server rejects invalid input.
+  originalIds:
+  - SPEC-8.tool-schema
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/schemas.ts
+  - platform/src/console-api/schemas.test.ts
+  - console/src/api/contract.test.ts
+  - console/package.json (no runtime schema library)
+  gap: Server-side zod validation only; the console validates with static types and ad-hoc checks.
+  remediation: Share generated JSON Schemas (schemas/) with the console and validate forms with them.
+  size: S
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-48
+  section: '14'
+  kind: software
+  text: Accessible keyboard and screen-reader flows; WCAG 2.2 AA engineering target.
+  acceptance: axe (including contrast) in a real browser has zero violations; keyboard-only and screen-reader walkthroughs recorded; WCAG 2.2 criteria (focus appearance, target size, dragging alternatives) checked.
+  originalIds:
+  - SPEC-16.console-functional
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/a11y.test.tsx
+  - console/src/test/axe.ts:1-19 (color-contrast disabled in jsdom)
+  - console/src/components/Dialog.test.tsx:28-64
+  - console/src/components/Announcer.tsx
+  gap: jsdom-only axe without contrast; no WCAG 2.2-specific checks; no assistive-technology review.
+  remediation: Add Playwright + axe in Chromium with contrast, 2.2 target-size/focus checks, and a manual screen-reader checklist record.
+  size: S
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-14-49
+  section: '14'
+  kind: software
+  text: Timezone-aware times.
+  acceptance: Times are stored UTC and displayed with explicit zone, with operator/tenant timezone option; caller-local times labelled.
+  originalIds:
+  - SPEC-16.console-functional
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/components/Timestamp.tsx
+  - console/src/lib/format.ts:2-8 (formatUtc labelled UTC)
+  gap: UTC display only; no operator or tenant timezone rendering.
+  remediation: Add tenant/operator timezone preference with Intl formatting while keeping the UTC dateTime attribute.
+  size: S
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-14-50
+  section: '14'
+  kind: software
+  text: Explicit confirmation for destructive operations.
+  acceptance: Every destructive or consequential console action needs a dialog with reason code and idempotency key.
+  originalIds:
+  - SPEC-13.killswitch
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/components/ReasonActionDialog.tsx
+  - console/src/components/Dialog.tsx
+  - console/src/pages/KillSwitchesPage.test.tsx
+  - platform/src/console-api/contract.ts:415-426 (reason codes)
+  - console/src/api/client.test.ts:95 (mutations send an Idempotency-Key)
+  - console/src/components/ReasonActionDialog.tsx:4,33 (one idempotency key per opened dialog)
+  gap: None for existing actions.
+  remediation: Apply the same pattern to new surfaces.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-38
+  provenance:
+    origin: extraction
+    repair:
+    - VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1); evidence lines added
+- id: FO-14-51
+  section: '14'
+  kind: software
+  text: SSO recovery works (IdP outage or lockout recovery path for operators).
+  acceptance: Documented and tested recovery path (secondary IdP or break-glass operator accounts with dual control and audit) that is not a development bypass.
+  originalIds:
+  - SPEC-7.workforce-separation
+  derivedFrom: []
+  capabilityIds:
+  - identity.workforce
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/break-glass.ts (record-access break-glass only, never adds roles)
+  gap: No SSO recovery mechanism or runbook.
+  remediation: 'Design dual-controlled break-glass workforce identities (hardware MFA, time-bound, audited, outside the primary IdP) plus a runbook under docs/RUNBOOKS and tests. Cover how kill switches (KillSwitchService) and safety routing are operated while the workforce IdP is down: today kill switches can be engaged only through the console''s SSO sign-in (docs/RUNBOOKS/kill-switch-operations.md:32).'
+  size: M
+  environmentDependency: Identity owner decision on break-glass workforce accounts
+  workPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-14-52
+  section: '14'
+  kind: software
+  text: Operator offboarding works.
+  acceptance: Deprovisioned staff lose access within a bounded time (directory sync/introspection), active tokens revoked; test proves denial after offboarding.
+  originalIds:
+  - SPEC-7.workforce-separation
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - identity.workforce
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/auth.ts:236-300 (fixture directory active flag)
+  - platform/src/console-api/auth.ts (logout revokes jti)
+  gap: Only the fixture directory has an active flag; no live deprovisioning signal.
+  remediation: Implement live directory sync with active-state checks per request and token revocation on deprovision.
+  size: M
+  environmentDependency: Workforce directory / SCIM feed
+  workPackage: WP-05
+  provenance:
+    origin: extraction
+- id: FO-14-53
+  section: '14'
+  kind: constraint
+  text: Development bypasses cannot exist in production composition.
+  acceptance: Local sign-in, fixture tokens and dev keys refuse outside local/ci; tests prove it.
+  originalIds:
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  - identity.workforce
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/auth.ts:225
+  - platform/src/console-api/auth.test.ts:167,221
+  - platform/src/main/console.ts:52
+  - platform/src/config/guard.ts:387
+  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: no production composition exists in which the absence of development bypasses could be proven (WP-07).'
+  remediation: Keep these tests in the production composition suite.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: no production composition exists in which the absence of development bypasses could be proven (WP-07).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-07
+- id: FO-14-54
+  section: '14'
+  kind: software
+  text: Tenant setup is configuration-driven, without rewriting core application code.
+  acceptance: A new tenant/environment is activated by configuration (connectors, mappings, intents, policies) only; no source edits.
+  originalIds:
+  - OPS-04
+  - OPS-06
+  - SPEC-16.prod-guard
+  derivedFrom: []
+  capabilityIds:
+  - operator.configuration
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/config/*.json
+  - platform/src/config/schema.ts
+  - platform/src/main/container.ts:312 (LIVE_COMPOSITION_NOT_IMPLEMENTED)
+  gap: Strict file configuration exists, but connectors, intents, workflows and mappings live in code and every non-local composition is refused.
+  remediation: Introduce the tenant configuration store (FO-14-05, FO-14-17) keyed by tenantId, with connector bindings, mappings and intent enablement as data. Make the composition root build per-tenant adapters from it, and add a local-compose test that activates a second synthetic tenant by configuration only, with no code change.
+  size: XL
+  environmentDependency: Tenant credentials and approvals
+  workPackage: WP-31
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-14-55
+  section: '14'
+  kind: software
+  text: Unknown policy/retention/approval values stay explicit and block only the affected activation, while local synthetic testing and other authorized capabilities work.
+  acceptance: Guard evaluates per capability; an unset value blocks only the capabilities that depend on it; local/ci runs.
+  originalIds:
+  - OPS-03
+  - OPS-04
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - operator.configuration
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/guard.ts (assertDeployable rejects the whole environment)
+  - platform/src/retention/job.ts (BLOCKED_RETENTION_UNSET per class)
+  - platform/config/production.json (null values explicit)
+  gap: Unknowns are explicit, but the guard refuses startup of the whole environment rather than per-capability activation.
+  remediation: Refactor guard output into a capability activation map consumed by the composition root and admission.
+  size: M
+  environmentDependency: none
+  workPackage: WP-31
+  provenance:
+    origin: extraction
+- id: FO-14-56
+  section: '14'
+  kind: constraint
+  text: A demo's fabricated approval is technically unusable as a production approval.
+  acceptance: Approvals must verify against a KMS trust key, match environment, role and signed subject; demo/local keys refused in production.
+  originalIds:
+  - OPS-04
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/approvals.ts
+  - platform/src/config/approvals.test.ts
+  - platform/src/config/guard.test.ts
+  - platform/src/config/__evidence__/production-guard-violations.json
+  gap: None in code; trust anchor key not yet provisioned.
+  remediation: Keep; add test that demo-signed records fail every production scope.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-14-57
+  section: '14'
+  kind: software
+  text: Pin configuration and audit who changed what.
+  acceptance: Every configuration version is digest-pinned in releases and every change records actor, reason, before/after hash in the audit ledger.
+  originalIds:
+  - OPS-06
+  - SPEC-13.audit-model
+  derivedFrom: []
+  capabilityIds:
+  - operator.configuration
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/loader.ts (file digest)
+  - platform/src/evaluation/manifest.ts (digests in release manifest)
+  - platform/src/ops/kill-switches.ts:220-280 (audited switch changes)
+  gap: Runtime switches/budgets are audited, but configuration file changes are only tracked by git, not by the platform audit ledger.
+  remediation: Route configuration changes through the audited configuration store with before/after hashes.
+  size: M
+  environmentDependency: none
+  workPackage: WP-31
+  provenance:
+    origin: extraction

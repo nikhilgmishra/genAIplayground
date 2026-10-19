@@ -1,0 +1,1655 @@
+# Follow-on requirement source records, prompt section 16. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '16'
+requirements:
+- id: FO-16-01
+  section: '16'
+  kind: software
+  text: Ship reproducible local container composition.
+  acceptance: docker compose (pinned images) brings up Postgres, OIDC realm, policy, queue/workflow, emulators, LiveKit/SIP, receiver, audit sink and the platform; one command and a smoke test pass.
+  originalIds:
+  - SPEC-16.offline-first
+  - SPEC-16.local-demo
+  derivedFrom: []
+  capabilityIds:
+  - platform.workspace
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - (no compose file in repository)
+  - docs/followon/CONTINUATION.md (Docker feasible)
+  gap: No container composition; everything runs in-process (PGlite, fixtures).
+  remediation: Add deploy/local/compose.yaml with pinned images and a compose-based integration test target.
+  size: L
+  environmentDependency: none (Docker available in this environment)
+  workPackage: WP-03
+  provenance:
+    origin: extraction
+- id: FO-16-02
+  section: '16'
+  kind: software
+  text: OCI images.
+  acceptance: Platform and console images build reproducibly, run as non-root, pinned by digest; built locally and scanned.
+  originalIds:
+  - SPEC-14.supply-chain
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/Dockerfile:1-30
+  gap: Never built; no console image; base image not digest-pinned.
+  remediation: Build with Docker locally, add console Dockerfile, record digests and Trivy scan evidence.
+  size: S
+  environmentDependency: none
+  workPackage: WP-40
+  provenance:
+    origin: extraction
+- id: FO-16-03
+  section: '16'
+  kind: software
+  text: Migrations.
+  acceptance: Ordered migrations apply on Postgres 16; checksum guard; tested on real Postgres.
+  originalIds:
+  - SPEC-16.offline-first
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/*.sql
+  - platform/src/db/migrate.ts
+  - platform/src/db/db.test.ts
+  gap: Tested only on PGlite; PgPoolDb path untested.
+  remediation: Add a postgres:16 service (with pgvector) and run the migrations through PgPoolDb as a non-superuser owner role, as on Aurora, in CI. Assert checksums, role grants and RLS policies through catalog queries.
+  size: S
+  environmentDependency: none
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-16-04
+  section: '16'
+  kind: software
+  text: Terraform modules and environments.
+  acceptance: fmt/validate/test pass; OPA policy gate passes on offline and real plans.
+  originalIds:
+  - SPEC-3.ingress
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/README.md
+  - scripts/terraform-check.sh
+  - evidence/test-reports/opa-terraform.json
+  gap: Offline mock-provider evidence only; no media/SIP modules.
+  remediation: Add LocalStack and MinIO (pinned digests) to the local compose and a scripts/terraform-emulator.sh that applies the kms, secrets, sqs, dynamodb_sessions and audit modules with provider endpoint overrides, then asserts the applied state with the AWS CLI. Record what emulators cannot evaluate (IAM policy evaluation, VPC/AZ layout, WAF, ALB) as a sandbox `terraform plan` plus IAM policy simulator / Access Analyzer output under execution authority (environment evidence, VERIFIED_SANDBOX). Add media/SIP modules (FO-16-34).
+  size: S
+  environmentDependency: AWS accounts for real plans
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-16-05
+  section: '16'
+  kind: software
+  text: Example configurations with synthetic values.
+  acceptance: Each environment has example config/tfvars with synthetic/placeholder values that validate (and are rejected where appropriate).
+  originalIds:
+  - SPEC-16.prod-guard
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/config/*.json
+  - infra/terraform/envs/*/*.tfvars
+  - infra/terraform/envs/*/backend.hcl.example
+  - platform/src/config/loader.test.ts
+  gap: No examples for follow-on components.
+  remediation: Extend with media/model profiles.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-07
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-16-06
+  section: '16'
+  kind: software
+  text: Preflight command.
+  acceptance: A preflight CLI checks config, approvals, credentials reachability, quotas and capability readiness for a target environment without side effects.
+  originalIds:
+  - OPS-04
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/startup.ts (startup guard only)
+  - scripts/ci/check-release-manifest.ts (deploy gate)
+  gap: No standalone preflight.
+  remediation: Add pnpm preflight --env using guard, approvals and adapter health probes in dry-run mode.
+  size: M
+  environmentDependency: none
+  workPackage: WP-40
+  provenance:
+    origin: extraction
+- id: FO-16-07
+  section: '16'
+  kind: software
+  text: Deployment and rollback automation.
+  acceptance: Deploy workflow applies reviewed plans, runs migrations safely, deploys by digest, and supports rollback to the previous release.
+  originalIds:
+  - SPEC-15.rollback
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - operations.commands
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - .github/workflows/deploy.yml:1-31
+  - .github/workflows/release.yml
+  - infra/terraform/modules/ecs_service/main.tf (deployment circuit breaker)
+  gap: Never run; no database migration step or schema compatibility check in deploy.
+  remediation: Add migration job (expand-only before deploy) and compatibility gate.
+  size: M
+  environmentDependency: AWS accounts, GitHub environments
+  workPackage: WP-41
+  provenance:
+    origin: extraction
+- id: FO-16-08
+  section: '16'
+  kind: software
+  text: Smoke and qualification commands.
+  acceptance: Parameterized smoke/qualification commands runnable against local compose, sandbox and staging, emitting evidence records.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - activation.qualification
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/load/load-smoke.test.ts (local loopback only)
+  - platform/src/demo/run-demo.ts
+  gap: No environment-targeted smoke/qualification commands.
+  remediation: Add a qualification CLI with suites (health, auth, tool call, transfer, audit) and evidence output.
+  size: M
+  environmentDependency: Target environments
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+- id: FO-16-09
+  section: '16'
+  kind: operations
+  text: Runbooks.
+  acceptance: Runbooks for every alarm and drill, including media/model components, drilled with records.
+  originalIds:
+  - SPEC-13.incident-playbooks
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/RUNBOOKS/README.md
+  - docs/RUNBOOKS/*.md (18 runbooks)
+  gap: Never drilled; no runbooks for LiveKit/SIP, model provider, speech runtime failures.
+  remediation: Add follow-on runbooks and drill records.
+  size: S
+  environmentDependency: Deployed environment for drills
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-16-10
+  section: '16'
+  kind: software
+  text: Production rejects fixtures and missing mandatory data.
+  acceptance: Guard rejects fixture kinds, placeholders, null retention, missing approvals in staging/production; test evidence.
+  originalIds:
+  - OPS-04
+  - SPEC-16.prod-guard
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/guard.ts
+  - platform/src/config/guard.test.ts
+  - platform/src/config/__evidence__/production-guard-violations.json
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-07
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-16-11
+  section: '16'
+  kind: software
+  text: Resolve live dependency injection (no refusal of non-local composition).
+  acceptance: buildContainer composes live adapters, PgPoolDb, Dynamo session store, S3 sink, SQS publisher and model/media clients from configuration for sandbox/staging/production.
+  originalIds:
+  - OPS-04
+  - SPEC-16.offline-first
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/main/container.ts:23,312 (LIVE_COMPOSITION_NOT_IMPLEMENTED)
+  - platform/src/adapters/live/blocked-set.ts
+  - platform/src/adapters/live/business-systems-blocked.ts
+  - platform/src/adapters/live/talkdesk-blocked.ts
+  gap: All non-local composition refused; most live adapters are blocked stubs.
+  remediation: Implement live composition root and real adapters; test against local emulators via compose with cloud-ready profile.
+  size: XL
+  environmentDependency: Credentials per adapter for execution (not for code)
+  workPackage: WP-07
+  provenance:
+    origin: extraction
+- id: FO-16-12
+  section: '16'
+  kind: constraint
+  text: Readiness is a system, not one boolean like production_ready or approve_all.
+  acceptance: Readiness expressed as per-capability evidence and violations; no single bypass flag.
+  originalIds:
+  - OPS-03
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/guard.ts (violation list)
+  - platform/src/evaluation/manifest.ts (blockers)
+  - platform/src/gateway/http/health-routes.ts:21-24
+  gap: Not yet per capability (see FO-14-09).
+  remediation: Capability readiness registry.
+  size: S
+  environmentDependency: none
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-16-13
+  section: '16'
+  kind: software
+  text: Local OIDC test realm.
+  acceptance: Keycloak/Dex container with client, provider and workforce realms; live verifiers tested against it.
+  originalIds:
+  - SPEC-14.test-layers
+  derivedFrom: []
+  capabilityIds:
+  - platform.workspace
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/local/oidc-fixture.ts (in-process fixture)
+  - platform/src/adapters/live/oidc-verifier.test.ts
+  gap: Only in-process JWKS fixture.
+  remediation: Add realm container with import JSON and Layer-2 tests.
+  size: M
+  environmentDependency: none
+  workPackage: WP-03
+  provenance:
+    origin: extraction
+- id: FO-16-14
+  section: '16'
+  kind: software
+  text: Local PostgreSQL service.
+  acceptance: Postgres 16 container; suites run via PgPoolDb including multi-connection locking tests.
+  originalIds:
+  - SPEC-14.test-layers
+  derivedFrom: []
+  capabilityIds:
+  - platform.workspace
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/db/pg.ts:6-11 (PgPoolDb untested)
+  - docs/adr/ADR-0004-pglite-aurora-dynamodb.md
+  gap: PGlite serializes transactions; no real Postgres tests.
+  remediation: Add Postgres container target and a test mode switch for createTestDb.
+  size: M
+  environmentDependency: none
+  workPackage: WP-03
+  provenance:
+    origin: extraction
+- id: FO-16-15
+  section: '16'
+  kind: software
+  text: Policy service in local composition.
+  acceptance: Production policy engine runs with the built bundle locally.
+  originalIds:
+  - SPEC-14.test-layers
+  derivedFrom: []
+  capabilityIds:
+  - platform.workspace
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/policy/engine.ts
+  - docs/adr/ADR-0002-opa-wasm-in-process.md
+  - platform/src/policy/engine.test.ts
+  gap: Policy is in-process OPA WASM by design; no separate service (acceptable per ADR-0002).
+  remediation: None beyond documenting the choice in the compose.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-03
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-16-16
+  section: '16'
+  kind: software
+  text: Durable queue/workflow test path.
+  acceptance: SQS-compatible queue (ElasticMQ/LocalStack) and Step Functions Local run the outbox publisher and ASL workflows with redelivery tests.
+  originalIds:
+  - SPEC-8.outbox
+  - SPEC-9.workflow
+  derivedFrom: []
+  capabilityIds:
+  - platform.workspace
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/outbox/sqs-publisher.contract.test.ts (stub client)
+  - platform/src/workflows/engine.ts (in-process engine)
+  - infra/stepfunctions/*.asl.json
+  gap: No real queue or workflow service exercised.
+  remediation: Add ElasticMQ and Step Functions Local containers and tests.
+  size: M
+  environmentDependency: none
+  workPackage: WP-03
+  provenance:
+    origin: extraction
+- id: FO-16-17
+  section: '16'
+  kind: software
+  text: Vendor emulators.
+  acceptance: Emulators for CRM, scheduling, billing, identity directory, notifications over real HTTP protocols.
+  originalIds:
+  - SPEC-14.test-layers
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/salesforce-emulator.fixture.ts
+  - platform/src/adapters/live/salesforce-rest.contract.test.ts
+  gap: Only Salesforce has an HTTP emulator; other systems are in-process fixtures.
+  remediation: Add HTTP emulators per canonical domain adapter.
+  size: L
+  environmentDependency: none
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+- id: FO-16-18
+  section: '16'
+  kind: software
+  text: Model emulator.
+  acceptance: Local emulator implementing the model provider wire protocol (streaming, tool calls, refusals, hangs).
+  originalIds:
+  - SPEC-14.test-layers
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/coordinator.ts:1-10 (keyword coordinator, not a model)
+  gap: No model client or emulator.
+  remediation: Add a model emulator container to the local compose. It implements the chosen provider's streaming wire protocol (SSE or WebSocket), tool-call frames, refusals, overload responses, hangs and malformed output from scripted fixtures, so the production model client is tested over HTTP.
+  size: M
+  environmentDependency: none
+  workPackage: WP-08
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-16-19
+  section: '16'
+  kind: software
+  text: LiveKit/SIP test endpoint.
+  acceptance: livekit-server and SIP service containers; production media code connects and exchanges audio in tests.
+  originalIds:
+  - SPEC-14.test-layers
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - (no media code)
+  - docs/followon/CONTINUATION.md (livekit image pulled)
+  gap: No media runtime.
+  remediation: Add livekit/livekit-server (pinned digest; the image is already pulled in this environment) and the LiveKit SIP service to the local compose. Add an integration test that connects the production media client, publishes and subscribes Opus audio, and asserts session-generation fencing on reconnect.
+  size: L
+  environmentDependency: none
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-16-20
+  section: '16'
+  kind: software
+  text: Receiver client (simulated human agent accepting transfers).
+  acceptance: Receiver client joins over the real media/telephony protocol and accepts/declines, producing verified connection evidence.
+  originalIds:
+  - SAFE-04
+  - SPEC-10.transfer
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/local/telephony-fixture.ts (scripted in-process transfers)
+  gap: No protocol-level receiver.
+  remediation: Build a test receiver client (LiveKit client SDK or a SIP user agent) that joins a transfer room or leg and can accept, decline or drop after a delay. It emits connection evidence (join time, media flowing) that the transfer verifier consumes, and journeys assert ACCEPTED only from that evidence.
+  size: M
+  environmentDependency: none
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-16-21
+  section: '16'
+  kind: software
+  text: Audit sink in local composition.
+  acceptance: S3-compatible Object Lock emulator used by the production S3 sink.
+  originalIds:
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - platform.workspace
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/audit/sinks/local-fs.ts (fixture)
+  - platform/src/audit/sinks/s3-object-lock.ts
+  gap: Local sink is a filesystem fixture; production sink never run against an S3 implementation.
+  remediation: Add MinIO (pinned digest) with Object Lock enabled to the local compose. Compose S3ObjectLockAuditSink against it in the local profile instead of local-fs, and run the shipper and verifier tests against it, including 412 on overwrite and retention headers.
+  size: S
+  environmentDependency: none
+  workPackage: WP-03
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-16-22
+  section: '16'
+  kind: software
+  text: Timeline sources and UI in local composition.
+  acceptance: Synthetic timeline sources (CRM, scheduling events) emit events ingested into the context engine and shown in UI.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/fixtures/synthetic-world.ts
+  gap: No event-producing timeline sources.
+  remediation: With the section 7 context engine, add synthetic timeline-source emulators (CRM case events, scheduling changes) that publish signed events into the context ingestion endpoint in the local compose. Test that each event appears in the console call timeline.
+  size: M
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-16-23
+  section: '16'
+  kind: constraint
+  text: Run production code against these services and clearly identify emulated behavior; unit fakes kept separate.
+  acceptance: Integration suite uses production adapters against emulators; labels distinguish emulated infrastructure from unit fakes.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.workspace
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/labels.ts (LOCAL FIXTURE labels)
+  - platform/src/main/container.ts (fixtures composed in local)
+  gap: Labelling exists, but production adapters are not run against service emulators (except Salesforce).
+  remediation: Layer-2 compose suite.
+  size: L
+  environmentDependency: none
+  workPackage: WP-03
+  provenance:
+    origin: extraction
+- id: FO-16-24
+  section: '16'
+  kind: software
+  text: Real-model local profile requiring only a reviewed model credential or licensed local weights.
+  acceptance: Profile runs real model text tasks when a credential/weights path is configured; otherwise refuses without network calls.
+  originalIds:
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - (no model adapter in platform/src)
+  gap: No model integration.
+  remediation: Implement model harness with provider and local-weights clients and the profile.
+  size: L
+  environmentDependency: Reviewed model credential or licensed weights
+  workPackage: WP-08
+  provenance:
+    origin: extraction
+- id: FO-16-25
+  section: '16'
+  kind: software
+  text: Cloud-ready profile with no source-code edits needed.
+  acceptance: Same image runs in sandbox/staging/production via configuration only.
+  originalIds:
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - operations.commands
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/main/container.ts:312
+  - platform/config/production.json (placeholders)
+  gap: Live composition refused.
+  remediation: 'Delivered by FO-16-11. Acceptance: one image digest boots in local, sandbox, staging and production profiles by configuration only, and a CI check fails if environment-specific code branches exist outside platform/src/main composition and platform/src/config.'
+  size: L
+  environmentDependency: Cloud credentials for execution
+  workPackage: WP-41
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-16-26
+  section: '16'
+  kind: software
+  text: Separate sandbox/staging/production and audit boundaries.
+  acceptance: Distinct roots/accounts, allowed_account_ids pinning, audit provider alias.
+  originalIds:
+  - SPEC-3.trust-boundaries
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/envs/*
+  - infra/terraform/modules/audit/main.tf
+  - infra/terraform/envs/*/tests/*.tftest.hcl
+  gap: Offline only.
+  remediation: Record a sandbox `terraform plan` per environment root (allowed_account_ids pinning, audit provider alias) under execution authority as environment evidence; locally keep the mock tftests, which cannot exercise account separation.
+  size: S
+  environmentDependency: AWS accounts
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-16-27
+  section: '16'
+  kind: software
+  text: Private stateful services.
+  acceptance: Data subnets without internet route; no public endpoints for DB/queues.
+  originalIds:
+  - SPEC-3.trust-boundaries
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/network/main.tf
+  - infra/terraform/modules/network/tests/network.tftest.hcl
+  gap: Offline only.
+  remediation: Record a sandbox plan and, after an authorized apply, a reachability check (VPC Reachability Analyzer or a probe task) that data subnets have no internet route; locally keep the mock tftests.
+  size: S
+  environmentDependency: AWS accounts
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-16-28
+  section: '16'
+  kind: software
+  text: Multi-AZ control plane (three AZs where available).
+  acceptance: Network, ECS and Aurora span three AZs.
+  originalIds:
+  - SPEC-12.resilience
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/network/main.tf:1-40
+  - infra/terraform/envs/production/production.tfvars:12
+  gap: Offline only.
+  remediation: Record a sandbox plan showing three-AZ placement for network, ECS and Aurora, and add an AZ-failure drill job (AWS FIS) under execution authority that measures acknowledged-action survival (FO-16-56).
+  size: S
+  environmentDependency: AWS accounts
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-16-29
+  section: '16'
+  kind: software
+  text: Minimum warm media and control capacity.
+  acceptance: Autoscaling minimums for control and media tiers sized from the capacity model.
+  originalIds:
+  - SPEC-12.capacity-model
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/ecs_service/main.tf (warm minimum)
+  gap: Control plane only; no media tier.
+  remediation: Add media service minimums with the media infrastructure.
+  size: S
+  environmentDependency: Measured traffic
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-16-30
+  section: '16'
+  kind: software
+  text: One primary write region with a tested secondary US region.
+  acceptance: DR stack read-only secondary with write fence; failover tested.
+  originalIds:
+  - SPEC-12.recovery
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/envs/production-dr/
+  - infra/terraform/modules/aurora/main.tf:103-120
+  - infra/terraform/modules/ecs_service/main.tf:75-84 (write fence)
+  gap: Never tested.
+  remediation: Parameterized failover drill job.
+  size: M
+  environmentDependency: AWS accounts; DR drill authority
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-16-31
+  section: '16'
+  kind: software
+  text: KMS and Secrets Manager.
+  acceptance: Modules create keys/secret containers; app resolves secret references at runtime.
+  originalIds:
+  - SPEC-3.trust-boundaries
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/kms
+  - infra/terraform/modules/secrets
+  - platform/src/config/approvals.ts (KmsTrustedKeyResolver)
+  gap: Runtime secret resolution for adapters is not composed (live composition refused).
+  remediation: Implement a runtime secret resolver (Secrets Manager GetSecretValue with caching and rotation-aware refresh) used by the live composition (FO-16-11), and test it against LocalStack Secrets Manager in the local compose. Test KmsTrustedKeyResolver against LocalStack KMS GetPublicKey.
+  size: S
+  environmentDependency: AWS accounts
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-16-32
+  section: '16'
+  kind: software
+  text: Backups.
+  acceptance: Aurora backups/PITR, DynamoDB PITR, S3 versioning configured.
+  originalIds:
+  - SPEC-12.recovery
+  derivedFrom: []
+  capabilityIds:
+  - operations.commands
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/aurora/main.tf:139
+  - infra/terraform/modules/dynamodb_sessions/main.tf
+  gap: Retention values owner decisions; offline only.
+  remediation: Apply dynamodb_sessions (PITR) and the S3 buckets (versioning) to LocalStack/MinIO and assert the settings. Aurora backup/PITR is checked by the restore drill job (FO-16-33) in a sandbox under authority.
+  size: S
+  environmentDependency: AWS accounts
+  workPackage: WP-41
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-16-33
+  section: '16'
+  kind: software
+  text: Restore automation.
+  acceptance: Scripted restore to a new cluster/table with verification and tombstone replay, runnable as a drill job.
+  originalIds:
+  - SPEC-12.recovery
+  derivedFrom: []
+  capabilityIds:
+  - operations.commands
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/RUNBOOKS/restore-drill.md (manual, NEVER run)
+  gap: Manual runbook only.
+  remediation: Add restore drill automation (AWS CLI/SDK script) with verification queries.
+  size: M
+  environmentDependency: Non-production environment
+  workPackage: WP-41
+  provenance:
+    origin: extraction
+- id: FO-16-34
+  section: '16'
+  kind: software
+  text: Explicit networking for SIP, RTP, TURN and WebSocket.
+  acceptance: Terraform for NLB/UDP ports, TURN/TLS, media security groups, WebSocket listeners, SIP trunk allowlists.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/ingress/main.tf (ALB HTTPS only)
+  gap: No media networking.
+  remediation: Add media ingress module with tests and OPA rules.
+  size: L
+  environmentDependency: Carrier/SIP trunk details
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-16-35
+  section: '16'
+  kind: software
+  text: Certificates and DNS.
+  acceptance: ACM certificates and Route 53 records managed or explicitly referenced; expiry alarms.
+  originalIds:
+  - SPEC-3.ingress
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/ingress/variables.tf:57-64
+  gap: Certificate is an input; no DNS records; no expiry alarm.
+  remediation: Add DNS module/variables and expiry alarms.
+  size: S
+  environmentDependency: DNS owner
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-16-36
+  section: '16'
+  kind: software
+  text: WAF, rate limits and health checks.
+  acceptance: WAF managed rules, rate rules never blocking safety paths, app rate limiter, ALB/ECS health checks.
+  originalIds:
+  - SPEC-3.ingress
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/ingress/main.tf
+  - infra/terraform/policy/terraform.rego (WAF-RATE)
+  - platform/src/gateway/http/tool-rate-limit.test.ts
+  gap: Media endpoints not covered.
+  remediation: Keep the in-process rate-limiter tests. Record WAF rule and rate-exemption behaviour against a sandbox ALB with a scripted request set (normal, burst, safety path) under execution authority, and add media ingress coverage (FO-16-34).
+  size: S
+  environmentDependency: AWS accounts
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-16-37
+  section: '16'
+  kind: software
+  text: Readiness checks dependent capabilities, not just process responds 200.
+  acceptance: Readiness covers DB, policy, audit, config guard and each required dependency capability (model, media, CRM, queue).
+  originalIds:
+  - SPEC-12.resilience
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/http/health-routes.ts:1-40
+  - platform/src/gateway/http/routes.test.ts
+  gap: Model, media, telephony, queue and CRM capabilities not checked.
+  remediation: Add capability probes to ReadinessProbe.
+  size: S
+  environmentDependency: none
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-16-38
+  section: '16'
+  kind: software
+  text: Bounded retries with jitter and one clear retry owner.
+  acceptance: Max attempts, full jitter, nested retry refused, UNKNOWN never retried.
+  originalIds:
+  - SPEC-12.no-retry-stacking
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/resilience/retry.ts
+  - platform/src/resilience/resilience.test.ts
+  gap: Thresholds unmeasured.
+  remediation: Calibrate from load tests.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-42
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-16-39
+  section: '16'
+  kind: software
+  text: Circuit breakers and bulkheads.
+  acceptance: Per-dependency breakers and bulkheads with metrics; safety routes not behind them.
+  originalIds:
+  - SPEC-12.resilience
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/resilience/circuit-breaker.ts
+  - platform/src/resilience/bulkhead.ts
+  - platform/src/resilience/resilience.test.ts
+  gap: Production thresholds unmeasured.
+  remediation: Wrap each outbound dependency call (provider ports, Salesforce REST, notifications) in executeWithPolicy with a per-dependency Bulkhead from configuration, and keep safety and human routes outside it. Test that a saturated bulkhead rejects with BULKHEAD_FULL while safety routing proceeds. Calibrate limits from load tests.
+  size: S
+  environmentDependency: none
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-16-40
+  section: '16'
+  kind: software
+  text: Backpressure, DLQ, admission control and quotas.
+  acceptance: Bulkhead backpressure, outbox DLQ, admission controller, rate limits and vendor quota tracking.
+  originalIds:
+  - SPEC-12.admission
+  - SPEC-8.outbox
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/admission.ts
+  - platform/src/ops/admission.test.ts
+  - platform/src/outbox/outbox.test.ts
+  - platform/src/gateway/http/tool-rate-limit.ts
+  gap: Vendor quota accounting is a gauge only; capacity counter per process.
+  remediation: Shared quota/capacity counters (DynamoDB conditional) for multi-instance.
+  size: M
+  environmentDependency: none
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-16-41
+  section: '16'
+  kind: software
+  text: Worker leases and graceful draining.
+  acceptance: Lease-based claiming with redelivery; SIGTERM drains in-flight work within bounds.
+  originalIds:
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/outbox/dispatcher.ts:177-199
+  - platform/src/outbox/outbox.test.ts:201
+  - platform/src/main/server.ts:15-200
+  - platform/src/main/server.test.ts
+  gap: 'Workflow engine leases and media session draining are not covered. Concurrent claims (FOR UPDATE SKIP LOCKED, platform/src/outbox/dispatcher.ts:185-197) were never contended: PGlite serializes on one connection, so two dispatchers racing for one row is untested. IMPLEMENTED, not VERIFIED_LOCAL: Two dispatchers racing for one row (FOR UPDATE SKIP LOCKED, platform/src/outbox/dispatcher.ts:185-197) were never contended because PGlite serializes on one connection; workflow and media leases are not covered.'
+  remediation: Run a two-dispatcher contention test on postgres:16 through PgPoolDb (each row claimed exactly once, redelivery after lease expiry), add lease and drain handling to PgWorkflowEngine ticks, and extend draining to media sessions once they exist.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    - remediation
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: two dispatchers racing for one row (FOR UPDATE SKIP LOCKED, platform/src/outbox/dispatcher.ts:185-197) were never contended because PGlite serializes on one connection; workflow and media leases are not covered.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-04
+- id: FO-16-42
+  section: '16'
+  kind: software
+  text: Preserve in-flight action/case compatibility across rolling deploys.
+  acceptance: Versioned payload schemas and workflow versions; mixed-version test (old and new instances) shows no breakage.
+  originalIds:
+  - SPEC-15.rollback
+  derivedFrom: []
+  capabilityIds:
+  - operations.commands
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/step_functions/main.tf (published versions, live alias)
+  gap: No mixed-version compatibility tests or payload versioning policy.
+  remediation: Add versioned outbox/workflow payloads and an N/N-1 compatibility test.
+  size: M
+  environmentDependency: none
+  workPackage: WP-41
+  provenance:
+    origin: extraction
+- id: FO-16-43
+  section: '16'
+  kind: software
+  text: Schema changes use expand/migrate/contract with tested rollback; never roll back code into an incompatible schema.
+  acceptance: Migration metadata marks phase; deploy gate checks code-schema compatibility; rollback test.
+  originalIds:
+  - SPEC-15.rollback
+  derivedFrom: []
+  capabilityIds:
+  - operations.commands
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/db/migrate.ts (forward-only)
+  gap: Forward-only migrations; no compatibility gate.
+  remediation: Add migration phase metadata, schema-version compatibility check and rollback tests.
+  size: M
+  environmentDependency: none
+  workPackage: WP-41
+  provenance:
+    origin: extraction
+- id: FO-16-44
+  section: '16'
+  kind: software
+  text: 'Cross-region failover infrastructure: the secondary region has a write-fence control, single-writer placement and approval-gated DR drill job definitions (infrastructure part; application fencing is FO-16-44a).'
+  acceptance: Terraform defines the fence control and single-writer placement for the secondary region; DR drill job definitions are gated by approval; plan tests assert the fence.
+  originalIds:
+  - SPEC-12.recovery
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/ecs_service/main.tf:17,75-84
+  - docs/RUNBOOKS/regional-failover.md:19-39
+  - infra/terraform/README.md:85-92
+  gap: Manual runbook; untested; no automated reconciliation gate before unfencing.
+  remediation: Automate fence/reconcile/unfence with checks and a drill job.
+  size: M
+  environmentDependency: DR drill authority
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    repair:
+    - 'split (critic gap 6g): infrastructure part stays in WP-39; application fence is FO-16-44a (WP-42)'
+- id: FO-16-44a
+  section: '16'
+  kind: software
+  text: 'Application write fencing for cross-region failover: during regional uncertainty the application refuses consequential writes, reconciles external effects before unfencing and never executes split-brain actions (application part split from FO-16-44).'
+  acceptance: A chaos/DR test fences writes, shows that no commit is accepted while fenced, reconciles in-doubt actions against the systems of record and only then unfences; two regions never both execute the same action.
+  originalIds:
+  - SPEC-12.recovery
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/RUNBOOKS/regional-failover.md:19-39 (manual procedure only)
+  - no application write fence or automated reconcile-before-unfence gate in platform/src
+  gap: 'No application fence: fencing and reconciliation before resuming are a manual runbook step.'
+  remediation: Region write-fence control in platform/src/ops (checked by the action executor before every commit), an automated reconcile-before-unfence gate and a DR chaos job (WP-42).
+  size: M
+  environmentDependency: none for software; DR drill authority for VERIFIED_SANDBOX
+  provenance:
+    origin: repair-split
+    splitFrom: FO-16-44
+    repair:
+    - 'Phase A repair (critic gap 6g): application fence split from FO-16-44 and assigned to WP-42; FO-16-44 keeps the infrastructure part in WP-39'
+  workPackage: WP-42
+- id: FO-16-45
+  section: '16'
+  kind: document
+  text: Capacity baseline arithmetic (25,000 calls/day, 8 min mean, 200,000 min/day, ~6M min/month, 15% busy hour -> ~500 concurrent).
+  acceptance: Reproducible capacity script and doc; CI recomputes.
+  originalIds:
+  - SPEC-12.capacity-model
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scripts/capacity_model.py
+  - docs/capacity-cost-model.md:28-90
+  - .github/workflows/ci.yml:117
+  gap: Assumptions only; not measured traffic.
+  remediation: Replace with measured distributions when authorized.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-42
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-16-46
+  section: '16'
+  kind: evaluation
+  text: Plan and test 2,000 concurrent calls and a 3,000-call controlled-admission surge.
+  acceptance: Parameterized load job drives 2,000 concurrent simulated calls and a 3,000 surge with admission evidence.
+  originalIds:
+  - SPEC-12.load-test
+  - SPEC-12.admission
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/capacity.ts:1-13 (planning limit 2000, per process)
+  - platform/src/ops/admission.ts
+  gap: Admission planning exists; no concurrent-call load job.
+  remediation: Build call-level load generator (media + tool) with parameters and evidence output.
+  size: L
+  environmentDependency: Deployed sandbox and spend authority
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+- id: FO-16-47
+  section: '16'
+  kind: evaluation
+  text: ~133 tool requests/s at 2,000 sessions; test >=400 sustained and bounded bursts.
+  acceptance: Load evidence at >=400 req/s sustained against deployed gateway with correctness checks.
+  originalIds:
+  - SPEC-12.load-test
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: FAIL
+  qualificationEvidence: 'evidence/load/run_load_LSJ9LDQB_eifhLTLXAqU1917.json and run_load_pIpldOT9sAHduHcGYIgLNJ3-.json: sustainedTargetMet false (46.7 and 47.9 req/s against 400 req/s, zero errors, every success audited); local loopback, labelled not capacity evidence'
+  evidence:
+  - scripts/load/run-local-load.mts
+  - platform/test/load/harness.ts
+  - evidence/load/run_load_*.json (local loopback, not capacity)
+  gap: Local loopback on PGlite single connection only.
+  remediation: Point the load script at the compose stack and sandbox.
+  size: M
+  environmentDependency: Deployed sandbox
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+- id: FO-16-48
+  section: '16'
+  kind: document
+  text: Model call starts, long-tail durations, warm-transfer extra legs, language/cohort mix, model tokens, vendor quotas and outbound load separately.
+  acceptance: Capacity model has separate parameters and outputs for each dimension.
+  originalIds:
+  - SPEC-12.quotas
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scripts/capacity_model.py (call starts, handoff legs)
+  - docs/capacity-cost-model.md:122-140
+  gap: No token, language mix, long-tail or outbound modelling.
+  remediation: Extend capacity_model.py with these parameters.
+  size: S
+  environmentDependency: none
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+- id: FO-16-49
+  section: '16'
+  kind: operations
+  text: Obtain real traffic distributions through separately authorized exports before procurement; do not provision maximum to demonstrate configuration.
+  acceptance: Export request recorded and approved; distributions loaded into the capacity model.
+  originalIds:
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/release/phase-gates.md:22 (BLOCKED)
+  gap: Export not authorized.
+  remediation: Add `--inputs <file>` to scripts/capacity_model.py that accepts a dated, approved distribution export (arrivals by hour, duration histogram, handoff and language mix) with provenance and an approval reference. Refuse undated or unapproved inputs, and keep the specification constants as the labelled default.
+  size: S
+  environmentDependency: Authorized traffic export (phase gate 0.5)
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: NOT_APPLICABLE
+- id: FO-16-50
+  section: '16'
+  kind: software
+  text: Small local/load profiles and parameterized full-load/soak jobs.
+  acceptance: Profiles small/medium/full/soak selectable by parameter; full jobs runnable but disabled without scope.
+  originalIds:
+  - SPEC-12.load-test
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scripts/load/run-local-load.mts (single local profile)
+  gap: No parameterized full-load or soak jobs.
+  remediation: Add profile parameters and a soak mode with evidence output.
+  size: M
+  environmentDependency: Execution scope for full jobs
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+- id: FO-16-51
+  section: '16'
+  kind: constraint
+  text: Distinguish mocked backend capacity from carrier/model/CRM end-to-end capacity.
+  acceptance: Load evidence labelled with scope; manifests refuse local loopback as capacity evidence.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/load/load-smoke.test.ts:1-8
+  - platform/src/evaluation/driver/labels.ts
+  - platform/src/evaluation/manifest.ts (quota/load evidence)
+  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: Load evidence is labelled LOCAL LOOPBACK / NOT capacity evidence (platform/test/load/load-smoke.test.ts:106), but no test shows that a manifest refuses loopback load evidence as capacity evidence (platform/src/evaluation/manifest.ts has no such check), a named element.'
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: load evidence is labelled LOCAL LOOPBACK / NOT capacity evidence (platform/test/load/load-smoke.test.ts:106), but no test shows that a manifest refuses loopback load evidence as capacity evidence (platform/src/evaluation/manifest.ts has no such check), a named element.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-40
+- id: FO-16-52
+  section: '16'
+  kind: operations
+  text: Human fallback needs actual queue capacity, shift schedules, escalation skills and overflow agreements.
+  acceptance: Staffing/queue configuration with schedules and skills ingested; readiness blocks routes without staffed capacity.
+  originalIds:
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/plugin.ts:529 (availableAgents null, never invented)
+  gap: No staffing model or integration.
+  remediation: Add queue capacity/schedule configuration and WFM integration port.
+  size: M
+  environmentDependency: Workforce management data and overflow contracts
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-16-53
+  section: '16'
+  kind: document
+  text: Staffing arithmetic (~268 scheduled agents at 20% handoff, 12 min, 80% occupancy, 30% shrinkage) is planning arithmetic only.
+  acceptance: Computed and labelled as planning arithmetic.
+  originalIds:
+  - SPEC-12.capacity-model
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/capacity-cost-model.md:74,107-118
+  - scripts/capacity_model.py
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-42
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-16-54
+  section: '16'
+  kind: software
+  text: Provide prioritization, truthful wait times, neutral intake and consented callbacks; no claim of seamless fallback without proof.
+  acceptance: Continuity routes prioritize safety, announce measured waits, take neutral intake and schedule consented callbacks.
+  originalIds:
+  - OPS-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/ports.ts:36-37 (continuity routes)
+  - platform/src/workflows/definitions/callback-request.ts
+  - platform/src/ops/admission.test.ts
+  gap: No wait-time measurement or announcement.
+  remediation: Add queue wait-time estimates from telemetry with honest unknown handling.
+  size: M
+  environmentDependency: Queue telemetry
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-16-55
+  section: '16'
+  kind: document
+  text: 'Proposed DR targets: RTO <=15 min, cross-region RPO <=5 min, subject to measurement; async replication is not zero loss.'
+  acceptance: Targets documented as proposals; drill measures them.
+  originalIds:
+  - SPEC-12.recovery
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/README.md:89-92
+  - docs/RUNBOOKS/regional-failover.md:39
+  gap: Not measured.
+  remediation: Drill job with timing capture.
+  size: S
+  environmentDependency: DR drill
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-16-56
+  section: '16'
+  kind: evaluation
+  text: Acknowledged primary-region actions survive an AZ failure.
+  acceptance: Acknowledge only after durable commit on Multi-AZ storage; AZ failure drill evidence.
+  originalIds:
+  - OPS-01
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/aurora/main.tf (Multi-AZ)
+  - platform/src/audit/writer.ts (in-transaction evidence)
+  gap: Never drilled.
+  remediation: Fault-injection drill (AWS FIS) job.
+  size: M
+  environmentDependency: Sandbox AZ drill
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-16-57
+  section: '16'
+  kind: constraint
+  text: Safe telephony routing remains independent of application recovery.
+  acceptance: Carrier/contact-centre route reaches humans with the app down; tested.
+  originalIds:
+  - OPS-02
+  - SPEC-3.independent-human-route
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/README.md
+  - docs/adr/ADR-0001-default-architecture.md
+  gap: Talkdesk design only; custom media path lacks an independent route.
+  remediation: 'As FO-15-47: a carrier-level independent route for both the Talkdesk path and the SIP/LiveKit path, kept as deployable configuration, plus a drill that reaches a human with the application stopped.'
+  size: M
+  environmentDependency: Carrier/contact-centre configuration
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-16-58
+  section: '16'
+  kind: software
+  text: Cost dashboard/model includes call minutes/all legs, speech, tokens, GPU/CPU, licenses, storage/egress, logging, workflow, security, staffing and support; avoid double counting.
+  acceptance: Cost model with every component and a dashboard fed by spend records per component.
+  originalIds:
+  - SPEC-12.capacity-model
+  - SPEC-12.budget-cutoff
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/capacity-cost-model.md:141-150
+  - infra/terraform/modules/observability/main.tf:68-69 (spend dashboard)
+  - platform/src/observability/metrics.ts:525-529
+  gap: Structure documented; spend metric by vendor only; no tokens/GPU/staffing components.
+  remediation: Add component dimension to spend records and dashboard.
+  size: M
+  environmentDependency: Rate cards (PRQ-010)
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+- id: FO-16-59
+  section: '16'
+  kind: document
+  text: Sensitivity calculations ($0.01/min -> $60,000/month; $0.05 -> $300,000) labelled as non-quotes.
+  acceptance: Computed in the capacity script.
+  originalIds:
+  - SPEC-12.capacity-model
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/capacity-cost-model.md:80
+  - scripts/capacity_model.py
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-42
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-16-60
+  section: '16'
+  kind: software
+  text: Report cost per VERIFIED resolution and unresolved-case cost, not just cheap minutes.
+  acceptance: Metric/report joins spend to verified outcomes and open cases.
+  originalIds:
+  - SPEC-13.resolution-metrics
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/capacity-cost-model.md:152 (planned)
+  gap: Not computed.
+  remediation: Add a spend ledger keyed by interactionId and caseId (call minutes per leg, model tokens, speech seconds, vendor calls) fed from metering adapters. Join it to interaction_outcomes (verified resolutions) and open support_requests, and publish cost per verified resolution and the cost of unresolved cases per intent in the insights read model. Unit-test the join and a double-count guard for bundled charges.
+  size: M
+  environmentDependency: none
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-16-61
+  section: '16'
+  kind: software
+  text: Per-tenant/cohort/model/workflow spend limits, concurrency caps and quota reservations are configurable.
+  acceptance: Budget scopes include tenant, cohort, model and workflow; concurrency caps and quota reservations per scope.
+  originalIds:
+  - SPEC-12.budget-cutoff
+  - SPEC-12.quotas
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/budgets.ts:1-14
+  - platform/src/ops/capacity.ts:1-13
+  - platform/src/ops/budgets.test.ts
+  gap: No model scope; concurrency cap global per process; no quota reservations.
+  remediation: Add model scope, shared counters and reservation API.
+  size: M
+  environmentDependency: none
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+- id: FO-16-62
+  section: '16'
+  kind: constraint
+  text: Alerts and prepaid balances are not hard caps; vendor billing delays accounted.
+  acceptance: Projection includes metering delay; docs state alerts are not caps.
+  originalIds:
+  - SPEC-12.budget-cutoff
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/budgets.ts:8-10
+  - platform/src/ops/budgets.test.ts
+  - infra/terraform/modules/budgets/main.tf
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-42
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-16-63
+  section: '16'
+  kind: software
+  text: Budget exhaustion stops nonessential new automation and invokes approved continuity; funded bounded safety reserve; active safety handoffs never abandoned.
+  acceptance: Tests show nonessential admission refused, safety always admitted, reserve overdraw alerted.
+  originalIds:
+  - SAFE-03
+  - SPEC-12.budget-cutoff
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/budgets.ts:11-14,91-116
+  - platform/src/ops/admission.ts:220-230
+  - platform/src/ops/admission.test.ts
+  - platform/src/ops/budgets.test.ts
+  gap: Illustrative local budget only.
+  remediation: Approve reserves.
+  size: S
+  environmentDependency: Approved reserve values
+  regressionPackage: WP-42
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-16-64
+  section: '16'
+  kind: constraint
+  text: No billable test, large export or cloud apply without explicit execution scope; complete runnable jobs generated now.
+  acceptance: Every billable job exists, is runnable, and is gated by an execution-scope approval check.
+  originalIds:
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - activation.qualification
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - .github/workflows/deploy.yml (manual dispatch, approvals)
+  - platform/src/evaluation/manifest.ts
+  - docs/release/approval-requests.md
+  gap: Gate exists for deploy; PSTN, load, soak, DR and vendor-sandbox jobs do not exist yet.
+  remediation: Create those jobs with the same scope gate.
+  size: M
+  environmentDependency: Execution scopes
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+- id: FO-16-65
+  section: '16'
+  kind: document
+  text: Plan human fallback for an AI outage, which may send far more traffic than the baseline handoff rate ('An AI outage may send far more traffic'). Compute the AI-outage staffing illustration. Define and test an outage service mode that puts safety queues first and states truthful waits instead of claiming seamless fallback.
+  acceptance: scripts/capacity_model.py computes and labels the 100% AI-outage busy-hour illustration. The outage service mode (safety priority, neutral intake, consented callbacks, truthful waits) is specified and exercised by a load profile that sends all traffic to human queues with AI admission closed.
+  originalIds:
+  - OPS-02
+  - SAFE-03
+  - SPEC-12.capacity-model
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'docs/capacity-cost-model.md:78-79,110-112 (100% AI-outage illustration: about 750 busy and 1,339 scheduled agents)'
+  - scripts/capacity_model.py (CI-checked arithmetic)
+  - docs/RUNBOOKS/ai-off-route.md:9,20-22 (outage mode as runbook prose; staffing UNKNOWN)
+  gap: The arithmetic exists and is labelled illustrative. No load profile sends all traffic to human queues, the outage service mode exists only as runbook prose, and queue wait estimates do not exist (FO-16-54).
+  remediation: Add an ai_outage profile to the load harness (platform/test/load, scripts/load/run-local-load.mts). It engages AI_ADMISSION and drives the continuity routes at busy-hour arrival rates against a staffed-capacity emulator, asserting safety-first ordering, neutral intake, callback scheduling and no fabricated wait times. Keep the capacity figure labelled DERIVED_ILLUSTRATION.
+  size: M
+  environmentDependency: Workforce management data, overflow agreements and staffed-queue telemetry (PRQ-009, VQ-OPS-03)
+  workPackage: WP-42
+  provenance:
+    origin: challenge-missed

@@ -1,0 +1,1329 @@
+# Follow-on requirement source records, prompt section 10. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '10'
+requirements:
+- id: FO-10-01
+  section: '10'
+  kind: software
+  text: Build actual media ingress/egress (RTP/WebRTC audio in and out of the conversation runtime).
+  acceptance: 'Local integration test: LiveKit server in Docker, a synthetic SIP/WebRTC participant sends audio and receives bot audio; frames captured at the far end.'
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-22 (LiveKit runtime mandatory)
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  gap: No media path of any kind.
+  remediation: LiveKit Agents worker (Node SDK, isolated Python worker only if a required plugin demands it) with room/participant lifecycle; docker-compose service.
+  size: XL
+  environmentDependency: Approved SIP carrier / Talkdesk SIP interface for PSTN (local LiveKit works without it)
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-10-02
+  section: '10'
+  kind: software
+  text: Codec conversion between telephony and model formats (G.711 mu-law/A-law 8 kHz, Opus, PCM 16/24 kHz resampling).
+  acceptance: Unit tests over golden audio files for each conversion; round-trip SNR bounds; telephony codec in the audio test layer.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  gap: No codec handling.
+  remediation: Codec module (ffmpeg is installed for test fixtures; runtime via LiveKit/libopus and a mu-law transcoder).
+  size: M
+  environmentDependency: none
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-10-03
+  section: '10'
+  kind: software
+  text: 'WebRTC/SIP bridging: a documented SIP reference route so the product runs without a proprietary AI entitlement.'
+  acceptance: LiveKit SIP service in Docker accepts a SIP INVITE from a local SIP client (e.g. pjsua/baresip), bridges to the agent, and DTMF arrives; documented trunk config.
+  originalIds:
+  - OPS-02
+  derivedFrom:
+  - FOLLOWON-22 (LiveKit runtime mandatory)
+  capabilityIds:
+  - telephony.sip
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  gap: No SIP bridging.
+  remediation: LiveKit SIP ingress/egress config + inbound dispatch rule + Terraform/ECS-on-EC2 topology for UDP media.
+  size: XL
+  environmentDependency: SIP trunk/carrier contract and numbers for PSTN qualification
+  workPackage: WP-12
+  provenance:
+    origin: extraction
+- id: FO-10-04
+  section: '10'
+  kind: software
+  text: Streaming ASR in the call path.
+  acceptance: Partial and final transcripts with word timestamps flow from media frames to the harness within the latency budget on the audio test set.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  gap: No ASR.
+  remediation: ASR adapter port + streaming client (see FO-09-24).
+  size: L
+  environmentDependency: ASR hosting or contracted streaming ASR (see FO-09-24)
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-10-05
+  section: '10'
+  kind: software
+  text: Endpointing (end-of-turn decision) distinct from voice-activity detection.
+  acceptance: 'Endpointing policy tests: long pauses, mid-sentence pauses, stutter do not end the turn early; measured end-of-speech timestamp exported.'
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  gap: No endpointing.
+  remediation: Endpointing state machine combining VAD, ASR partial stability and timers.
+  size: M
+  environmentDependency: none
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-10-06
+  section: '10'
+  kind: software
+  text: Interruption (barge-in) detection in the media runtime.
+  acceptance: 'Audio test: caller speech during bot playback triggers barge-in within budget; backchannels do not (see FO-10-15).'
+  originalIds:
+  - ACT-05
+  - SPEC-11.barge-in
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  - platform/src/gateway/http/telephony-routes.ts:557-569 telephony.bargeIn (control-plane endpoint called by an external runtime)
+  gap: Only the control-plane reaction to a reported barge-in exists; nothing detects it from audio.
+  remediation: Barge-in detector in the media worker calling the existing bargeIn logic in-process.
+  size: M
+  environmentDependency: none
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-10-07
+  section: '10'
+  kind: software
+  text: Speech queueing in the runtime (gate-issued segments only, per-call ordering).
+  acceptance: Runtime queue is the only path to TTS/playback; tests show un-gated text cannot be enqueued and stale segments are dropped.
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/speech-queue.ts (SpeechQueue, kind 'local_fixture'; referenced only by platform/src/safety/safety-flow.test.ts and voice tests)
+  - platform/src/voice/speech-queue.test.ts:44-105
+  gap: Queue logic exists as an in-process fixture but no runtime composes it; per section 21 fixture-only is MISSING for production.
+  remediation: Promote SpeechQueue into the media worker with per-call affinity and wire it to TTS/playback.
+  size: M
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-10-08
+  section: '10'
+  kind: software
+  text: Playback receipts (what was actually played, when, and whether it completed or was cut off).
+  acceptance: AudioReleaseReceipt per segment with emitted/played/interrupted status and timestamps; persisted and queryable.
+  originalIds:
+  - ACT-05
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  - platform/src/protocol (no AudioReleaseReceipt contract)
+  gap: No playback receipts.
+  remediation: AudioReleaseReceipt contract + emission from the playback layer.
+  size: M
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-10-09
+  section: '10'
+  kind: software
+  text: Call lifecycle in the media runtime (join, participant changes, hold, transfer leg, hang-up) bound to the control-plane session.
+  acceptance: Lifecycle events map to TC-01/TC-03/TC-11 equivalents in-process; tests for participant join/leave and hang-up mid-turn.
+  originalIds:
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  - platform/src/gateway/http/telephony-routes.ts (TC-01 start, TC-03 role change, TC-11 end over HTTP for an external caller)
+  gap: Control-plane lifecycle endpoints exist; no media lifecycle.
+  remediation: Media worker lifecycle handler calling SessionService and actions.invalidatePending.
+  size: M
+  environmentDependency: none
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-10-10
+  section: '10'
+  kind: constraint
+  text: A browser animation or transcript replay is not a telephone implementation (no such claim).
+  acceptance: Docs and status label text-only drivers as non-telephony; release status never reports voice as implemented from a text replay.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/labels.ts:10
+  - evidence/README.md (LOCAL FIXTURE, SIMULATED COORDINATOR)
+  gap: Honest labelling exists; enforcement in the release preflight does not.
+  remediation: 'Release preflight check: voice capability requires audio-layer evidence.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-10-11
+  section: '10'
+  kind: software
+  text: Identify the company and automated support role, accurately disclose processing/recording, offer a human; never claim to be human, a therapist or a clinician.
+  acceptance: Opening/disclosure templates render in the approved order; registry rejects clinical-role claims; approval required outside local.
+  originalIds:
+  - DATA-03
+  - SAFE-01
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/voice/templates/en-US.json (opening.disclosure, recording.consent_question, disclosure.automated_processing: PENDING_LEGAL_APPROVAL)'
+  - platform/src/voice/registry.ts:91 PROHIBITED_CLINICAL_CONTENT
+  - platform/src/voice/registry.test.ts
+  gap: 'Company name is the SYNTHETIC enum value. The registry rejects clinical and invented-feeling patterns but has no check against human-impersonation claims (e.g. ''I am a real person''). No platform code sequences or emits the opening and disclosure: opening.disclosure appears only in REQUIRED_PRODUCTION_TEMPLATE_IDS (platform/src/voice/registry.ts:283-296), and that check has no call site. The production flow (talkdesk/studio-flow-spec.md SF-01, SF-04) plays opening.greeting, disclosure.recording_processing and consent.prompt. None of those ids exist in the registry, so the approved text cannot be pinned (talkdesk/expected-config.yaml:366-372 textSha256 TO_BE_PINNED_FROM_TEMPLATE_REGISTRY). Nothing plays audio.'
+  remediation: 'Reconcile the Studio and runtime prompt ids with the registry: add the missing templates or rename the references, e.g. opening.greeting to opening.disclosure. Generate the textSha256 values in expected-config.yaml from the registry, with a drift check in talkdesk/tools/validate-package.mjs. Add a human-impersonation pattern list for en and es next to PROHIBITED_CLINICAL_CONTENT. Call assertCatalogDeployable from buildContainer for every non-local environment. In the media runtime, play the opening, then the disclosure, then the consent sequence from the registry before any ASR starts, and record the template version played in ConsentState.disclosureTemplateVersion.'
+  size: S
+  environmentDependency: Legal approval of disclosure wording per jurisdiction; tenant company name (PRQ for tenant catalog)
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    - remediation
+- id: FO-10-12
+  section: '10'
+  kind: software
+  text: Warm, calm, short, concrete language; one question at a time; no apology loops, forced cheerfulness, manipulative attachment or invented feelings.
+  acceptance: Template lint rules (length, single question, invented-feelings patterns) and human warmth rubric review (section 17).
+  originalIds:
+  - SAFE-01
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/registry.ts:88-131 (prohibited clinical and invented-feelings patterns at load)
+  - platform/src/voice/gate.ts MAX_UTTERANCE_CHARS=500
+  gap: Only template text is controlled; no single-question or apology-loop check; no conversational model generating dialogue yet.
+  remediation: Template lint for single question/apology loops; harness-level loop detector.
+  size: S
+  environmentDependency: Human warmth/clarity reviewers
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-10-13
+  section: '10'
+  kind: software
+  text: Remember authorized information already given and clarify ambiguity instead of restarting intake.
+  acceptance: 'Multi-turn simulation: a slot given once is never re-asked within the authorized session; ambiguity triggers a targeted clarification.'
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/coordinator.ts (scripted rule-based coordinator, no conversational memory)
+  gap: No conversational state.
+  remediation: Harness state (FO-09-37) with slot memory scoped to session generation.
+  size: M
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-10-14
+  section: '10'
+  kind: software
+  text: Read names, numbers, dates and currency carefully and confirm the timezone.
+  acceptance: Slot rendering tests for every slot type; confirmation templates include time zone; audio readout qualified separately (FO-10-33).
+  originalIds:
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/slots.ts (date/time/time_zone/money_minor_usd/person_display_name/spelled_code rendering)
+  - platform/src/voice/slots.test.ts
+  - platform/src/voice/templates/en-US.json appointment.change_confirmation (time zone read back)
+  gap: Text rendering only; spoken accuracy through TTS is unverified.
+  remediation: Keep; add TTS pronunciation controls and listen-back tests (FO-10-33).
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-14
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-10-15
+  section: '10'
+  kind: software
+  text: Distinguish backchannels, background speech and meaningful interruption.
+  acceptance: Audio test set with backchannels ('mm-hm'), background talkers and real interruptions; backchannel selectivity metric reported.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  gap: No audio classification.
+  remediation: Interruption classifier (VAD energy + ASR content + timing) in the media worker; audio tests.
+  size: M
+  environmentDependency: none
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-10-16
+  section: '10'
+  kind: software
+  text: Support long pauses, stuttering and speech impairment without cutting the caller off.
+  acceptance: Audio tests with long pauses/stutter; silence check-in uses the approved template; no forced termination.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  - platform/src/voice/templates/en-US.json silence.check_in
+  - 'platform/src/safety/conversation-guard.ts (silence limits; README: not wired into a runtime path)'
+  gap: Template and an unwired policy model exist; no runtime.
+  remediation: Wire ConversationGuard into the harness/media loop; tunable endpointing for impairment profiles.
+  size: M
+  environmentDependency: none
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-10-17
+  section: '10'
+  kind: software
+  text: Interpreter route and relay/accessibility accommodations (relay users, TTY) carried into routing and handoff.
+  acceptance: Unsupported locale routes to the INTERPRETER destination; accommodations appear in the HandoffPackage.
+  originalIds:
+  - SPEC-11.interpreter
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/handoff.ts resolveDestination (INTERPRETER purpose)
+  - platform/src/business/handoff.test.ts:61
+  - platform/src/protocol/support.ts HandoffPackage.accommodations
+  - platform/src/safety/router.test.ts:133
+  gap: Control-plane routing only; no live interpreter queue.
+  remediation: Keep; qualify with real audio and reviewers (J13).
+  size: S
+  environmentDependency: Staffed interpreter/relay queues configured in Talkdesk
+  regressionPackage: WP-15
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-10-18
+  section: '10'
+  kind: software
+  text: Slower playback, repeat on request and DTMF navigation in the runtime.
+  acceptance: 'Audio tests: ''slower please'' changes TTS rate for the rest of the call; ''repeat'' replays the last gated segment; DTMF digits navigate menus.'
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  - platform/src/voice/templates/en-US.json speech.slower, repeat.on_request (templates only)
+  - talkdesk/studio-flow-spec.md (DTMF handled by the vendor Studio flow)
+  gap: Templates exist; no playback-rate control, replay or DTMF handling in our runtime.
+  remediation: Playback controls in the media worker; DTMF via LiveKit SIP.
+  size: M
+  environmentDependency: none
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-10-19
+  section: '10'
+  kind: constraint
+  text: No diagnostic or mental-state inference from prosody or voice.
+  acceptance: No prosody features are computed or stored; evaluation prohibits speak:mental_state_inference.
+  originalIds:
+  - SAFE-01
+  - DATA-02
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/ports.ts:5 (no inference of mental state from voice)
+  - platform/src/evaluation/vocabulary.ts:102 speak:mental_state_inference prohibited
+  gap: Holds trivially because no audio is processed; must be re-asserted when the media runtime lands.
+  remediation: Add a static check that media code exports no prosody/emotion features; keep the evaluation prohibition.
+  size: S
+  environmentDependency: none
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-10-20
+  section: '10'
+  kind: software
+  text: Return to legitimate work after an attack/refusal when safe; do not punish the caller with endless refusal or authentication for public information.
+  acceptance: 'J01 journey: malicious turn followed by a public FAQ request is answered at A0; refusal counters never block public help.'
+  originalIds:
+  - SAFE-03
+  - AUTH-01
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/tools (search_approved_runbook, get_login_guidance are PUBLIC_READ at A0)
+  - scenarios/journeys (J01-style public journey run by the LOCAL SIMULATED COORDINATOR)
+  - platform/src/safety/conversation-guard.ts (refusal limits only CONTINUE/OFFER_HUMAN; not wired)
+  gap: 'Shown only with the scripted LOCAL SIMULATED COORDINATOR. No model conversation exists to recover. ConversationGuard (platform/src/safety/conversation-guard.ts) has no runtime caller (grep: index, its tests and platform/src/safety/safety-flow.test.ts), so no runtime refusal counter exists. The real part is that public tools (search_approved_runbook, get_login_guidance) answer at A0 with no prior-refusal state.'
+  remediation: Re-run J01 through the real harness once FO-09-12 lands.
+  size: S
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-10-21
+  section: '10'
+  kind: software
+  text: 'Acknowledgments are brief and truthful: ''checking'' only when work is actually dispatched; filler never masks a stall or counts as useful-answer latency.'
+  acceptance: Harness emits status.checking only with an in-flight tool request id; latency metrics exclude acknowledgment-only audio.
+  originalIds:
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts (acknowledgmentOnly flag; never resolution)
+  - platform/src/observability/slo.ts:93 (acknowledgment-only audio excluded from meaningful-audio latency)
+  gap: No enforcement that an acknowledgment is backed by dispatched work; latency not measured at all (FO-10-51).
+  remediation: Bind status.checking SpeechPlans to a pending ToolRequest ref.
+  size: S
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-10-22
+  section: '10'
+  kind: software
+  text: 'SpeechPlan contract: utterance_class, exact text or bounded allowed paraphrase, source/receipt refs, protected slots, policy/auth/context versions, session/turn, expiry and output-decision digest.'
+  acceptance: Versioned SpeechPlan schema generated with the other contracts; gate consumes it; digest recomputation test.
+  originalIds:
+  - ACT-05
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/tools.ts:102-114 SpeechDirective (templateId/version, responseClass, slots, authorizationRef, sourceRefs, turnId, sessionGeneration)
+  gap: SpeechDirective lacks paraphrase bounds, policy/auth/context versions, expiry and an output-decision digest; no SpeechPlan contract.
+  remediation: Add SpeechPlan to platform/src/protocol (superset of SpeechDirective) and migrate the gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-10-23
+  section: '10'
+  kind: software
+  text: 'Pre-emission check 1a: validate authorization before any applicable audio escapes.'
+  acceptance: Protected classes require a current authorizationRef; tests show refusal and fallback.
+  originalIds:
+  - ACT-05
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts (step 5, PROTECTED_RESPONSE_CLASSES / AUTHORIZATION_EXEMPT_CLASSES)
+  - platform/src/voice/gate.test.ts
+  gap: 'Checked at text render time only; there is no audio emission point to re-check (FO-10-27, FO-10-29). IMPLEMENTED, not VERIFIED_LOCAL: Checked at text render time only; there is no audio emission point to re-check (WP-14).'
+  remediation: Re-run the same check at emission in the media runtime.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: checked at text render time only; there is no audio emission point to re-check (WP-14).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-14
+- id: FO-10-24
+  section: '10'
+  kind: software
+  text: 'Pre-emission check 1b: validate source freshness of the facts being spoken.'
+  acceptance: SpeechPlan carries SourceWatermarks; the gate refuses facts older than the class freshness bound.
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts (step 6 requires sourceRefs to be present; no freshness evaluation)
+  gap: Presence of source refs is checked; freshness is not.
+  remediation: Freshness bounds per response class + watermark comparison in the gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-10-25
+  section: '10'
+  kind: software
+  text: 'Pre-emission check 2: validate facts, amounts, dates, outcome language, scope and allowed wording.'
+  acceptance: Typed slot validation, approved template wording, post-render check; outcome-language templates never claim resolution without receipts.
+  originalIds:
+  - ACT-05
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts steps 3,6,7,8
+  - platform/src/voice/slots.ts validateSlotValue
+  - platform/src/voice/gate.test.ts
+  - platform/src/voice/registry.test.ts
+  gap: Slot values are validated by type, not compared against the authoritative source record at emission time.
+  remediation: Add source-value comparison for FINANCIAL_FACT/PROTECTED_FACT slots via receipt refs.
+  size: S
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-10-26
+  section: '10'
+  kind: software
+  text: 'Pre-emission check 3: render using the permitted path (approved template through the controlled TTS/audio queue).'
+  acceptance: Only the controlled TTS adapter renders protected classes; native mode cannot render them (FO-10-35).
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  - platform/src/voice/gate.ts (text rendering only)
+  gap: No audio render path.
+  remediation: TtsPort with per-class allowed renderers.
+  size: M
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-10-27
+  section: '10'
+  kind: software
+  text: 'Pre-emission check 4: re-check session generation, turn and cancellation at enqueue AND at emission.'
+  acceptance: 'Runtime test: a barge-in between enqueue and playback drops the segment before any frame is sent.'
+  originalIds:
+  - ACT-05
+  - SPEC-11.barge-in
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/speech-queue.ts (enqueue and dequeue re-checks; LOCAL FIXTURE, not composed)
+  - platform/src/voice/speech-queue.test.ts:62,78
+  gap: The re-check logic exists only in the unused fixture queue; there is no emission point.
+  remediation: Use the queue in the media worker and add a frame-level check before each audio chunk.
+  size: M
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-10-28
+  section: '10'
+  kind: software
+  text: 'Pre-emission check 5: record approved content/audio digest and actual emitted/playback status (AudioReleaseReceipt).'
+  acceptance: Each released segment has a receipt with text digest, audio digest, emitted/played/interrupted status; audit evidence.
+  originalIds:
+  - ACT-05
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts ResponseRecord (content-free record of template/version/class/authorizationRef; no audio digest or playback status)
+  gap: No audio digest, no playback status, no receipt contract.
+  remediation: AudioReleaseReceipt contract and emission (shared with FO-10-08).
+  size: M
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-10-29
+  section: '10'
+  kind: software
+  text: Enforce the five checks before ANY applicable audio escapes; the runtime, not a prompt, owns which audio reaches the caller.
+  acceptance: 'Audio-boundary test: protected content injected into a model response never reaches the far-end capture.'
+  originalIds:
+  - ACT-05
+  derivedFrom:
+  - TB-04
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  - platform/src/voice/README.md 'Nothing here proves that the vendor speech path validates a protected utterance before audio is emitted (TB-04 UNKNOWN)'
+  gap: No controlled runtime owns the audio boundary.
+  remediation: Controlled cascade (Mode A) media worker with the gate at the only egress.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-10-30
+  section: '10'
+  kind: software
+  text: Fixed clinician/legal-approved wording for safety, identity, disclosure and material commitments.
+  acceptance: Outside local/ci only effectively APPROVED templates render; production refuses to start with unapproved required templates.
+  originalIds:
+  - SAFE-01
+  - ACT-05
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/registry.ts:302-315 catalogDeploymentViolations/assertCatalogDeployable
+  - platform/src/voice/gate.ts step 4
+  - platform/src/voice/registry.test.ts
+  - platform/src/voice/templates/*.json (all DRAFT/PENDING)
+  gap: All templates are unapproved drafts (correctly blocking production).
+  remediation: Wire assertCatalogDeployable(templates, environment) into platform/src/main/container.ts for every non-local environment. Derive the Studio-played template list in talkdesk/expected-config.yaml from the registry, or add the 15 missing templates to en-US/es-US, and fail validate-package.mjs on any id the registry lacks. After that, only the approval workflow remains.
+  size: S
+  environmentDependency: Clinical safety lead and privacy counsel approval records (PRQ-008, PRQ-028)
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-10-31
+  section: '10'
+  kind: software
+  text: Deterministic trusted slots for financial and account facts.
+  acceptance: FINANCIAL_FACT/PROTECTED_FACT require typed slots and source refs; money in integer minor units.
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts SOURCE_REQUIRED_CLASSES
+  - platform/src/voice/slots.ts money_minor_usd
+  - platform/src/voice/slots.test.ts
+  - platform/src/voice/gate.test.ts
+  gap: USD only.
+  remediation: Add currency to the slot type when a non-USD tenant exists.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-14
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-10-32
+  section: '10'
+  kind: software
+  text: Permit bounded grounded paraphrase for low-risk explanation (LOW_RISK_GROUNDED) with approved output checks.
+  acceptance: Paraphrase must cite knowledge citations, stay within length/scope bounds and pass output monitors; tests with injected unsupported claims.
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts:23-25 ('LOW_RISK_GROUNDED free paraphrase is NOT implemented')
+  - platform/src/voice/README.md BLOCKED
+  gap: Model-generated text cannot render at all.
+  remediation: Bounded-paraphrase validator (citation coverage, prohibited claims, length) + monitor before release.
+  size: L
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-10-33
+  section: '10'
+  kind: evaluation
+  text: Qualify exact readouts with pronunciation/number controls, listen-back tests and repetition when necessary (independent TTS can mispronounce).
+  acceptance: TTS lexicon/SSML controls for numbers, dates, names; listen-back via independent ASR on every protected template x slot sample; repeat-on-mismatch policy.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  - platform/src/voice/slots.ts (text-side spoken rendering only)
+  gap: No TTS, no listen-back.
+  remediation: Add platform/test/audio/readout. For every protected template x slot type (money, dates, times with zone, names, spelled codes), render through each TTS adapter with SSML or lexicon controls. Transcribe the audio with the independent ASR, normalize, and compare slot values exactly. Report a per-template mismatch rate. A mismatch rate above the threshold blocks that template/voice pair in the registry and enables the repeat-and-confirm policy. Store the WAV files and ASR transcripts as separate evidence (FO-10-37).
+  size: M
+  environmentDependency: none
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-10-34
+  section: '10'
+  kind: constraint
+  text: Do not claim mathematical audio fidelity from a transcript judge.
+  acceptance: Docs/status never state fidelity from transcripts; evidence types distinguish audio, model transcript and ASR transcript.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/README.md (no fidelity claims; TB-04 UNKNOWN)
+  - platform/src/evaluation/scorer.ts:12 (transcripts/judges cannot establish commits)
+  gap: Holds because no audio exists; must hold in future reports.
+  remediation: Preflight lint on status docs.
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-10-35
+  section: '10'
+  kind: software
+  text: Native audio generated behind a buffer is checked against authorized source facts and exact protected slots; if the mode cannot prevent unapproved speech it cannot speak protected responses (route that class to the controlled path).
+  acceptance: Native-mode adapter buffers audio, runs ASR + slot match before release; protected classes always switch to Mode A with old buffers revoked; tests show no overlap.
+  originalIds:
+  - ACT-05
+  derivedFrom:
+  - TB-04
+  capabilityIds:
+  - voice.native
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  gap: No native mode.
+  remediation: Mode-switch controller with class policy and buffer revocation.
+  size: XL
+  environmentDependency: Native-voice provider entitlement (FO-09-32)
+  workPackage: WP-16
+  provenance:
+    origin: extraction
+- id: FO-10-36
+  section: '10'
+  kind: constraint
+  text: A judge alone is not an authorization boundary.
+  acceptance: 'Architecture test: no release decision depends solely on a judge verdict; authorization comes from the gate.'
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts (authorization from validAuthorizationRefs; no judge exists)
+  - platform/src/evaluation/runner.ts:114-115
+  gap: Holds trivially (no judge in the runtime).
+  remediation: Keep as a design rule when judges are added.
+  size: S
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-10-37
+  section: '10'
+  kind: software
+  text: Keep actual audio, model transcript and independent ASR transcript as separate evidence.
+  acceptance: Evidence store records three artifacts per turn with separate retention classes; EvaluationResult references each.
+  originalIds:
+  - DATA-02
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  gap: No audio evidence of any kind.
+  remediation: Audio evidence capture in the media worker with RESTRICTED_QA_MEDIA retention and quarantine.
+  size: M
+  environmentDependency: Approved retention for RESTRICTED_QA_MEDIA (platform/config retention null)
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+- id: FO-10-38
+  section: '10'
+  kind: software
+  text: Interruptions invalidate pending speech and ambiguous confirmations and increment turn revisions.
+  acceptance: Barge-in invalidates the confirmation turn and every pending action; later confirmation refused; turn tracker advances.
+  originalIds:
+  - ACT-01
+  - ACT-05
+  - SPEC-11.barge-in
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/http/telephony-routes.ts:557-569 telephony.bargeIn
+  - platform/src/gateway/http/routes.test.ts:278
+  - platform/src/voice/turns.ts InMemoryTurnTracker
+  - platform/src/voice/turns.test.ts:9-66
+  - platform/src/actions/action-service.test.ts:275
+  gap: Verified for the control-plane path with an in-process turn tracker (LOCAL FIXTURE); no audio-triggered interruption.
+  remediation: Move turn tracking next to the media runtime (per-call affinity) and keep these tests.
+  size: S
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-10-39
+  section: '10'
+  kind: software
+  text: On interruption flush provider AND local playback buffers.
+  acceptance: 'Audio test: after barge-in no further bot frames are received at the far end beyond the stop budget; provider-side TTS stream cancelled.'
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  gap: No buffers exist.
+  remediation: Cancel TTS stream + clear LiveKit audio source buffer on barge-in.
+  size: M
+  environmentDependency: none
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-10-40
+  section: '10'
+  kind: software
+  text: 'Cancelling speech does not prove a business action was cancelled: reconcile any dispatched action.'
+  acceptance: Barge-in during COMMITTING leaves the action in doubt with a durable invalidation request; reconciliation decides.
+  originalIds:
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.ts:569 invalidatePending (durable invalidation requests for in-doubt rows)
+  - platform/src/actions/action-service.invalidation.test.ts
+  - platform/src/actions/action-service.test.ts:295
+  gap: PGlite only.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-14
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-10-41
+  section: '10'
+  kind: software
+  text: Late tool results may update a still-authorized case but may not speak into a new turn.
+  acceptance: Stale turn/generation results are dropped silently by the gate while ledger/case updates still apply.
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts:178-180 (STALE_GENERATION / STALE_TURN -> DROP_STALE)
+  - platform/src/voice/gate.test.ts
+  gap: Gate-level only; no emission-level enforcement (FO-10-27).
+  remediation: 'Pass the TurnTracker into the pipeline''s speechPrecheck gate (platform/src/main/container.ts:441). In ToolPipeline.completeSpeech, check TurnTracker.isCurrent(bindingRef, st.turnId, sessionGeneration) (platform/src/voice/ports.ts:60-65) before rendering, and require the gateway-issued turnId instead of accepting a fresh newTurnId() (pipeline.ts:330). Return speech: null, with the ledger and case updates still applied, when the invocation''s turn is no longer current. Add a test: start a tool call, POST /telephony/v1/session/barge-in, let the tool complete, and assert that the result has no SpeechDirective while the support request or action row is still written. The emission-level check in the media runtime remains FO-10-27.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-10-42
+  section: '10'
+  kind: software
+  text: Call-owner leases and fencing prevent two replicas from speaking for the same call.
+  acceptance: DynamoDB (or Postgres) conditional call-owner lease with fencing token checked at every speech emission; two-replica test.
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/call-state.ts (per-process SessionLeaseRegistry for AI-capacity leases, not call ownership)
+  - platform/src/ops/capacity.ts (in-memory capacity leases)
+  gap: No call-owner lease or fencing token.
+  remediation: CallOwnerLease store (conditional write, TTL, fencing token) used by the media worker and the gate.
+  size: M
+  environmentDependency: DynamoDB table in the AWS sandbox for live mode (local can use Postgres/DynamoDB Local)
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-10-43
+  section: '10'
+  kind: software
+  text: Fencing prevents two replicas from committing the same action/record.
+  acceptance: 'Concurrent commits: one in-doubt commit per record, commit_attempt_id fencing, exactly one effect.'
+  originalIds:
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0100_action_ledger.sql (action_ledger_one_in_doubt_per_record)
+  - platform/src/actions/action-service.ts:760-781,1379-1431 (commit_attempt_id fencing)
+  - platform/src/actions/action-service.test.ts:764,784
+  - platform/src/actions/action-service.property.test.ts
+  gap: 'PGlite is single-connection: true multi-connection races are exercised only through optimistic predicates. IMPLEMENTED, not VERIFIED_LOCAL: PGlite is single-connection, so concurrent commits were never contended; ADR-0018 decision 7.2 rules PGlite out as evidence for multi-connection concurrency (WP-04 postgres:16 contention suite).'
+  remediation: Add a Docker Postgres multi-connection concurrency test (Layer 2).
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: PGlite is single-connection, so concurrent commits were never contended; ADR-0018 decision 7.2 rules PGlite out as evidence for multi-connection concurrency (WP-04 postgres:16 contention suite).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-04
+- id: FO-10-44
+  section: '10'
+  kind: evaluation
+  text: Test worker crash, reconnect, session expiry, participant changes and rolling deploy for the voice runtime.
+  acceptance: Chaos tests kill the media worker mid-turn, reconnect the participant, expire the session, change participants and roll the deployment; assertions on speech, authority and actions.
+  originalIds:
+  - AUTH-04
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/faults.test.ts:247 (crash after commit, control plane)
+  - platform/src/actions/action-service.test.ts:827-836 (expired/revoked session)
+  - platform/src/identity/session-service.test.ts (participant change)
+  gap: Control-plane crash/expiry tests exist; no voice-runtime crash, reconnect or rolling-deploy tests.
+  remediation: 'Add a test-chaos target: docker compose with LiveKit server and SIP, Postgres, two media-worker replicas and the gateway. Scripted scenarios: kill -9 the owning worker mid-utterance and mid-commit; drop and rejoin the SIP participant; expire the session mid-turn; add or replace a participant; roll the workers during a call. Assert that the dead or fenced worker sends no audio after takeover, that the call-owner lease moves with a higher fencing token, that pending speech is dropped, that in-doubt actions are reconciled exactly once, and that the caller is either re-bound to a new generation or routed to a human within budget.'
+  size: L
+  environmentDependency: none
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-10-45
+  section: '10'
+  kind: software
+  text: Authority, case state and accepted actions survive a crash (ephemeral audio frames need not).
+  acceptance: 'Crash fixture: after restart the ledger, support requests and workflows are intact and reconciled.'
+  originalIds:
+  - ACT-02
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/fixtures/crashing-db.fixture.ts
+  - platform/src/actions/action-service.test.ts:346
+  - platform/test/journeys/faults.test.ts:247
+  - platform/src/workflows/engine.ts (Postgres-backed instances/events)
+  gap: Durable only where Postgres is durable; local composition runs PGlite in memory and live composition is refused (main/README.md).
+  remediation: Live composition on Aurora/Postgres (section 16 chunk).
+  size: S
+  environmentDependency: none
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-10-46
+  section: '10'
+  kind: software
+  text: Recovery starts a correctly bound session or a human route.
+  acceptance: After worker crash the caller is either re-bound to a new session generation via the trusted carrier binding or transferred to a human; never resumes the old generation.
+  originalIds:
+  - AUTH-04
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no media implementation: no livekit/webrtc/rtp/opus/g711/codec/VAD code in platform/src or infra/; sip/endpointing/barge hits are only sip: dial-target refusal, SLO text and the HTTP barge-in route'
+  - 'docs/adr/ADR-0006-fallback-speech-runtime.md (Decision 1: no speech runtime built)'
+  gap: No recovery path for an in-progress call.
+  remediation: 'Media-worker recovery: rebind via carrier interaction id + new generation, else continuity route.'
+  size: M
+  environmentDependency: none
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-10-47
+  section: '10'
+  kind: software
+  text: Independently available, licensed, versioned fallback audio for model, ASR, TTS and judge failures.
+  acceptance: Clip manifest (template id, version, locale, sha256, licence); fault tests with each dependency down play the right clip.
+  originalIds:
+  - OPS-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no audio assets in the repository (find for *.wav/*.mp3/*.opus)
+  gap: No fallback audio.
+  remediation: Fallback clip pack + player independent of model/TTS (shared with FO-09-28).
+  size: M
+  environmentDependency: Approved wording and licensed voice
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+- id: FO-10-48
+  section: '10'
+  kind: constraint
+  text: A generative model must not generate its own last-resort safety/error instruction.
+  acceptance: Last-resort text comes only from fixed templates/clips; no model path can produce the fallback.
+  originalIds:
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts FALLBACK_TEMPLATE_ID fallback.safe_explanation
+  - platform/src/voice/templates/en-US.json fallback.safe_explanation, safety.acknowledgment
+  gap: Holds at text level; audio last-resort clips missing (FO-10-47).
+  remediation: Keep; enforce in the runtime when added.
+  size: S
+  environmentDependency: none
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+- id: FO-10-49
+  section: '10'
+  kind: software
+  text: Keep the telephony route usable when the whole AI service is down (independent continuity route).
+  acceptance: 'Continuity routing tested: exhausted fallbacks route to OUTAGE_CONTINUITY and the call is never ended; vendor Studio continuity branch documented.'
+  originalIds:
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - continuity.ai_off
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/studio-flow-spec.md SF-C 'Outage / continuity mode'
+  - platform/src/workflows/transfer.test.ts:340
+  - docs/RUNBOOKS/ai-off-route.md
+  gap: Studio flow is a specification, not deployed; no SIP-reference continuity path for the independent runtime.
+  remediation: SIP reference continuity (direct-to-queue) in the LiveKit dispatch rules; drill.
+  size: M
+  environmentDependency: Talkdesk Studio flow and continuity queue configured and drilled (PRQ-004, PRQ-014)
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-10-50
+  section: '10'
+  kind: software
+  text: Never leave a failed safety response as silence.
+  acceptance: With TTS/model down or safety template unapproved, an approved pre-rendered safety clip still plays while the route starts.
+  originalIds:
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/safety/safety-flow.test.ts:78 (production with unapproved templates: acknowledgment cannot be spoken; route proceeds)'
+  - platform/src/voice/gate.ts GateDisposition ROUTE_HUMAN_WITHOUT_SPEECH
+  gap: Current design routes without speech when the acknowledgment cannot render; no independent clip.
+  remediation: Safety clip in the fallback pack and player independent of the gate's render path.
+  size: M
+  environmentDependency: Clinically approved safety acknowledgment wording and clip
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+- id: FO-10-51
+  section: '10'
+  kind: evaluation
+  text: Measure end-of-caller-speech to first meaningful handset audio.
+  acceptance: vsp_turn_latency_ms emitted per turn from endpointing timestamp to first non-acknowledgment frame at the far end; p50/p95 reported separately for cold/ack/tool turns.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-17 (latency targets)
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/observability/slo.ts:84-99 warm_simple_turn_latency (measured: false)'
+  - 'grep vsp_turn_latency_ms: no emitter outside observability/'
+  gap: SLO declared, never measured.
+  remediation: Timestamping in the media worker + far-end capture in test-audio.
+  size: M
+  environmentDependency: PSTN path for handset-level measurement (local loop measurable now)
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+- id: FO-10-52
+  section: '10'
+  kind: evaluation
+  text: Measure actual barge-in onset to last audible bot audio, and detection latency separately.
+  acceptance: vsp_barge_in_stop_ms emitted; onset->detection and detection->stop reported separately.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-17 (latency targets)
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/metrics.ts:511 vsp_barge_in_stop_ms (catalogue only)
+  - 'platform/src/observability/slo.ts:119-133 (measured: false)'
+  gap: Metric defined, never emitted.
+  remediation: Emit from the media worker; ground truth from audio fixtures.
+  size: M
+  environmentDependency: none
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+- id: FO-10-53
+  section: '10'
+  kind: evaluation
+  text: Timestamp ASR, reasoning, tools, validation, synthesis, buffers and network separately.
+  acceptance: Per-turn trace spans for each stage with OpenTelemetry; breakdown report.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/resilience/policy.ts (dependency latency metrics for tool calls only)
+  - platform/src/observability (tracing exists; no voice stage spans)
+  gap: Only tool dependency latency is recorded.
+  remediation: Stage spans in harness/media worker.
+  size: M
+  environmentDependency: none
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+- id: FO-10-54
+  section: '10'
+  kind: constraint
+  text: Cached clips and a fast local loop do not establish PSTN latency (report separately).
+  acceptance: Latency reports label measurement path (local loop vs PSTN); release targets require PSTN evidence.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/slo.ts:90 measurementPoint 'over the real telephone path'
+  - evidence/README.md load records 'NOT capacity evidence'
+  gap: No measurements exist yet to label.
+  remediation: Measurement-path label in latency evidence schema.
+  size: S
+  environmentDependency: none
+  workPackage: WP-17
+  provenance:
+    origin: extraction

@@ -1,0 +1,1209 @@
+# Follow-on requirement source records, prompt section 7. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '7'
+requirements:
+- id: FO-07-01
+  section: '7'
+  subsection: 'Context engine: layers and timeline'
+  kind: software
+  text: Provide 'full history' as a permissioned, searchable support timeline with explicit coverage and gaps, never by dumping company records into an LLM or retrieving psychotherapy notes.
+  acceptance: Timeline API returns permitted events for one subject with coverage/gap metadata; psychotherapy/clinical note sources are rejected by classification.
+  originalIds:
+  - SPEC-9.memory
+  - DATA-01
+  - SAFE-01
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/read-models.ts:234 buildTimeline (per-call audit-metadata timeline for staff, not a subject support timeline)
+  - no ContextFact/ContextSnapshot/SourceWatermark/IdentityLink contract in platform/src/protocol (grep 2026-10-19)
+  gap: No subject-level timeline or coverage model.
+  remediation: Implement a support_timeline store/service over permitted sources with coverage metadata and a source classification gate.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-07-02
+  section: '7'
+  subsection: 'Context engine: layers and timeline'
+  kind: software
+  text: 'Layer 1: canonical support timeline from permitted calls, messages, cases, tasks, source transactions, authorized app interactions and verified preferences.'
+  acceptance: Events from each source type appear once, ordered by business time, with provenance; tests with synthetic sources.
+  originalIds:
+  - SPEC-9.memory
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'separate stores exist: platform/migrations/0300_support_requests.sql (interactions/requests), 0401_workflows.sql, 0700_support_memory.sql, 0100_action_ledger.sql - no unified timeline'
+  gap: Data exists in silos without a canonical timeline.
+  remediation: Project existing stores plus connector events into timeline_events with source refs.
+  size: L
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-07-03
+  section: '7'
+  subsection: 'Context engine: layers and timeline'
+  kind: software
+  text: 'Layer 2: low-latency current-state projections built from authenticated event ingestion.'
+  acceptance: Projection updated from inbox events within SLO (FO-07-37); rebuild from inbox reproduces state.
+  originalIds:
+  - SPEC-12.bounded-caching
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no projection tables or event consumers for source events
+  gap: Not implemented.
+  remediation: Add projection consumers over the inbox with versioned projection schemas.
+  size: L
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-07-04
+  section: '7'
+  subsection: 'Context engine: layers and timeline'
+  kind: software
+  text: 'Layer 3: fresh authoritative lookups for volatile facts and before any consequential act.'
+  acceptance: Commit and disclosure paths read the source of truth (beforeVersion/STATE_CHANGED, recheck) and refuse on mismatch; tests with live adapters against emulators.
+  originalIds:
+  - ACT-01
+  - SPEC-8.commit-recheck
+  - SPEC-9.recheck
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/recheck.ts (pre-disclosure/material-change recheck of record, representation, account, consent, policy)
+  - platform/test/journeys/recheck.test.ts
+  - platform/src/adapters/ports.ts reschedule/markInReview beforeVersion
+  - platform/src/adapters/support-record-cache.ts getCaseFresh
+  gap: Mechanism is real production-path code, but every source it reads is a local fixture or BLOCKED stub, so no fresh lookup can happen in a deployment.
+  remediation: Back the ports with live adapters (FO-06-72) and declare per-fact max age so assembly knows when a fresh lookup is mandatory.
+  size: M
+  environmentDependency: Business-system owners' API documentation, sandbox credentials and idempotency/lookup-by-key confirmation (PRQ-007, PRQ-033, PRQ-050)
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-07-05
+  section: '7'
+  subsection: 'Context engine: layers and timeline'
+  kind: software
+  text: 'Layer 4: task-specific ContextSnapshot assembled with current identity, purpose and ACL filters, provenance, freshness budgets, contradictions and omissions.'
+  acceptance: ContextSnapshot contract and assembler; tests for purpose filter, ACL filter, freshness labels, contradiction and omission reporting.
+  originalIds:
+  - AUTH-02
+  - AUTH-03
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no ContextFact/ContextSnapshot/SourceWatermark/IdentityLink contract in platform/src/protocol (grep 2026-10-19)
+  gap: Not implemented.
+  remediation: Implement ContextAssembler producing ContextSnapshot from layers 1-3.
+  size: L
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-06
+  section: '7'
+  subsection: ContextFact
+  kind: software
+  text: ContextFact records source_system, source_record_id, source_version, event_id, occurred_at, effective_at/valid interval, source_updated_at, received_at, observed_at, classification, authority_rank, verified/caller_reported/inferred status, expiry, allowed purposes and evidence reference.
+  acceptance: Strict schema with all fields generated from the contract source; loader refuses facts missing required fields.
+  originalIds:
+  - DATA-04
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no ContextFact/ContextSnapshot/SourceWatermark/IdentityLink contract in platform/src/protocol (grep 2026-10-19)
+  - 'partial analogues: platform/src/memory/ports.ts MemoryEntry (provenance, sourceRef, expiresAt); tool results carry sourceRefs (platform/src/gateway/tools/common.ts:56)'
+  gap: No fact model.
+  remediation: Add ContextFact to platform/src/protocol and a context_facts store.
+  size: M
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-07-07
+  section: '7'
+  subsection: ContextFact
+  kind: software
+  text: Ingestion time never overwrites business effective time (bitemporal facts).
+  acceptance: 'Property test: out-of-order/late arrivals never change effective_at; queries ''as of'' business time are correct.'
+  originalIds:
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no ContextFact/ContextSnapshot/SourceWatermark/IdentityLink contract in platform/src/protocol (grep 2026-10-19)
+  gap: Not implemented.
+  remediation: Separate received_at/observed_at from occurred_at/effective_at in storage and indexes.
+  size: S
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-07-08
+  section: '7'
+  subsection: ContextFact
+  kind: software
+  text: Maintain supersession/retraction, deletion and correction lineage of facts.
+  acceptance: Retracted/corrected facts remain as lineage (non-disclosable), current view excludes them; deletion removes content but keeps a content-free tombstone.
+  originalIds:
+  - DATA-03
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - only knowledge supersession exists (platform/migrations/0500_knowledge.sql superseded_by_version); memory entries are immutable with no correction (0700_support_memory.sql guard)
+  gap: No fact lineage.
+  remediation: Add supersedes/retracts/corrects links and tombstones to context_facts.
+  size: M
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-07-09
+  section: '7'
+  subsection: ContextFact
+  kind: software
+  text: Model-generated summary claims link to their supporting facts.
+  acceptance: Summary storage requires fact ids per claim; a claim without support is rejected.
+  originalIds:
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/support/summaries.ts (template-assembled summaries, no claim-to-fact links)
+  - memory REVIEWED_SUMMARY links only to a review record (0700_support_memory.sql)
+  gap: No claim-level support links.
+  remediation: Add claim->fact references to summaries and the ModelDecision record.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-10
+  section: '7'
+  subsection: Entity resolution
+  kind: software
+  text: Versioned canonical IDs with authoritative cross-system links and relationship validity intervals.
+  acceptance: IdentityLink contract with version, source authority and valid_from/valid_to; joins use only current links; tests.
+  originalIds:
+  - AUTH-05
+  - AUTH-03
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/ports.ts actorForIdpSubject/selfSubjectId (single mapping, fixture)
+  - platform/src/protocol RelationshipFact (validUntil) from relationship-directory-fixture.ts
+  - no ContextFact/ContextSnapshot/SourceWatermark/IdentityLink contract in platform/src/protocol (grep 2026-10-19)
+  gap: Relationship facts exist; no versioned cross-system identity link model.
+  remediation: Add IdentityLink store and resolver fed by authoritative connectors.
+  size: M
+  environmentDependency: Authoritative identity/relationship systems of record (PRQ-005, PRQ-027)
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+- id: FO-07-11
+  section: '7'
+  subsection: Entity resolution
+  kind: software
+  text: Keep ambiguous or unmatched identities quarantined.
+  acceptance: Ingested record with zero or multiple candidate links goes to a quarantine queue, never joined; console work queue lists it.
+  originalIds:
+  - AUTH-01
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/verification-service.ts:685 (verification proceeds only with exactly one candidate) - verification only, no ingestion quarantine
+  gap: No quarantine for ingestion linkage.
+  remediation: Add identity_link_quarantine with review workflow.
+  size: S
+  environmentDependency: none
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+- id: FO-07-12
+  section: '7'
+  subsection: Entity resolution
+  kind: constraint
+  text: No fuzzy email/name/phone matching, shared-device linking, CDP alias, probabilistic identity or LLM inference can authorize protected-data merging or disclosure.
+  acceptance: 'Adversarial tests per signal type: none creates an IdentityLink or discloses data.'
+  originalIds:
+  - AUTH-01
+  - AUTH-05
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no merge capability exists; AUTH-01 enforced (platform/src/identity/session-service.test.ts, platform/test/journeys/j3-j4-authorization.test.ts)
+  - platform/src/adapters/local/identity-directory.ts:101-110 (exact normalized match used only to locate a challenge channel, never to authenticate)
+  gap: Holds by absence; must be enforced in the IdentityLink resolver with adversarial tests.
+  remediation: Encode allowed link evidence types as a closed enum excluding fuzzy/probabilistic/alias/LLM sources.
+  size: S
+  environmentDependency: none
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+- id: FO-07-13
+  section: '7'
+  subsection: Entity resolution
+  kind: software
+  text: Deterministic enrolled links and current authority govern joins.
+  acceptance: Join requires a current authoritative relationship fact evaluated by policy; expired/future grants excluded.
+  originalIds:
+  - AUTH-05
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/local/relationship-directory-fixture.test.ts
+  - platform/test/journeys/j3-j4-authorization.test.ts
+  - platform/src/business/recheck.ts (representation reconstructed from authoritative directory)
+  gap: Logic is on the production path but sourced from a fixture directory; live RelationshipDirectory is BLOCKED.
+  remediation: Implement the live relationship directory connector.
+  size: M
+  environmentDependency: Authoritative relationship registries (PRQ-005, PRQ-007, PRQ-027)
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+- id: FO-07-14
+  section: '7'
+  subsection: Entity resolution
+  kind: software
+  text: Merges/splits require reviewed evidence, invalidate affected caches, and support reversible lineage without cross-account leakage.
+  acceptance: Merge/split workflow with reviewer, cache/projection invalidation events, reversible lineage; leakage test after split.
+  originalIds:
+  - AUTH-05
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no merge/split capability
+  gap: Not implemented.
+  remediation: Add identity merge/split workflow with invalidation fan-out.
+  size: M
+  environmentDependency: none
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+- id: FO-07-15
+  section: '7'
+  subsection: Entity resolution
+  kind: constraint
+  text: Treat the identity graph itself as sensitive data.
+  acceptance: Identity link tables classified PHI_RESTRICTED, RLS by tenant, no analytics egress, access audited.
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no identity graph exists
+  gap: Not implemented.
+  remediation: Classify and protect the IdentityLink store.
+  size: S
+  environmentDependency: none
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+- id: FO-07-16
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: Authenticate every event ingress using the source's documented mechanism.
+  acceptance: Each inbound route verifies signature/token per source profile; unauthenticated delivery rejected before persistence.
+  originalIds:
+  - SPEC-8.webhook-auth
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - ingress.events
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/http/webhook-routes.ts (fixture HMAC for transfer events, local/ci only)
+  - platform/src/gateway/auth.ts (JWT for tool calls)
+  gap: No generic authenticated event ingress.
+  remediation: Add an ingress router selecting the verifier from the source profile.
+  size: M
+  environmentDependency: Per-source documented auth mechanism (Talkdesk TB-09, CDP, notification vendors)
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+- id: FO-07-17
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: Persist an encrypted durable inbox record before acknowledging an event.
+  acceptance: 'Crash-before-ack and crash-after-ack tests: acknowledged events are never lost; inbox payloads encrypted (KMS envelope) at rest.'
+  originalIds:
+  - ACT-02
+  - DATA-02
+  derivedFrom: []
+  capabilityIds:
+  - ingress.events
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts (transfer journeys persisted; early events held - transfer-specific)
+  - no inbox table in platform/migrations
+  gap: No generic inbox.
+  remediation: Add inbound_events table (tenant, source, event_id, payload ciphertext, digest, schema, auth mechanism, received_at) with RLS.
+  size: M
+  environmentDependency: KMS key for envelope encryption
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+- id: FO-07-18
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: Deduplicate by source/tenant/event identity and process at least once with consumer idempotency.
+  acceptance: Duplicate delivery produces one inbox row and one projection effect; consumer crash reprocesses idempotently.
+  originalIds:
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - ingress.events
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/outbox/consumer-dedup.ts (consumer idempotency for internal outbox messages; outbox.test.ts:201)
+  - platform/src/gateway/http/webhook-routes.ts (replay window for fixture signatures)
+  gap: Pattern exists for internal messages only.
+  remediation: Unique (tenant, source, event_id) on the inbox and reuse consumer-dedup for projection consumers.
+  size: S
+  environmentDependency: none
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+- id: FO-07-19
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: Record payload digest, schema and the actual authentication mechanism per ingested event.
+  acceptance: Inbox row carries sha256 digest, schema id/version and auth mechanism; audit export includes them.
+  originalIds:
+  - OPS-01
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no inbox
+  gap: Not implemented.
+  remediation: Part of the inbox schema.
+  size: S
+  environmentDependency: none
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+- id: FO-07-20
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: Preserve sequence/source version where available; tolerate duplicates, reorder, delayed clocks, replay and backfill; never use arrival order alone for recency.
+  acceptance: Property tests with permuted, duplicated and clock-skewed streams converge to the source-version-ordered state.
+  originalIds:
+  - ACT-02
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/adapters/local/telephony-fixture.transfer-contract.test.ts:62,71 (transfer events: order from the state machine, duplicates absorbed) - transfer-only'
+  - docs/adr/ADR-0017-out-of-order-transfer-events.md
+  gap: Only transfer events handle reorder; no general source-version ordering.
+  remediation: 'Generalize: projections apply events by (source_version, occurred_at) with last-writer-by-version semantics.'
+  size: M
+  environmentDependency: none
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+- id: FO-07-21
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: Quarantine unknown schemas/fields according to explicit contracts and alert; never silently promote unclassified fields into context.
+  acceptance: Unknown event type or field -> quarantined inbox record + metric/alarm; projection unaffected.
+  originalIds:
+  - DATA-01
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - ingress.events
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - strict zod bodies reject unknown fields with 4xx (platform/src/gateway/http/webhook-routes.ts TransferEventBody) - rejection, not quarantine+alert
+  gap: No quarantine path for inbound data.
+  remediation: Add quarantine state and alarm vsp_inbox_quarantined_total.
+  size: S
+  environmentDependency: none
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+- id: FO-07-22
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: Keep approved raw replay artifacts in restricted storage, not ordinary logs.
+  acceptance: Raw payloads stored only in restricted encrypted store with retention class; logs contain digests/reason codes only (test).
+  originalIds:
+  - DATA-01
+  - DATA-02
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no raw replay store (privacy/README mentions restricted quarantine store for redaction failures only)
+  gap: Not implemented.
+  remediation: Store raw payload ciphertext in the inbox/restricted S3 prefix with retention registration.
+  size: S
+  environmentDependency: none
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+- id: FO-07-23
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: Track source low/high watermarks, checkpoint gaps, expected/delivered counts, snapshot+delta boundaries and periodic reconciliation.
+  acceptance: SourceWatermark contract; reconciliation job compares source counts with delivered; gaps raise alerts and appear in snapshots.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no ContextFact/ContextSnapshot/SourceWatermark/IdentityLink contract in platform/src/protocol (grep 2026-10-19)
+  - watermarks exist only for audit shipping (platform/src/audit/shipper.ts)
+  gap: Not implemented.
+  remediation: Add source_watermarks table and a reconciliation worker loop per connector.
+  size: M
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-07-24
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: A backfill must not roll back a newer live state.
+  acceptance: 'Test: backfill of older versions after a live update leaves the newer state.'
+  originalIds:
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no backfill path
+  gap: Not implemented.
+  remediation: Version-guarded upserts in projections.
+  size: S
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-07-25
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: Distinguish source silence (no activity) from a broken feed using heartbeats and reconciliation.
+  acceptance: Heartbeat absence beyond threshold marks the source DEGRADED and snapshots report it unavailable; test.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no source heartbeat
+  gap: Not implemented.
+  remediation: Heartbeat/lag metric per source with thresholds in the profile.
+  size: S
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-07-26
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: Push newly accepted relevant events to the active conversation through versioned context updates.
+  acceptance: Active call receives ContextUpdate(version n+1) within SLO when a relevant event arrives; tests.
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no conversation context channel; local driver has no context updates (platform/src/evaluation/driver)
+  gap: Not implemented.
+  remediation: Add per-call context subscription keyed by subject/purpose with versioned updates.
+  size: M
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-27
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: Relevant new events invalidate stale proposed answers and pending confirmations.
+  acceptance: Event changing an appointment/invoice invalidates the pending prepared action and queued protected speech; test.
+  originalIds:
+  - ACT-01
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.ts + migrations/0102_action_invalidation_requests.sql (invalidation on interruption/identity change/safety; not triggered by source events)
+  - platform/src/voice/gate.ts (stale turn/generation dropped)
+  gap: Invalidation primitives exist but no source-event trigger.
+  remediation: Have the context update path call invalidatePending for actions whose resource version changed.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-28
+  section: '7'
+  subsection: Ingestion and history reconciliation
+  kind: software
+  text: An unrelated new event must not restart the whole conversation.
+  acceptance: 'Test: unrelated event updates context version without invalidating unrelated pending work or turn state.'
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no context update path
+  gap: Not implemented.
+  remediation: Relevance filter by resource/issue in the update path.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-29
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: constraint
+  text: Start protected context only after authorization; no pre-auth PHI model load.
+  acceptance: 'Tests: at A0/A1 no protected fact, memory recap or case detail is loaded into any model-visible context.'
+  originalIds:
+  - AUTH-02
+  - DATA-01
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/support-memory.test.ts:74 (no recap before authentication)
+  - platform/src/gateway/pipeline.test.ts:182 ([AUTH-02][AUTH-01] A0 caller denied a protected read by policy)
+  - platform/test/journeys/j9-repeat-caller.test.ts:26 (shared-phone unverified call gets no recap)
+  gap: 'Verified at tool level; no model context assembly exists yet to verify end to end. IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: verified at tool level only; no model-visible context assembly exists (WP-24).'
+  remediation: Re-verify with ContextAssembler and the model harness.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: verified at tool level only; no model-visible context assembly exists (WP-24).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-24
+- id: FO-07-30
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: software
+  text: Prefetch public knowledge or already-authorized reads; never speculative mutations.
+  acceptance: Prefetch limited to public/authorized reads with latency evidence; no mutation outside prepare/confirm/commit (test).
+  originalIds:
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no prefetch; mutations only via prepare/confirm/commit (platform/src/actions/action-service.ts)
+  gap: Prefetch not implemented.
+  remediation: Add prefetch in the assembler for public FAQ and post-auth reads.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-31
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: software
+  text: Select the current issue, relevant past interactions, promises, unresolved tasks, recent transactions and preferences within a token and latency budget.
+  acceptance: 'Assembler budget tests: selection respects token budget and latency budget; truncation reported.'
+  originalIds:
+  - SPEC-9.memory
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/support-memory.ts recapFor (unexpired entries)
+  - platform/src/gateway/tools/intake.ts:154-167 (open-issue recap)
+  gap: Recap fragments exist; no budgeted selection.
+  remediation: Implement ranking + budgeted selection in ContextAssembler.
+  size: M
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-32
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: software
+  text: Context retrieval is policy-filtered before search and checked again on return.
+  acceptance: 'Tests: forbidden facts never occupy result slots; returned facts re-checked against current ACL/purpose.'
+  originalIds:
+  - AUTH-02
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'pattern implemented for knowledge only: platform/src/knowledge/search.ts (permitted CTE before ranking, TypeScript re-check), search.test.ts:65,204'
+  gap: No context-fact retrieval exists.
+  remediation: Reuse the knowledge filter-then-recheck pattern for context facts.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-33
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: software
+  text: Provide a small timeline summary plus explicit facts and citations, with bounded drill-down.
+  acceptance: Snapshot contains summary, fact list with citations; drill-down API bounded by count/time and re-authorized.
+  originalIds:
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no ContextFact/ContextSnapshot/SourceWatermark/IdentityLink contract in platform/src/protocol (grep 2026-10-19)
+  gap: Not implemented.
+  remediation: Define ContextSnapshot.summary (token-bounded, every sentence carrying factRefs), facts[] (ContextFact refs with citations) and a drillDown(factRef | sourceRef, pageToken) API that re-checks authorization and purpose on every call and caps page size. Test the bounds, the re-check after revocation, and that summary sentences without factRefs are rejected.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-07-34
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: software
+  text: Report covered sources, unavailable sources, watermarks, truncation, conflict and omission reasons; never label a partial snapshot complete.
+  acceptance: Snapshot completeness enum; test with one source down -> PARTIAL with reasons.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no ContextFact/ContextSnapshot/SourceWatermark/IdentityLink contract in platform/src/protocol (grep 2026-10-19)
+  gap: Not implemented.
+  remediation: Add ContextSnapshot.coverage[] {source, status COVERED|PARTIAL|UNAVAILABLE|NOT_PERMITTED, lowWatermark, highWatermark, reasonCode}, truncation {truncated, budget, reasonCode}, conflicts[] and omissions[] {class, reasonCode}. Derive completeness so it can be COMPLETE only when every required source is COVERED and nothing was truncated or omitted. Test that one unavailable source makes the snapshot PARTIAL and that speech and console renderers never present PARTIAL as complete or as an empty history (section 21).
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-07-35
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: software
+  text: Resolve field-specific source precedence by signed configuration; surface material contradictions and query authoritative systems; never average statuses or choose the caller-agreeing source.
+  acceptance: Precedence config signed and pinned; contradiction test triggers authoritative lookup or honest unknown.
+  originalIds:
+  - DATA-04
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'knowledge-only analogue: platform/src/knowledge/conflicts.ts (approved precedence {order, approvalRef}), ingest.test.ts:133-155'
+  gap: No field precedence for operational facts.
+  remediation: Add precedence rules per field in signed tenant config, applied by the assembler.
+  size: M
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-36
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: software
+  text: Show staff why a fact was selected.
+  acceptance: Console investigation shows per-fact source, version, freshness, precedence rule and selection reason.
+  originalIds:
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/read-models.ts timeline shows policy decisions/tool calls, not context facts
+  gap: Not implemented.
+  remediation: Persist snapshot selection traces and render them in the investigation page.
+  size: M
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-37
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: evaluation
+  text: 'SLO: accepted event to projection p95 <= 5 seconds under healthy input (tenant-validated).'
+  acceptance: Load test evidence with p95 latency per source; SLO in observability catalogue with alarm.
+  originalIds:
+  - SPEC-12.capacity-model
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/slo.ts has no projection SLO
+  gap: Not implemented.
+  remediation: Add metric vsp_projection_lag_seconds and a load test.
+  size: S
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-07-38
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: evaluation
+  text: 'SLO: assembled cached context p95 <= 200 ms.'
+  acceptance: Benchmark/load evidence for assembler with cache.
+  originalIds:
+  - SPEC-12.capacity-model
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no assembler
+  gap: Not implemented.
+  remediation: Add metric and benchmark.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-39
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: software
+  text: Use source-specific maximum ages for context facts.
+  acceptance: Each source/field declares maxAge; stale facts trigger refresh or are labelled stale/unknown.
+  originalIds:
+  - SPEC-12.bounded-caching
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/support-record-cache.ts:38 MAX_SUPPORT_CACHE_TTL_MS (single generic TTL <= 60 s)
+  gap: Only a generic TTL exists.
+  remediation: Declare maxAge per field in ConnectorProfile and enforce in assembly.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-40
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: constraint
+  text: Authorization, consent revocation and mutation state use current enforcement, not a generic short cache.
+  acceptance: 'Tests: revoked session/consent takes effect on the next request; commit reads current state.'
+  originalIds:
+  - AUTH-04
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/session-service.test.ts:217,248 (expired/revoked fail closed even if stored)
+  - platform/src/business/recheck.ts (current consent registry wins)
+  - platform/src/ops/kill-switches.ts:183 (kill-switch cache TTL defaults to 0)
+  - platform/test/journeys/j2-billing-dispute.test.ts:243 (consent revoked after acceptance applies immediately)
+  - platform/src/workflows/engine.test.ts:719 (revoked consent cancels a pending callback before outreach)
+  gap: Verified locally; revocation propagation to future caches/projections/memory not yet applicable (J17).
+  remediation: Keep authorization out of the context cache key and re-check at use.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-24
+  provenance:
+    origin: extraction
+    repair:
+    - VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1); evidence lines added
+- id: FO-07-41
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: software
+  text: A warehouse snapshot that predates a recent payment triggers live verification or an honest unknown, never a false 'payment not made'.
+  acceptance: 'Test: warehouse watermark older than a payment event -> live billing lookup or UNKNOWN speech; never ''not paid''.'
+  originalIds:
+  - ACT-04
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no warehouse source or freshness comparison
+  gap: Not implemented.
+  remediation: Compare fact watermark with volatility class; force layer-3 lookup.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-42
+  section: '7'
+  subsection: Cache keys, export, correction, deletion
+  kind: software
+  text: Cache keys include tenant, subject, role, purpose, policy/relationship version and data revision.
+  acceptance: Cache key unit test; cross-user/role/purpose/policy-version hit test fails closed.
+  originalIds:
+  - AUTH-05
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/support-record-cache.ts (keyed by Case external id only; 'an instance serves one tenant configuration')
+  gap: Keys omit subject/role/purpose/version.
+  remediation: Define a ContextCacheKey type and use it for every context/semantic cache.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-07-43
+  section: '7'
+  subsection: Cache keys, export, correction, deletion
+  kind: constraint
+  text: Prevent cross-user cache hits, unbounded transcript storage and stale authorization reuse.
+  acceptance: 'Tests: bounded cache size/TTL, no transcript caching, authorization re-evaluated per use.'
+  originalIds:
+  - AUTH-05
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/adapters/support-record-cache.ts + support-record-cache.test.ts:52-96 (bounded TTL/LRU, below authorization, no PHI fields). NOTE: CachingSupportRecords is not composed anywhere (grep: no reference outside its own file and test), and its key is the external id only (support-record-cache.ts entries Map<string,...>).'
+  gap: Only one cache exists; cross-user protection relies on per-call authorization rather than the key.
+  remediation: Apply FO-07-42 keys to all caches.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - evidence
+- id: FO-07-44
+  section: '7'
+  subsection: Cache keys, export, correction, deletion
+  kind: software
+  text: Export a subject's timeline under scoped permission.
+  acceptance: Export endpoint requires scoped staff permission and purpose; output content-checked and audited.
+  originalIds:
+  - DATA-01
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no timeline export (console contract has no export endpoint)
+  gap: Not implemented.
+  remediation: Add export workflow with approval and audit.
+  size: M
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-07-45
+  section: '7'
+  subsection: Cache keys, export, correction, deletion
+  kind: software
+  text: Correction workflow covering source facts, derivatives, embeddings and caches.
+  acceptance: Correction request propagates to facts, projections, memory, summaries, embeddings and caches; verification evidence recorded.
+  originalIds:
+  - DATA-04
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - memory immutable (0700_support_memory.sql); no correction workflow
+  gap: Not implemented.
+  remediation: Add correction workflow with fan-out and verification like retention verifiers.
+  size: M
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-07-46
+  section: '7'
+  subsection: Cache keys, export, correction, deletion
+  kind: software
+  text: Access (subject access request) workflow.
+  acceptance: Staff-run access request compiles permitted data for a subject with audit.
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no access-request workflow
+  gap: Not implemented.
+  remediation: 'Add a SubjectAccessRequest workflow: intake by authorized staff with verified requester identity and representative authority; scope selection; a jurisdiction-specific deadline; assembly from the timeline, support requests, memory and CRM references through the export service (FO-07-44); privacy-officer approval; delivery to a secure channel; audit and completion evidence. Add a console work queue with deadline alarms. Test scope limits, representative authority and audit fail-closed behaviour.'
+  size: M
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-07-47
+  section: '7'
+  subsection: Cache keys, export, correction, deletion
+  kind: software
+  text: Deletion workflow covering derivatives, embeddings and caches (subject-initiated, not only time-based retention).
+  acceptance: Subject deletion removes/tombstones facts, memory, projections, embeddings and caches, files vendor deletion requests, and records verification.
+  originalIds:
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/retention/job.ts + retention.test.ts:139,208,243 (time-based deletion, derived-copy and cache verifiers, vendor deletion requests)
+  - knowledge_embeddings not in the retention registry (platform/src/retention/datasets.ts)
+  gap: Retention machinery is real and verified locally but only time/class based.
+  remediation: Add subject-scoped deletion jobs reusing DatasetRegistry and verifiers; register embeddings and future projections.
+  size: M
+  environmentDependency: Privacy counsel deletion policy (PRQ-025)
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-07-48
+  section: '7'
+  subsection: 'Context engine: layers and timeline'
+  kind: constraint
+  text: Exclude psychotherapy/clinical notes and unrestricted record browsing from all timeline and context sources.
+  acceptance: Source classification gate rejects clinical-note sources; test.
+  originalIds:
+  - SAFE-01
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/support-memory.ts:59-71 (clinical keys/stems forbidden)
+  - no clinical-note connector exists
+  gap: Holds by absence; no gate in a (non-existent) timeline ingestion contract.
+  remediation: Add source classification to ConnectorProfile and refuse clinical-note classes.
+  size: S
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-07-49
+  section: '7'
+  subsection: Context assembly and SLOs
+  kind: software
+  text: A ContextSnapshot is bound to tenant, subject, role, purpose and session generation. Any generation change (role switch, participant change, account switch, revocation, safety escalation) invalidates it and removes protected facts and recaps from model-visible context before the next turn. A stale snapshot can never support a disclosure or a confirmation.
+  acceptance: 'Tests: after a privilege drop (SessionService role/participant/account change), the next assembled context contains no protected fact, memory recap or case detail from the previous generation. A model proposal or confirmation that references the old snapshot version is refused with a stale-context reason. Cache entries keyed by the old generation are not served.'
+  originalIds:
+  - AUTH-03
+  - AUTH-04
+  - DATA-04
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/session-service.test.ts:280-340 (generation bump and privilege drop on role/participant/account switch and revocation are verified for sessions)
+  - 'no ContextSnapshot or context assembler exists (grep ContextSnapshot in platform/src: none)'
+  gap: 'Generation fencing exists for sessions and tool calls, but there is no context object to fence. c2 FO-07-27 covers invalidation by new source events only, not by identity or privilege changes (section 5: revocation propagation to sessions, caches, memory and pending work).'
+  remediation: Put sessionGeneration and the policy/relationship version into ContextSnapshot and ContextCacheKey (FO-07-42). Subscribe the assembler to SessionChange events, drop and rebuild context on a generation change, and check snapshot version and generation again at confirmation and at speech release.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: challenge-missed

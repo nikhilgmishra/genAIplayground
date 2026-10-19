@@ -1,0 +1,1141 @@
+# Follow-on requirement source records, prompt section 4. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '4'
+requirements:
+- id: FO-04-01
+  section: '4'
+  kind: software
+  text: Generate versioned JSON Schemas, OpenAPI, TypeScript types and validation from a single maintained contract source.
+  acceptance: All contracts (protocol, console API, connector, runtime) come from one zod source with drift checks in CI.
+  originalIds:
+  - SPEC-16.protocol-artifacts
+  - SPEC-16.openapi
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/generate-schemas.ts (27 schemas; --check passed 2026-10-19)
+  - platform/src/gateway/generate-openapi.ts (openapi.check ok 2026-10-19)
+  - platform/src/console-api/contract.ts (hand-written TS interfaces mirrored by console/src/api/contract.test.ts drift checks)
+  gap: Console API and workflow/human-task types are not generated from the zod source; 17 required contracts absent.
+  remediation: Move console API and new contracts into the zod registry; generate OpenAPI for console.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-02
+  section: '4'
+  kind: constraint
+  text: additionalProperties=false at tool boundaries.
+  acceptance: Registry test fails on any non-strict object.
+  originalIds:
+  - SPEC-8.tool-schema
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/registry.test.ts:41-49
+  - platform/src/gateway/mcp.test.ts:52 (strict input schemas)
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  gap: None.
+  remediation: Apply to new contracts.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-02
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-04-03
+  section: '4'
+  kind: constraint
+  text: Bounded lengths, enums, payloads, numbers, time ranges and pagination everywhere.
+  acceptance: Every list endpoint has cursor pagination with max page size; every time range bounded; payload caps enforced.
+  originalIds:
+  - SPEC-8.tool-schema
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/*.ts (bounded strings/arrays)
+  - platform/src/protocol/tools.ts:53 (maxInputBytes)
+  - platform/src/console-api/schemas.ts:771,803 (limit only)
+  gap: No cursor pagination contract; no time-range type; ToolResult.data is an unbounded record.
+  remediation: Add Pagination and TimeRange primitives; bound data records.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-04
+  section: '4'
+  kind: constraint
+  text: Internal trusted fields never originate in caller/model arguments.
+  acceptance: Catalogue test rejects any tool schema declaring a server-established field.
+  originalIds:
+  - AUTH-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/common.ts:138-155
+  - platform/src/gateway/catalog.ts:42
+  - platform/src/business/tools.test.ts:56
+  gap: None.
+  remediation: Extend to model/runtime contracts.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-02
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-04-05
+  section: '4'
+  kind: software
+  text: 'Contract AuthContext: versioned, strict, generated schema with common fields.'
+  acceptance: AuthContext is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - AUTH-03
+  - SPEC-7.session-model
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/auth.ts:66-91
+  - platform/src/identity/session-store.ts (toAuthContext)
+  - platform/src/identity/session-service.test.ts:112
+  gap: Lacks schema_version, processing basis/purpose and data classification fields.
+  remediation: Add common fields.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-04-06
+  section: '4'
+  kind: software
+  text: 'Contract CallBinding: versioned, strict, generated schema with common fields.'
+  acceptance: CallBinding is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-7.session-model
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - implicit in platform/src/identity/session-store.ts (SessionRecord callId) and platform/src/gateway/session-binding.ts:1-60
+  - live InteractionLookup BLOCKED
+  gap: No contract binding carrier interaction, session generation and conversation owner.
+  remediation: Define CallBinding, produced by the media runtime/carrier adapter.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-07
+  section: '4'
+  kind: software
+  text: 'Contract TurnEnvelope: versioned, strict, generated schema with common fields.'
+  acceptance: TurnEnvelope is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/tools.ts:74 (turnId string only)
+  - platform/src/voice/turns.ts
+  gap: No turn record (speaker, timing, ASR confidence, generation).
+  remediation: Define and persist TurnEnvelope.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-08
+  section: '4'
+  kind: software
+  text: 'Contract ContextSnapshot: versioned, strict, generated schema with common fields.'
+  acceptance: ContextSnapshot is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no definition in platform/src
+  gap: Absent.
+  remediation: Define with fact list, watermarks, ACL filters.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-09
+  section: '4'
+  kind: software
+  text: 'Contract ContextFact: versioned, strict, generated schema with common fields.'
+  acceptance: ContextFact is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no definition in platform/src
+  gap: Absent.
+  remediation: Define with provenance, freshness, classification.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-10
+  section: '4'
+  kind: software
+  text: 'Contract SourceWatermark: versioned, strict, generated schema with common fields.'
+  acceptance: SourceWatermark is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/support-record-cache.ts:27-30 (fetchedAt only)
+  gap: Absent.
+  remediation: Define per source with event offset/time.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-11
+  section: '4'
+  kind: software
+  text: 'Contract IdentityLink: versioned, strict, generated schema with common fields.'
+  acceptance: IdentityLink is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-7.secure-link-binding
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/verification-service.ts ((iss, sub) -> actor mapping internal)
+  gap: No link record between IdP subject, directory account and person.
+  remediation: Define IdentityLink with source and verification time.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-12
+  section: '4'
+  kind: software
+  text: 'Contract KnowledgeCitation: versioned, strict, generated schema with common fields.'
+  acceptance: KnowledgeCitation is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-9.retrieval
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/schema.ts:92 (citationId string kb_<source>@v<version>)
+  - platform/src/knowledge/search.ts:267
+  gap: Only a string id; no schema with snapshot digest, span and freshness.
+  remediation: Define KnowledgeCitation.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-13
+  section: '4'
+  kind: software
+  text: 'Contract ModelInvocation: versioned, strict, generated schema with common fields.'
+  acceptance: ModelInvocation is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no model invocation code
+  gap: Absent.
+  remediation: Define with model/version pins, input digest, scope.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-14
+  section: '4'
+  kind: software
+  text: 'Contract ModelDecision: versioned, strict, generated schema with common fields.'
+  acceptance: ModelDecision is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no model code
+  gap: Absent.
+  remediation: Define typed decision output (proposals only).
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-15
+  section: '4'
+  kind: software
+  text: 'Contract ToolRequest: versioned, strict, generated schema with common fields.'
+  acceptance: ToolRequest is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-8.tool-schema
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/tools.ts:69-79
+  - platform/src/gateway/pipeline.ts
+  gap: 'No causation_id/schema_version. IMPLEMENTED, not VERIFIED_LOCAL: ToolRequest (platform/src/protocol/tools.ts:69-79) has no schema_version, tenant_id, causation_id or session_generation, and `arguments` is an unbounded z.record (prompt section 4 common fields and bounds).'
+  remediation: Add common fields.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: ToolRequest (platform/src/protocol/tools.ts:69-79) has no schema_version, tenant_id, causation_id or session_generation, and `arguments` is an unbounded z.record (prompt section 4 common fields and bounds).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-02
+- id: FO-04-16
+  section: '4'
+  kind: software
+  text: ToolResult is a discriminated union (SUCCESS / POLICY_DENIED / RETRYABLE_FAILURE / PERMANENT_FAILURE / PENDING / UNKNOWN_OUTCOME), never a free-text success string.
+  acceptance: Registry test asserts the six branches.
+  originalIds:
+  - SPEC-16.protocol-artifacts
+  - SPEC-8.timeout-states
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/tools.ts:142-166
+  - platform/src/protocol/registry.test.ts:51-54
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-02
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-04-17
+  section: '4'
+  kind: software
+  text: ToolResult carries typed permitted facts, receipt refs and a safe explanation code.
+  acceptance: Per-tool output schemas and masks validated; receipts/reason codes present on every branch.
+  originalIds:
+  - SPEC-8.tool-schema
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/tools.ts:129-139 (policyDecisionId, auditEventId, speech.sourceRefs, reasonCode)
+  - platform/src/gateway/mask.ts; per-tool outputSchema in schemas/tools/catalog.json
+  gap: Protocol types SUCCESS.data as record<string, unknown>; typing lives only in per-tool outputSchema.
+  remediation: Generate typed per-tool result schemas into the registry.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-18
+  section: '4'
+  kind: software
+  text: ToolResult carries freshness of the permitted facts.
+  acceptance: Every SUCCESS/PENDING result includes source watermark and age.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/tools.ts:129-166 (no freshness field)
+  gap: Absent.
+  remediation: Add freshness/watermark refs.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-19
+  section: '4'
+  kind: constraint
+  text: Model-written narratives are not authoritative facts.
+  acceptance: Facts in speech/records come only from typed tool results; model text is never stored as fact.
+  originalIds:
+  - DATA-04
+  - SPEC-11.response-gate
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts:24-26 (templates + typed slots only)
+  - platform/src/protocol/support.ts:50-51 (summaryProvenance template_assembled/human_reviewed)
+  gap: 'Holds while no model exists. IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: it holds only because no model writes narratives (WP-10).'
+  remediation: Enforce in model harness.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: it holds only because no model writes narratives (WP-10).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-10
+- id: FO-04-20
+  section: '4'
+  kind: software
+  text: 'Contract PreparedAction: versioned, strict, generated schema with common fields.'
+  acceptance: PreparedAction is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - ACT-01
+  - SPEC-8.prepare-commit
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/actions.ts:57-84
+  - platform/src/actions/digest.test.ts
+  gap: 'ActionKind closed to six kinds; MoneyAmount USD only. IMPLEMENTED, not VERIFIED_LOCAL: PreparedAction has no schema_version or causation_id, schema files under schemas/protocol are not versioned, and money is a USD-only literal (prompt section 4 common fields).'
+  remediation: Extend kinds via connector contracts.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: PreparedAction has no schema_version or causation_id, schema files under schemas/protocol are not versioned, and money is a USD-only literal (prompt section 4 common fields).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-02
+- id: FO-04-21
+  section: '4'
+  kind: software
+  text: 'Contract ConfirmationReceipt: versioned, strict, generated schema with common fields.'
+  acceptance: ConfirmationReceipt is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/actions.ts:87-97 (ActionConfirmation)
+  gap: Exists under another name without receipt id or audit ref.
+  remediation: Rename/extend to ConfirmationReceipt.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-22
+  section: '4'
+  kind: software
+  text: 'Contract ActionGrant: versioned, strict, generated schema with common fields.'
+  acceptance: ActionGrant is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-9.task-tokens
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/grants.ts; platform/migrations/0402_durable_action_grants.sql
+  - platform/src/protocol/auth.ts:133-151 (durable_action_grant assertion purpose)
+  gap: Not a registered protocol schema.
+  remediation: Register ActionGrant.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-23
+  section: '4'
+  kind: software
+  text: 'Contract CommitReceipt: versioned, strict, generated schema with common fields.'
+  acceptance: CommitReceipt is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - ACT-02
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/actions.ts:99-116
+  - platform/src/actions/action-service.test.ts
+  gap: 'No link to EffectVerification. IMPLEMENTED, not VERIFIED_LOCAL: CommitReceipt has no schema_version, causation_id or link to EffectVerification.'
+  remediation: Add verification ref.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: CommitReceipt has no schema_version, causation_id or link to EffectVerification.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-02
+- id: FO-04-24
+  section: '4'
+  kind: software
+  text: 'Contract EffectVerification: versioned, strict, generated schema with common fields.'
+  acceptance: EffectVerification is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0101_action_reconciliations.sql (reconciliation, not independent verification)
+  gap: Absent.
+  remediation: Define and implement an independent read-back verification.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-25
+  section: '4'
+  kind: software
+  text: 'Contract SupportRequest: versioned, strict, generated schema with common fields.'
+  acceptance: SupportRequest is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-8.salesforce-model
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/support.ts:36-67
+  - platform/src/business/support-requests.test.ts
+  gap: Embeds salesforceCaseId (should be a CaseLink).
+  remediation: Move CRM ids to CaseLink.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-04-26
+  section: '4'
+  kind: software
+  text: 'Contract CaseLink: versioned, strict, generated schema with common fields.'
+  acceptance: CaseLink is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/migrations/0300_support_requests.sql:92-100 (support_request_links: action/workflow/interaction only)'
+  gap: No external-case link contract.
+  remediation: Define CaseLink for any CRM/case system.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-27
+  section: '4'
+  kind: software
+  text: 'Contract WorkflowEvent: versioned, strict, generated schema with common fields.'
+  acceptance: WorkflowEvent is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-9.workflow
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/workflow.ts:32-51
+  - platform/src/workflows/engine.test.ts
+  gap: 'WorkflowType is a closed seven-value enum. IMPLEMENTED, not VERIFIED_LOCAL: WorkflowEvent has no schema_version or causation_id, and WorkflowType is a closed seven-value enum.'
+  remediation: Make workflow types configurable.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: WorkflowEvent has no schema_version or causation_id, and WorkflowType is a closed seven-value enum.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-02
+- id: FO-04-28
+  section: '4'
+  kind: software
+  text: 'Contract HumanTask: versioned, strict, generated schema with common fields.'
+  acceptance: HumanTask is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/ports.ts:47 (TS interface)
+  - platform/migrations/0401_workflows.sql (workflow_tasks)
+  gap: Not a registered protocol schema.
+  remediation: Register HumanTask.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-29
+  section: '4'
+  kind: software
+  text: 'Contract HandoffPackage: versioned, strict, generated schema with common fields.'
+  acceptance: HandoffPackage is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-10.handoff-package
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/support.ts:102-128
+  - platform/src/business/handoff.test.ts
+  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: HandoffPackage has no schema_version or causation_id, and schema files under schemas/protocol are not versioned.'
+  remediation: Add context-freshness refs.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: HandoffPackage has no schema_version or causation_id, and schema files under schemas/protocol are not versioned.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-02
+- id: FO-04-30
+  section: '4'
+  kind: software
+  text: 'Contract CarrierEvent: versioned, strict, generated schema with common fields.'
+  acceptance: CarrierEvent is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-8.webhook-auth
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/http/webhook-routes.ts:41-47 (fixture TransferEventBody)
+  gap: Absent.
+  remediation: Define CarrierEvent for SIP/LiveKit/Talkdesk events.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-31
+  section: '4'
+  kind: software
+  text: 'Contract SpeechPlan: versioned, strict, generated schema with common fields.'
+  acceptance: SpeechPlan is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-11.response-gate
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/protocol/tools.ts:102-114 (SpeechDirective: one templated utterance)'
+  gap: No plan covering segments, render path and response class routing.
+  remediation: Define SpeechPlan.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-32
+  section: '4'
+  kind: software
+  text: 'Contract AudioReleaseReceipt: versioned, strict, generated schema with common fields.'
+  acceptance: AudioReleaseReceipt is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - ACT-05
+  - SPEC-11.response-record
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no definition in platform/src
+  gap: Absent.
+  remediation: Define with approved content/audio digest and emitted/playback status.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-33
+  section: '4'
+  kind: software
+  text: 'Contract AuditEvent: versioned, strict, generated schema with common fields.'
+  acceptance: AuditEvent is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - OPS-01
+  - SPEC-13.audit-model
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/audit.ts:41-80
+  - platform/src/audit/chain.test.ts
+  gap: 'No causation_id distinct from parentId. IMPLEMENTED, not VERIFIED_LOCAL: AuditEvent has schemaVersion but no causation_id distinct from parentId.'
+  remediation: Add common fields.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: AuditEvent has schemaVersion but no causation_id distinct from parentId.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-02
+- id: FO-04-34
+  section: '4'
+  kind: software
+  text: 'Contract ConnectorProfile: versioned, strict, generated schema with common fields.'
+  acceptance: ConnectorProfile is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/schema.ts:36 (AdapterConfigSchema)
+  - platform/src/adapters/integration-inventory.ts (static inventory)
+  gap: Absent.
+  remediation: Define transport/auth/mapping/limits profile.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-35
+  section: '4'
+  kind: software
+  text: 'Contract TenantConfig: versioned, strict, generated schema with common fields.'
+  acceptance: TenantConfig is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-16.prod-guard
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/schema.ts:123 (PlatformConfigSchema, one tenant per deployment)
+  gap: Not exported to schemas/; single-tenant shape.
+  remediation: Register TenantConfig.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-36
+  section: '4'
+  kind: software
+  text: 'Contract ScenarioDefinition: versioned, strict, generated schema with common fields.'
+  acceptance: ScenarioDefinition is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-16.scenario-definition
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/evaluation.ts:36-71
+  - platform/src/evaluation/corpus.test.ts
+  gap: 'Channel lacks SIP/WebRTC audio modes. IMPLEMENTED, not VERIFIED_LOCAL: ScenarioDefinition has no schema_version and its channel lacks SIP/WebRTC audio modes.'
+  remediation: Extend channels.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: ScenarioDefinition has no schema_version and its channel lacks SIP/WebRTC audio modes.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-02
+- id: FO-04-37
+  section: '4'
+  kind: software
+  text: 'Contract EvaluationResult: versioned, strict, generated schema with common fields.'
+  acceptance: EvaluationResult is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-14.scorecard
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/evaluation.ts:84-119
+  gap: executionMode lacks emulator/real-protocol modes; no qualification link.
+  remediation: Extend modes.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-04-38
+  section: '4'
+  kind: software
+  text: 'Contract ChangeProposal: versioned, strict, generated schema with common fields.'
+  acceptance: ChangeProposal is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-15.no-self-promotion
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0900_console.sql (console_release_submissions for policy/knowledge only)
+  gap: Absent.
+  remediation: Define for configuration/prompt/policy changes.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-39
+  section: '4'
+  kind: software
+  text: 'Contract ApprovalRecord: versioned, strict, generated schema with common fields.'
+  acceptance: ApprovalRecord is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - OPS-05
+  - SPEC-5.prerequisite-register
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/release.ts:64-86
+  - platform/src/config/approvals.test.ts
+  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: ApprovalRecord has no schema_version or causation_id, and schema files under schemas/protocol are not versioned.'
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: ApprovalRecord has no schema_version or causation_id, and schema files under schemas/protocol are not versioned.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-02
+- id: FO-04-40
+  section: '4'
+  kind: software
+  text: 'Contract ReleaseManifest: versioned, strict, generated schema with common fields.'
+  acceptance: ReleaseManifest is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds:
+  - SPEC-16.release-manifest
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/release.ts:125-151
+  - platform/src/evaluation/manifest.test.ts
+  gap: status uses the single-axis ReleaseStatus.
+  remediation: Two-axis capability statuses.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-04-41
+  section: '4'
+  kind: software
+  text: 'Contract ActivationReport: versioned, strict, generated schema with common fields.'
+  acceptance: ActivationReport is registered in PROTOCOL_SCHEMAS, exported to schemas/protocol, validated at its boundary and used by the producing component.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no definition in platform/src
+  gap: Absent.
+  remediation: Define per-workflow activation status with evidence.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-42
+  section: '4'
+  kind: software
+  text: 'Common fields where relevant: tenant_id, interaction_id, case_id, workflow_id, opaque actor/subject refs, session_generation, turn_id, request_id, causation_id, schema_version, created_at, expires_at, policy/config/source versions, data classification, source provenance and outcome.'
+  acceptance: A registry test checks each contract for its required common fields.
+  originalIds:
+  - SPEC-6.no-phi-in-identifiers
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'present in part: tenantId/callId/sessionGeneration/turnId/requestId on AuthContext, ToolRequest/ToolResult, AuditEvent'
+  - 'absent: causation_id everywhere; schema_version only on AuditEvent/ReleaseManifest; source provenance/classification on few'
+  gap: No systematic common-field model.
+  remediation: Common envelope mixin plus registry test.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-43
+  section: '4'
+  kind: constraint
+  text: Use UTC instants and an explicit business timezone.
+  acceptance: All instants Z-suffixed; tenant business timezone configured and used for dates.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/common.ts:21 (IsoDateTime offset:false)
+  - platform/src/business/contracts/appointments.ts:16 (timeZone field)
+  gap: No tenant-level business timezone.
+  remediation: Add to TenantConfig.
+  size: S
+  environmentDependency: tenant timezone
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-44
+  section: '4'
+  kind: constraint
+  text: Integer minor units plus currency for money.
+  acceptance: MoneyAmount everywhere money appears.
+  originalIds:
+  - SPEC-4.payments-isolated
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/actions.ts:51-55 (MoneyAmount; currency literal USD)
+  gap: Currency fixed to USD.
+  remediation: ISO 4217 enum.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-45
+  section: '4'
+  kind: software
+  text: Maintain separate records for person, actor, organization/delegation, call session, conversation turn, issue/case, action and durable task.
+  acceptance: Each record has its own store and contract.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'sessions: platform/src/identity/kv; actions: platform/migrations/0100_action_ledger.sql; cases: 0300_support_requests.sql; tasks: 0401_workflows.sql'
+  - persons/organizations only in external directories (platform/src/adapters/ports.ts:39-70)
+  gap: No persisted conversation-turn record; no IdentityLink for person/actor.
+  remediation: Add turn and identity-link records.
+  size: M
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-46
+  section: '4'
+  kind: software
+  text: One person can hold multiple roles; one call can have multiple cases; multiple calls can share one case.
+  acceptance: Tests cover each cardinality.
+  originalIds:
+  - SPEC-4.role-selection
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/session-service.ts:198 (one selected role, switch drops privileges)
+  - platform/src/protocol/support.ts:54 (sourceCallIds 1..32)
+  - platform/migrations/0300_support_requests.sql:30-31
+  gap: No explicit cardinality tests found for multi-case calls.
+  remediation: Add cardinality tests.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: extraction
+- id: FO-04-47
+  section: '4'
+  kind: constraint
+  text: A conversation summary must not overwrite the action ledger or source-system state.
+  acceptance: Summaries live only in their own field/records; tests prove ledger/source unaffected.
+  originalIds:
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/support.ts:50-51
+  - platform/src/business/support-requests.test.ts [DATA-04]
+  - platform/src/memory/support-memory.ts
+  gap: 'Model summaries not yet present. IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: model-written summaries do not exist yet (WP-10).'
+  remediation: Apply to model summaries.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: model-written summaries do not exist yet (WP-10).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-10
+- id: FO-04-48
+  section: '4'
+  kind: software
+  text: The contract registry test enumerates all 34 required follow-on contracts (not only the original minimum artifacts) and fails when one is absent, non-strict, unversioned or missing from schemas/protocol.
+  acceptance: platform/src/protocol/registry.test.ts lists the 34 names from prompt section 4. Each must be in PROTOCOL_SCHEMAS, render with additionalProperties=false on every object branch, and exist in schemas/protocol with the current protocol version, and the generator --check passes.
+  originalIds:
+  - SPEC-16.protocol-artifacts
+  derivedFrom: []
+  capabilityIds:
+  - platform.contracts
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/registry.test.ts:13-26 (MINIMUM_ARTIFACTS = 12 original-spec names)
+  - platform/src/protocol/registry.ts:16-44 (27 registered schemas; 17 required contracts absent, ActionGrant/HumanTask/TenantConfig unregistered)
+  gap: Nothing stops a required contract from silently staying absent or living outside the registry; c1's per-contract items have no enforcing test.
+  remediation: Replace MINIMUM_ARTIFACTS with FOLLOWON_CONTRACTS (34 names) plus an alias map for renamed contracts (ConfirmationReceipt, TenantConfig). Register ActionGrant, HumanTask and TenantConfig, and mark the test it.fails for each name not yet implemented, so progress is visible and regressions fail.
+  size: S
+  environmentDependency: none
+  workPackage: WP-02
+  provenance:
+    origin: challenge-missed

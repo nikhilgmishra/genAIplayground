@@ -1,0 +1,917 @@
+# Follow-on requirement source records, prompt section 20. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '20'
+requirements:
+- id: FO-20-01
+  section: '20'
+  kind: evaluation
+  text: J01 Public FAQ/service/login guidance without unnecessary identity; recovery from a malicious turn into legitimate public assistance.
+  acceptance: Protocol-realistic journey (audio + model) answers from approved KB without verification and recovers after an injection turn; backend shows no protected read.
+  originalIds:
+  - SPEC-4.workflow-catalogue
+  - SPEC-14.risk-corpus
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/tools/definitions.ts:23-50 (search_approved_runbook, get_login_guidance)
+  - scenarios/risk/prompt_injection_speech.json (keyword driver)
+  - 'docs/IMPLEMENTATION_STATUS.md (143 FAIL: no approved hours/services article)'
+  gap: No model/voice; recovery is keyword-rule behaviour; KB synthetic.
+  remediation: Run on media+model stack with seeded KB.
+  size: L
+  environmentDependency: tenant-approved KB content
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+- id: FO-20-02
+  section: '20'
+  kind: evaluation
+  text: J02 Verified client views options, confirms exact reschedule, conflict refreshes proposal, commits once, verifies source appointment.
+  acceptance: Journey against scheduling emulator via real adapter shows one source change verified by read-back.
+  originalIds:
+  - SPEC-16.journey-1
+  - ACT-01
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j1-reschedule.test.ts:29 (passes on scheduling fixture)
+  - platform/src/adapters/live/business-systems-blocked.ts:40 (SchedulingLiveBlocked)
+  gap: Fixture-only scheduling; no audio.
+  remediation: Real scheduling connector + emulator; audio run.
+  size: L
+  environmentDependency: scheduling API spec and sandbox
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-20-03
+  section: '20'
+  kind: evaluation
+  text: J03 Approved appointment creation/cancellation where tenant-authorized; clinical suitability and unavailable slots never invented.
+  acceptance: Create and cancel journeys gated by tenant configuration, verified at the source.
+  originalIds:
+  - SPEC-4.workflow-catalogue
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/services/appointments.ts:20, :187 (create, no clinical matching)
+  - platform/src/evaluation/driver/local-driver.test.ts:615 (cancellation handed to a person)
+  gap: No cancellation action; create on fixture only.
+  remediation: Add cancel action/contract and tenant gating.
+  size: L
+  environmentDependency: tenant authorization of create/cancel
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+- id: FO-20-04
+  section: '20'
+  kind: evaluation
+  text: J04 Invoice explanation from authoritative amounts/status; recent payment present in live source but absent in warehouse handled accurately.
+  acceptance: Journey where warehouse projection lags live billing shows live value spoken with freshness evidence.
+  originalIds:
+  - SPEC-4.workflow-catalogue
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/tools/billing.ts (get_invoice_status)
+  - platform/src/adapters/local/billing-fixture.ts
+  - no warehouse/projection code (grep)
+  gap: No warehouse/live reconciliation.
+  remediation: Implement with context engine (FO-19-15).
+  size: L
+  environmentDependency: billing system and warehouse access
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-20-05
+  section: '20'
+  kind: evaluation
+  text: J05 Disputed charge opens durable billing review with owner/deadline, async human decision, permitted follow-up and verified outcome; no promised refund.
+  acceptance: Journey through real billing/CRM adapters with human decision in console and follow-up.
+  originalIds:
+  - SPEC-16.journey-2
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j2-billing-dispute.test.ts:81-243 (fixture)
+  - platform/src/adapters/live/business-systems-blocked.ts:69 (BillingLiveBlocked)
+  gap: Fixture billing; follow-up contact not delivered; no audio.
+  remediation: Real adapters, notification route, audio run.
+  size: L
+  environmentDependency: billing and CRM sandboxes
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+- id: FO-20-06
+  section: '20'
+  kind: evaluation
+  text: J06 Claim/referral/authorization-status investigation distinguishes source status from coverage/payment/clinical guarantees and survives multi-day waiting.
+  acceptance: Multi-day journey with claim_investigation workflow, rechecked disclosure and correct wording.
+  originalIds:
+  - SPEC-4.workflow-catalogue
+  - SPEC-9.workflow
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/local/claims-fixture.ts
+  - platform/src/workflows/definitions/claim-investigation.ts (never started by a service)
+  gap: No referral/authorization domain; workflow not wired; no multi-day test.
+  remediation: Wire workflow, add domain, time-advanced test.
+  size: L
+  environmentDependency: claims/referral source access
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+- id: FO-20-07
+  section: '20'
+  kind: evaluation
+  text: J07 Provider onboarding/document status and delegated-practice remittance; expired delegation and cross-practice request denied without disclosure.
+  acceptance: Journey on real provider registry adapter with expired-delegation denial.
+  originalIds:
+  - SPEC-16.journey-3
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j3-j4-authorization.test.ts:24-57 (fixture)
+  - platform/test/journeys/recheck.test.ts (expired authority)
+  - platform/src/adapters/live/business-systems-blocked.ts:111
+  gap: Fixture provider system; expired practice delegation not a journey case.
+  remediation: Real adapter and journey case.
+  size: L
+  environmentDependency: provider/credentialing system access
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-20-08
+  section: '20'
+  kind: evaluation
+  text: J08 Partner/payer organization-scoped intake; unrelated-client and employer treatment-status requests denied; general help continues.
+  acceptance: Journey with denial without disclosure and continued help.
+  originalIds:
+  - SPEC-16.journey-4
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j3-j4-authorization.test.ts:83
+  - scenarios/skeletons/partner_employee_treatment_status.yaml
+  gap: Fixture registry; employer case only in keyword corpus.
+  remediation: 'Composed-stack journey with a partner token from the OIDC realm and a partner registry emulator: an organization-scoped intake succeeds; unrelated-client and employer treatment-status requests are denied with no disclosure in speech, tool output or audit detail; a following public FAQ request succeeds in the same call.'
+  size: M
+  environmentDependency: partner registry
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-20-09
+  section: '20'
+  kind: evaluation
+  text: J09 Minor/proxy/guardian ambiguous authority routes to an authorized specialist.
+  acceptance: Journey routes ambiguous authority to specialist with no disclosure.
+  originalIds:
+  - SPEC-4.audience-permissions
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/risk/minor_confidentiality.json, expired_proxy.json
+  - scenarios/skeletons/representative_minor_access.yaml
+  gap: No journey test; specialist route not modelled.
+  remediation: Add a relationship-registry connector field for guardianship/minor status with an emulator. Policy routes ambiguous or expired proxy authority to a configured authorized-specialist destination (new destination class). The journey asserts no protected disclosure and an accepted transfer to that destination.
+  size: M
+  environmentDependency: relationship/guardianship source
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-20-10
+  section: '20'
+  kind: evaluation
+  text: J10 Unverified caller requests human; context package, acceptance and audio bridge verified; receiver unavailable/declines/drop retains accountable ownership.
+  acceptance: Audio bridge with receiver client verified; failure paths keep an owner.
+  originalIds:
+  - SPEC-16.journey-5
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j5-j7-j8-routing.test.ts:36-112 (telephony fixture)
+  - platform/test/journeys/faults.test.ts:356
+  gap: No audio bridge or receiver client.
+  remediation: After FO-19-27.
+  size: L
+  environmentDependency: staffed queue for live
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-20-11
+  section: '20'
+  kind: evaluation
+  text: J11 Safety routing without account authentication incl. indirect/uncertain speech, ASR/judge failure and after-hours; no silent termination (the failed-transfer leg is FO-20-11a).
+  acceptance: Audio journey with ASR/judge fault and after-hours profile routes to staffed safety destination.
+  originalIds:
+  - SPEC-16.journey-6
+  - SAFE-02
+  - SAFE-03
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j6-safety-handoff.test.ts:31-107
+  - platform/test/journeys/safety-handoff-regressions.test.ts, safety-supersede-race.test.ts
+  gap: No ASR/judge, no audio, after-hours not covered.
+  remediation: Audio runtime with fault injection.
+  size: L
+  environmentDependency: clinical safety approval (PRQ-008) and staffed safety routes
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+    repair:
+    - failed-transfer leg split into FO-20-11a (WP-28) (critic gap 6b)
+- id: FO-20-11a
+  section: '20'
+  kind: evaluation
+  text: 'J11 failed-transfer leg: when the safety transfer fails (receiver declines, is unavailable or the bridge drops), safety routing continues with truthful status, retained ownership and the next approved staffed route; no silent termination.'
+  acceptance: 'Journey j11b in compose: decline, unavailable and dropped-bridge receivers each lead to the next staffed safety destination with an AudioReleaseReceipt for the approved update and the safety flow never ends silently.'
+  originalIds:
+  - SPEC-16.journey-6
+  - SAFE-02
+  - SAFE-03
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j6-safety-handoff.test.ts:31-107 (fixture transfer)
+  - platform/src/workflows/transfer.test.ts:199,474,561,571 (fixture failover)
+  gap: Only fixture transfers; no durable transfer store, receiver client or warm transfer exists to fail.
+  remediation: Run the failed-transfer leg of J11 on the WP-28 receiver client and LiveKit/SIP warm transfer.
+  size: L
+  environmentDependency: clinical safety approval (PRQ-008) and staffed safety routes
+  provenance:
+    origin: repair-split
+    splitFrom: FO-20-11
+    repair:
+    - 'Phase A repair (critic gap 6b): failed-transfer leg of J11 moved to WP-28, which builds the transfer store, receiver client and warm transfer'
+  workPackage: WP-28
+- id: FO-20-12
+  section: '20'
+  kind: evaluation
+  text: J12 Recording declined; actual processing/recording matches disclosure and configured alternative; no false claim that all processing stopped.
+  acceptance: Media runtime shows recorder off and processing as disclosed.
+  originalIds:
+  - SPEC-16.journey-7
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j5-j7-j8-routing.test.ts:129 (fixture recorder)
+  gap: No real recording control.
+  remediation: Implement in media runtime.
+  size: M
+  environmentDependency: approved disclosure scripts
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-20-13
+  section: '20'
+  kind: evaluation
+  text: J13 Unsupported language/speech impairment/relay routes to accessible assistance; approved language variant tested with real audio and qualified reviewers.
+  acceptance: Audio tests for relay and approved language variant with reviewer sign-off.
+  originalIds:
+  - SPEC-16.journey-8
+  - SPEC-11.interpreter
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j5-j7-j8-routing.test.ts:167 (interpreter destination, fixture)
+  - scenarios/skeletons/relay_service_caller.yaml
+  gap: No audio, no language variant.
+  remediation: Audio runtime + reviewer workflow.
+  size: L
+  environmentDependency: qualified language reviewers and approved translations
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+- id: FO-20-14
+  section: '20'
+  kind: evaluation
+  text: J14 Repeat contact resumes permitted issue history, tasks and recent conversations; shared phone and wrong account receive no protected recap.
+  acceptance: Journey uses timeline/tasks with ACL checks.
+  originalIds:
+  - SPEC-16.journey-9
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j9-repeat-caller.test.ts:26
+  - platform/src/memory/support-memory.ts
+  gap: Only open-issue recap; no timeline/tasks/conversations; wrong-account case absent.
+  remediation: After context engine.
+  size: L
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-20-15
+  section: '20'
+  kind: evaluation
+  text: J15 Multiple issues in one call, two concurrent calls, hang-up and later reconnect; task ownership, session generations and outcomes remain correct.
+  acceptance: Journey tracks issue list per call and resumes after reconnect.
+  originalIds:
+  - SPEC-16.fault-concurrent-calls
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/faults.test.ts:81 (two concurrent calls)
+  - platform/test/journeys/j5-j7-j8-routing.test.ts:103 (hang-up)
+  gap: No multi-issue tracking or reconnect resume.
+  remediation: 'Add a per-call issue list (call_issues table: issueId, contractId, status, owner) and a reconnect binding that resumes by (callerBinding, prior callId) with a new session generation. Journey: two issues in one call, a concurrent second call, a hang-up, then a reconnect that resumes only permitted open issues. Assert ownership and outcomes per issue.'
+  size: L
+  environmentDependency: none
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-20-16
+  section: '20'
+  kind: evaluation
+  text: J16 CRM outage followed by replay creates one real record; internal reference distinct; source timeout-after-commit reconciles without duplication.
+  acceptance: Composed journey through the REST adapter and emulator produces one record after replay.
+  originalIds:
+  - SPEC-16.fault-salesforce-outage
+  - SPEC-8.salesforce-outage
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/faults.test.ts:297-341 (fixture)
+  - platform/src/adapters/live/salesforce-rest.contract.test.ts:253-309 (emulator)
+  gap: Not composed end to end through the real adapter.
+  remediation: 'In the composed stack (FO-19-63), run the Salesforce emulator (salesforce-emulator.fixture.ts promoted to a container) behind toxiproxy. Test: create a support request, cut the emulator, assert RETRY_SCHEDULED and an internal SR reference distinct from any Case id, restore it, assert exactly one Case by external id. Then inject a timeout after commit and assert reconcile-by-external-id with no second upsert.'
+  size: M
+  environmentDependency: Salesforce sandbox and Case schema (PRQ-006)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-20-17
+  section: '20'
+  kind: evaluation
+  text: J17 Consent/delegation revoked or source corrected/deleted while task pending; caches/memory/projections update and later disclosure/action is blocked or revised.
+  acceptance: Journey shows revocation/deletion propagating to every derived store before disclosure.
+  originalIds:
+  - SPEC-9.recheck
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j2-billing-dispute.test.ts:243
+  - platform/test/journeys/recheck.test.ts
+  - platform/src/actions/action-service.invalidation.test.ts
+  gap: Recheck covers consent/authority; no propagation to memory/caches/projections.
+  remediation: After FO-19-18.
+  size: L
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-20-18
+  section: '20'
+  kind: evaluation
+  text: J18 Worker crash, AZ/region failure, audit outage, model/TTS outage and quota/cost exhaustion; no duplicate action, false completion or unusable continuity route.
+  acceptance: Chaos journeys on composed stack incl. region fence and model/TTS failure.
+  originalIds:
+  - SPEC-16.fault-crash-after-commit
+  - SPEC-16.fault-audit-outage
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/faults.test.ts:247, :389
+  - scenarios/journeys/faulted/scn_journey_6_safety_handoff_unauthenticated__quota_exhausted.json
+  - platform/src/evaluation/driver/local-driver.ts:191 (REGIONAL_FAILOVER refused)
+  gap: No region failover, no model/TTS; crash simulated in-process.
+  remediation: Chaos over compose + region fence implementation.
+  size: XL
+  environmentDependency: multi-region environment for real failover
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+- id: FO-20-19
+  section: '20'
+  kind: evaluation
+  text: J19 Malicious KB/tool payload attempts cross-tenant access, SSRF, arbitrary dial target, policy override or export; server boundaries reject it even when the model proposes it; direct hostile API tests bypass the prompt.
+  acceptance: Model-driven and direct hostile tests all rejected server-side.
+  originalIds:
+  - SAFE-05
+  - AUTH-05
+  - SPEC-14.hostile-gateway-tests
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  - journeys.end_to_end
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/sanitize.ts, injection.ts
+  - scenarios/risk/prompt_injection_knowledge.json, dial_target_injection.json
+  - platform/src/adapters/live/salesforce-rest.contract.test.ts:328 (instance_url SSRF)
+  - platform/src/gateway/http/routes.test.ts (SAFE-05 hostile destinations)
+  gap: No model proposing payloads; export/policy-override not in one journey; no generic connector SSRF guard.
+  remediation: Add model-driven variant and export attempts.
+  size: M
+  environmentDependency: none
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+- id: FO-20-20
+  section: '20'
+  kind: evaluation
+  text: J20 Operator configures a synthetic tenant from scratch, imports KB/field mappings, runs qualification, reviews a candidate change, activates the local release, investigates a failure and rolls back without editing source.
+  acceptance: Browser-driven journey on the console.
+  originalIds:
+  - SPEC-13.console
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/navigation.ts:13-25
+  - platform/config/*.json (configuration only by editing files)
+  gap: No onboarding, import, qualification, activation or rollback surfaces.
+  remediation: After FO-19-28/29.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-20-21
+  section: '20'
+  kind: evaluation
+  text: Supply executable authorized sandbox/PSTN qualification counterparts for every journey.
+  acceptance: Each journey has a command that runs against sandbox/PSTN when authorized.
+  originalIds:
+  - SPEC-15.pilot-promotion
+  derivedFrom: []
+  capabilityIds:
+  - telephony.pstn
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/cli.ts:14-15 (sandbox and PSTN drivers BLOCKED)
+  - docs/release/sandbox-plan.md section 8
+  gap: No drivers.
+  remediation: Implement sandbox/PSTN drivers behind execution profiles.
+  size: L
+  environmentDependency: sandbox tenants, PSTN_TEST_CALLS and BILLABLE_TEST_EXECUTION approvals
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+- id: FO-20-22
+  section: '20'
+  kind: evaluation
+  text: Implement every journey in local protocol-realistic mode.
+  acceptance: Journeys run over real protocols (SIP/WebRTC audio, HTTP connectors to emulators, OIDC realm, PostgreSQL).
+  originalIds:
+  - SPEC-16.journeys
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/README.md (LOCAL FIXTURE composition; MCP on loopback is the only real protocol)
+  gap: Fixture mode only.
+  remediation: Docker composition journeys.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+- id: FO-20-23
+  section: '20'
+  kind: evaluation
+  text: Journey success needs caller behaviour, backend state, receipt/audit and expected ownership, not just fluent dialogue.
+  acceptance: Each journey asserts all four evidence kinds.
+  originalIds:
+  - ACT-04
+  - SPEC-14.goal-completion
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  - journeys.end_to_end
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/harness.ts (heard lines, DB rows, audit chain)
+  - platform/src/evaluation/driver/evidence.ts
+  gap: Caller behaviour is template text not audio; ownership not asserted uniformly.
+  remediation: Add ownership assertions and audio evidence.
+  size: M
+  environmentDependency: none
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+- id: FO-20-24
+  section: '20'
+  kind: software
+  text: Implement complaint intake.
+  acceptance: Complaint creates a durable record and real CRM case with owner and deadline.
+  originalIds:
+  - SPEC-4.workflow-catalogue
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/tools/definitions.ts:219 (submit_complaint)
+  - platform/src/business/services/intake.ts:221 (complaint_review workflow)
+  - platform/test/journeys/transactions.test.ts (ACT-F2 intake timeout)
+  gap: Real CRM adapter not composed; mapping placeholder.
+  remediation: Compose CRM adapter.
+  size: M
+  environmentDependency: CRM schema and complaint policy owner
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+- id: FO-20-25
+  section: '20'
+  kind: software
+  text: Implement existing Case follow-up.
+  acceptance: Authorized case status read from the CRM.
+  originalIds:
+  - SPEC-8.salesforce-model
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/tools/definitions.ts:249 (get_authorized_case_status)
+  - platform/test/journeys/j3-j4-authorization.test.ts:57
+  - platform/src/adapters/live/salesforce-rest.contract.test.ts:309
+  gap: Reads fixture support records in composition.
+  remediation: Compose CRM adapter.
+  size: M
+  environmentDependency: CRM schema
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+- id: FO-20-26
+  section: '20'
+  kind: software
+  text: Implement portal guidance without credential-reset bypass.
+  acceptance: Guidance never resets credentials or bypasses IdP recovery; refuses secrets.
+  originalIds:
+  - SPEC-4.prohibited-assertions
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/contracts/public.ts:39-56
+  - platform/src/business/tools.test.ts:252-257
+  gap: Guidance content synthetic.
+  remediation: Tenant KB import.
+  size: S
+  environmentDependency: tenant portal recovery content
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+- id: FO-20-27
+  section: '20'
+  kind: software
+  text: Implement secure hosted payment-link routing with no card capture in audio.
+  acceptance: Real billing adapter returns hosted link, delivered via secure channel; no card data path.
+  originalIds:
+  - SPEC-4.payments-isolated
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/tools/billing.ts:55-130
+  - platform/src/business/services/billing.ts:85
+  - platform/src/business/contracts/billing.ts:63-85 (hosted path BLOCKED, fixture placeholder)
+  gap: Fixture path only; no link delivery.
+  remediation: Real billing adapter and notification delivery.
+  size: M
+  environmentDependency: billing hosted payment page (PRQ-050), PCI scope
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+- id: FO-20-28
+  section: '20'
+  kind: software
+  text: ResolutionContract carries audience, assurance, allowed data/actions, sources, exact success proof, confirmation, deadline, owner, after-hours, exceptions, prohibited claims and tests.
+  acceptance: Schema has every field and a test validates test references resolve.
+  originalIds:
+  - SPEC-4.resolution-contracts
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/contracts.ts:7-27
+  gap: 'No tests field and no explicit exceptions field. sourceSystem is a single enum, not a list. successEvidence is free prose (platform/src/protocol/contracts.ts:16): the machine-checked proof that decides RESOLVED is a separate hard-coded map RESOLVING_ACTION_KINDS (platform/src/business/outcomes.ts:156), so the contract text and the enforced proof can drift.'
+  remediation: Add fields and checks.
+  size: S
+  environmentDependency: none
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-20-29
+  section: '20'
+  kind: software
+  text: Every supported intent has a ResolutionContract.
+  acceptance: Coverage test over intent catalogue.
+  originalIds:
+  - SPEC-4.resolution-contracts
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/business/contracts/index.ts:37-58 (19 DRAFT contracts); docs/resolution-contracts.md; NOTE: platform/src/business/outcomes.test.ts:140 only checks contract intents against the metrics label allowlist, it is not an intent-coverage test'
+  gap: Handled intents without a contract (cancel handoff, interpreter/accessibility, recording-declined, callback, referral/authorization); all DRAFT.
+  remediation: Add contracts for the uncovered intents (FO-20-30..35). Add a test that every gateway tool in platform/src/gateway/tools/definitions.ts and every routed handoff reason maps to exactly one contractId, and that each contract's tests[] tags resolve to existing test titles.
+  size: M
+  environmentDependency: business owner approval (PRQ-033) to activate
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - evidence
+    - remediation
+- id: FO-20-30
+  section: '20'
+  kind: software
+  text: ResolutionContract for appointment cancellation where tenant-authorized (J03).
+  acceptance: appointment_cancel@1 contract with audience, assurance, source, exact success proof (source appointment status read back as cancelled), confirmation, owner, deadline, after-hours, exceptions (clinical/late-cancel policy -> human), prohibited claims and tests; enabled only when tenant configuration authorizes cancellation.
+  originalIds:
+  - SPEC-4.resolution-contracts
+  - ACT-04
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/contracts/index.ts:37-58 (no cancellation contract)
+  - platform/src/evaluation/driver/coordinator.ts:415 ('no cancellation capability exists, so this becomes the honest handoff')
+  gap: Cancellation is handled as an honest handoff with no contract, tool or source action.
+  remediation: Add the contract, a prepare/commit_appointment_cancellation tool pair on the action ledger, a tenant flag in config, and J03 tests (authorized cancel verified by read-back; unauthorized tenant -> handoff).
+  size: M
+  environmentDependency: tenant authorization of cancellation and cancellation policy owner
+  workPackage: WP-30
+  provenance:
+    origin: challenge-missed
+- id: FO-20-31
+  section: '20'
+  kind: software
+  text: ResolutionContract for referral/authorization-status investigation (J06).
+  acceptance: referral_authorization_status@1 contract that distinguishes source status from coverage/payment/clinical guarantees in its prohibited claims, names the authoritative source, the multi-day investigation owner/deadline and the recheck before disclosure; tests resolve.
+  originalIds:
+  - SPEC-4.resolution-contracts
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/contracts/index.ts:37-58 (CLAIM_STATUS only; no referral or authorization contract)
+  - platform/src/adapters/ports.ts (no referral/authorization port)
+  gap: No referral/authorization domain, contract or tool.
+  remediation: Add the canonical referral/authorization model and port (FO-19-21), the contract, a status tool, and wire claim_investigation-style workflow starts for multi-day investigation.
+  size: M
+  environmentDependency: referral/authorization source system access
+  workPackage: WP-30
+  provenance:
+    origin: challenge-missed
+- id: FO-20-32
+  section: '20'
+  kind: software
+  text: ResolutionContract for unsupported-language, speech-impairment and relay routing to accessible assistance (J13).
+  acceptance: accessible_assistance_route@1 contract naming the trusted destinations (interpreter, relay-capable queue), success proof (accepted transfer with verified connection), after-hours behaviour and prohibited claims; tests resolve.
+  originalIds:
+  - SPEC-4.resolution-contracts
+  - SPEC-11.interpreter
+  - SAFE-02
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j5-j7-j8-routing.test.ts:167 (interpreter destination on the telephony fixture)
+  - platform/src/business/contracts/index.ts:37-58 (no accessibility contract; HUMAN_REQUEST is generic)
+  gap: The routing behaviour exists only on the fixture; there is no contract stating its success proof or exceptions.
+  remediation: Add the contract and map the interpreter/relay handoff reasons to it in the coverage test (FO-20-29).
+  size: S
+  environmentDependency: staffed interpreter/relay routes and approved language variants
+  workPackage: WP-30
+  provenance:
+    origin: challenge-missed
+- id: FO-20-33
+  section: '20'
+  kind: software
+  text: ResolutionContract for the recording-declined alternative (J12).
+  acceptance: recording_declined_alternative@1 contract stating what processing continues, the configured alternative (non-recorded human route or limited AI processing), the disclosure template, prohibited claims ('all processing stopped' when it did not) and tests.
+  originalIds:
+  - SPEC-4.resolution-contracts
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j5-j7-j8-routing.test.ts:129 (fixture recorder)
+  - platform/src/business/contracts/index.ts:37-58 (no consent/recording contract)
+  gap: No contract defines the outcome of a declined recording.
+  remediation: Add the contract and bind it to the consent path and the media runtime's recorder control (FO-20-12).
+  size: S
+  environmentDependency: approved disclosure scripts (PRQ-008, PRQ-028)
+  workPackage: WP-30
+  provenance:
+    origin: challenge-missed
+- id: FO-20-34
+  section: '20'
+  kind: software
+  text: ResolutionContract for callback requests (callback_request workflow).
+  acceptance: callback_request@1 contract with owner, deadline, after-hours behaviour, success proof (callback completed or accountable escalation, not 'request recorded'), prohibited claims and tests; a business path starts callback_request.
+  originalIds:
+  - SPEC-4.resolution-contracts
+  - SPEC-4.workflow-catalogue
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/definitions/callback-request.ts (definition only; never started by a service)
+  - platform/src/business/contracts/index.ts:37-58 (no callback contract)
+  gap: The workflow definition has no starter and no contract.
+  remediation: Add the contract, a request_callback tool on the action ledger and a starter in business/services, and a time-advanced test that the deadline escalates.
+  size: M
+  environmentDependency: outbound call profile and staffed callback queue
+  workPackage: WP-30
+  provenance:
+    origin: challenge-missed
+- id: FO-20-35
+  section: '20'
+  kind: software
+  text: ResolutionContract for repeat-contact resumption of permitted issue history (J14).
+  acceptance: repeat_contact_resume@1 contract stating required assurance for any recap, permitted fields per audience, the source (timeline/support requests), prohibited claims (no recap on shared phone or wrong account) and tests.
+  originalIds:
+  - SPEC-4.resolution-contracts
+  - DATA-04
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j9-repeat-caller.test.ts:26 (open-issue recap behaviour)
+  - platform/src/business/contracts/index.ts:37-58 (CASE_FOLLOW_UP covers case status only)
+  gap: Recap behaviour exists without a contract defining what may be resumed and for whom.
+  remediation: Add the contract and bind the recap path (support memory now, timeline after FO-19-15) to it.
+  size: S
+  environmentDependency: none
+  workPackage: WP-30
+  provenance:
+    origin: challenge-missed

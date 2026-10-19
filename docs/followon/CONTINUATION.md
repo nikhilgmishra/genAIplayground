@@ -10,9 +10,13 @@ It records what is being done and where; results live in the evidence and status
 |---|---|
 | Follow-on prompt (verbatim, 1 536 lines) | [`../spec/voice-support-followon-specification.txt`](../spec/voice-support-followon-specification.txt) |
 | Original specification (verbatim) | [`../spec/voice-support-specification.txt`](../spec/voice-support-specification.txt) |
-| Requirement extraction (machine-readable) | `docs/followon/requirements.yaml` (Phase A output) (FO-* ids, mapped to the original ids) |
-| Gap ledger | `docs/followon/gap-ledger.yaml` and `docs/GAP_CLOSURE.md` (Phase A output) |
-| Work packages, dependencies, file ownership | `docs/followon/work-packages.yaml` (Phase A output) |
+| Requirement extraction (machine-readable) | [`requirements.yaml`](requirements.yaml) (FO-* ids; `originalIds` resolve to [`../requirements/catalog.yaml`](../requirements/catalog.yaml), other references in `derivedFrom`) |
+| Gap ledger (both status axes, qualification, evidence, work package per requirement) | [`gap-ledger.yaml`](gap-ledger.yaml); human rendering [`../GAP_CLOSURE.md`](../GAP_CLOSURE.md) |
+| Capabilities (both status axes per capability) | [`capabilities.yaml`](capabilities.yaml) |
+| Work packages, dependencies, file ownership | [`work-packages.yaml`](work-packages.yaml) |
+| Activation register (AIN-NN external inputs) | [`activation-register.yaml`](activation-register.yaml); human rendering [`../ACTIVATION_REGISTER.md`](../ACTIVATION_REGISTER.md) |
+| Sources of the files above (edit these, not the generated files) | [`source/`](source/) (requirement records per section, packages, activations, capabilities, narrative) |
+| Generator and drift check | [`../tools/followon/generate.py`](../tools/followon/generate.py): `python3 -I docs/tools/followon/generate.py` writes, `--check` fails on drift |
 
 Precedence (prompt section 0 and 22): the follow-on prompt supersedes the earlier preference to defer a
 custom speech runtime and a bounded agent harness; the 27 invariant ids keep their meaning; the offline
@@ -47,7 +51,7 @@ scoped authority exists. No billable endpoint is invoked by a safe local default
 
 | Phase | Scope | State |
 |---|---|---|
-| A | Inventory, requirement extraction, gap ledger, architecture/threat/data-flow diagrams, decision record, implementation and activation registers | IN_PROGRESS |
+| A | Inventory, requirement extraction, gap ledger, architecture/threat/data-flow diagrams, decision record, implementation and activation registers | IN_PROGRESS (outputs written; critic repair running) |
 | B | Scorer truth, invariant regressions, production composition, storage/session/workforce identity/audit, real transport adapter boundaries | NOT_STARTED (fix wave 5 already repairs part of the scorer and harness) |
 | C | Live model adapters, controllable media (LiveKit/SIP), protected output, fallback audio, turn/session fencing, real local audio-to-action journey | NOT_STARTED |
 | D | Historical/event/live context, entity linking, knowledge ingestion, deletions, model registry, specialist loops, canonical domain adapters | NOT_STARTED |
@@ -58,15 +62,21 @@ scoped authority exists. No billable endpoint is invoked by a safe local default
 
 ## In flight
 
-* Fix wave 5 (started under the original specification, still valid): knowledge sanitizer residuals,
-  transfer event ordering (verified FIXED), resolution metrics, audit/infra gaps, verification kill-switch
-  wiring, evaluation generator/harness fixes. Final verification round running; then full gates.
 * Draft PR #26 on branch `claude/spec-prompt-implementation-l9zicg` carries this work.
 * Phase A workflow `followon-gap-ledger` (run `wf_6d1f0b41-abd`): requirement extraction + skeptic-checked
   gap ledger per prompt-section group (scratch: `followon/c1..c5.json` and `.challenge.json` in the session
   scratchpad), then planner (requirements.yaml, gap-ledger.yaml, work-packages.yaml, GAP_CLOSURE.md,
   ACTIVATION_REGISTER.md), architect (ARCHITECTURE.md target section, ADR-0018) and a completeness critic.
   If a container restart kills it, resume with the workflow script and `resumeFromRunId`.
+  Result: 1,097 requirements, 45 work packages (WP-01..WP-45, phases B-H), 45 activation entries;
+  the completeness critic found 18 material plan defects (VERIFIED_LOCAL overclaims, fault-matrix
+  granularity, ownership holes, id collision ACT-NN vs invariants, no capability axis, no section 23
+  rows, invariant sequencing, path inconsistencies, missing follow-on threat model).
+* Phase A repair workflow `followon-phase-a-repair` (run `wf_2a6fcac4-05b`): regenerates the ledger
+  and plan from a committed generator (docs/tools/followon/, --check), re-verifies every
+  VERIFIED_LOCAL claim, renames activation ids to AIN-NN, adds capabilities.yaml, and fixes the
+  architecture/ADR/threat-model/data-flow docs; the critic re-runs up to two more rounds.
+* Fix wave 5 is merged on the branch (commit 8c0f5a0, CI green on PR #26).
 
 ## Decisions log (short; ADRs hold the reasoning)
 

@@ -1,0 +1,764 @@
+# Follow-on requirement source records, prompt section 22. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '22'
+requirements:
+- id: FO-22-01
+  section: '22'
+  kind: constraint
+  text: Preserve all 27 invariant IDs with their meaning.
+  acceptance: Catalog keeps 27 ids with exact text; FO requirements reference them.
+  originalIds:
+  - AUTH-01
+  - AUTH-07
+  - DATA-01
+  - DATA-04
+  - ACT-01
+  - ACT-05
+  - SAFE-01
+  - SAFE-05
+  - OPS-01
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/requirements/catalog.yaml (27 invariants with exact text)
+  - docs/REQUIREMENTS_TRACEABILITY.md
+  gap: FO mapping and control evidence map pending.
+  remediation: FO-19-02, FO-19-52.
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-22-02
+  section: '22'
+  kind: constraint
+  text: Preserve administrative scope (no diagnosis, therapy, screening, medication advice).
+  acceptance: Enforced on real model outputs and templates.
+  originalIds:
+  - SAFE-01
+  - SPEC-10.no-clinical-advice
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety
+  - platform/src/business/contracts/*.ts (prohibitedAssertions)
+  - scenarios/risk/clinical_diagnosis.json, clinical_medication.json
+  gap: No model output enforcement path yet.
+  remediation: Output validator in model harness.
+  size: M
+  environmentDependency: clinical review of templates (PRQ-008)
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-22-03
+  section: '22'
+  kind: constraint
+  text: Preserve three audiences with role enforcement.
+  acceptance: Policy and contracts enforce audiences.
+  originalIds:
+  - SPEC-4.audience-permissions
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/contracts/define.ts:13-21
+  - policy/
+  - platform/test/journeys/j3-j4-authorization.test.ts
+  gap: Registries fixture-only.
+  remediation: Real registry connectors.
+  size: M
+  environmentDependency: authoritative relationship registries
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+- id: FO-22-04
+  section: '22'
+  kind: constraint
+  text: Preserve role/proxy restrictions.
+  acceptance: Proxy expiry and scope enforced.
+  originalIds:
+  - SPEC-4.role-selection
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'policy/vsp/authz.rego:184-195,429 (fact expiry: an unreadable or past validUntil is expired, deny); platform/src/adapters/local/relationship-directory-fixture.ts:226-227 (fixture supplies validUntil/AUTHORIZATION_EXPIRED); platform/src/adapters/live/business-systems-blocked.ts:123 (RelationshipDirectoryLiveBlocked); platform/test/journeys/recheck.test.ts'
+  gap: Fixture registry.
+  remediation: Real registry.
+  size: M
+  environmentDependency: guardianship/delegation source
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - evidence
+- id: FO-22-05
+  section: '22'
+  kind: constraint
+  text: Preserve account-bound identity.
+  acceptance: Verification only via account-bound methods.
+  originalIds:
+  - AUTH-01
+  - AUTH-03
+  - SPEC-7.assurance-tiers
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/session-service.ts, verification-service.ts
+  - platform/src/adapters/live/oidc-verifier.ts
+  gap: Live IdP linking blocked.
+  remediation: Keycloak realm tests.
+  size: M
+  environmentDependency: IdP clients (PRQ-005, PRQ-036)
+  workPackage: WP-05
+  provenance:
+    origin: extraction
+- id: FO-22-06
+  section: '22'
+  kind: constraint
+  text: Preserve exact-action confirmation.
+  acceptance: Confirmation bound to action digest in every runtime.
+  originalIds:
+  - ACT-01
+  - SPEC-11.confirmation-readback
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/digest.ts, action-service.ts
+  - platform/test/journeys/faults.test.ts:117
+  gap: Confirmation capture in the controllable media runtime does not exist.
+  remediation: Implement DTMF/speech confirmation in runtime.
+  size: M
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-22-07
+  section: '22'
+  kind: constraint
+  text: Preserve UNKNOWN handling.
+  acceptance: Ambiguous outcomes reconciled before retry or success.
+  originalIds:
+  - ACT-03
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.reconciliation.test.ts
+  - platform/src/adapters/live/salesforce-rest.contract.test.ts:253-279
+  gap: Apply to new connectors. reconcile_attempts is counted but never capped (platform/src/actions/action-service.ts:1544; no maximum anywhere), so an UNKNOWN action can be reconciled forever without escalation (c3.challenge FO-11-18).
+  remediation: Shared classification helper.
+  size: S
+  environmentDependency: none
+  workPackage: WP-01
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-22-08
+  section: '22'
+  kind: constraint
+  text: Preserve independent audit.
+  acceptance: Audit exported to an independent WORM sink and verified.
+  originalIds:
+  - OPS-01
+  - SPEC-13.audit-model
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/audit/chain.ts, verifier.ts, shipper.ts
+  - platform/src/audit/sinks/s3-object-lock.ts
+  gap: Fix wave 5 is committed, but route-audit deferral is still held in process memory and a crash loses it (platform/src/audit/deferred.ts:39-45, 'A durable deferral store ... (not implemented)'). This is the Section 1 observation and it remains open. The S3 Object Lock sink has never run against S3 or MinIO object lock and is not composed.
+  remediation: Add an audit_deferred table (migration 02xx) written in the same transaction as the safety_events row, flushed by the worker; and a MinIO object-lock contract test for S3ObjectLockAuditSink.
+  size: M
+  environmentDependency: audit account (PRQ-037, PRQ-040)
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    - remediation
+- id: FO-22-09
+  section: '22'
+  kind: constraint
+  text: Preserve verified transfer.
+  acceptance: Transfer success only after acceptance and connection.
+  originalIds:
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/transfer.ts
+  - platform/test/journeys/j5-j7-j8-routing.test.ts:36-80
+  gap: Fixture telephony only.
+  remediation: FO-19-27.
+  size: L
+  environmentDependency: carrier/routing authority
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-22-10
+  section: '22'
+  kind: constraint
+  text: Preserve human/safety continuity.
+  acceptance: Safety/human routes independent of AI and limits, for every runtime.
+  originalIds:
+  - SAFE-02
+  - SAFE-03
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - continuity.ai_off
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/adr/ADR-0012-safety-routes-exempt-from-limits.md
+  - talkdesk/studio-flow-spec.md
+  - docs/RUNBOOKS/ai-off-route.md
+  gap: No independent continuity route defined for the LiveKit runtime.
+  remediation: Design SIP-level fallback route.
+  size: M
+  environmentDependency: staffed routes and capacity evidence
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+- id: FO-22-11
+  section: '22'
+  kind: constraint
+  text: Preserve source-grounding.
+  acceptance: Spoken facts traceable to sources/receipts.
+  originalIds:
+  - SPEC-9.retrieval
+  - SPEC-11.response-gate
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/search.ts
+  - platform/src/voice/slots.ts
+  - platform/test/journeys/transactions.test.ts (ACT-F4 receipt-bound speech)
+  gap: No model-output grounding validator.
+  remediation: Add in model harness.
+  size: M
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-22-12
+  section: '22'
+  kind: constraint
+  text: Preserve retention/consent.
+  acceptance: Retention and consent enforced.
+  originalIds:
+  - DATA-03
+  - SPEC-6.consent-before-recording
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/retention/job.ts
+  - platform/src/privacy/consent.ts
+  gap: Durations unset; consent registry fixture.
+  remediation: Configurable sources.
+  size: M
+  environmentDependency: retention schedule (PRQ-025)
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-22-13
+  section: '22'
+  kind: evaluation
+  text: Preserve real audio tests.
+  acceptance: Audio test layer runs.
+  originalIds:
+  - SPEC-14.test-layers
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no audio tests
+  gap: Absent.
+  remediation: FO-19-70.
+  size: L
+  environmentDependency: consented voice fixtures for human voices
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+- id: FO-22-14
+  section: '22'
+  kind: document
+  text: Preserve capacity/cost planning.
+  acceptance: Model reproduced.
+  originalIds:
+  - SPEC-12.capacity-model
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scripts/capacity_model.py
+  - docs/capacity-cost-model.md
+  gap: Follow-on elements missing.
+  remediation: FO-19-55.
+  size: M
+  environmentDependency: traffic exports
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+- id: FO-22-15
+  section: '22'
+  kind: constraint
+  text: Preserve staged deployment.
+  acceptance: Environments and gates enforce staging.
+  originalIds:
+  - SPEC-15.pilot-promotion
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scripts/ci/check-release-manifest.ts (DEPLOYABLE_STATUS)
+  - docs/release/phase-gates.md
+  gap: ReleaseStatus enum uses IMPLEMENTED_OFFLINE (platform/src/protocol/release.ts:115).
+  remediation: Map to follow-on axes.
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-22-16
+  section: '22'
+  kind: software
+  text: Build the independent controllable LiveKit reference runtime as mandatory software.
+  acceptance: Runtime in docker composition with tests.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no LiveKit code
+  gap: Absent.
+  remediation: FO-19-10.
+  size: XL
+  environmentDependency: none locally
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-22-17
+  section: '22'
+  kind: software
+  text: Keep Talkdesk native as a qualified option.
+  acceptance: Package and qualification path retained and runnable.
+  originalIds:
+  - SPEC-3.vendor-capability-gate
+  - AUTH-07
+  derivedFrom: []
+  capabilityIds:
+  - conversation.talkdesk_native
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/ (capability-gate.md, auth-gate.md, expected-config.yaml)
+  - talkdesk/tools/validate-package.mjs, package.test.mjs (37/0)
+  - platform/src/adapters/live/talkdesk-blocked.ts (live adapter blocked)
+  gap: 'Inbound Talkdesk paths are real code: the MCP Streamable HTTP adapter and the telephony-control endpoints Studio calls. Outbound TalkdeskTelephonyLive and TalkdeskExploreClient are permanent BlockedLiveAdapter stubs (platform/src/adapters/live/talkdesk-blocked.ts:71,122), which section 21 allows only as a documented limit with a working reference path (LiveKit, still MISSING). talkdesk/tools/validate-package.mjs checks internal consistency only (''not tenant evidence'', ci.yml:102). No tenant qualification command exists, and the tenant is NOT_CONFIGURED.'
+  remediation: Implement adapter behind capability gate.
+  size: L
+  environmentDependency: Talkdesk tenant access (PRQ-004, PRQ-034)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-22-18
+  section: '22'
+  kind: constraint
+  text: Existing phone routing changes still require authority.
+  acceptance: No code path changes live routing without approval.
+  originalIds:
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/release.ts:9-23 (PSTN_TEST_CALLS, VENDOR_SANDBOX_INTEGRATION scopes)
+  - talkdesk/studio-flow-spec.md (operator steps)
+  gap: Carrier configuration commands for the LiveKit path will need the same gate.
+  remediation: Gate carrier config apply.
+  size: S
+  environmentDependency: routing authority
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-22-19
+  section: '22'
+  kind: software
+  text: Bounded graph option with a single durable case owner and mandatory controlled media runtime replaces the no-LangGraph/custom-speech preference.
+  acceptance: Bounded graph harness with one durable case owner, tested.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no graph harness in platform/src
+  - platform/src/business/support/support-request-service.ts (durable support requests)
+  gap: Absent.
+  remediation: FO-19-20.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-22-20
+  section: '22'
+  kind: software
+  text: 'Offline slice is no longer the endpoint: complete real adapters, composition, configuration and deployment package without waiting for prerequisites; external executions keep separate authorization.'
+  acceptance: As FO-19-06/08 and FO-19-98.
+  originalIds:
+  - SPEC-15.offline-slice
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'README.md (''Status: IMPLEMENTED_OFFLINE only'')'
+  - platform/src/main/container.ts:309-313
+  gap: Offline slice is still the product.
+  remediation: Phases B-G.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-07
+  provenance:
+    origin: extraction
+- id: FO-22-21
+  section: '22'
+  kind: evaluation
+  text: The offline slice becomes a regression environment.
+  acceptance: Fixture composition kept as a named regression profile.
+  originalIds:
+  - SPEC-15.offline-slice
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/main/local.ts
+  - platform/test/journeys
+  gap: Not labelled as regression profile; docs still present it as product status.
+  remediation: Rename profile and docs.
+  size: S
+  environmentDependency: none
+  workPackage: WP-07
+  provenance:
+    origin: extraction
+- id: FO-22-22
+  section: '22'
+  kind: software
+  text: Extend limited memory to permissioned historical timelines plus event-fed projections and live checks with coverage/recency evidence.
+  acceptance: As FO-19-15.
+  originalIds:
+  - SPEC-9.memory
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/support-memory.ts
+  gap: TTL support memory only.
+  remediation: FO-19-15.
+  size: XL
+  environmentDependency: tenant event feeds
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-22-23
+  section: '22'
+  kind: software
+  text: Eighteen tools and seven workflows are a baseline to extend, not a cap.
+  acceptance: Catalogue extended for follow-on intents.
+  originalIds:
+  - SPEC-8.tool-surface
+  - SPEC-4.workflow-catalogue
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/tools/definitions.ts:23-279 (exactly 18 tools)
+  - infra/stepfunctions/manifest.json (7 workflows)
+  gap: No extension (cancel, referral/authorization, callback starter).
+  remediation: Add tools/workflows with contracts.
+  size: L
+  environmentDependency: none
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+- id: FO-22-24
+  section: '22'
+  kind: software
+  text: Add product onboarding/studio.
+  acceptance: As FO-19-28.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - operator.studio
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/navigation.ts:13-25
+  gap: Absent.
+  remediation: FO-19-28.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-33
+  provenance:
+    origin: extraction
+- id: FO-22-25
+  section: '22'
+  kind: software
+  text: Add a real-model harness.
+  acceptance: Model harness runs conversations with tools.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/coordinator.ts (keyword coordinator)
+  gap: Absent.
+  remediation: FO-19-09.
+  size: XL
+  environmentDependency: model credential or local weights
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-22-26
+  section: '22'
+  kind: evaluation
+  text: Add full-duplex evaluation.
+  acceptance: Audio full-duplex scenarios with barge-in timing.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no audio evaluation
+  gap: Absent.
+  remediation: 'AudioDriver (FO-19-31) with full-duplex scripted callers: overlapping speech, barge-in at configured offsets, silence and noise. Measure barge-in stop latency and talk-over against slo.ts targets, scored by the existing aggregate.'
+  size: L
+  environmentDependency: none
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-22-27
+  section: '22'
+  kind: software
+  text: Add calibrated monitors.
+  acceptance: Monitors with measured precision/recall on labelled sets.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/audit/monitor.ts (audit completeness monitor only)
+  gap: No conversation/quality monitors.
+  remediation: 'Add platform/src/monitors/: conversation monitors (safety miss, false-resolution claim, PHI in output, unsupported clinical statement) as typed detectors over call evidence. Store labelled calibration sets under scenarios/calibration/ and report precision/recall with Clopper-Pearson bounds. A monitor cannot gate releases until calibrated against human labels (PRQ-012).'
+  size: L
+  environmentDependency: human-labelled data (PRQ-012)
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-22-28
+  section: '22'
+  kind: software
+  text: Add controlled improvement.
+  acceptance: As FO-19-32.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no improvement workflow
+  gap: Absent.
+  remediation: FO-19-32.
+  size: L
+  environmentDependency: none
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+- id: FO-22-29
+  section: '22'
+  kind: software
+  text: Add complete operator workflows.
+  acceptance: Operators complete configure-qualify-activate-investigate-rollback.
+  originalIds:
+  - SPEC-13.console
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages (approvals, kill switches, budgets, reconciliation exist)
+  gap: Configuration/qualification/activation workflows absent.
+  remediation: FO-19-28/29.
+  size: L
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-22-30
+  section: '22'
+  kind: constraint
+  text: Preserve baseline latency/naturalness targets; tighter goals are optimization targets, not substituted measured claims.
+  acceptance: Targets defined separately from measurements; only measured values reported as measured.
+  originalIds:
+  - SPEC-13.slo-definitions
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/slo.ts:85-136 (warm turn p50 800/p95 1500 ms, tool-backed p95 3000 ms, barge-in p95 250 ms)
+  - platform/src/observability/slo.test.ts
+  gap: No audio measurement path; no field distinguishing optimization targets.
+  remediation: Add target kind and measurement from media runtime.
+  size: S
+  environmentDependency: none
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+- id: FO-22-31
+  section: '22'
+  kind: constraint
+  text: Remove original calendar/staffing delivery estimates as completion promises.
+  acceptance: No delivery-date promises in docs.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/release/phase-gates.md (gates without dates)
+  - docs/capacity-cost-model.md (staffing arithmetic labelled illustrative)
+  gap: No automated check.
+  remediation: 'Add a docs-pack rule rejecting dated delivery commitments outside docs/spec/: a delivery verb (deliver, complete, ship, launch) together with a calendar date, month name or quarter (Q1-Q4) in the same sentence.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-22-32
+  section: '22'
+  kind: document
+  text: Earlier dated vendor/legal statements require current validation; the original source register is historical context, not proof of entitlement.
+  acceptance: Each vendor statement carries validation date and status.
+  originalIds:
+  - SPEC-16.integration-records
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/vendor-integration-inventory.md (S1..S24, UNKNOWN until verified)
+  - platform/src/adapters/integration-inventory.ts header (public docs = possible capability only)
+  gap: No validation-date field; section 23 research register not mapped.
+  remediation: Add validatedAt/source fields.
+  size: S
+  environmentDependency: vendor confirmation
+  workPackage: WP-44
+  provenance:
+    origin: extraction

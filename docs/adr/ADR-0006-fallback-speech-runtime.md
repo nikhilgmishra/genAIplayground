@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | **Proposed — Pending human approval**. Triggered only if TB-04 or TB-05 fail (PRQ-016, PRQ-017) |
+| Status | **Superseded by ADR-0018** ([ADR-0018](ADR-0018-followon-product-architecture.md), 2026-10-19): the follow-on prompt makes the controllable LiveKit runtime mandatory software, so the conditional "build no speech runtime unless TB-04 or TB-05 fail" decision no longer applies. Previous status: Proposed — Pending human approval, triggered only if TB-04 or TB-05 fail (PRQ-016, PRQ-017). Its fail-closed rules stay in force for the Talkdesk-native adapter only |
 | Date | 2026-10-17 |
 | Decided by | Not decided; this ADR records the conditional design direction from spec section 3 |
 | Approval needed from | Executive sponsor, security leadership, privacy counsel, procurement, finance |
