@@ -27,6 +27,10 @@ import {
   type ContractDescriptor,
 } from "./followon.js";
 import { driftReport, generatedSchemas, renderAll } from "./generate-schemas.js";
+import { loadCorpus } from "../evaluation/corpus.js";
+import { ScriptedConversationDriverFixture } from "../evaluation/evidence.fixture.js";
+import { runScenarios } from "../evaluation/runner.js";
+import { FakeClock } from "../shared/clock.js";
 import { commonFieldShapeProblem, contractViolations, envelopeViolations, toJsonSchema } from "./registry-check.js";
 import { COMMON_FIELDS, COMMON_FIELD_SPEC_PHRASES, CONTRACT_TRAITS, TRAIT_FIELDS, relevantCommonFields, type CommonField } from "./common-fields.js";
 import { SupportReference, SyncState } from "./support.js";
@@ -269,20 +273,30 @@ describe("follow-on contract registry", () => {
     }
   });
 
-  it("[FO-04-36][FO-04-37][FO-04-01] what the IN_USE corpus generator and scorer committed still parses under the current contracts (runtime evidence beside the source check)", () => {
+  it("[FO-04-36][FO-04-37][FO-04-01] what the IN_USE scorer produces over the committed corpus, and the committed scenarios, parse under the current contracts (runtime evidence beside the source check)", async () => {
     const walk = (dir: string): string[] =>
       readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]));
-    let results = 0;
+    // The scorer (scoreScenario, reached through runScenarios) is the IN_USE EvaluationResult producer.
+    // Its output is generated here over every committed corpus scenario rather than read from
+    // evidence/runs/**/results.jsonl: those per-run files are local output (gitignored), so a check
+    // over them proves nothing on a fresh checkout. ScriptedConversationDriverFixture is the labelled
+    // local fixture driver; the results round-trip through JSON as RunResultWriter stores them.
+    const corpus = loadCorpus(repoRoot);
+    const { results } = await runScenarios(new ScriptedConversationDriverFixture(), corpus.entries.map((e) => e.scenario), {
+      executionMode: "local_fixture",
+      environment: "local",
+      faultPlans: corpus.faultPlans,
+      clock: new FakeClock(),
+      runId: "run_registryContract0001",
+    });
     const badResults: string[] = [];
-    for (const file of walk(join(repoRoot, "evidence")).filter((f) => f.endsWith("results.jsonl"))) {
-      for (const line of readFileSync(file, "utf8").split("\n").filter((l) => l.trim().length > 0)) {
-        results++;
-        const r = EvaluationResult.safeParse(JSON.parse(line));
-        if (!r.success && badResults.length < 5) badResults.push(`${file}: ${r.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
-      }
+    for (const result of results) {
+      const r = EvaluationResult.safeParse(JSON.parse(JSON.stringify(result)));
+      if (!r.success && badResults.length < 5) badResults.push(`${result.scenarioId}: ${r.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`);
     }
     expect(badResults).toEqual([]);
-    expect(results).toBeGreaterThan(1_000);
+    expect(new Set(results.map((r) => r.scenarioId)).size).toBe(corpus.entries.length);
+    expect(corpus.entries.length).toBeGreaterThan(100);
     let scenarios = 0;
     const badScenarios: string[] = [];
     for (const file of walk(join(repoRoot, "scenarios")).filter((f) => f.endsWith(".json"))) {
