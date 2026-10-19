@@ -153,13 +153,11 @@ zero, one and many matches get the identical answer, and no counter that only re
 (after release, the same call can still verify). `unavailableReason` is audit evidence only: the gateway
 records it on the `tool.invoke` event (MCP) or the `verification.begun` event (`DENIED`, telephony
 control) and never returns it. A switch engaged between this check and the send is still enforced by the
-gated sender (that one caller then hears the generic "if eligible" answer). Without the reader nothing is
-pre-checked. Tests: `[OPS-KS-01]` in `verification-service.test.ts`, `gateway/tools/verification.test.ts`,
-`gateway/http/routes.test.ts` (the identity and gateway test harnesses pass the reader).
-**Composition status (open):** the LOCAL container (`platform/src/main/container.ts`) does not yet pass
-`notificationSwitches`, so the composed app does not yet pre-check: while these switches are engaged the gated
-sender refuses the send and the caller still hears the generic "if eligible" answer. See integration
-contract item 0.
+gated sender (that one caller then hears the generic "if eligible" answer). The reader is a required
+dependency, so a composition root cannot omit it; the LOCAL container passes `ops.killSwitches.snapshot`.
+Tests: `[OPS-KS-01]` in `verification-service.test.ts`, `gateway/tools/verification.test.ts`,
+`gateway/http/routes.test.ts` (identity and gateway test harnesses) and, over the composed LOCAL container,
+`ops/notification-gate.test.ts`.
 
 **Completion result and audit binding (additive).** `completeSecureLink` / `completeStepUp` return
 `VerificationCompletion = { bound, reasonCode, binding? }`. `binding` = `{ callId, sessionBindingRef,
@@ -235,10 +233,9 @@ SYNTHETIC.
 
 0. Composition root: pass `notificationSwitches` (the same `KillSwitchService.snapshot` reader the
    `KillSwitchGatedNotificationSender` uses) to `SecureVerificationService`, so verification answers the
-   human route while notifications are switched off (OPS-KS-01). The dependency is optional, so omitting it
-   compiles and silently keeps the "if eligible" answer; `platform/src/main/container.ts` omits it today
-   (open: `notificationSwitches: () => ops.killSwitches.snapshot(tenantId),`). Once it is wired, the field
-   should become required so a composition root cannot omit it.
+   human route while notifications are switched off (OPS-KS-01). The dependency is required (omitting it
+   would keep the "if eligible" answer while every send is refused); `platform/src/main/container.ts` passes
+   `() => ops.killSwitches.snapshot(tenantId)`.
 1. Gateway: obtain the bearer `sessionRef` from the trusted transport binding (TB-01), call
    `sessions.resolve(sessionRef, integration)` on EVERY request; treat any `SessionInvalidError` or
    `DependencyError` as deny. Never accept actor/role/subject/assurance/consent from tool arguments.
@@ -308,7 +305,6 @@ in-process HTTP server on 127.0.0.1).
   engineering of the approval. Ambiguous matches go to the (not implemented here) human recovery route.
 - Global-table replicas evaluate conditional writes per region; correctness assumes the single
   write region documented in the Terraform module.
-- OPS-KS-01 caller-facing pre-check: not yet composed in the LOCAL container (see integration contract
-  item 0). Its INTEGRATION target is `notifications.integrationId` (the wrapped sender's id); the gated
-  sender targets its `integrationId` option when one is set, which the container does not set today, so the
-  two agree only while no custom gate target is configured.
+- OPS-KS-01 caller-facing pre-check: its INTEGRATION target is `notifications.integrationId` (the wrapped
+  sender's id); the gated sender targets its `integrationId` option when one is set, which the container
+  does not set today, so the two agree only while no custom gate target is configured.

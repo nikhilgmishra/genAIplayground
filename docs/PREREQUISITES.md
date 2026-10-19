@@ -6,7 +6,7 @@ machine-readable source (validated by `platform/test/docs/prerequisites.test.ts`
 by hand.** Update the YAML, then run `node docs/tools/render-prerequisites.mjs`; the docs tests
 fail if this file is stale.
 
-As of 2026-10-17. No production or vendor account was inspected for this register.
+As of 2026-10-18. No production or vendor account was inspected for this register.
 
 ## How to read this register
 
@@ -29,16 +29,16 @@ As of 2026-10-17. No production or vendor account was inspected for this registe
 
 | Status | Records |
 |---|---:|
-| BLOCKED | 26 |
-| UNKNOWN | 26 |
-| **Total** | **52** |
+| BLOCKED | 27 |
+| UNKNOWN | 28 |
+| **Total** | **55** |
 
 Records satisfied (APPROVED or EVIDENCED with evidence and date): **0**.
 
 | Gate group | Records |
 |---|---|
 | G1 Before any PHI, real record or recording leaves synthetic environments | PRQ-002, PRQ-003, PRQ-025, PRQ-026, PRQ-027, PRQ-038, PRQ-040, PRQ-047, PRQ-048 |
-| G2 Before vendor sandbox integration (Phase 2) | PRQ-004, PRQ-005, PRQ-006, PRQ-023, PRQ-024, PRQ-034, PRQ-035, PRQ-036, PRQ-037, PRQ-052 |
+| G2 Before vendor sandbox integration (Phase 2) | PRQ-004, PRQ-005, PRQ-006, PRQ-023, PRQ-024, PRQ-034, PRQ-035, PRQ-036, PRQ-037, PRQ-052, PRQ-053, PRQ-054, PRQ-055 |
 | G3 Vendor capability gate (TB-01..TB-10) before relying on native Talkdesk AI | PRQ-013, PRQ-014, PRQ-015, PRQ-016, PRQ-017, PRQ-018, PRQ-019, PRQ-020, PRQ-021, PRQ-022 |
 | G4 Before any billable execution or real telephone test | PRQ-010, PRQ-043, PRQ-045 |
 | G5 Before protected workflows or a specific intent are enabled | PRQ-007, PRQ-029, PRQ-030, PRQ-031, PRQ-032, PRQ-033, PRQ-050 |
@@ -77,6 +77,9 @@ Live adapters stay disabled; the configuration guard rejects a live adapter with
 | PRQ-036 | BLOCKED | Identity owner | Non-production client, provider and workforce IdP tenants with OIDC clients (issuer, client id, redirect URIs, PKCE), synthetic test users and console role groups (approval AR-04; VQ-IDP-08). | Before secure-link verification and console SSO leave local fixtures | sandbox | AUTH-01, AUTH-03, SPEC-7.staff, console_sso | Identity owner issues the clients and synthetic users and requests AR-04. | AR-04; VQ-IDP-01, VQ-IDP-08 |
 | PRQ-037 | BLOCKED | Cloud platform owner with security leadership | AWS sandbox workload account and separately administered audit account, SCPs, CI OIDC deploy role and Terraform state backend with locking (VQ-AWS-03, VQ-AWS-08; approval AR-02). | Before terraform apply in any environment | sandbox | OPS-01, OPS-05, ADR-0008, PHASE-2 | Cloud platform owner names the accounts and state backend; request AR-02. Plans remain plan-only until then. | AR-02; VQ-AWS-03, VQ-AWS-08 |
 | PRQ-052 | UNKNOWN | Security leadership | Static credential exception (only if OAuth2 client credentials are unavailable for an integration), with narrow scope and rotation (approval AR-08). | Before any static bearer token is configured | sandbox | SPEC-8.credentials, STATIC_CREDENTIAL_EXCEPTION | Request AR-08 only if VQ-TD-24 shows OAuth2 is unsupported; otherwise mark NOT_APPLICABLE with that reason. | scope STATIC_CREDENTIAL_EXCEPTION; AR-08; VQ-TD-24 |
+| PRQ-053 | UNKNOWN | Repository administrator with platform owner | Repository OIDC subject customization include_claim_keys ["repo", "context", "job_workflow_ref"] set through the GitHub API, so the CI token subject matches the exact plan and apply role trust in infra/terraform/modules/iam_ci (environment and deploy.yml on main); the release role trust outside this stack (owner platform) uses the same subject format. | Before any CI plan or apply role is assumed (the trust fails closed until the customization is set) | ci | VSP-INF-03, OPS-05, SPEC-14.iam, PHASE-2 | Repository administrator sets the customization (repository-wide), records the API response and checks a plan job's token subject against the iam_ci subjects output; the platform owner aligns the release role trust before the change. | AR-15 |
+| PRQ-054 | UNKNOWN | Repository administrator with security leadership | GitHub plan environments (sandbox-plan, staging-plan, production-plan, production-dr-plan) and deploy environments (sandbox, staging, production, production-dr), every one limited to the main branch by a deployment branch rule, required reviewers on each deploy environment, and CODEOWNERS so that audit-module and policy changes need security review (owners UNKNOWN). | Before the deploy workflow runs a plan or apply in any environment | ci | VSP-INF-03, OPS-04, OPS-05, PHASE-2 | Repository administrator creates or reviews the environments and branch rules and exports their configuration as evidence; security leadership names the CODEOWNERS for infra/terraform/modules/audit and the policy directories. | AR-15 |
+| PRQ-055 | BLOCKED | Security administrator with platform engineering | Shared request-hash pepper (at least 32 random bytes) in the Secrets Manager secret request-hash-pepper (infra/terraform/modules/stack; container planned, never applied, no value) for the keyed request hash of platform/src/actions/tool-idempotency.ts, and the live gateway composition loading it for every instance (not implemented; refused with LIVE_COMPOSITION_NOT_IMPLEMENTED). | Before a live gateway composition runs in any deployed environment | all | DATA-01, SPEC-7.enumeration, DP-02, SAFE-02 | Security administrator decides generation, custody and rotation of the value (a new value makes earlier replay records fail closed as IDEMPOTENCY_KEY_REUSED); platform engineering wires the secret reference into the live composition when it exists. | - |
 
 ## G3 Vendor capability gate (TB-01..TB-10) before relying on native Talkdesk AI
 

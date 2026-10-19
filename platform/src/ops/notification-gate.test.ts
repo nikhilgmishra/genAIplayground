@@ -87,19 +87,37 @@ describe("notification kill switches through the LOCAL FIXTURE composition (MCP 
     );
     expect(res.status, JSON.stringify(res.body)).toBe(200);
   };
-  const beginBoth = async () => {
+  const beginBoth = async (hint = "avery.synthetic") => {
     // Fresh per-account verification throttle window for the SYNTHETIC person (identity limits are per hour).
     h.clock.advanceSeconds(2 * 3600);
     const before = h.c.identity.notifications.sent.length;
     const mcp = h.call();
     await mcp.start();
     await mcp.role("client");
-    const viaMcp = await mcp.tool("begin_verification", { method: "SECURE_LINK", locator: { kind: "PORTAL_USERNAME_HINT", hint: "avery.synthetic" } });
+    const viaMcp = await mcp.tool("begin_verification", { method: "SECURE_LINK", locator: { kind: "PORTAL_USERNAME_HINT", hint } });
     const studio = h.call();
     await studio.start();
     await studio.role("client");
-    const viaStudio = await studio.studio("POST", "/telephony/v1/session/verification", { method: "secure_link", role: "client", locator: { portalUsernameHint: "avery.synthetic" } });
-    return { delivered: h.c.identity.notifications.sent.length - before, viaMcp, viaStudio };
+    const viaStudio = await studio.studio("POST", "/telephony/v1/session/verification", { method: "secure_link", role: "client", locator: { portalUsernameHint: hint } });
+    return { delivered: h.c.identity.notifications.sent.length - before, viaMcp, viaStudio, mcpCallId: mcp.callId, studioCallId: studio.callId };
+  };
+  /** What the caller is told on each path (the MCP verification view + speech template, the Studio response + template). */
+  const told = (r: Awaited<ReturnType<typeof beginBoth>>) => {
+    const v = (r.viaMcp.data as { verification?: { status?: unknown; nextStep?: unknown } } | null | undefined)?.verification;
+    return {
+      mcp: { status: r.viaMcp.status, verification: v ? { status: v.status, nextStep: v.nextStep } : null, speech: r.viaMcp.speech?.templateId ?? null },
+      studio: { response: r.viaStudio.body.response, speechTemplateId: r.viaStudio.body.speechTemplateId },
+    };
+  };
+  const HUMAN_ROUTE = {
+    mcp: { status: "SUCCESS", verification: { status: "VERIFICATION_UNAVAILABLE_USE_HUMAN", nextStep: "HUMAN_VERIFICATION" }, speech: "verification.failed_generic" },
+    studio: { response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", speechTemplateId: "verification.failed_generic" },
+  };
+  /** The switch reason on the begin's audit events (tool.invoke over MCP, verification.begun over telephony control). */
+  const auditedReasons = async (r: Awaited<ReturnType<typeof beginBoth>>) => {
+    const invoke = (await h.auditFor(r.mcpCallId)).filter((e) => e.action === "tool.invoke" && (e.evidencePointers ?? []).some((p) => p.includes("/begin_verification/")));
+    const begun = (await h.auditFor(r.studioCallId)).filter((e) => e.action === "verification.begun");
+    return { mcp: invoke.map((e) => [e.outcome, e.reasonCode]), studio: begun.map((e) => [e.outcome, e.reasonCode]) };
   };
 
   it("[SPEC-13.kill][OPS-KS-01] control: with switches clear both paths deliver the secure link", async () => {
@@ -116,6 +134,42 @@ describe("notification kill switches through the LOCAL FIXTURE composition (MCP 
     await setSwitch("OUTBOUND_NOTIFICATIONS", "*", false);
     expect((await beginBoth()).delivered).toBe(2);
   }, 120_000);
+
+  it("[SPEC-13.kill][OPS-03][OPS-KS-01][SPEC-7.no-enumeration][AUTH-ENUM-01] OUTBOUND_NOTIFICATIONS engaged via the console: both paths answer the human route with verification.failed_generic, identically for real and unknown people, and audit the switch reason", async () => {
+    await setSwitch("OUTBOUND_NOTIFICATIONS", "*", true);
+    try {
+      const real = await beginBoth("avery.synthetic");
+      const unknown = await beginBoth("nobody.synthetic-unknown");
+      expect(real.delivered + unknown.delivered).toBe(0);
+      // Never "a link was sent" while nothing can be sent; the same answer whether or not the person exists.
+      expect(told(real)).toEqual(HUMAN_ROUTE);
+      expect(told(unknown)).toEqual(HUMAN_ROUTE);
+      expect(JSON.stringify([real.viaMcp, real.viaStudio.body])).not.toContain("KILL_SWITCH");
+      const reasons = { mcp: [["SUCCEEDED", "KILL_SWITCH_OUTBOUND_NOTIFICATIONS"]], studio: [["DENIED", "KILL_SWITCH_OUTBOUND_NOTIFICATIONS"]] };
+      expect(await auditedReasons(real)).toEqual(reasons);
+      expect(await auditedReasons(unknown)).toEqual(reasons);
+    } finally {
+      await setSwitch("OUTBOUND_NOTIFICATIONS", "*", false);
+    }
+    const released = await beginBoth("avery.synthetic");
+    expect(released.delivered).toBe(2);
+    expect(told(released).studio).toEqual({ response: "IF_ELIGIBLE_A_LINK_WAS_SENT", speechTemplateId: "verification.secure_link_sent" });
+  }, 180_000);
+
+  it("[SPEC-13.kill][OPS-KS-01][SPEC-7.no-enumeration] INTEGRATION(notifications) engaged via the console: both paths answer the human route for real and unknown people alike", async () => {
+    await setSwitch("INTEGRATION", "notifications", true);
+    try {
+      const real = await beginBoth("avery.synthetic");
+      const unknown = await beginBoth("nobody.synthetic-unknown");
+      expect(real.delivered + unknown.delivered).toBe(0);
+      expect(told(real)).toEqual(HUMAN_ROUTE);
+      expect(told(unknown)).toEqual(HUMAN_ROUTE);
+      expect((await auditedReasons(unknown)).studio).toEqual([["DENIED", "KILL_SWITCH_INTEGRATION"]]);
+    } finally {
+      await setSwitch("INTEGRATION", "notifications", false);
+    }
+    expect((await beginBoth()).delivered).toBe(2);
+  }, 180_000);
 
   it("[SPEC-13.kill][OPS-KS-01] INTEGRATION(notifications) engaged via the console stops sends on both paths", async () => {
     await setSwitch("INTEGRATION", "notifications", true);

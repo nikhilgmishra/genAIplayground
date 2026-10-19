@@ -25,7 +25,7 @@ const groups = [
     id: "G2",
     title: "Before vendor sandbox integration (Phase 2)",
     why: "Live adapters stay disabled; the configuration guard rejects a live adapter without a VENDOR_SANDBOX_INTEGRATION approval.",
-    ids: ["PRQ-004", "PRQ-005", "PRQ-006", "PRQ-023", "PRQ-024", "PRQ-034", "PRQ-035", "PRQ-036", "PRQ-037", "PRQ-052"],
+    ids: ["PRQ-004", "PRQ-005", "PRQ-006", "PRQ-023", "PRQ-024", "PRQ-034", "PRQ-035", "PRQ-036", "PRQ-037", "PRQ-052", "PRQ-053", "PRQ-054", "PRQ-055"],
   },
   {
     id: "G3",

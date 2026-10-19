@@ -12,8 +12,8 @@
  * match_code) so the caller can compare it with the words the portal shows.
  *
  * Notifications switched off (OPS-KS-01): while OUTBOUND_NOTIFICATIONS or INTEGRATION
- * notifications is engaged (or the switch state is unreadable) a verification service composed with
- * the kill-switch reader (`notificationSwitches`) answers VERIFICATION_UNAVAILABLE_USE_HUMAN before
+ * notifications is engaged (or the switch state is unreadable) the verification service (composed
+ * with the kill-switch reader `notificationSwitches`) answers VERIFICATION_UNAVAILABLE_USE_HUMAN before
  * any lookup, so the caller hears the `verification.failed_generic` template (registry status DRAFT)
  * and is offered the human route instead of waiting for a message that is never sent. The service's
  * reason code goes on the `tool.invoke` audit event only (`auditReasonCode`); it is global state,

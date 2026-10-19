@@ -176,11 +176,10 @@ export interface VerificationServiceDeps {
    * (`KillSwitchService.snapshot`, the same reader the KillSwitchGatedNotificationSender is composed
    * with). Consulted before any account lookup; a throw, a rejection or a malformed snapshot counts
    * as "switched off" (fail closed, like the gated sender). The INTEGRATION target is
-   * `notifications.integrationId`. When omitted nothing is pre-checked and, while sends are refused, the
-   * caller still hears the generic "if eligible" answer; a composition root must therefore always pass it
-   * (README, integration contract item 0).
+   * `notifications.integrationId`. Required: without it a refused send would still be answered with the
+   * generic "if eligible" response (README, integration contract item 0).
    */
-  notificationSwitches?: () => Promise<KillSwitchSnapshot>;
+  notificationSwitches: () => Promise<KillSwitchSnapshot>;
 }
 
 const STORE_GRACE_SECONDS = 3600;
@@ -666,11 +665,9 @@ export class SecureVerificationService implements VerificationService {
    * account-related and touches no counter.
    */
   private async notificationsSwitchedOff(hash: string, method: "secure_link" | "otp" | "step_up"): Promise<VerificationUnavailableReason | null> {
-    const read = this.deps.notificationSwitches;
-    if (!read) return null;
     let snapshot: KillSwitchSnapshot | null = null;
     try {
-      const s = await read();
+      const s = await this.deps.notificationSwitches();
       if (s && typeof s.outboundNotifications === "boolean" && Array.isArray(s.integrations)) snapshot = s;
     } catch {
       snapshot = null; // unreadable: fail closed

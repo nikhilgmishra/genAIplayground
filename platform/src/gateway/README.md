@@ -118,7 +118,7 @@ is UNKNOWN (VQ-TD-26). Tests: `mcp.test.ts`.
 ### Notifications switched off: `begin_verification` offers the human route (OPS-KS-01)
 
 While `OUTBOUND_NOTIFICATIONS` or `INTEGRATION notifications` is engaged (or the switch state is
-unreadable) a verification service composed with the kill-switch reader (`notificationSwitches`) answers
+unreadable) the verification service (composed with the kill-switch reader `notificationSwitches`) answers
 `VERIFICATION_UNAVAILABLE_USE_HUMAN` before any lookup (`platform/src/identity/README.md`), so
 `begin_verification` returns `nextStep: HUMAN_VERIFICATION` with the `verification.failed_generic` template
 (registry status DRAFT, pending support-operations review), and the telephony-control begin
@@ -131,13 +131,8 @@ returns; the telephony route records `verification.begun` as `DENIED` with that 
 `PENDING`. The policy catalogue still does not map `verification:begin` to the `notifications`
 integration, so policy allows the begin and the service decides. Tests: `tools/verification.test.ts`
 (real pipeline, policy and audit), `http/routes.test.ts`; both use the gateway test harness, which passes
-its kill-switch reader to the service.
-
-**Composition status (open):** the LOCAL container (`platform/src/main/container.ts`) does not yet pass
-`notificationSwitches` to `SecureVerificationService`. Until it does, the composed app keeps the earlier
-behaviour while these switches are engaged: the gated sender refuses the send (logged, nothing reaches the
-provider) and the caller still hears the generic "if eligible, a link was sent" answer, so staff must offer
-the human route. The missing line is `notificationSwitches: () => ops.killSwitches.snapshot(tenantId),`.
+its kill-switch reader to the service. Over the composed LOCAL container (both paths, console-engaged
+switch): `ops/notification-gate.test.ts`.
 
 ### `vsp_protected_actions_total` audit label (OPS-01; finding OPS-AUD-01)
 

@@ -350,6 +350,9 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       directory,
       oidc,
       notifications: gatedNotifications,
+      // OPS-KS-01 (caller-facing): the same snapshot reader as the gated sender, so every verification begin
+      // answers the human route, before any account lookup, while notifications are switched off.
+      notificationSwitches: () => ops.killSwitches.snapshot(tenantId),
       clock,
       logger,
       metrics,
