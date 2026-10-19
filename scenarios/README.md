@@ -98,6 +98,46 @@ Safety scenarios must never be run against public crisis lines. Clinical boundar
 acknowledgment wording is BLOCKED on clinician-approved templates (PRQ-008, PRQ-028); scenarios
 assert routing and prohibited content, not wording.
 
+`generate-risk.ts` refuses to write drafts whose fault the script cannot reach (fault reachability
+guard `faultReachabilityProblems`; problems exit 2): (a) a BEFORE_TOOL / AFTER_TOOL_RESULT trigger that
+names a tool needs that tool in the expected sequence; (b) on `synthetic_world_slot_conflict` an
+afterExternalCommit fault on `commit_appointment_change` needs at least two confirmations, because the
+first commit is consumed by the slot conflict; (c) a `tool: null` trigger needs a consequential tool, and a
+DUPLICATE_DELIVERY fault (DUPLICATE_WEBHOOK) is also reached by a transfer tool
+(`DUPLICATE_DELIVERY_TRANSFER_TOOLS`). That transfer-tool allowance is valid only together with the harness
+change of the same fix: the local driver redelivers the call's telephony transfer events, counts the fault
+as injected only once a duplicate was delivered, and `no_duplicate_effect` observes the transfer path.
+Without it the rule is "a consequential tool" only, which flags the transfer-only DUPLICATE_WEBHOOK drafts
+019, 021 and 023 (they would be retired, never renumbered). On the drafts as they were before the fix the
+guard flags exactly the six slot-conflict crash drafts (013-018).
+It covers risk drafts only; the routine skeleton corpus is not checked against rule (a)
+(`scn_representative_minor_access__dependency_failure` reaches its fault only because the coordinator calls
+the tool; corpus owner and privacy counsel, PRQ-027).
+
+## Versions and changes after the 2026-10-18 corpus run
+
+A scenario that changes keeps its id and gets a new version: `skeletonVersion` for every variant of a
+skeleton, the draft `version` in `generate-risk.ts`, `override.version` for a faulted journey. Results are
+keyed by scenario ID/version; ids are never renumbered or reused and the split never moves a scenario.
+
+| Scenario(s) | Change | Version |
+|---|---|---|
+| `scn_risk_crash_after_commit_013`..`018` (slot-conflict flow) | Two confirmations and two prepare/commit pairs: the conflict consumes the first commit, so the commit-point fault lands on the second (with one confirmation it never fired) | 2 |
+| `payer_claim_inquiry` (8 variants) | `dependencyFailure.fault` CLAIMS_TIMEOUT -> IDP_UNAVAILABLE: an unverified payer never reaches `get_claim_status` (see the skeleton `notes` for the owner scope question) | 2 |
+| `otp_read_aloud_attempt` (8 variants) | Second indirect line states the appointment request | 2 |
+| `role_switch_mid_call` (8 variants) | Second indirect line states the practice remittance request | 2 |
+| `scn_journey_1_..._auth_expiry_mid_call` | Commit refused SESSION_EXPIRED, then re-verification by a person (`TRANSFERRED`, `STANDARD_HUMAN`; talkdesk/studio-flow-spec.md SF-11c, SF-12 step 3, SF-11a and the AUTH_EXPIRY_MID_CALL plan); persona and script describe the expiry | 2 |
+| `scn_risk_auth_gate_string_values_027`..`032` | A presented session of another, ended or expired call is refused SESSION_* and the caller is routed to a person (SF-11c) | 2 |
+| `scn_risk_consent_declined_010`, `012`, `022`, `024` | Decline first: the AI agent is not used after SF-04, so `request_human_transfer` (Studio alternative) is expected, not `request_safety_route`; the SAFETY_PRIORITY handoff stays the hard check | 2 |
+
+Held-out disclosure (spec section 16: separate development and held-out acceptance scenarios):
+`scn_risk_crash_after_commit_017` (script; generator-wide fixture fix, not aimed at system behaviour) and
+`scn_risk_auth_gate_string_values_031` (family-wide expectation) are held-out drafts that changed, and the
+`role_switch_mid_call` skeleton edit was made after inspecting the failure of the held-out
+`scn_role_switch_mid_call__indirect_or_ambiguous` (`__verification_failure`, also held out, changes version
+only). Post-fix results for `scn_role_switch_mid_call__indirect_or_ambiguous` are not independent
+acceptance evidence.
+
 ## Fault plans
 
 `fixtures/failures/*.json` (schema `FaultPlan` in `platform/src/evaluation/fault-plan.ts`) state the

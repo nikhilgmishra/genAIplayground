@@ -20,6 +20,11 @@
  *    token from the LOCAL FIXTURE IdP; the Auth Gate (TC-04) decides "verified";
  *  - mutations are prepared, confirmed by the deterministic DTMF Skill (TC-07,
  *    TC-08) and only then committed with {actionId, digest};
+ *  - a tool refused for an invalid session (POLICY_DENIED SESSION_*) gets the approved
+ *    verification-failed notice and re-verification by a person (SF-11c), like any
+ *    other verification failure;
+ *  - after a recording decline the AI layer is not used again (SF-04): the state is set
+ *    as soon as the decline is known, Studio's approved alternative follows once;
  *  - it speaks only approved templates rendered by the response gate.
  *
  * HOSTILE PROBES: when a caller asks for another person's records, injects
@@ -96,6 +101,21 @@ const HUMAN = [
   /\bconnect me (to|with) (someone|somebody|a person)\b/i,
 ];
 const ACK = /^(\W*)(thanks|thank you|okay|ok|fine|great|sure|yes|yeah|no|right|got it|alright)\b|\b(that'?s all|that'?s what i needed|makes sense|thank you|thanks)\b/i;
+/** An opening-hours question (A0 public information). */
+const HOURS = /\b(hours|open on weekends|when you'?re open|when are you open|when do you open|what time (do|are) you (open|close)|what time (are you|is the office) open|reach somebody)\b/;
+/** An EXPLICIT hours question: it outranks a bare billing mention in the same utterance ("on hold for hours about my bill" does not). */
+const HOURS_QUESTION = /\b((your|the|support|portal|office|opening|business) hours|open on weekends|when you'?re open|when are you open|when do you open|what time (do|are) you (open|close)|what time (are you|is the office) open)\b/;
+/**
+ * A stated non-attendance ("I won't be able to make it next week") read as an appointment request, but only
+ * when it names an EXPLICIT time (next <day|week|time>, tomorrow, today, this <week|weekend|part of day>,
+ * on <weekday>). A bare "I'm not going to make it" never matches and stays uninterpreted; the guard keeps
+ * safety-adjacent idioms ("on my own anymore", "much longer", "through tonight", "this far") out of the
+ * administrative path even next to a time phrase. The backend screen has already run on the utterance.
+ */
+const ATTENDANCE = /\b(can'?t|cannot|won'?t|unable to|not (going to|gonna))( be able to)? (make it|come in)( to (my|the) (appointment|session|visit))? (next (week|time|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|tomorrow|today|this (week|weekend|morning|afternoon|evening)|on (monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/;
+const ATTENDANCE_GUARD = /\b(anymore|on my own|much longer|through|this far)\b/;
+/** A role switch needs a STATED personal request; announcing "one personal" selects no role. */
+const ROLE_SWITCH = /\b(as a patient myself|client myself|my own (bill|appointment)|personal bill)\b/;
 const SESSION_INVALID = /^SESSION_/;
 /** Denials that are an outage, not an authorization answer: the caller goes to a person. */
 const ROUTE_ON_DENIAL = /POLICY_(ENGINE|ERROR|UNAVAILABLE|EVALUATION)|BUDGET|ADMISSION|KILL_SWITCH|CAPACITY|LOAD_SHED|AUDIT|WRITES_FENCED|MUTATIONS_DISABLED/;
@@ -128,6 +148,10 @@ export class SimulatedCoordinator {
   /** AUTH_GATE_VALUE: the flow BELIEVES the gate is open (naive mapping or a foreign session). */
   private gateBelief: { sessionRef: string | null } | null = null;
   private consentDeclined = false;
+  /** The Studio approved alternative after a decline is requested once per call. */
+  private declineAlternativeRequested = false;
+  /** A billing review was submitted (SUCCESS receipt); a later turn is a follow-up, never a new review. */
+  private reviewSubmitted = false;
   private aiExited = false;
   private relay = false;
   private interpretedAny = false;
@@ -290,10 +314,21 @@ export class SimulatedCoordinator {
     }
   }
 
-  /** Studio SF-04 decline (Phase 2 default): the approved alternative, AI not used for the rest of the call. */
-  async consentDeclinedAlternative(): Promise<void> {
+  /**
+   * Studio SF-04 decline, STATE only: from now on the AI layer is not used and nothing administrative
+   * runs (routed to a person). Set as soon as the decline is known (the driver calls it inside startCall
+   * for a decline before the first caller turn), so no fault armed afterwards can find the AI active.
+   */
+  markConsentDeclined(): void {
     this.consentDeclined = true;
-    this.routed = "HUMAN";
+    if (this.routed === null) this.routed = "HUMAN";
+  }
+
+  /** Studio SF-04 decline (Phase 2 default): the approved alternative, AI not used for the rest of the call. Requested once. */
+  async consentDeclinedAlternative(): Promise<void> {
+    this.markConsentDeclined();
+    if (this.declineAlternativeRequested) return;
+    this.declineAlternativeRequested = true;
     this.s.speakTemplate("studio", "recording.decline_alternative");
     await this.s.studioHumanRequest("CONSENT_DECLINED_ALTERNATIVE", lang2(this.s.locale), null);
   }
@@ -330,10 +365,14 @@ export class SimulatedCoordinator {
     // "Jordan Synthetic-Unknown" is a person outside the synthetic world unless the caller introduces themself as Jordan.
     const jordanSelf = /\b(i'?m|i am|my name is|this is) jordan\b/.test(t) && !/\bjordan( synthetic-unknown)?'s\b/.test(t);
     const namesJordan = /\bjordan\b/.test(t) && !jordanSelf;
-    if (personOther || namesJordan || /\b(roommate|neighbou?r|husband|wife|spouse|someone i live with|on behalf of|our employee|our members|list of (all|our)|employee named|a friend of mine|one of your (patients|clients))\b/.test(t)) {
+    if (
+      personOther ||
+      namesJordan ||
+      /\b(roommate|neighbou?r|husband|wife|spouse|someone i live with|on behalf of|our employee|our members|list of (all|our)|employee named|a friend of mine|one of your (patients|clients)|one of our (people|employees|staff|members)|who from our plan|coordinate care for (someone|a client|a patient))\b/.test(t)
+    ) {
       if (!/\b(end (his|her|their) life|kill)\b/.test(t)) return { skill: "other_subject", target: other ?? null };
     }
-    if (/\b(as a patient myself|client myself|my own (bill|appointment)|personal bill|one personal)\b/.test(t) && role !== "client") return { skill: "invoice", target: "role_switch" };
+    if (ROLE_SWITCH.test(t) && role !== "client") return { skill: "invoice", target: "role_switch" };
     if (/\b(notes|what they wrote|in my file|clinical records?|their history|session history)\b/.test(t)) return { skill: "records" };
     if (/\b(for a client|a client of mine|history for a client)\b/.test(t)) return { skill: "other_subject", target: null };
     if (/\b(depress\w*|diagnos\w*|adhd|screening questions|medications?|dose|antidepressants?|pills|anxiety|panic attacks?|therapy session|do (a |some )?therapy|talk me through|easier to talk to)\b/.test(t)) return { skill: "clinical" };
@@ -353,25 +392,33 @@ export class SimulatedCoordinator {
     if (/\b(contract|our agreement)\b/.test(t)) return { skill: "partner_contract" };
     if (role === "payer_representative" && /\bclaim\b/.test(t)) return { skill: "payer_claim" };
     if (/\bclaim\b/.test(t)) return { skill: "claim" };
-    if (/\b(case|ticket|support request|request acme submitted|reported|following up|update on|billing review|called yesterday|where my issue stands|thing i reported|thing from before|it'?s me again|asked for something|never heard anything|intake request)\b/.test(t)) return { skill: "case_status" };
+    // Waiting on the insurer about a past session is a claim-status question (deliberately narrow: "my
+    // insurance wants paperwork" stays superbill, "insurance should have paid" stays a dispute).
+    if (/\b(waiting (to hear back |to hear )?(from|on)|hear(d)? back from) (my |the )?insurance\b/.test(t)) return { skill: "claim" };
+    if (/\b(case|ticket|support request|request acme submitted|reported|following up|update on|billing review|called yesterday|where my issue stands|thing i reported|thing from before|it'?s me again|asked for something|never heard anything|intake request|what we (talked|spoke) about|what we discussed)\b/.test(t)) return { skill: "case_status" };
     if (/\binsurance\b.*\b(take|accept)\b|\b(take|accept)\b.*\binsurance\b|\bcovered\b|paying for this myself/.test(t)) return { skill: "faq", runbookIntent: "billing_statement_explain" };
     if (/\b(what (kinds of )?services|what you do|video appointments)\b/.test(t)) return { skill: "faq", runbookIntent: "human_request" };
     if (role === "provider" && /\b(open slots|my week|how full)\b/.test(t)) return { skill: "provider_schedule" };
-    if (/\b(appointment|session|visit|slot|book|reschedule|see my provider)\b/.test(t) || /\bdifferent day\b/.test(t)) {
+    const attendance = ATTENDANCE.test(t) && !ATTENDANCE_GUARD.test(t);
+    if (/\b(appointment|session|visit|slot|book|reschedule|see my provider)\b/.test(t) || /\bdifferent day\b/.test(t) || attendance) {
       if (/\bcancel\b/.test(t) && !/late cancellation|cancellation (fee|charge)/.test(t)) return { skill: "appt_cancel" };
       if (/\b(move|reschedule|different day|change)\b/.test(t)) return { skill: "appt_reschedule" };
       if (/\b(book|another session|new appointment|see my provider again|get in to see)\b/.test(t)) return { skill: "appt_create" };
       if (/\b(video link|link for my session|join my video)\b/.test(t)) return { skill: "faq", runbookIntent: "portal_login_help" };
+      // Not attending: no cancellation capability exists, so this becomes the honest handoff (appt_cancel), never a mutation.
+      if (attendance) return { skill: "appt_cancel" };
       return { skill: "appt_lookup" };
     }
     if (/\b(video link|join my video|browser|click the thing|the link thing)\b/.test(t)) return { skill: "faq", runbookIntent: "portal_login_help" };
     if (/\b(pay (my|the) bill|owe you guys|make a payment|taken care of)\b/.test(t)) return { skill: "payment" };
     if (/\b(dispute|shouldn'?t have to pay|should not have to pay|should have to pay)\b/.test(t)) return { skill: "billing_dispute" };
     if (/\b(fee|charge)\b.*\b(removed|remove|take it off|waive)\b|\bwasn'?t my fault\b/.test(t)) return { skill: "fee_waiver" };
-    if (/\b(bill|charge|invoice|statement|balance|owe|charges)\b/.test(t)) return { skill: "invoice" };
+    // A bare billing mention ("about my bill", "another charge?") next to an explicit hours question: the question
+    // wins (A0 public information, no verification or role needed); a later billing turn still reaches invoice.
+    if (/\b(bill|charge|invoice|statement|balance|owe|charges)\b/.test(t)) return HOURS_QUESTION.test(t) ? { skill: "faq", runbookIntent: "human_request" } : { skill: "invoice" };
     if (/\b(log ?in|sign in|password|portal|website)\b/.test(t)) return { skill: "login" };
     if (/\b(slower|slowly|repeat|going a bit fast|didn'?t catch)\b/.test(t)) return { skill: "faq", runbookIntent: "accessibility_help" };
-    if (/\b(hours|open on weekends|when you'?re open|when are you open|reach somebody)\b/.test(t)) return { skill: "faq", runbookIntent: "human_request" };
+    if (HOURS.test(t)) return { skill: "faq", runbookIntent: "human_request" };
     if (/\brecord(ed|ing)\b/.test(t)) return { skill: "faq", runbookIntent: "recording_question" };
     if (this.s.persona.person !== null && /\b(check something|quick question|question for you|help with my account|i'?m a (client|provider|patient))\b/.test(t)) return { skill: "account_generic" };
     // An organization caller states its affiliation first: verify, then wait for the actual request.
@@ -507,7 +554,10 @@ export class SimulatedCoordinator {
     }
     if (r.status === "POLICY_DENIED") {
       if (code && SESSION_INVALID.test(code)) {
+        // Same caller-visible step as any other verification failure (verificationFailed): the approved
+        // notice first, then re-verification by a person (SF-11c VERIFICATION_RECOVERY).
         this.verified = false;
+        this.s.speakTemplate("coordinator", "verification.failed_generic");
         await this.routeHuman("VERIFICATION_RECOVERY", this.issueCategoryOfActive(), "HUMAN");
       } else if (code && ROUTE_ON_DENIAL.test(code)) {
         await this.routeHuman("DEPENDENCY_FAILURE", this.issueCategoryOfActive(), "HUMAN");
@@ -715,7 +765,7 @@ export class SimulatedCoordinator {
       }
       return false;
     }
-    if (/\b(as a patient myself|client myself|my own (bill|appointment)|personal bill|one personal)\b/.test(t) && this.s.persona.role !== "client") return false;
+    if (ROLE_SWITCH.test(t) && this.s.persona.role !== "client") return false;
     if (/\bverified already|already checked who i am|you already checked\b/.test(t)) {
       this.s.speakTemplate("coordinator", this.verified ? "status.checking" : "policy.denied_generic");
       return true;
@@ -736,6 +786,15 @@ export class SimulatedCoordinator {
         }
         return true;
       case "billing_dispute":
+        if (this.reviewSubmitted) {
+          // After a submitted review a turn is a follow-up ("the reference again?"), never a new review: answered by
+          // the backend-authorized read (the backend renders the recap; the coordinator composes nothing). A new
+          // intent goes to classification like any other skill's follow-up.
+          const again = this.classify(t);
+          if (again && again.skill !== c.skill && again.skill !== "faq") return false;
+          if (!ACK.test(t)) await this.call("get_authorized_case_status", { supportReference: null }, this.presented());
+          return true;
+        }
         if (!this.pendingAction && this.invoiceId) {
           this.reviewReason = this.reviewReason ?? reviewReasonOf(t) ?? "OTHER";
           await this.prepareReview();
@@ -854,6 +913,7 @@ export class SimulatedCoordinator {
     }
     const r: ToolResult | null = await this.call(pa.tool, { actionId: pa.actionId, digest: pa.digest }, this.presented());
     this.pendingAction = null;
+    if (r?.status === "SUCCESS" && pa.tool === "submit_billing_review") this.reviewSubmitted = true;
     if (r?.status === "SUCCESS" && pa.tool === "commit_appointment_change") {
       const d = r.data as { committed?: boolean; appointments?: { slotId?: string | null; startsAt: string; timeZone: string; status: string }[] };
       if (d.committed === false) {

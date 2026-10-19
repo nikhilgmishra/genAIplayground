@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CALLS, IDP, PEOPLE } from "../fixtures/synthetic-world.js";
 import { hmacHex, sha256Hex } from "../shared/canonical.js";
 import { AccessDeniedError, SessionInvalidError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
 import type { DirectoryPersonFixture } from "../adapters/local/identity-directory.js";
 import { APPROVED_NOTIFICATION_TEMPLATES, NON_NEUTRAL_TERMS } from "../adapters/local/notification-fixture.js";
+import { emptySnapshot } from "../ops/kill-switches.js";
+import type { KillSwitchSnapshot } from "../ops/ports.js";
 import { LOCAL_FIXTURE_OTP_PEPPER, createIdentityHarness, mcp, portal, telephony } from "./identity-harness.fixture.js";
 import type { IdentityHarness } from "./identity-harness.fixture.js";
 import { kvKeys, sessionBindingRefFor } from "./keys.js";
@@ -852,6 +854,128 @@ describe("step-up (A3 bound to one prepared action)", () => {
     const idToken = await h.idp.issueFor(PEOPLE.avery, { nonce: link.nonce });
     expect(await h.verification.completeSecureLink({ ...link, idToken, matchCodeConfirmed: true })).toEqual({ bound: false, reasonCode: "VERIFICATION_TRANSACTION_UNAVAILABLE" });
     expect((await h.verification.completeStepUp({ ...link, idToken })).bound).toBe(true);
+  });
+});
+
+describe("[OPS-KS-01] outbound notifications switched off: the caller is routed to a human instead of waiting for a message", () => {
+  const UNKNOWN = { fullName: "Nobody Synthetic-Unknown", dateOfBirth: "1999-09-09" };
+  const DIGEST = sha256Hex("prepared-action-ks");
+  /** Mutable kill-switch state read by the service, like KillSwitchService.snapshot in the composition root. */
+  function switches() {
+    const box: { state: KillSwitchSnapshot | null; failing: boolean; reads: number } = { state: emptySnapshot(), failing: false, reads: 0 };
+    const read = async (): Promise<KillSwitchSnapshot> => {
+      box.reads++;
+      if (box.failing) throw new Error("KILL_SWITCH_STORE_DOWN");
+      return structuredClone(box.state) as KillSwitchSnapshot;
+    };
+    return { box, read };
+  }
+  /** Counters, transactions, challenges and abuse signals: anything a begin could leave behind. */
+  const footprint = (h: IdentityHarness) => h.kv.keys().filter((k) => /^(thr|vtx|otp|abm)#/.test(k)).sort();
+
+  it("[SPEC-7.no-enumeration] [AUTH-ENUM-01] [OPS-KS-01] OUTBOUND_NOTIFICATIONS engaged: zero, one and many matches (and ineligible) get the identical human-route answer, decided before any lookup; nothing is sent, stored or counted", async () => {
+    const sw = switches();
+    const h = await createIdentityHarness({ extraPeople: [AVERY_TWIN], notificationSwitches: sw.read });
+    sw.box.state = { ...emptySnapshot(), outboundNotifications: true };
+    const cases: BeginVerificationInput[] = [
+      { role: "client", locator: UNKNOWN }, // zero
+      { role: "client", locator: blakeLocator }, // one
+      { role: "client", locator: averyLocator }, // many (Avery twin)
+      { role: "client", locator: { fullName: PEOPLE.casey.fullName, dateOfBirth: PEOPLE.casey.dateOfBirth } }, // no channel
+      { role: "client", locator: { portalUsernameHint: "avery.synthetic" } }, // one, by portal hint
+    ];
+    const before = footprint(h);
+    const links: unknown[] = [];
+    const codes: unknown[] = [];
+    for (const input of cases) {
+      const { ctx } = await newCall(h);
+      links.push(shape(await h.verification.beginSecureLink(ctx, input)));
+      codes.push(shape(await h.verification.beginOtp(ctx, input)));
+    }
+    for (const l of links) expect(l).toEqual({ matchCode: "<match-code>", response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", transactionId: "<opaque-id>", unavailableReason: "KILL_SWITCH_OUTBOUND_NOTIFICATIONS" });
+    for (const c of codes) expect(c).toEqual({ challengeId: "<opaque-id>", response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", unavailableReason: "KILL_SWITCH_OUTBOUND_NOTIFICATIONS" });
+    expect(h.directory.lookups).toBe(0);
+    expect(h.notifications.sent).toEqual([]);
+    expect(footprint(h)).toEqual(before);
+    expect(sw.box.reads).toBe(cases.length * 2);
+    // Content-free reason-coded log; no locator value anywhere.
+    const logs = h.records.filter((r) => r.event === "identity.verification.notifications_switched_off");
+    expect(logs).toHaveLength(cases.length * 2);
+    expect(logs[0]?.fields).toMatchObject({ reasonCode: "KILL_SWITCH_OUTBOUND_NOTIFICATIONS", method: "secure_link" });
+    expect(JSON.stringify(h.records)).not.toMatch(/Nobody|Synthetic-Unknown|1999-09-09|avery\.synthetic/);
+  });
+
+  it("[OPS-KS-01] INTEGRATION(notifications) engaged, or an unreadable / malformed switch state, also routes to a human with its own reason code; other switches do not", async () => {
+    const sw = switches();
+    const h = await createIdentityHarness({ notificationSwitches: sw.read });
+    const begin = async () => h.verification.beginSecureLink((await newCall(h)).ctx, { role: "client", locator: averyLocator });
+    sw.box.state = { ...emptySnapshot(), integrations: ["notifications"] };
+    expect(await begin()).toMatchObject({ response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", unavailableReason: "KILL_SWITCH_INTEGRATION" });
+    sw.box.failing = true;
+    expect(await begin()).toMatchObject({ response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", unavailableReason: "KILL_SWITCH_STATE_UNAVAILABLE" });
+    sw.box.failing = false;
+    sw.box.state = null;
+    expect(await begin()).toMatchObject({ response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", unavailableReason: "KILL_SWITCH_STATE_UNAVAILABLE" });
+    expect(h.directory.lookups).toBe(0);
+    expect(h.notifications.sent).toEqual([]);
+    // Switches for other integrations, writes or AI admission do not stop verification messages.
+    sw.box.state = { ...emptySnapshot(), integrations: ["salesforce", "scheduling"], writes: true, aiAdmission: true };
+    const clear = await begin();
+    expect(clear.response).toBe("IF_ELIGIBLE_A_LINK_WAS_SENT");
+    expect(Object.keys(clear)).not.toContain("unavailableReason");
+    expect(h.notifications.lastTo(AVERY_SMS)?.templateId).toBe("verify.secure_link");
+  });
+
+  it("[SPEC-14.ENUMERATION] [AUTH-ENUM-01] [OPS-KS-01] switched-off begins spend no per-session budget: after release the same call verifies normally, unflagged, with the generic answer for real and unknown people", async () => {
+    const sw = switches();
+    const h = await createIdentityHarness({ notificationSwitches: sw.read });
+    const { ctx, sessionRef } = await h.startCall();
+    sw.box.state = { ...emptySnapshot(), outboundNotifications: true };
+    for (let i = 0; i < 8; i++) expect((await h.verification.beginSecureLink(ctx, { role: "client", locator: i % 2 ? UNKNOWN : averyLocator })).response).toBe("VERIFICATION_UNAVAILABLE_USE_HUMAN");
+    expect((await h.sessions.resolve(sessionRef, mcp())).riskFlags).toEqual([]);
+    sw.box.state = emptySnapshot();
+    const unknown = await h.verification.beginSecureLink(ctx, { role: "client", locator: UNKNOWN });
+    expect(shape(unknown)).toEqual({ matchCode: "<match-code>", response: "IF_ELIGIBLE_A_LINK_WAS_SENT", transactionId: "<opaque-id>" });
+    const { result } = await h.verifyWithSecureLink(PEOPLE.avery, sessionRef);
+    expect(result.bound).toBe(true);
+    expect((await h.sessions.resolve(sessionRef, mcp())).riskFlags).toEqual([]);
+    expect(await h.verification.abuse.count("LINK_ACCOUNT_LIMIT", { kind: "account", id: PEOPLE.avery.accountId })).toBe(0);
+  });
+
+  it("[SPEC-7.STEP_UP] [OPS-KS-01] step-up while notifications are switched off answers with the human route before the account lookup and sends no link; it works again after release", async () => {
+    const sw = switches();
+    const h = await createIdentityHarness({ notificationSwitches: sw.read });
+    const { sessionRef } = await h.startCall();
+    await h.verifyWithSecureLink(PEOPLE.avery, sessionRef);
+    const ctx = await h.sessions.resolve(sessionRef, mcp());
+    const sent = h.notifications.sent.length;
+    const lookups = h.directory.lookups;
+    // Step-up reads the bound account's state and registered channels (not findCandidates), so spy on those directly.
+    const accountState = vi.spyOn(h.directory, "accountState");
+    const registeredChannels = vi.spyOn(h.directory, "registeredChannels");
+    sw.box.state = { ...emptySnapshot(), outboundNotifications: true };
+    const off = await h.verification.beginStepUp(ctx, DIGEST);
+    expect(shape(off)).toEqual({ response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", transactionId: "<opaque-id>", unavailableReason: "KILL_SWITCH_OUTBOUND_NOTIFICATIONS" });
+    expect(h.notifications.sent.length).toBe(sent);
+    expect(h.directory.lookups).toBe(lookups);
+    expect(accountState).not.toHaveBeenCalled();
+    expect(registeredChannels).not.toHaveBeenCalled();
+    expect(await h.kv.get(kvKeys.secureLinkTx(off.transactionId))).toBeNull();
+    sw.box.state = emptySnapshot();
+    expect((await h.verification.beginStepUp(ctx, DIGEST)).response).toBe("IF_ELIGIBLE_A_LINK_WAS_SENT");
+    expect(h.notifications.lastTo(AVERY_SMS)?.templateId).toBe("verify.step_up_link");
+    // Control: the spies do observe the step-up account lookup once the switch is released.
+    expect(accountState).toHaveBeenCalledTimes(1);
+    expect(registeredChannels).toHaveBeenCalledTimes(1);
+  });
+
+  it("[SPEC-7.OTP] [OPS-KS-01] OTP disabled (TB-03) keeps its own uniform answer; the switch check never replaces it", async () => {
+    const sw = switches();
+    const h = await createIdentityHarness({ verification: { otpEnabled: false }, notificationSwitches: sw.read });
+    sw.box.state = { ...emptySnapshot(), outboundNotifications: true };
+    const r = await h.verification.beginOtp((await newCall(h)).ctx, { role: "client", locator: averyLocator });
+    expect(shape(r)).toEqual({ challengeId: "<opaque-id>", response: "VERIFICATION_UNAVAILABLE_USE_HUMAN" });
+    expect(sw.box.reads).toBe(0);
   });
 });
 

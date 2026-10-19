@@ -14,7 +14,7 @@
  * treats every excerpt as untrusted data and transfers only use allowlisted
  * destinations from trusted configuration.
  */
-import { stripInvisible } from "../privacy/patterns.js";
+import { stripControl, stripInvisible, wordBreakingHiddenAsSpaces } from "../privacy/patterns.js";
 
 export type InjectionReasonCode =
   | "INJECTION_INSTRUCTION_OVERRIDE"
@@ -34,9 +34,9 @@ const CONFUSABLES: Record<string, string> = {
   "\u03b5": "e", "\u03b9": "i", "\u03ba": "k", "\u03bd": "v", "\u03c1": "p", "\u03c4": "t", "\u03c5": "u",
 };
 
-/** Lowercase, NFKC, invisible characters removed, confusables folded, whitespace collapsed. */
+/** Lowercase, NFKC, invisible and control characters (C0 other than tab/newline, C1) removed, confusables folded, whitespace collapsed. */
 export function normalizeForDetection(text: string): string {
-  let s = stripInvisible(text.normalize("NFKC")).toLowerCase();
+  let s = stripControl(stripInvisible(text.normalize("NFKC"))).toLowerCase();
   s = s.replace(/[\u0370-\u03ff\u0400-\u04ff]/g, (c) => CONFUSABLES[c] ?? c);
   return s.replace(/\s+/g, " ");
 }
@@ -72,10 +72,19 @@ const RULES: readonly { code: InjectionReasonCode; re: RegExp }[] = [
   { code: "DIAL_TARGET_PHONE_NUMBER", re: /(?<![\d])\d{7,}(?!\d)/ },
 ];
 
-/** Reason codes found in the text (sorted, unique). Empty means no rule matched. */
+/**
+ * Reason codes found in the text (sorted, unique). Empty means no rule matched. Every invisible or
+ * control character is read as nothing ("ig<U+200B>nore"). One that can stand for a word break
+ * (a C0/C1 control, U+200B, U+2060, U+FEFF or a blank filler) may also read as a space
+ * ("ignore<U+0001>previous"), so text that holds one is checked in that reading too. An in-word
+ * character (soft hyphen, joiner, variation selector) is not read as a space: "sub<U+00AD>system:"
+ * is the word "subsystem", not the role marker "system:".
+ */
 export function detectInjection(text: string): InjectionReasonCode[] {
-  const s = normalizeForDetection(text);
+  const readings = [normalizeForDetection(text)];
+  const spaced = wordBreakingHiddenAsSpaces(text);
+  if (spaced !== text) readings.push(normalizeForDetection(spaced));
   const found = new Set<InjectionReasonCode>();
-  for (const r of RULES) if (r.re.test(s)) found.add(r.code);
+  for (const s of readings) for (const r of RULES) if (r.re.test(s)) found.add(r.code);
   return [...found].sort();
 }

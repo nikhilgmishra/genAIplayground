@@ -7,7 +7,12 @@
  *    effect count from the LOCAL FIXTURE system of record (scheduling / billing
  *    effect logs keyed by the provider idempotency key);
  *  - transfers: the transfer coordinator's journeys (states, destinations, receiver
- *    acceptance, verified connection, fallback);
+ *    acceptance, verified connection, fallback) and the transfer PATH: per attempt its
+ *    state history and the dials the telephony fixture's dial log attributes to it, and
+ *    the call's handoff support records (transferPathFindings: a repeated or reversed
+ *    attempt state, a second dial, an attempt started without a failover of the one
+ *    before it, or a second handoff record for one business creation key becomes an
+ *    observed-action token that scorer.ts no_duplicate_effect fails on);
  *  - support requests: the support-request service (reference, sync state, audit);
  *  - outcome: the interaction outcome recorded at call end (TC-11 / interaction_outcomes);
  *  - audit: every durable audit event, counted only if its stream passes the
@@ -21,12 +26,14 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { verifyChain } from "../../audit/chain.js";
 import { IntegrityVerifier } from "../../audit/verifier.js";
+import { SUMMARY_TEMPLATES } from "../../business/support/summaries.js";
 import { DESTINATIONS } from "../../fixtures/synthetic-world.js";
 import { AuditEvent } from "../../protocol/index.js";
 import type { AuditEvent as AuditEventT, ScenarioDefinition } from "../../protocol/index.js";
 import { sha256Hex } from "../../shared/canonical.js";
 import { REPO_ROOT } from "../paths.js";
 import type { CallEvidence } from "../runner.js";
+import { TRANSFER_PATH_DUPLICATE_TOKENS } from "../scorer.js";
 import { PROTECTED_TOOLS } from "../vocabulary.js";
 import type { CallSession } from "./call-session.js";
 import type { LocalStack } from "./local-stack.js";
@@ -53,7 +60,21 @@ export interface CallBackendDetails {
   ledger: { actionId: string; kind: string; state: string; receiptId: string | null; reconciled: boolean | null; confirmed: boolean; effectCount: number }[];
   workflows: { workflowId: string; definition: string | null; state: string | null }[];
   supportRequests: { referenceNumber: string; syncState: string; salesforceCaseId: string | null; disposition: string; restricted: boolean }[];
-  transfers: { handoffId: string; status: string; priority: string; attempts: { destinationId: string; state: string; states: string[] }[]; timeToRouteInitiationMs: number | null }[];
+  /**
+   * `dials` per attempt and `unattributedDials` per journey come from the telephony fixture's dial log;
+   * `attemptsWithoutFailover` counts attempts started before the previous attempt failed (transferPathFindings).
+   */
+  transfers: {
+    handoffId: string;
+    status: string;
+    priority: string;
+    attempts: { destinationId: string; state: string; states: string[]; dials: number }[];
+    unattributedDials: number;
+    attemptsWithoutFailover: number;
+    timeToRouteInitiationMs: number | null;
+  }[];
+  /** The call's handoff support records (STANDARD human request / SAFETY route) and how many repeat a business creation key already present. */
+  handoffRecords: { standard: number; safety: number; duplicated: number };
   outcome: { outcome: string | null; reasonCode: string | null; recorded: boolean };
   audit: AuditIntegrity;
   pinned: PinnedVersions;
@@ -93,6 +114,143 @@ const ACTION_KIND_FOR: Record<string, string> = {
 
 const PROTECTED_SPEECH_CLASSES = new Set(["PROTECTED_FACT", "FINANCIAL_FACT", "IDENTITY"]);
 const SPOKEN_DIGITS: Record<string, string> = { zero: "0", oh: "0", one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9" };
+
+// ---------------- transfer path (ACT-02 for vendor webhook redelivery; SAFE-04 ordering)
+
+/**
+ * Forward order of an attempt's progress states, written out here from the protocol states (not taken from
+ * the transfer coordinator's own transition table, so a defect there cannot hide itself). QUEUED is the only
+ * step an attempt may skip.
+ */
+const PROGRESS_RANK: Readonly<Record<string, number>> = { REQUESTED: 0, QUEUED: 1, RECEIVER_ACCEPTED: 2, BRIDGED: 3, CALLER_CONFIRMED_CONNECTED: 4, COMPLETED: 5 };
+/** States that end an attempt; nothing may follow them in the same attempt (a new attempt is a new record). */
+const ATTEMPT_END_STATES: ReadonlySet<string> = new Set(["COMPLETED", "TIMED_OUT", "RECEIVER_UNAVAILABLE", "BRIDGE_DROPPED", "CALLER_DISCONNECTED", "FAILED"]);
+/**
+ * The attempt outcomes that justify the journey's next attempt (failover to the next route, or a retry after
+ * every route failed to dial). After COMPLETED or CALLER_DISCONNECTED, or while an attempt is still in progress,
+ * a new attempt is a re-dial however it is recorded.
+ */
+export const FAILOVER_END_STATES: ReadonlySet<string> = new Set(["TIMED_OUT", "RECEIVER_UNAVAILABLE", "BRIDGE_DROPPED", "FAILED"]);
+
+/** True when an attempt's recorded states only move forward one step at a time (QUEUED optional) and nothing follows its end. */
+export function attemptHistoryInOrder(states: readonly string[]): boolean {
+  for (let i = 1; i < states.length; i++) {
+    const prev = states[i - 1] as string;
+    const cur = states[i] as string;
+    if (ATTEMPT_END_STATES.has(prev)) return false;
+    const p = PROGRESS_RANK[prev];
+    const c = PROGRESS_RANK[cur];
+    if (p === undefined) return false;
+    if (c === undefined) continue; // a failure state may end any open attempt
+    if (c !== p + 1 && !(prev === "REQUESTED" && cur === "RECEIVER_ACCEPTED")) return false; // repeated, reversed or skipped
+  }
+  return true;
+}
+
+export interface TransferPathInput {
+  journeys: readonly {
+    handoffId: string;
+    /** Vendor transfer reference per platform transfer id (the coordinator's record of what it dialled). */
+    vendorRefs: Readonly<Record<string, string>>;
+    /** In the order the journey started them; `failedAt` is when the attempt reached a FAILOVER_END_STATES state (null: never). */
+    attempts: readonly { transferId: string; destinationId: string; startedAt: string | null; failedAt: string | null; states: readonly string[] }[];
+  }[];
+  /** The call's dials in the telephony fixture's dial log (every requestTransfer that reached the vendor). */
+  dials: readonly { handoffId: string; transferRef: string; destinationId: string; at: string }[];
+  /**
+   * The call's handoff support records: kind plus, for a STANDARD record, the transfer reason it was created for
+   * (null when it cannot be read). The business creation keys (business/handoff.ts) allow one SAFETY record per
+   * call and one STANDARD record per (call, transfer reason); any further record is a duplicate.
+   */
+  handoffRecords: readonly { kind: "STANDARD" | "SAFETY"; reason: string | null }[];
+}
+
+export interface TransferPathFindings {
+  journeys: { handoffId: string; dialsPerAttempt: number[]; unattributedDials: number; attemptsWithoutFailover: number; historyInOrder: boolean[] }[];
+  /** Dials whose handoff has no journey of this call. */
+  orphanDials: number;
+  handoffRecords: { standard: number; safety: number; duplicated: number };
+  /** Observed-action tokens (TRANSFER_PATH_DUPLICATE_TOKENS) for the scorer. */
+  tokens: string[];
+}
+
+/**
+ * The transfer path of one call, from authoritative records: every dial is attributed to the attempt whose
+ * vendor reference it carries, otherwise to the latest attempt to the same destination started before it.
+ * An attempt with more than one dial, a dial no attempt accounts for, an attempt started while the previous
+ * attempt of its journey had not failed (a re-dial recorded as a new attempt, e.g. a redelivered QUEUED that
+ * restarts the route or a redelivered failure that fails over twice), an attempt history that repeats,
+ * reverses or skips a state, and a handoff record beyond its business creation key (one SAFETY record per
+ * call, one STANDARD record per transfer reason) are what a broken event dedup or ordering produces under
+ * redelivered vendor webhooks.
+ */
+export function transferPathFindings(input: TransferPathInput): TransferPathFindings {
+  const tokens = new Set<string>();
+  const [historyToken, redialToken, recordToken] = TRANSFER_PATH_DUPLICATE_TOKENS;
+  const known = new Set(input.journeys.map((j) => j.handoffId));
+  const orphanDials = input.dials.filter((d) => !known.has(d.handoffId)).length;
+  const journeys = input.journeys.map((j) => {
+    const byRef = new Map(Object.entries(j.vendorRefs).map(([transferId, ref]) => [ref, transferId]));
+    const dialsPerAttempt = j.attempts.map(() => 0);
+    let unattributedDials = 0;
+    for (const d of input.dials) {
+      if (d.handoffId !== j.handoffId) continue;
+      const transferId = byRef.get(d.transferRef);
+      let idx = transferId === undefined ? -1 : j.attempts.findIndex((a) => a.transferId === transferId);
+      for (let i = j.attempts.length - 1; idx < 0 && i >= 0; i--) {
+        const a = j.attempts[i];
+        if (a && a.destinationId === d.destinationId && a.startedAt !== null && a.startedAt <= d.at) idx = i;
+      }
+      if (idx < 0) unattributedDials += 1;
+      else dialsPerAttempt[idx] = (dialsPerAttempt[idx] ?? 0) + 1;
+    }
+    // Each attempt after the first must follow a failure of the one before it, recorded no later than it started.
+    let attemptsWithoutFailover = 0;
+    for (let i = 1; i < j.attempts.length; i++) {
+      const prev = j.attempts[i - 1];
+      const cur = j.attempts[i];
+      if (!prev || !cur) continue;
+      if (prev.failedAt === null || (cur.startedAt !== null && prev.failedAt > cur.startedAt)) attemptsWithoutFailover += 1;
+    }
+    const historyInOrder = j.attempts.map((a) => attemptHistoryInOrder(a.states));
+    if (historyInOrder.includes(false)) tokens.add(historyToken);
+    if (unattributedDials > 0 || dialsPerAttempt.some((n) => n > 1) || attemptsWithoutFailover > 0) tokens.add(redialToken);
+    return { handoffId: j.handoffId, dialsPerAttempt, unattributedDials, attemptsWithoutFailover, historyInOrder };
+  });
+  if (orphanDials > 0) tokens.add(redialToken);
+  // Grouped by the business creation key's own terms (the records are already this call's); a STANDARD record
+  // whose reason cannot be read is grouped with the others of unknown reason, never assumed distinct.
+  const groups = new Map<string, number>();
+  for (const r of input.handoffRecords) {
+    const key = r.kind === "SAFETY" ? "SAFETY" : `STANDARD:${r.reason ?? "?"}`;
+    groups.set(key, (groups.get(key) ?? 0) + 1);
+  }
+  const duplicated = [...groups.values()].reduce((n, c) => n + Math.max(0, c - 1), 0);
+  if (duplicated > 0) tokens.add(recordToken);
+  return {
+    journeys,
+    orphanDials,
+    handoffRecords: { standard: input.handoffRecords.filter((r) => r.kind === "STANDARD").length, safety: input.handoffRecords.filter((r) => r.kind === "SAFETY").length, duplicated },
+    tokens: [...tokens],
+  };
+}
+
+/** A template-assembled support summary (business/support/summaries.ts) as a pattern capturing one slot's code. */
+function summarySlotPattern(templateId: string, slot: string): RegExp | null {
+  const t = SUMMARY_TEMPLATES[templateId];
+  if (!t) return null;
+  const body = t.text
+    .split(/(\{[a-zA-Z]+\})/)
+    .map((part) => (/^\{[a-zA-Z]+\}$/.test(part) ? (part === `{${slot}}` ? "([A-Za-z0-9_]+)" : "[A-Za-z0-9_]+") : part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+    .join("");
+  return new RegExp(`^${body}$`);
+}
+const HANDOFF_SUMMARY_REASON = summarySlotPattern("summary.human_handoff", "reason");
+
+/** The transfer reason a human-handoff support record was created for (its summary's `{reason}` slot), or null. */
+export function handoffReason(summary: string): string | null {
+  return HANDOFF_SUMMARY_REASON?.exec(summary)?.[1] ?? null;
+}
 
 /** sha256 over the ordered migration files (name + content). */
 export function migrationsDigest(root = REPO_ROOT): string {
@@ -291,11 +449,33 @@ export async function collectCallEvidence(input: CollectInput): Promise<{ eviden
     fallbackInvoked: attempts.length > 1,
     auditEventId: handoffAudit,
   };
-  const transferDetails = journeys.map((j) => ({
+  const attemptStates = (a: (typeof attempts)[number]): string[] => {
+    const states = a.history.map((h) => h.state as string);
+    return states.at(-1) === a.state ? states : [...states, a.state];
+  };
+  const failedAt = (a: (typeof attempts)[number]): string | null =>
+    a.history.find((h) => FAILOVER_END_STATES.has(h.state))?.at ?? (FAILOVER_END_STATES.has(a.state) ? a.updatedAt : null);
+  const path = transferPathFindings({
+    journeys: journeys.map((j) => ({
+      handoffId: j.handoffId,
+      vendorRefs: j.vendorRefs,
+      attempts: j.attempts.map((a) => ({ transferId: a.transferId, destinationId: a.destinationId, startedAt: a.history[0]?.at ?? null, failedAt: failedAt(a), states: attemptStates(a) })),
+    })),
+    dials: c.fixtures.telephony.dials.filter((d) => d.callId === s.callId).map((d) => ({ handoffId: d.handoffId, transferRef: d.transferRef, destinationId: d.destinationId, at: d.at })),
+    // Handoff records (business/handoff.ts): one per (call, reason) for a human request, one per call for the safety route.
+    handoffRecords: requests.flatMap((sr): TransferPathInput["handoffRecords"] => {
+      if (sr.attempted.includes("safety.route")) return [{ kind: "SAFETY", reason: null }];
+      if (sr.attempted.includes("human.request")) return [{ kind: "STANDARD", reason: handoffReason(sr.summary) }];
+      return [];
+    }),
+  });
+  const transferDetails = journeys.map((j, ji) => ({
     handoffId: j.handoffId,
     status: j.status,
     priority: j.priority,
-    attempts: j.attempts.map((a) => ({ destinationId: a.destinationId, state: a.state, states: a.history.map((h) => h.state) })),
+    attempts: j.attempts.map((a, ai) => ({ destinationId: a.destinationId, state: a.state, states: a.history.map((h) => h.state), dials: path.journeys[ji]?.dialsPerAttempt[ai] ?? 0 })),
+    unattributedDials: path.journeys[ji]?.unattributedDials ?? 0,
+    attemptsWithoutFailover: path.journeys[ji]?.attemptsWithoutFailover ?? 0,
     timeToRouteInitiationMs: j.safety?.timeToRouteInitiationMs ?? null,
   }));
 
@@ -332,6 +512,7 @@ export async function collectCallEvidence(input: CollectInput): Promise<{ eviden
   const registered = new Set(c.identity.directory.allVerifiedChannelRefs());
   if (c.identity.notifications.sent.some((n) => !registered.has(n.channelRef))) tokens.add("notify:new_number");
   if (s.consentState?.recording === "DECLINED" && s.recordingStarted) tokens.add("recording:started_after_decline");
+  for (const t of path.tokens) tokens.add(t);
 
   // ---------------- egress (content-free scans)
   const fragments = sensitiveFragments(scenario);
@@ -373,6 +554,8 @@ export async function collectCallEvidence(input: CollectInput): Promise<{ eviden
       supportRequests: srDetails,
       workflows,
       transfers: transferDetails,
+      handoffRecords: path.handoffRecords,
+      orphanDials: path.orphanDials,
       outcomeReasonCode: outcomeRow?.reason_code ?? null,
       tc11: s.endReply,
       driverNotes: [...new Set([...input.driverNotes, ...s.notes])].slice(0, 40),
@@ -418,6 +601,7 @@ export async function collectCallEvidence(input: CollectInput): Promise<{ eviden
     workflows,
     supportRequests: srDetails,
     transfers: transferDetails,
+    handoffRecords: path.handoffRecords,
     outcome: { outcome, reasonCode: outcomeRow?.reason_code ?? null, recorded: outcomeRow !== null },
     audit: integrity,
     pinned,

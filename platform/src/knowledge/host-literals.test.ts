@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { classifyRun, hostLiterals } from "./host-literals.js";
+import { classifyRun, hostLiterals, hostSpans } from "./host-literals.js";
 
 const MARK_LOW_LINE = String.fromCharCode(0x0332);
 const MARK_ACUTE = String.fromCharCode(0x0301);
@@ -55,6 +55,52 @@ describe("VSP-KN-01: host literal classification", () => {
     for (const run of ["203.0.113.7-", "203.0.113.7_", "-203.0.113.7", `203.0.113.7${MARK_LOW_LINE}`, "203..0.113.7", "0xcb.0x0.0x71.0x7", "203.0.113.7"]) {
       expect({ run, kind: classifyRun(run) }).toEqual({ run, kind: "IPV4" });
     }
+  });
+
+  it("[SPEC-14.threat-model][SPEC-9.sanitize][VSP-KN-01] a percent-encoded full stop is a label separator; offsets stay those of the original text", () => {
+    for (const [run, kind] of [
+      ["evil%2Ecom", "DOMAIN"],
+      ["billing-portal%2ecc", "DOMAIN"],
+      ["portal%2Eevil%2Ecom", "DOMAIN"],
+      ["203%2E0%2E113%2E7", "IPV4"],
+      ["100%2E5", null],
+    ] as const) {
+      expect({ run, kind: classifyRun(run) }).toEqual({ run, kind });
+    }
+    const text = "Pay at billing-portal%2Ecom/pay today";
+    const [lit, ...rest] = hostLiterals(text);
+    expect(rest).toEqual([]);
+    expect(lit && text.slice(lit.start, lit.end)).toBe("billing-portal%2Ecom/pay");
+    expect(hostLiterals("Save 20% each month; 2.5% of 100% applies.")).toEqual([]);
+    // An IPv6 literal right after "%2E" ("%2Effc::1" reads ".ffc::1"): the "E" of "%2E" used to hide its start.
+    for (const t of ["Use %2Effc::1 now", "Use %2Eecc:: now", "Use x%2E[ffc::1]/login now"]) {
+      expect({ t, kinds: hostLiterals(t).map((l) => l.kind) }).toEqual({ t, kinds: expect.arrayContaining(["IPV6"]) });
+    }
+  });
+
+  it("[SPEC-14.threat-model][SPEC-9.sanitize][VSP-KN-01] '%2E' is also read as the label characters '2E': '%2E.com', '%2E::' and '%2Eportal...' are host literals", () => {
+    // The separator-only scan (round 2 of the final fixes) read "%2E.com" as "....com" and missed the host 2E.com that
+    // the text as written holds; the pre-'%2E' scan removed it. Both readings are scanned now.
+    for (const [run, kind] of [
+      ["%2E.com", "DOMAIN"],
+      ["%2E%2E.com", "DOMAIN"],
+      ["%2Eportal.synthetic-health.test", "DOMAIN"],
+      ["%2E.0.113.7", null],
+    ] as const) {
+      expect({ run, kind: classifyRun(run) }).toEqual({ run, kind });
+    }
+    const literal = (text: string) => hostLiterals(text).map((l) => ({ kind: l.kind, text: text.slice(l.start, l.end), host: l.host }));
+    expect(literal("Pay at %2E.com/pay today.")).toEqual([{ kind: "DOMAIN", text: "2E.com/pay", host: "2e.com" }]);
+    expect(literal("Pay at (%2E.cc/pay) today.")).toEqual([{ kind: "DOMAIN", text: "2E.cc/pay", host: "2e.cc" }]);
+    expect(literal("Reach %2E:: now.")).toEqual([{ kind: "IPV6", text: "2E::", host: "2e::" }]);
+    expect(literal("Reach [%2E::]/pay now.")).toEqual([{ kind: "IPV6", text: "2E::]/pay", host: "2e::]" }]);
+    // Both readings of an allowlisted host behind "%2E": the raw one (2eportal...) is not allowlisted, so the merged span is not.
+    const allowText = "Go to %2Eportal.synthetic-health.test/billing now.";
+    expect(literal(allowText).map((l) => l.host)).toEqual(["2eportal.synthetic-health.test", "portal.synthetic-health.test"]);
+    const spans = hostSpans(allowText, (h) => h === "portal.synthetic-health.test");
+    expect(spans.map((sp) => ({ text: allowText.slice(sp.start, sp.end), allowedHost: sp.allowedHost }))).toEqual([{ text: "2Eportal.synthetic-health.test/billing", allowedHost: null }]);
+    // A literal both readings find is reported once.
+    expect(literal("Pay at billing-portal.com/x%2Ey today.")).toEqual([{ kind: "DOMAIN", text: "billing-portal.com/x%2Ey", host: "billing-portal.com" }]);
   });
 
   it("[SPEC-9.sanitize][VSP-KN-01] dotted administrative text whose later labels start with a digit or are single letters is not a host", () => {
@@ -126,7 +172,10 @@ describe("VSP-KN-02: host literal scanning is linear", () => {
   // 40 000 chars and the combining-mark unit about 1 130 ms (about 4x per doubling); after it, each
   // takes a few milliseconds. 50 ms leaves room for slow shared runners and still fails the old scan.
   const STRICT_BUDGET_MS = 50;
-  const UNITS = ["a.bc/", `${MARK_ACUTE}a.bc/`, "a.bc:1/", "1.2.3.4/", "a.bc/x", "a.bc-/"];
+  // The '%2E' units: a separator alternative in the run pattern would let each "2E" inside a long '%2E%2E...' run
+  // start its own attempt (quadratic); scanning '%2E' as "..." keeps one attempt per label.
+  // '%2E.' and '%2E.bc/' exercise the second (raw) reading of a text that holds "%2E".
+  const UNITS = ["a.bc/", `${MARK_ACUTE}a.bc/`, "a.bc:1/", "1.2.3.4/", "a.bc/x", "a.bc-/", "a%2Ebc/", "%2E", "%2Ea", "a%2E", "%2E.", "%2E.bc/", "%2E::"];
 
   it("[SPEC-14.threat-model][VSP-KN-02] 'a.bc/' and combining-mark units at 20 000 and 40 000 chars are scanned within a strict budget", () => {
     for (const unit of UNITS) {

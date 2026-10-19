@@ -1,4 +1,4 @@
-skeletonVersion: 1
+skeletonVersion: 2
 intent: role_switch_mid_call
 title: Multi-role caller switches from provider to personal role mid-call
 audiences: [provider]
@@ -19,6 +19,7 @@ script:
   - event: CALL_END
 indirect:
   - "Couple of things today, one for my practice and one personal."
+  - "The practice one first: what's our latest remittance status?"
 dependencyFailure:
   fault: PROVIDER_API_TIMEOUT
   expectedToolSequence: [begin_verification, get_remittance_status, request_human_transfer]
@@ -27,3 +28,4 @@ dependencyFailure:
   stopCondition: TRANSFER_CONNECTED
 requirementIds: [SPEC-4.role-selection, SPEC-7.privilege-expiry, SPEC-14.edge-populations]
 edgePopulations: [role_switching]
+notes: "v2 (2026-10-18): the indirect phrasing never stated the practice request, yet the expected sequence presumes get_remittance_status; a second indirect line now states it (expectedToolSequence and expectedFinalState unchanged; all eight variants re-versioned). HELD-OUT DISCLOSURE (spec section 16): this edit was made after inspecting the failure of the held-out scenario scn_role_switch_mid_call__indirect_or_ambiguous, so its post-fix results are not independent acceptance evidence."

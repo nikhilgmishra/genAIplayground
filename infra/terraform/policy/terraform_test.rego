@@ -346,6 +346,178 @@ test_waf_logging_uppercase_header_does_not_count if {
 	has_prefix(terraform.deny, "WAF-LOGS") with input as plan([waf_logging(fields)])
 }
 
+# ------------------------------------------------------------ edge rate limits (SAFE-02, SAFE-03)
+
+tool_paths := {"RegexMatchStatement": {"RegexString": "^/(?:mcp(?:/|$)|telephony/)", "FieldToMatch": {"UriPath": {}}, "TextTransformations": [{"Priority": 0, "Type": "NONE"}]}}
+
+rate_rule(name, action, scope) := {"Name": name, "Priority": 1, "Action": {action: {}}, "Statement": {"RateBasedStatement": object.union({"Limit": 120000, "AggregateKeyType": "IP", "EvaluationWindowSec": 300}, scope)}}
+
+web_acl(rules) := rc("aws_wafv2_web_acl", "module.stack.module.ingress.aws_wafv2_web_acl.this", "module.stack.module.ingress", {"name": "vsp-test-ingress", "rule_json": json.marshal(rules)})
+
+waf_rate_denies(rules) := {m | some m in terraform.deny with input as plan([web_acl(rules)]); startswith(m, "WAF-RATE")}
+
+# [SAFE-02][SAFE-03] the fixed ingress design: block outside the tool-caller paths, count on them
+test_waf_rate_block_outside_tool_paths_and_count_on_them_passes if {
+	rules := [
+		rate_rule("rate-limit-per-source-ip", "Block", {"ScopeDownStatement": {"NotStatement": {"Statement": tool_paths}}}),
+		rate_rule("rate-observe-tool-caller-paths", "Count", {"ScopeDownStatement": tool_paths}),
+	]
+	count(terraform.deny) == 0 with input as plan([web_acl(rules)])
+}
+
+# [SAFE-02][SAFE-03] the original rule blocked every path per source IP, safety and human-route calls included
+test_waf_rate_unscoped_block_denied if {
+	msgs := waf_rate_denies([rate_rule("rate-limit-per-source-ip", "Block", {})])
+	every p in ["/mcp", "/telephony/v1/session/utterance-screening", "/telephony/v1/session/human-request", "/telephony/v1/session/handoff"] {
+		some m in msgs
+		contains(m, sprintf("can rate-block %s ", [p]))
+	}
+}
+
+# A count-only rate rule never blocks and needs no scope.
+test_waf_rate_unscoped_count_allowed if {
+	count(waf_rate_denies([rate_rule("rate-observe", "Count", {})])) == 0
+}
+
+# Excluding /mcp alone still blocks the Studio safety and human-route operations.
+test_waf_rate_partial_exclusion_denied if {
+	mcp_only := {"RegexMatchStatement": {"RegexString": "^/mcp(/|$)", "FieldToMatch": {"UriPath": {}}, "TextTransformations": [{"Priority": 0, "Type": "NONE"}]}}
+	msgs := waf_rate_denies([rate_rule("rate-limit-per-source-ip", "Block", {"ScopeDownStatement": {"NotStatement": {"Statement": mcp_only}}})])
+	some m in msgs
+	contains(m, "/telephony/v1/session/human-request")
+	not has_prefix(msgs, "WAF-RATE: module.stack.module.ingress.aws_wafv2_web_acl.this rule rate-limit-per-source-ip can rate-block /mcp ")
+}
+
+# A blocking rule scoped to other paths only (positively, through nesting) is accepted.
+test_waf_rate_positive_scope_elsewhere_allowed if {
+	portal := {"RegexMatchStatement": {"RegexString": "^/portal/", "FieldToMatch": {"UriPath": {}}, "TextTransformations": [{"Priority": 0, "Type": "NONE"}]}}
+	nested := {"AndStatement": {"Statements": [{"OrStatement": {"Statements": [portal, {"NotStatement": {"Statement": {"NotStatement": {"Statement": portal}}}}]}}, {"NotStatement": {"Statement": tool_paths}}]}}
+	count(waf_rate_denies([rate_rule("portal-only", "Block", {"ScopeDownStatement": portal}), rate_rule("nested", "Block", {"ScopeDownStatement": nested})])) == 0
+}
+
+# Fail closed: a scope the evaluator cannot decide (source IP set, a transformed path, a byte
+# match) is treated as possibly matching the safety-route paths.
+test_waf_rate_undecidable_scope_denied if {
+	not_allowlisted := {"NotStatement": {"Statement": {"IPSetReferenceStatement": {"ARN": "arn:aws:wafv2:us-east-1:111111111111:regional/ipset/x/0"}}}}
+	lowered := {"NotStatement": {"Statement": {"RegexMatchStatement": {"RegexString": "^/(?:mcp(?:/|$)|telephony/)", "FieldToMatch": {"UriPath": {}}, "TextTransformations": [{"Priority": 0, "Type": "LOWERCASE"}]}}}}
+	byte_match := {"NotStatement": {"Statement": {"ByteMatchStatement": {"SearchString": "/mcp", "PositionalConstraint": "STARTS_WITH", "FieldToMatch": {"UriPath": {}}, "TextTransformations": [{"Priority": 0, "Type": "NONE"}]}}}}
+	every scope in [not_allowlisted, lowered, byte_match] {
+		count(waf_rate_denies([rate_rule("rate-limit-per-source-ip", "Block", {"ScopeDownStatement": scope})])) > 0
+	}
+}
+
+# [SAFE-02][SAFE-03] only Count is non-blocking: Captcha and Challenge stop a non-browser caller (Talkdesk's
+# MCP client, Studio's HTTP steps) as surely as Block, and Allow, a missing or a malformed action is refused
+test_waf_rate_any_action_but_count_is_blocking if {
+	every action in ["Captcha", "Challenge", "Allow"] {
+		msgs := waf_rate_denies([rate_rule(sprintf("rate-%s", [lower(action)]), action, {})])
+		every p in terraform.waf_safety_route_paths {
+			some m in msgs
+			contains(m, sprintf("can rate-block %s ", [p]))
+		}
+	}
+	unscoped := rate_rule("rate-odd-action", "Count", {})
+	every rule in [object.remove(unscoped, ["Action"]), object.union(unscoped, {"Action": "Count"}), object.union(unscoped, {"Action": {"Count": {}, "Captcha": {}}})] {
+		count(waf_rate_denies([rule])) > 0
+	}
+
+	# The fixed design is unchanged by this: the tool-caller paths are counted, never challenged.
+	challenged := [
+		rate_rule("rate-limit-per-source-ip", "Challenge", {"ScopeDownStatement": {"NotStatement": {"Statement": tool_paths}}}),
+		rate_rule("rate-observe-tool-caller-paths", "Count", {"ScopeDownStatement": tool_paths}),
+	]
+	count(waf_rate_denies(challenged)) == 0
+}
+
+# [SAFE-02][SAFE-03] a pattern RE2 cannot compile (a PCRE lookahead or backreference, which AWS WAF can accept)
+# is undecidable, never "does not match": a positive scope `^/(?!portal/)` matches /mcp in WAF and is refused
+test_waf_rate_re2_invalid_pattern_is_undecidable if {
+	lookahead := {"RegexMatchStatement": {"RegexString": "^/(?!portal/)", "FieldToMatch": {"UriPath": {}}, "TextTransformations": [{"Priority": 0, "Type": "NONE"}]}}
+	backref := {"RegexMatchStatement": {"RegexString": "^/(m)cp|^/(t)elephony/|\\1", "FieldToMatch": {"UriPath": {}}, "TextTransformations": [{"Priority": 0, "Type": "NONE"}]}}
+	not regex.is_valid(lookahead.RegexMatchStatement.RegexString)
+	not regex.is_valid(backref.RegexMatchStatement.RegexString)
+	every scope in [lookahead, backref, {"NotStatement": {"Statement": lookahead}}, {"AndStatement": {"Statements": [backref, {"NotStatement": {"Statement": {"IPSetReferenceStatement": {"ARN": "arn:aws:wafv2:us-east-1:111111111111:regional/ipset/x/0"}}}}]}}] {
+		msgs := waf_rate_denies([rate_rule("rate-limit-per-source-ip", "Block", {"ScopeDownStatement": scope})])
+		some m in msgs
+		contains(m, "can rate-block /mcp ")
+	}
+}
+
+# [SAFE-02][SAFE-03] a pattern RE2 compiles is decided exactly only in the subset where RE2 and AWS WAF's PCRE
+# agree: under (?i) RE2 folds U+017F (long s) to "s", so this exclusion holds in OPA but not byte-wise in WAF
+test_waf_rate_non_portable_regex_is_undecidable if {
+	sneaky := "(?i)^/(?:mcp(?:/|$)|telephony/v1/ſession/)"
+	regex.match(sneaky, "/telephony/v1/session/human-request")
+	not terraform.waf_portable_regex(sneaky)
+	every re in [sneaky, "^/(?:mcp(?:/|$)|telephony/)|ſ", "(?i)^/(?:mcp(?:/|$)|telephony/)", "^/(?:mcp(?:/|$)|telephony\\/)\\w*", "^/(?:mcp(?:/|$)|telephony/)\\Q\\E", "^/(?P<p>mcp(?:/|$)|telephony/)"] {
+		regex.is_valid(re)
+		not terraform.waf_portable_regex(re)
+		scope := {"NotStatement": {"Statement": {"RegexMatchStatement": {"RegexString": re, "FieldToMatch": {"UriPath": {}}, "TextTransformations": [{"Priority": 0, "Type": "NONE"}]}}}}
+		msgs := waf_rate_denies([rate_rule("rate-limit-per-source-ip", "Block", {"ScopeDownStatement": scope})])
+		some m in msgs
+		contains(m, "can rate-block /telephony/v1/session/human-request ")
+	}
+
+	# The ingress regex, and escaped punctuation, stay exact.
+	terraform.waf_portable_regex(tool_paths.RegexMatchStatement.RegexString)
+	terraform.waf_portable_regex("^/portal\\/")
+}
+
+labelled(rule) := object.union(rule, {"RuleLabels": [{"Name": "vsp:rate:over"}]})
+
+label_blocker := {"Name": "block-labelled", "Priority": 3, "Action": {"Block": {}}, "Statement": {"LabelMatchStatement": {"Scope": "LABEL", "Key": "vsp:rate:over"}}}
+
+# [SAFE-02][SAFE-03] a Count rate rule that labels the requests over its limit, and a Block rule on that label,
+# rate-block every path together, the safety and human-route calls included
+test_waf_rate_label_chain_denied if {
+	msgs := waf_rate_denies([labelled(rate_rule("rate-label", "Count", {})), label_blocker])
+	every p in terraform.waf_safety_route_paths {
+		some m in msgs
+		contains(m, "rule block-labelled blocks on labels and rate-based rule rate-label")
+		contains(m, sprintf("can be %s ", [p]))
+	}
+
+	# The label match may sit anywhere in the blocking rule's statement.
+	nested := object.union(label_blocker, {"Statement": {"AndStatement": {"Statements": [{"NotStatement": {"Statement": tool_paths}}, label_blocker.Statement]}}})
+	count(waf_rate_denies([labelled(rate_rule("rate-observe-tool-caller-paths", "Count", {"ScopeDownStatement": tool_paths})), nested])) > 0
+
+	# Not a chain: labels only outside the safety-route paths, a labelling rule that nothing blocks on,
+	# or a block on labels that no rate-based rule emits (for example a managed rule group's).
+	portal := {"RegexMatchStatement": {"RegexString": "^/portal/", "FieldToMatch": {"UriPath": {}}, "TextTransformations": [{"Priority": 0, "Type": "NONE"}]}}
+	count(waf_rate_denies([labelled(rate_rule("rate-label-portal", "Count", {"ScopeDownStatement": portal})), label_blocker])) == 0
+	count(waf_rate_denies([labelled(rate_rule("rate-label", "Count", {}))])) == 0
+	count(waf_rate_denies([rate_rule("rate-observe", "Count", {}), label_blocker])) == 0
+}
+
+# [SAFE-02][SAFE-03] a custom rule group can hold blocking rate-based rules the gate does not evaluate:
+# it must be referenced with OverrideAction Count
+test_waf_rate_custom_rule_group_denied if {
+	group := {"Name": "custom-group", "Priority": 5, "OverrideAction": {"None": {}}, "Statement": {"RuleGroupReferenceStatement": {"ARN": "arn:aws:wafv2:us-east-1:111111111111:regional/rulegroup/x/0"}}}
+	some m in waf_rate_denies([group])
+	contains(m, "rule custom-group references a custom rule group")
+	count(waf_rate_denies([object.remove(group, ["OverrideAction"])])) > 0
+	count(waf_rate_denies([object.union(object.remove(group, ["OverrideAction"]), {"OverrideAction": {"Count": {}}})])) == 0
+
+	# The group's own rules are checked like the web ACL's.
+	rg := rc("aws_wafv2_rule_group", "module.stack.module.ingress.aws_wafv2_rule_group.custom", "module.stack.module.ingress", {"name": "custom", "rule_json": json.marshal([rate_rule("rate-in-group", "Block", {})])})
+	some g in terraform.deny with input as plan([rg])
+	contains(g, "WAF-RATE: module.stack.module.ingress.aws_wafv2_rule_group.custom rule rate-in-group can rate-block /mcp ")
+
+	# The managed rule groups of the ingress module are not custom rule groups (README residual risk).
+	managed := {"Name": "AWSManagedRulesCommonRuleSet", "Priority": 30, "OverrideAction": {"None": {}}, "Statement": {"ManagedRuleGroupStatement": {"VendorName": "AWS", "Name": "AWSManagedRulesCommonRuleSet"}}}
+	count(waf_rate_denies([managed])) == 0
+}
+
+# [SAFE-02][SAFE-03] rules declared as `rule {}` blocks instead of rule_json would bypass the gate
+test_waf_rate_rule_blocks_denied if {
+	blocks := [{"name": "rate", "priority": 1, "action": [{"block": [{}]}], "statement": [{"rate_based_statement": [{"limit": 100, "aggregate_key_type": "IP"}]}]}]
+	acl := rc("aws_wafv2_web_acl", "module.stack.module.ingress.aws_wafv2_web_acl.this", "module.stack.module.ingress", {"name": "vsp-test-ingress", "rule_json": null, "rule": blocks})
+	some m in terraform.deny with input as plan([acl])
+	contains(m, "WAF-RATE: module.stack.module.ingress.aws_wafv2_web_acl.this declares rule blocks")
+	empty := rc("aws_wafv2_web_acl", "module.stack.module.ingress.aws_wafv2_web_acl.this", "module.stack.module.ingress", {"name": "vsp-test-ingress", "rule_json": "[]", "rule": []})
+	count(terraform.deny) == 0 with input as plan([empty])
+}
+
 # ------------------------------------------------------------ IAM evaluator
 
 # [VSP-INF-02] Bool / BoolIfExists: an absent key fails Bool and holds for BoolIfExists; values compare case-insensitively
@@ -407,7 +579,8 @@ data_reads := ["dynamodb:GetItem", "dynamodb:Scan", "secretsmanager:GetSecretVal
 
 data_exports := [
 	"dynamodb:ExportTableToPointInTime", "dynamodb:PutResourcePolicy", "rds:ModifyDBClusterSnapshotAttribute", "rds:ModifyDBSnapshotAttribute",
-	"rds:StartExportTask", "logs:CreateExportTask", "logs:PutSubscriptionFilter", "s3:PutReplicationConfiguration", "s3:PutBucketAcl", "sqs:AddPermission",
+	"rds:StartExportTask", "logs:CreateExportTask", "logs:PutSubscriptionFilter", "s3:PutReplicationConfiguration", "s3:PutBucketAcl",
+	"s3:PutObjectAcl", "s3:PutObjectVersionAcl", "sqs:AddPermission",
 ]
 
 ci_data_condition := {"ArnEquals": {"aws:PrincipalArn": ci_roles}, "StringNotLike": {"kms:EncryptionContext:aws:s3:arn": "arn:aws:s3:::vsp-test-tfstate/envs/sandbox/*"}}
@@ -479,6 +652,78 @@ test_ci_boundary_round1_export_and_sharing_denied if {
 	contains(grant, "kms:CreateGrant outside an AWS-service grant or a non-public policy by CI role")
 	some secret in msgs
 	contains(secret, "secretsmanager:PutResourcePolicy outside an AWS-service grant or a non-public policy by CI role")
+	some object_acl in msgs
+	contains(object_acl, "s3:PutObjectAcl (export or share) by CI role")
+	some version_acl in msgs
+	contains(version_acl, "s3:PutObjectVersionAcl (export or share) by CI role")
+}
+
+# [OPS-05][VSP-INF-02] an object ACL can share one object (or one version) with another account: a deny
+# that names only the bucket ACL leaves both object-level calls open, and naming them closes them
+test_ci_boundary_object_acls_probed if {
+	bucket_only := [x | some x in data_exports; not x in {"s3:PutObjectAcl", "s3:PutObjectVersionAcl"}]
+	doc := {"Statement": array.concat(
+		[s | some s in new_boundary.Statement; s.Sid != "NoDataPlaneReadsForCi"],
+		[{"Sid": "NoDataPlaneReadsForCi", "Effect": "Deny", "Action": array.concat(data_reads, bucket_only), "Resource": "*", "Condition": ci_data_condition}],
+	)}
+	msgs := terraform.deny with input as plan([boundary_rc(doc)])
+	every a in ["s3:PutObjectAcl", "s3:PutObjectVersionAcl"] {
+		some m in msgs
+		contains(m, sprintf("%s (export or share) by CI role", [a]))
+	}
+	not has_prefix(terraform.deny, "CI-BOUNDARY") with input as plan([boundary_rc(new_boundary)])
+}
+
+s3_bucket_exports := ["s3:PutBucketAcl", "s3:PutReplicationConfiguration"]
+
+s3_object_exports := ["s3:PutObjectAcl", "s3:PutObjectVersionAcl"]
+
+# The boundary with its S3 export denies moved into two statements scoped to the given resources.
+with_s3_denies(bucket_res, object_res) := {"Statement": array.concat(
+	[s | some s in new_boundary.Statement; s.Sid != "NoDataPlaneReadsForCi"],
+	[
+		{"Sid": "NoDataPlaneReadsForCi", "Effect": "Deny", "Action": array.concat(data_reads, [x | some x in data_exports; not x in array.concat(s3_bucket_exports, s3_object_exports)]), "Resource": "*", "Condition": ci_data_condition},
+		{"Sid": "NoBucketSharing", "Effect": "Deny", "Action": s3_bucket_exports, "Resource": bucket_res, "Condition": ci_data_condition},
+		{"Sid": "NoObjectSharing", "Effect": "Deny", "Action": s3_object_exports, "Resource": object_res, "Condition": ci_data_condition},
+	],
+)}
+
+# [OPS-05][VSP-INF-02] each S3 probe names the resource IAM authorizes the call on (the bucket for the bucket
+# ACL and replication, the object for the object ACLs): a deny scoped to the other resource type is reported
+test_ci_boundary_s3_probes_name_the_authorized_resource if {
+	# Bucket calls denied on objects only, object calls denied on buckets only: all four stay open.
+	msgs := terraform.deny with input as plan([boundary_rc(with_s3_denies("arn:aws:s3:::*/*", "arn:aws:s3:::probe-bucket"))])
+	every a in array.concat(s3_bucket_exports, s3_object_exports) {
+		some m in msgs
+		contains(m, sprintf("%s (export or share) by CI role", [a]))
+	}
+
+	# Each deny on its own resource type closes them.
+	not has_prefix(terraform.deny, "CI-BOUNDARY") with input as plan([boundary_rc(with_s3_denies("arn:aws:s3:::*", "arn:aws:s3:::*/*"))])
+}
+
+# [OPS-05][VSP-INF-02] an object-ACL deny that exempts one bucket's objects (here the Terraform state's) leaves both
+# calls open on that bucket: the object-ACL probes also name an object in every bucket the boundary names
+test_ci_boundary_object_acl_exemption_reported if {
+	exempt_state := {"Statement": array.concat(
+		[s | some s in new_boundary.Statement; s.Sid != "NoDataPlaneReadsForCi"],
+		[
+			{"Sid": "NoDataPlaneReadsForCi", "Effect": "Deny", "Action": array.concat(data_reads, [x | some x in data_exports; not x in s3_object_exports]), "Resource": "*", "Condition": ci_data_condition},
+			{"Sid": "NoObjectAclOutsideState", "Effect": "Deny", "Action": s3_object_exports, "NotResource": ["arn:aws:s3:::vsp-test-tfstate/*"], "Condition": ci_data_condition},
+		],
+	)}
+	"vsp-test-tfstate" in terraform.ci_boundary_named_buckets(exempt_state)
+	msgs := terraform.deny with input as plan([boundary_rc(exempt_state)])
+	every a in s3_object_exports {
+		some m in msgs
+		contains(m, sprintf("%s (export or share) by CI role arn:aws:iam::111111111111:role/vsp-test-gha-apply on arn:aws:s3:::vsp-test-tfstate/probe-object", [a]))
+	}
+
+	# The generic probe object alone does not see the exemption.
+	count({m | some m in msgs; contains(m, "s3:PutObjectAcl (export or share) by CI role"); not contains(m, " on arn:aws:s3:::")}) == 0
+
+	# Wildcards in a named bucket are instantiated.
+	terraform.ci_boundary_named_buckets({"Statement": [{"Effect": "Deny", "Action": "s3:*", "Resource": "arn:aws:s3:::vsp-*-tfstate/*"}]}) == {"vsp-probe-tfstate"}
 }
 
 # [OPS-05][VSP-INF-02] every export or sharing action is probed: dropping any one from the deny reopens it

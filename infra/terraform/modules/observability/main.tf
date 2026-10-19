@@ -32,6 +32,7 @@ locals {
       { title = "Verification attempts", rows = [{ m = [local.ns, "vsp_identity_verifications_total"], stat = "Sum" }] },
       { title = "Verification failures", rows = [{ m = [local.ns, "vsp_identity_verifications_total", "result", "failure"], stat = "Sum" }, { m = [local.ns, "vsp_identity_verifications_total", "result", "locked"], stat = "Sum" }] },
       { title = "Challenge abuse signals", rows = [{ m = [local.ns, "vsp_challenge_abuse_signals_total"], stat = "Sum" }] },
+      { title = "Verification abuse signals (account monitor)", rows = [{ m = [local.ns, "vsp_verification_abuse_signals_total"], stat = "Sum" }] },
       { title = "Denials", rows = [{ m = [local.ns, "vsp_identity_denials_total"], stat = "Sum" }] },
     ]
     tools-dependencies = [
@@ -75,6 +76,7 @@ locals {
       { title = "Audit backlog", rows = [{ m = [local.ns, "vsp_audit_backlog_events"], stat = "Maximum" }] },
       { title = "Audit ingestion gaps", rows = [{ m = [local.ns, "vsp_audit_ingestion_gaps_total"], stat = "Sum" }] },
       { title = "Protected actions without decision or audit", rows = [{ m = [local.ns, "vsp_protected_actions_total", "authorization", "missing_decision"], stat = "Sum" }, { m = [local.ns, "vsp_protected_actions_total", "audit", "not_recorded"], stat = "Sum" }] },
+      { title = "Deferred route audit (process-local; lost on a crash)", rows = [{ m = [local.ns, "vsp_audit_deferred_depth"], stat = "Maximum" }, { m = [local.ns, "vsp_audit_deferred_total", "result", "dropped"], stat = "Sum" }] },
     ]
     admission-controls = [
       { title = "Admission rejections", rows = [{ m = [local.ns, "vsp_admission_decisions_total", "admitted", "false"], stat = "Sum" }] },
@@ -217,6 +219,48 @@ locals {
       missing     = "breaching"
       severity    = "critical"
     }
+    audit-deferred-depth = {
+      # ADR-0011: handoff (route) audit events deferred during an audit outage wait in a process-local queue
+      # and are lost if that process crashes or restarts. Every flush run (worker loop audit.deferred_flush
+      # and the gateway's own DeferredAuditFlushTimer, every 5 s) reports the depth, 0 included. Maximum over
+      # the processes: any process still holding events after 5 minutes alarms. ENGINEERING PROPOSAL (PRQ-011).
+      description = "Handoff route audit events have waited in a process-local deferred queue for 5 minutes and are lost if that process restarts. Runbook RB-AUDIT-OUTAGE. Restore audit writes; do not restart the process holding the queue."
+      metric      = "vsp_audit_deferred_depth"
+      dims        = {}
+      stat        = "Maximum"
+      period      = 60
+      evaluations = 5
+      threshold   = 0
+      operator    = "GreaterThanThreshold"
+      missing     = "notBreaching"
+      severity    = "high"
+    }
+    audit-deferred-dropped = {
+      description = "A handoff route audit event was dropped (deferred queue full, or the event was refused as invalid); that route evidence is lost. Runbook RB-AUDIT-GAP. Document every dropped event."
+      metric      = "vsp_audit_deferred_total"
+      dims        = { result = "dropped" }
+      stat        = "Sum"
+      period      = 60
+      evaluations = 1
+      threshold   = 0
+      operator    = "GreaterThanThreshold"
+      missing     = "notBreaching"
+      severity    = "critical"
+    }
+    verification-abuse-signals = {
+      # Account-keyed verification abuse signals (ADR-0014; hashed keys stay in the abuse monitor, never in
+      # labels). The threshold is an ENGINEERING PROPOSAL pending security operations review.
+      description = "Verification abuse signals above the configured count in 5 minutes (possible enumeration or OTP guessing across calls). Runbook RB-AUTH-BYPASS. Never add a reaction that only real accounts trigger."
+      metric      = "vsp_verification_abuse_signals_total"
+      dims        = {}
+      stat        = "Sum"
+      period      = 300
+      evaluations = 1
+      threshold   = var.verification_abuse_signal_threshold
+      operator    = "GreaterThanThreshold"
+      missing     = "notBreaching"
+      severity    = "high"
+    }
     audit-export-incomplete = {
       description = "Audit export completeness below 1 (or not reported) for 15 minutes. Runbook RB-AUDIT-GAP."
       metric      = "vsp_audit_export_completeness_ratio"
@@ -266,6 +310,9 @@ locals {
       severity    = "medium"
     }
   }
+
+  # Catalogue metrics read by the metric-math alarms below (exported for the drift check).
+  math_alarm_metrics = ["vsp_protected_actions_total"]
 }
 
 resource "aws_sns_topic" "alarms" {
@@ -390,6 +437,78 @@ resource "aws_cloudwatch_metric_alarm" "http_5xx_rate" {
   }
 
   tags = merge(var.tags, { "vsp:severity" = "high" })
+}
+
+# OPS-01, objective audited_accepted_actions (platform/src/observability/slo.ts; PROPOSED target: every
+# accepted consequential action durably audited before acknowledgment). The gateway pipeline counts an
+# accepted consequential tool call (SUCCESS or PENDING) whose tool.invoke audit append failed as
+# vsp_protected_actions_total{audit="not_recorded"}, else {audit="recorded_before_ack"}. The ratio uses
+# the single-dimension `audit` series of the export contract (summed over the authorization label).
+resource "aws_cloudwatch_metric_alarm" "audit_not_recorded_ratio" {
+  alarm_name          = "${var.name_prefix}-audit-not-recorded-ratio"
+  alarm_description   = "[CRITICAL] Accepted consequential tool calls without a recorded tool.invoke audit event above the configured percentage (objective: none). Runbook RB-AUDIT-GAP. Reconcile the affected actions against the ledger; consider engaging WRITES."
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = var.audit_not_recorded_percent
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  metric_query {
+    id          = "ratio"
+    expression  = "100 * FILL(notrecorded, 0) / IF(FILL(notrecorded, 0) + FILL(recorded, 0) > 0, FILL(notrecorded, 0) + FILL(recorded, 0), 1)"
+    label       = "not recorded percent"
+    return_data = true
+  }
+
+  metric_query {
+    id = "notrecorded"
+    metric {
+      namespace   = local.ns
+      metric_name = "vsp_protected_actions_total"
+      dimensions  = { audit = "not_recorded" }
+      stat        = "Sum"
+      period      = 60
+    }
+  }
+
+  metric_query {
+    id = "recorded"
+    metric {
+      namespace   = local.ns
+      metric_name = "vsp_protected_actions_total"
+      dimensions  = { audit = "recorded_before_ack" }
+      stat        = "Sum"
+      period      = 60
+    }
+  }
+
+  tags = merge(var.tags, { "vsp:severity" = "critical" })
+}
+
+# Edge rate limit on the tool-caller paths (modules/ingress): counted, never enforced there, because
+# safety and human-route calls share those paths with every other Talkdesk call (SAFE-02, SAFE-03).
+# CountedRequests above zero means a source exceeded the limit where it is only observed.
+resource "aws_cloudwatch_metric_alarm" "waf_tool_path_rate" {
+  count = var.waf_web_acl_name == null || var.waf_rate_observe_metric_name == null ? 0 : 1
+
+  alarm_name          = "${var.name_prefix}-waf-tool-path-rate-observed"
+  alarm_description   = "[MEDIUM] A source exceeded the edge rate limit on the tool-caller paths, where it is counted and never enforced so that safety and human-route calls are not blocked. Runbook RB-DEPENDENCY-OUTAGE. Review the WAF logs for that source; do not switch this rule to block."
+  namespace           = "AWS/WAFV2"
+  metric_name         = "CountedRequests"
+  dimensions          = { WebACL = var.waf_web_acl_name, Rule = var.waf_rate_observe_metric_name, Region = var.region }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+
+  tags = merge(var.tags, { "vsp:severity" = "medium" })
 }
 
 resource "aws_cloudwatch_metric_alarm" "healthy_targets" {

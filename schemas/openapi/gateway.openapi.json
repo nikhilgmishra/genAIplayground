@@ -3579,7 +3579,7 @@
     "/telephony/v1/session/verification": {
       "post": {
         "operationId": "telephony.beginVerification",
-        "summary": "Begin verification: secure link to the registered channel (preferred) or OTP to an existing verified channel (only when enabled, TB-03). Identical response for zero, one or many matches.",
+        "summary": "Begin verification: secure link to the registered channel (preferred) or OTP to an existing verified channel (only when enabled, TB-03). Identical response for zero, one or many matches. Where the deployment composes the verification kill-switch pre-check (OPS-KS-01), every begin answers VERIFICATION_UNAVAILABLE_USE_HUMAN (human route) before any lookup while outbound notifications are switched off (OUTBOUND_NOTIFICATIONS or INTEGRATION notifications kill switch, or unreadable switch state).",
         "tags": [
           "telephony-control"
         ],
@@ -5462,7 +5462,7 @@
         },
         "responses": {
           "200": {
-            "description": "Event processed (idempotent; duplicates ignored)",
+            "description": "Event processed (idempotent; duplicates ignored). decision deferred: an early progress event is held and applied only after its predecessor (accepted, do not redeliver)",
             "content": {
               "application/json": {
                 "schema": {
@@ -5477,6 +5477,7 @@
                         "applied",
                         "acknowledged",
                         "duplicate",
+                        "deferred",
                         "rejected"
                       ]
                     }

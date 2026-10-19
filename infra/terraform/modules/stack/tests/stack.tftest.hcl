@@ -118,6 +118,11 @@ run "primary_sandbox_composition" {
   }
 
   assert {
+    condition     = contains(keys(local.secret_refs["gateway"]), "request-hash-pepper") && !contains(keys(local.secret_refs["worker"]), "request-hash-pepper") && local.secret_defs["request-hash-pepper"].owner == "security_admin"
+    error_message = "[DATA-01][DP-02] the request-hash pepper container is readable by the gateway only (value loaded by its owner, never by Terraform)"
+  }
+
+  assert {
     condition     = strcontains(module.kms.key_policies["sessions"], "vsp-sandbox-gateway-task") && !strcontains(module.kms.key_policies["sessions"], "worker-task")
     error_message = "session key usable only by the gateway task role"
   }

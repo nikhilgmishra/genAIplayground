@@ -186,6 +186,37 @@ describe("gateway HTTP — telephony control", () => {
     expect(everything).not.toContain("1970-02-03");
   });
 
+  it("[SPEC-7.no-enumeration] [AUTH-ENUM-01] [OPS-KS-01] notifications switched off: the telephony begin answers the human route with the registry template (DRAFT) for real and unknown people alike, sends nothing and audits the switch reason (DENIED)", async () => {
+    const { sessionRef } = await startCall();
+    const begin = async (method: "secure_link" | "otp", locator: Record<string, string>) => {
+      const r = await h.app.inject({ method: "POST", url: "/telephony/v1/session/verification", headers: tel(sessionRef), payload: { method, role: "client", locator } });
+      expect(r.statusCode).toBe(200);
+      return r.json() as Record<string, unknown>;
+    };
+    const real = { fullName: PEOPLE.avery.fullName, dateOfBirth: PEOPLE.avery.dateOfBirth };
+    const unknown = { fullName: "Nobody Synthetic-Unknown", dateOfBirth: "1970-02-03" };
+    h.killSwitches.state = { ...h.killSwitches.state, outboundNotifications: true };
+    const off = { response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", matchCode: null, challengeId: null, speechTemplateId: "verification.failed_generic" };
+    expect(await begin("secure_link", real)).toEqual(off);
+    expect(await begin("secure_link", unknown)).toEqual(off);
+    h.killSwitches.state = { ...h.killSwitches.state, outboundNotifications: false, integrations: ["notifications"] };
+    expect(await begin("secure_link", real)).toEqual(off);
+    expect(h.identity.notifications.sent).toEqual([]);
+    expect(h.identity.directory.lookups).toBe(0);
+    const begun = (await h.auditRows()).filter((e) => e.action === "verification.begun");
+    expect(begun.map((e) => [e.outcome, e.reason_code])).toEqual([
+      ["DENIED", "KILL_SWITCH_OUTBOUND_NOTIFICATIONS"],
+      ["DENIED", "KILL_SWITCH_OUTBOUND_NOTIFICATIONS"],
+      ["DENIED", "KILL_SWITCH_INTEGRATION"],
+    ]);
+    // Released: the normal generic journey (link sent to the registered channel; begin audited as PENDING).
+    h.killSwitches.state = { ...h.killSwitches.state, integrations: [] };
+    const on = await begin("secure_link", real);
+    expect(on).toMatchObject({ response: "IF_ELIGIBLE_A_LINK_WAS_SENT", speechTemplateId: "verification.secure_link_sent" });
+    expect(h.identity.linkFor(PEOPLE.avery.channels[0]?.channelRef ?? "")).not.toBeNull();
+    expect((await h.auditRows()).filter((e) => e.action === "verification.begun").at(-1)).toMatchObject({ outcome: "PENDING", reason_code: "VERIFICATION_SECURE_LINK" });
+  });
+
   it("[AUTH-06] OTP: disabled by default (TB-03) without touching the digits; when enabled, digits never appear in responses, logs or audit", async () => {
     const { sessionRef } = await startCall();
     const disabled = await h.app.inject({ method: "POST", url: "/telephony/v1/session/otp", headers: tel(sessionRef), payload: { challengeId: "otc_synthChallenge00000001", code: "481516" } });

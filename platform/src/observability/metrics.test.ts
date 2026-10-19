@@ -3,14 +3,18 @@ import fc from "fast-check";
 import type { Attributes, Counter, Gauge, Histogram, Meter } from "@opentelemetry/api";
 import {
   ADMISSION_CLASSES,
+  CONTRACT_INTENTS,
   DEFAULT_METRIC_CATALOGUE,
   InMemoryMetrics,
   MetricCatalogueError,
   OTHER_LABEL_VALUE,
   OpenTelemetryMetrics,
   createMetricCatalogue,
+  REPEAT_CONTACT_WINDOWS,
+  VERIFICATION_ABUSE_SIGNAL_KINDS,
   normalizeLabels,
 } from "./metrics.js";
+import { SERVICE_OBJECTIVES } from "./slo.js";
 import { PEOPLE, CALLS } from "../fixtures/synthetic-world.js";
 
 /** Spec section 13 operational dashboards and the metrics that cover each. */
@@ -60,6 +64,21 @@ const REQUESTED_METRICS: Record<string, string[]> = {
   vsp_worker_loop_lag_ms: ["loop"],
   vsp_worker_loop_duration_ms: ["loop"],
   vsp_grant_checks_total: ["guard", "result"],
+  vsp_verified_resolutions_total: ["intent", "source"],
+  vsp_contained_interactions_total: ["intent", "outcome"],
+  vsp_repeat_contacts_total: ["prior_intent", "prior_outcome", "window"],
+  vsp_repeat_contact_checks_total: ["result"],
+  vsp_case_status_observations_total: ["case_state"],
+  vsp_cases_reopened_total: ["issue_category"],
+  vsp_verification_abuse_signals_total: ["signal"],
+};
+
+/** Spec section 13 resolution measures ("Measure verified resolution, 24-hour and 7-day repeat contact, reopened cases ... Keep containment separate"). */
+const RESOLUTION_MEASURES: Record<string, string[]> = {
+  "verified resolution": ["vsp_verified_resolutions_total"],
+  "24-hour and 7-day repeat contact": ["vsp_repeat_contacts_total", "vsp_repeat_contact_checks_total"],
+  "reopened cases": ["vsp_cases_reopened_total", "vsp_case_status_observations_total"],
+  containment: ["vsp_contained_interactions_total"],
 };
 
 describe("metric catalogue", () => {
@@ -106,6 +125,56 @@ describe("metric catalogue", () => {
     const ok = createMetricCatalogue({ models: ["nova-model-2026-10-05"], toolNames: ["get_new_tool"] });
     expect(ok.get("vsp_turn_latency_ms")?.labels.model).toContain("nova-model-2026-10-05");
     expect(ok.get("vsp_tool_calls_total")?.labels.tool).toContain("get_new_tool");
+  });
+
+  it("[SPEC-13.resolution-metrics][DATA-01] resolution, containment, repeat-contact and reopened-case measures exist with content-free labels only", () => {
+    for (const [measure, names] of Object.entries(RESOLUTION_MEASURES)) {
+      for (const name of names) {
+        const d = DEFAULT_METRIC_CATALOGUE.get(name);
+        expect(d, `${measure}: ${name}`).toBeDefined();
+        expect(d?.dashboard, name).toBe("resolution");
+        // No identifier-shaped label key (subject, actor, account, call, session, case or request ids).
+        for (const key of Object.keys(d?.labels ?? {})) expect(key, name).not.toMatch(/subject|actor|account|call|session|case_id|request|reference|_ref$|_id$/);
+      }
+    }
+    const windows = DEFAULT_METRIC_CATALOGUE.get("vsp_repeat_contacts_total")?.labels.window ?? [];
+    expect(windows).toEqual([...REPEAT_CONTACT_WINDOWS]);
+    expect(windows).toEqual(expect.arrayContaining(["24h", "7d"]));
+    // Verified resolution has no outcome dimension: only RESOLVED counts (ACT-04).
+    expect(Object.keys(DEFAULT_METRIC_CATALOGUE.get("vsp_verified_resolutions_total")?.labels ?? {})).not.toContain("outcome");
+    // Intent labels accept every resolution-contract intent and "unknown" (no silent collapse to other).
+    for (const name of ["vsp_interaction_outcomes_total", "vsp_verified_resolutions_total", "vsp_contained_interactions_total"]) {
+      expect(DEFAULT_METRIC_CATALOGUE.get(name)?.labels.intent, name).toEqual(expect.arrayContaining([...CONTRACT_INTENTS]));
+    }
+    expect(DEFAULT_METRIC_CATALOGUE.get("vsp_repeat_contacts_total")?.labels.prior_intent).toEqual(expect.arrayContaining([...CONTRACT_INTENTS]));
+    const m = new InMemoryMetrics();
+    m.increment("vsp_repeat_contacts_total", { window: "24h", prior_outcome: "RESOLVED", prior_intent: "appointment_reschedule", subject_ref: PEOPLE.avery.subjectId as string });
+    m.increment("vsp_interaction_outcomes_total", { outcome: "OUTCOME_UNKNOWN", intent: "unknown" });
+    expect(m.counterValue("vsp_repeat_contacts_total", { window: "24h", prior_outcome: "RESOLVED", prior_intent: "appointment_reschedule" })).toBe(1);
+    expect(m.counterValue("vsp_interaction_outcomes_total", { intent: "unknown" })).toBe(1);
+    expect(m.counterValue("vsp_metric_label_rejections_total", { action: "key_dropped" })).toBe(1);
+    expect(m.counterValue("vsp_metric_label_rejections_total", { action: "collapsed_to_other" })).toBe(0);
+    expect(JSON.stringify(m.allSeries())).not.toContain(PEOPLE.avery.subjectId as string);
+  });
+
+  it("[SPEC-13.resolution-metrics] no service objective is measured on containment or rewards a call for avoiding a transfer", () => {
+    const resolutionMetrics = new Set(Object.values(RESOLUTION_MEASURES).flat());
+    for (const slo of SERVICE_OBJECTIVES) expect(resolutionMetrics.has(slo.metric), slo.id).toBe(false);
+    expect(SERVICE_OBJECTIVES.some((s) => s.metric === "vsp_contained_interactions_total")).toBe(false);
+  });
+
+  it("[SPEC-13.dashboards][DATA-01] the verification abuse metric is labelled with the closed signal kind only", () => {
+    const d = DEFAULT_METRIC_CATALOGUE.get("vsp_verification_abuse_signals_total");
+    expect(d).toMatchObject({ type: "counter", dashboard: "identity" });
+    expect(d?.labels).toEqual({ signal: [...VERIFICATION_ABUSE_SIGNAL_KINDS] });
+    const m = new InMemoryMetrics();
+    m.increment("vsp_verification_abuse_signals_total", { signal: "OTP_ACCOUNT_LIMIT", account: PEOPLE.avery.accountId as string, session: "ses_synthSessionRef000001" });
+    m.increment("vsp_verification_abuse_signals_total", { signal: PEOPLE.avery.accountId as string });
+    expect(m.counterValue("vsp_verification_abuse_signals_total", { signal: "OTP_ACCOUNT_LIMIT" })).toBe(1);
+    expect(m.counterValue("vsp_verification_abuse_signals_total", { signal: OTHER_LABEL_VALUE })).toBe(1);
+    const serialized = JSON.stringify(m.allSeries());
+    expect(serialized).not.toContain(PEOPLE.avery.accountId as string);
+    expect(serialized).not.toContain("ses_synthSessionRef000001");
   });
 
   it("[SPEC-13.admission] admission class label enum matches the AdmissionClass port", () => {

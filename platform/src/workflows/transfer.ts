@@ -46,6 +46,17 @@
  * The TelephonyControl port has no cancel operation, so a STANDARD dial already in
  * flight at the vendor when the safety route starts is not withdrawn there (TB-07);
  * it is recorded on the superseded journey and never retried or failed over.
+ *
+ * Vendor events are at least once and their order is not guaranteed (TB-07, ADR-0017). A
+ * progress event that arrives before its predecessor (BRIDGED, CALLER_CONFIRMED_CONNECTED or
+ * COMPLETE rejected TRANSFER_EVENT_OUT_OF_ORDER by the pure transition) is held on the journey
+ * for its attempt (decision "deferred"; audited transfer.event_deferred) and never applied
+ * early: state, history, connectedAt and the attempt timeout clock are untouched. After each
+ * applied progress transition the held events are re-checked in progression order and applied
+ * through transferTransition again (so SAFE-04 still holds), with their original source. Held
+ * events are discarded when their attempt closes, is replaced or the journey is superseded, so
+ * an early CALLER_CONFIRMED_CONNECTED never connects a timed-out attempt or the next one. A
+ * predecessor that never arrives still times the attempt out (BRIDGED is never inferred).
  */
 import { z } from "zod";
 import type { TelephonyControl } from "../adapters/ports.js";
@@ -65,6 +76,7 @@ import {
   type TransferReason,
   type TransferState,
 } from "../protocol/index.js";
+import { sha256Hex } from "../shared/canonical.js";
 import { iso, type Clock } from "../shared/clock.js";
 import { AccessDeniedError, ConfigurationRejectedError, ConflictError, DependencyError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
@@ -138,7 +150,14 @@ export type TransferDecision =
   | { kind: "applied"; next: TransferState }
   | { kind: "acknowledged" }
   | { kind: "duplicate" }
+  /** Coordinator only (transferTransition never returns it): an early progress event held until its predecessor is applied. */
+  | { kind: "deferred"; reasonCode: "TRANSFER_EVENT_AWAITING_PREDECESSOR" }
   | { kind: "rejected"; reasonCode: string };
+
+/** Progress events the coordinator holds when they arrive before their predecessor (TB-07: delivery order is not guaranteed). */
+export type DeferrableTransferEvent = "BRIDGED" | "CALLER_CONFIRMED_CONNECTED" | "COMPLETE";
+const DEFERRABLE_EVENTS: ReadonlySet<TransferEventName> = new Set<TransferEventName>(["BRIDGED", "CALLER_CONFIRMED_CONNECTED", "COMPLETE"]);
+const isDeferrable = (event: TransferEventName): event is DeferrableTransferEvent => DEFERRABLE_EVENTS.has(event);
 
 /**
  * Pure transition function. Duplicates (target already reached) are ignored;
@@ -227,6 +246,17 @@ export function isActiveJourney(j: Pick<TransferJourney, "status">): boolean {
   return j.status === "ROUTING" || j.status === "CONNECTED" || j.status === "HOLDING_FOR_OPERATIONS";
 }
 
+/** A progress event of the current attempt that arrived before its predecessor (ADR-0017). Opaque ids only. */
+export interface DeferredTransferEvent {
+  transferId: string;
+  event: DeferrableTransferEvent;
+  /** The vendor event id; remembered as applied only when the event is applied. */
+  eventId: string | null;
+  /** The vendor or fixture source that delivered it; the applied history entry keeps it. */
+  source: string;
+  receivedAt: string;
+}
+
 export interface SafetyRouteTiming {
   validatedSafetyEventAt: string;
   routeInitiatedAt: string | null;
@@ -261,6 +291,12 @@ export interface TransferJourney {
   destinationCorrected: boolean;
   safety: SafetyRouteTiming | null;
   appliedEventIds: string[];
+  /**
+   * Early progress events of the current attempt, held until their predecessor is applied and never
+   * applied before it (at most MAX_DEFERRED_PER_ATTEMPT; discarded when the attempt closes or is
+   * replaced, or the journey is superseded). Absent on journeys stored before ADR-0017: read as [].
+   */
+  deferredEvents?: DeferredTransferEvent[];
   auditGaps: number;
   persistenceGaps: number;
   version: number;
@@ -371,6 +407,11 @@ const MAX_EVENT_IDS_KEPT = 256;
  * ends quickly; if it is ever exhausted the sweep supersedes it later (never dialled meanwhile).
  */
 const MAX_SUPERSEDE_WRITES = 8;
+/**
+ * Early progress events held per attempt (ADR-0017). Only BRIDGED, CALLER_CONFIRMED_CONNECTED and
+ * COMPLETE are held and each at most once per attempt, so this bound is never reached by valid input.
+ */
+const MAX_DEFERRED_PER_ATTEMPT = 3;
 
 type AttemptResult = "STARTED" | "FAILED" | "SUPERSEDED";
 
@@ -497,6 +538,7 @@ export class TransferCoordinator {
       destinationCorrected: corrected,
       safety,
       appliedEventIds: [],
+      deferredEvents: [],
       auditGaps: 0,
       persistenceGaps: 0,
       version: 0,
@@ -569,7 +611,9 @@ export class TransferCoordinator {
         if (cur !== null && cur !== target) Object.assign(target, cur);
         return "NOT_ACTIVE";
       }
-      const next: TransferJourney = { ...cur, status: "SUPERSEDED", awaitingRetry: false };
+      // Held early events never apply to a superseded journey (ADR-0017): they go with the supersede write.
+      const discarded = cur.deferredEvents ?? [];
+      const next: TransferJourney = { ...cur, status: "SUPERSEDED", awaitingRetry: false, deferredEvents: [] };
       try {
         await this.persist(next);
       } catch (err) {
@@ -588,6 +632,7 @@ export class TransferCoordinator {
       Object.assign(target, next);
       await this.auditJourney(target, "transfer.superseded", "INVALIDATED", "SUPERSEDED_BY_SAFETY_ROUTE");
       this.logger.warn("transfer.superseded_by_safety", { handoffId: target.handoffId, reasonCode: "SUPERSEDED_BY_SAFETY_ROUTE" });
+      if (discarded.length > 0) await this.auditDiscarded(target, discarded, "SUPERSEDED_BY_SAFETY_ROUTE");
       return "SUPERSEDED";
     }
     this.logger.error("transfer.supersede_failed", { handoffId: target.handoffId, reasonCode: "TRANSFER_SUPERSEDE_RETRIES_EXHAUSTED" });
@@ -645,7 +690,10 @@ export class TransferCoordinator {
     return true;
   }
 
-  /** Applies a telephony event (idempotent on duplicates, rejects invalid/out-of-order events without corrupting state). */
+  /**
+   * Applies a telephony event: idempotent on duplicates; an early progress event is held (deferred)
+   * and applied only after its predecessor; invalid events are rejected without corrupting state.
+   */
   async applyEvent(raw: ApplyTransferEventInput): Promise<ApplyTransferEventResult> {
     const parsedInput = ApplyEventInput.safeParse(raw);
     if (!parsedInput.success) throw new ValidationError("TRANSFER_EVENT_INPUT_INVALID");
@@ -684,29 +732,114 @@ export class TransferCoordinator {
       journey.status = "CALLER_DISCONNECTED";
       journey.awaitingRetry = false;
       this.rememberEvent(journey, input.eventId);
+      const discarded = this.takeDeferred(journey, () => true);
       await this.persist(journey);
       await this.auditJourney(journey, "transfer.caller_disconnected", "FAILED", "CALLER_DISCONNECTED");
+      if (discarded.length > 0) await this.auditDiscarded(journey, discarded, "CALLER_DISCONNECTED");
       return { journey, decision: { kind: "applied", next: "CALLER_DISCONNECTED" } };
     }
 
     const decision = transferTransition(attempt, input.event);
-    if (decision.kind === "rejected") return this.reject(journey, input.event, decision.reasonCode);
+    if (decision.kind === "rejected") {
+      // ADR-0017: only now (known current attempt, journey not superseded, no active safety journey to yield to)
+      // is an early progress event held for its predecessor instead of being dropped.
+      if (decision.reasonCode === "TRANSFER_EVENT_OUT_OF_ORDER" && isDeferrable(input.event)) {
+        return this.defer(journey, attempt.transferId, { ...input, event: input.event });
+      }
+      return this.reject(journey, input.event, decision.reasonCode);
+    }
     if (decision.kind === "duplicate") {
       this.rememberEvent(journey, input.eventId);
       await this.persist(journey);
       return { journey, decision };
     }
 
-    const now = iso(this.clock.now());
     if (decision.kind === "acknowledged") {
+      const now = iso(this.clock.now());
       this.updateAttempt(journey, attempt.transferId, (a) => ({ ...a, receiverAcknowledgedPackage: true, updatedAt: now }));
       this.rememberEvent(journey, input.eventId);
       await this.persist(journey);
       await this.auditJourney(journey, "transfer.package_acknowledged", "SUCCEEDED", null);
       return { journey, decision };
     }
+    if (decision.kind !== "applied") return this.reject(journey, input.event, "TRANSFER_EVENT_NOT_APPLICABLE"); // unreachable
 
-    const next = decision.next;
+    await this.applyTransition(journey, attempt, decision.next, input, null);
+    // A progress step may be the predecessor a held event was waiting for (ADR-0017).
+    if (PROGRESS_STATES.has(decision.next) && (journey.deferredEvents ?? []).length > 0) await this.drainDeferred(journey);
+    return { journey, decision };
+  }
+
+  /**
+   * Holds an early progress event of the current attempt until its predecessor is applied (ADR-0017).
+   * Nothing about the attempt changes: no state, history, connectedAt or appliedEventIds entry, and
+   * the timeout clock (the attempt's last history entry) is not refreshed. Idempotent per
+   * (transferId, event) and per eventId; at most MAX_DEFERRED_PER_ATTEMPT entries per attempt.
+   */
+  private async defer(
+    j: TransferJourney,
+    transferId: string,
+    input: { event: DeferrableTransferEvent; eventId?: string | undefined; source: string },
+  ): Promise<ApplyTransferEventResult> {
+    const decision = { kind: "deferred", reasonCode: "TRANSFER_EVENT_AWAITING_PREDECESSOR" } as const;
+    const held = j.deferredEvents ?? [];
+    const sameEvent = (d: DeferredTransferEvent) => (d.transferId === transferId && d.event === input.event) || (input.eventId !== undefined && d.eventId === input.eventId);
+    if (held.some(sameEvent)) return { journey: j, decision }; // a redelivery of an event already held: one entry
+    if (held.filter((d) => d.transferId === transferId).length >= MAX_DEFERRED_PER_ATTEMPT) return this.reject(j, input.event, "TRANSFER_DEFERRED_EVENTS_FULL");
+    const entry: DeferredTransferEvent = { transferId, event: input.event, eventId: input.eventId ?? null, source: input.source, receivedAt: iso(this.clock.now()) };
+    j.deferredEvents = [...held, entry];
+    await this.persist(j);
+    await this.auditJourney(j, "transfer.event_deferred", "PENDING", "TRANSFER_EVENT_AWAITING_PREDECESSOR", eventPointers([entry]));
+    this.logger.info("transfer.event_deferred", { handoffId: j.handoffId, eventCode: input.event, reasonCode: "TRANSFER_EVENT_AWAITING_PREDECESSOR" });
+    return { journey: j, decision };
+  }
+
+  /**
+   * Applies held events of the current attempt in progression order, each through transferTransition
+   * again (SAFE-04: CALLER_CONFIRMED_CONNECTED still applies only from BRIDGED), and stops at the first
+   * one still waiting for its predecessor. The history entry keeps the event's original source and the
+   * event id is remembered now, so a later redelivery is a duplicate. Each drained entry of a STANDARD
+   * journey is a STANDARD routing step and yields to the call's active SAFETY journey first (SAFE-03):
+   * a safety route that started after this event's own check (in the predecessor's write window) stops
+   * the drain, even when its supersede write failed; the entry stays held until the supersede discards it.
+   * Returns the number applied.
+   */
+  private async drainDeferred(j: TransferJourney): Promise<number> {
+    let applied = 0;
+    for (let step = 0; step < MAX_DEFERRED_PER_ATTEMPT; step++) {
+      if (j.status !== "ROUTING" && j.status !== "CONNECTED") break;
+      const attempt = j.attempts.find((a) => a.transferId === j.currentTransferId);
+      const entry = (j.deferredEvents ?? []).filter((d) => d.transferId === attempt?.transferId).sort((a, b) => progressRank(a.event) - progressRank(b.event))[0];
+      if (!attempt || !entry) break;
+      const decision = transferTransition(attempt, entry.event);
+      if (decision.kind !== "applied" && decision.kind !== "duplicate") break; // still awaiting its predecessor
+      if (await this.yieldsToSafety(j)) break;
+      j.deferredEvents = (j.deferredEvents ?? []).filter((d) => d !== entry);
+      const ev = { event: entry.event, source: entry.source, ...(entry.eventId !== null ? { eventId: entry.eventId } : {}) };
+      if (decision.kind === "duplicate") {
+        this.rememberEvent(j, ev.eventId);
+        await this.persist(j);
+        continue;
+      }
+      await this.applyTransition(j, attempt, decision.next, ev, entry);
+      applied++;
+    }
+    return applied;
+  }
+
+  /**
+   * Applies one legal transition to the journey's current attempt: history (with the event's own
+   * source), status, persist, audit, and the failover for failure states. An attempt that reaches a
+   * terminal state discards its held events (audited), so they never apply to it or to the next attempt.
+   */
+  private async applyTransition(
+    journey: TransferJourney,
+    attempt: TransferRecord,
+    next: TransferState,
+    input: { event: TransferEventName; source: string; eventId?: string | undefined; packageAcknowledged?: boolean | undefined },
+    deferred: DeferredTransferEvent | null,
+  ): Promise<void> {
+    const now = iso(this.clock.now());
     const ack = attempt.receiverAcknowledgedPackage || (next === "RECEIVER_ACCEPTED" && input.packageAcknowledged === true);
     this.updateAttempt(journey, attempt.transferId, (a) => ({
       ...a,
@@ -716,6 +849,7 @@ export class TransferCoordinator {
       updatedAt: now,
     }));
     this.rememberEvent(journey, input.eventId);
+    const discarded = TERMINAL_TRANSFER_STATES.has(next) ? this.takeDeferred(journey, (d) => d.transferId === attempt.transferId) : [];
 
     if (next === "CALLER_CONFIRMED_CONNECTED") {
       journey.status = "CONNECTED";
@@ -731,8 +865,16 @@ export class TransferCoordinator {
       journey.awaitingRetry = false;
     }
     await this.persist(journey);
-    await this.auditJourney(journey, "transfer.state_changed", this.auditOutcomeFor(next), next === "COMPLETED" && !ack ? "HANDOFF_PACKAGE_UNACKNOWLEDGED" : stateReason(next));
+    // A held event applied now is its own entry, referencing the same event as its transfer.event_deferred entry.
+    await this.auditJourney(
+      journey,
+      "transfer.state_changed",
+      this.auditOutcomeFor(next),
+      next === "COMPLETED" && !ack ? "HANDOFF_PACKAGE_UNACKNOWLEDGED" : stateReason(next),
+      deferred ? eventPointers([deferred]) : [],
+    );
     this.logger.info("transfer.state_changed", { transferId: attempt.transferId, toState: next, priority: journey.priority });
+    if (discarded.length > 0) await this.auditDiscarded(journey, discarded, "TRANSFER_ATTEMPT_CLOSED");
 
     if (next === "CALLER_DISCONNECTED" && journey.priority === "SAFETY" && journey.connectedAt === null) {
       // The safety lead owns the disconnect procedure; record that follow-up is required.
@@ -740,7 +882,6 @@ export class TransferCoordinator {
       this.logger.warn("transfer.safety_disconnect_follow_up_required", { handoffId: journey.handoffId });
     }
     if (FAILOVER_STATES.has(next)) await this.failover(journey, next);
-    return { journey, decision };
   }
 
   /**
@@ -765,6 +906,13 @@ export class TransferCoordinator {
         }
         const current = j.attempts.find((a) => a.transferId === j.currentTransferId);
         if (!current || TERMINAL_TRANSFER_STATES.has(current.state)) continue;
+        // ADR-0017: a held event whose predecessor is applied but whose own write lost a race (version
+        // conflict) is applied here; one still awaiting its predecessor never delays the timeout below.
+        const drained = (j.deferredEvents ?? []).length > 0 ? await this.drainDeferred(j) : 0;
+        if (drained > 0) {
+          applied += drained;
+          continue;
+        }
         const last = current.history.at(-1)?.at ?? current.updatedAt;
         if (now - Date.parse(last) >= this.config.attemptTimeoutMs[j.priority]) {
           const r = await this.applyEvent({ transferId: current.transferId, event: "TIMEOUT", source: "coordinator.timeout" });
@@ -888,6 +1036,8 @@ export class TransferCoordinator {
     });
     j.routeIndex = idx;
     j.currentTransferId = transferId;
+    // ADR-0017: events held for an earlier attempt never apply to this one.
+    const replaced = this.takeDeferred(j, (d) => d.transferId !== transferId);
     j.attempts = [...j.attempts, record].slice(-MAX_ATTEMPTS_KEPT);
     j.attemptCount += 1;
     j.awaitingRetry = false;
@@ -897,6 +1047,7 @@ export class TransferCoordinator {
     if (dest.purpose === "OUTAGE_CONTINUITY") j.continuityAttempts += 1;
     // Persist before dialling so a crash after the dial is reconcilable.
     await this.persist(j);
+    if (replaced.length > 0) await this.auditDiscarded(j, replaced, "TRANSFER_ATTEMPT_REPLACED");
 
     const initiatedAt = this.clock.now();
     if (j.safety && j.safety.routeInitiatedAt === null) {
@@ -973,6 +1124,20 @@ export class TransferCoordinator {
     if (eventId !== undefined) j.appliedEventIds = [...j.appliedEventIds, eventId].slice(-MAX_EVENT_IDS_KEPT);
   }
 
+  /** Removes (and returns) the held events matching `which`; the caller persists, then audits them. */
+  private takeDeferred(j: TransferJourney, which: (d: DeferredTransferEvent) => boolean): DeferredTransferEvent[] {
+    const held = j.deferredEvents ?? [];
+    const taken = held.filter(which);
+    if (taken.length > 0) j.deferredEvents = held.filter((d) => !which(d));
+    return taken;
+  }
+
+  /** Audits held events dropped with their attempt or journey (ADR-0017); they are never applied. */
+  private async auditDiscarded(j: TransferJourney, discarded: readonly DeferredTransferEvent[], reasonCode: string): Promise<void> {
+    await this.auditJourney(j, "transfer.deferred_events_discarded", "INVALIDATED", reasonCode, eventPointers(discarded));
+    this.logger.warn("transfer.deferred_events_discarded", { handoffId: j.handoffId, reasonCode, count: discarded.length });
+  }
+
   private async reject(j: TransferJourney, event: TransferEventName, reasonCode: string): Promise<ApplyTransferEventResult> {
     this.logger.warn("transfer.event_rejected", { handoffId: j.handoffId, eventCode: event, reasonCode });
     await this.auditJourney(j, "transfer.event_rejected", "DENIED", reasonCode);
@@ -1019,13 +1184,13 @@ export class TransferCoordinator {
     };
   }
 
-  private async auditJourney(j: TransferJourney, action: string, outcome: AuditOutcome, reasonCode: string | null): Promise<void> {
+  private async auditJourney(j: TransferJourney, action: string, outcome: AuditOutcome, reasonCode: string | null, extraEvidence: readonly string[] = []): Promise<void> {
     const ok = await this.auditSafe(
       { tenantId: j.tenantId, callId: j.callId, correlationId: j.handoffId, sessionGeneration: j.sessionGeneration },
       action,
       outcome,
       reasonCode,
-      [`transfer_journey:${j.handoffId}`, ...(j.currentTransferId ? [`transfer:${j.currentTransferId}`] : [])],
+      [...new Set([`transfer_journey:${j.handoffId}`, ...(j.currentTransferId ? [`transfer:${j.currentTransferId}`] : []), ...extraEvidence])],
     );
     if (!ok) j.auditGaps += 1;
   }
@@ -1074,6 +1239,26 @@ export class TransferCoordinator {
       return false;
     }
   }
+}
+
+const PROGRESS_STATES: ReadonlySet<TransferState> = new Set<TransferState>(Object.values(PROGRESS_EVENTS));
+
+function progressRank(event: DeferrableTransferEvent): number {
+  return TRANSFER_PROGRESSION.indexOf(PROGRESS_EVENTS[event] as TransferState);
+}
+
+/**
+ * Audit evidence for held events: their attempt, and an opaque digest of each vendor event id, so the
+ * transfer.event_deferred entry and the later application (or discard) reference the same event. The
+ * vendor id itself is never written to audit (its shape is vendor-defined; DATA-01).
+ */
+function eventPointers(entries: readonly DeferredTransferEvent[]): string[] {
+  const out = new Set<string>();
+  for (const e of entries) {
+    out.add(`transfer:${e.transferId}`);
+    if (e.eventId !== null) out.add(`transfer_event:tev_${sha256Hex(e.eventId).slice(0, 32)}`);
+  }
+  return [...out];
 }
 
 function stateReason(state: TransferState): string | null {

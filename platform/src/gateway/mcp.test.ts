@@ -12,7 +12,9 @@ import { CALLS } from "../fixtures/synthetic-world.js";
 import { LOCAL_FIXTURE_TOKENS } from "./auth.js";
 import { createAppHarness } from "./fixtures/app-harness.fixture.js";
 import type { AppHarness } from "./fixtures/app-harness.fixture.js";
-import { MCP_MAX_BATCH_MESSAGES, MCP_RATE_LIMITED_CODE, MCP_SERVER_NAME } from "./mcp.js";
+import { buildCatalog } from "./catalog.js";
+import { catalogToolModules } from "./generate-catalog.js";
+import { MCP_MAX_BATCH_MESSAGES, MCP_RATE_LIMITED_CODE, MCP_SERVER_NAME, mcpToolList } from "./mcp.js";
 
 let h: AppHarness;
 let base: URL;
@@ -62,6 +64,31 @@ describe("MCP Streamable HTTP adapter (real SDK client over 127.0.0.1)", () => {
       expect((t.inputSchema as { additionalProperties?: unknown }).additionalProperties).toBe(false);
       expect(t._meta).toMatchObject({ "vsp/toolVersion": def?.version, "vsp/catalogDigest": h.catalog.digest });
     }
+  });
+
+  it("[SPEC-8.mcp][ACT-02][ACT-F2] tool annotations are truthful: an intake is not idempotent in MCP terms (the same arguments with a new idempotency key run again), a digest-bound commit is, and _meta names the mechanism", async () => {
+    const client = await connect(mcpAuth);
+    const listed = new Map((await client.listTools()).tools.map((t) => [t.name, t]));
+    const hints = (name: string) => listed.get(name)?.annotations;
+    expect(hints("fixture_create_request")).toEqual({ readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false });
+    expect(listed.get("fixture_create_request")?._meta).toMatchObject({ "vsp/idempotency": "IDEMPOTENCY_KEY_REQUIRED", "vsp/safetyClass": "INTAKE" });
+    expect(hints("fixture_commit_change")).toEqual({ readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false });
+    expect(listed.get("fixture_commit_change")?._meta).toMatchObject({ "vsp/idempotency": "PREPARED_ACTION_DIGEST" });
+    expect(hints("fixture_get_appointments")).toEqual({ readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false });
+    expect(hints("fixture_request_human")).toEqual({ readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false });
+
+    // Why: the idempotency key is not an argument. Same arguments + same key replays; same arguments + a new key runs again.
+    const { sessionRef } = await h.startCall(CALLS.repeat.callId);
+    const caller = await connect({ ...mcpAuth, "x-vsp-session-ref": sessionRef });
+    const args = { category: "general_question", urgency: "normal" };
+    const effects = () => h.faults.effects.filter((e) => e.startsWith("intake_")).length;
+    const before = effects();
+    const first = await caller.callTool({ name: "fixture_create_request", arguments: args, _meta: { idempotencyKey: "idem_mcpHintKeyAlpha01" } });
+    expect((first.structuredContent as Structured).status).toBe("SUCCESS");
+    await caller.callTool({ name: "fixture_create_request", arguments: args, _meta: { idempotencyKey: "idem_mcpHintKeyAlpha01" } });
+    expect(effects()).toBe(before + 1);
+    await caller.callTool({ name: "fixture_create_request", arguments: args, _meta: { idempotencyKey: "idem_mcpHintKeyBravo02" } });
+    expect(effects()).toBe(before + 2);
   });
 
   it("[SPEC-8.tool-pipeline][AUTH-03] tools/call runs the trusted pipeline; the session comes only from the trusted header, never from arguments or _meta", async () => {
@@ -216,5 +243,67 @@ describe("MCP rate limiting per JSON-RPC message (SAFE-HANDOFF-03, VSP-GW-01, VS
     // Without a limiter a small batch still runs one message at a time and answers every request id.
     const ok = await post([human(1), human(2)], { "x-vsp-interaction-id": CALLS.primary.callId });
     expect((JSON.parse(ok.body) as { id: number }[]).map((m) => m.id)).toEqual([1, 2]);
+  });
+});
+
+describe("MCP annotations of the business catalogue (pinned definitions)", () => {
+  const list = mcpToolList(buildCatalog(catalogToolModules()));
+  const byName = new Map(list.map((t) => [t.name, t]));
+
+  it("[SPEC-8.mcp][ACT-02][ACT-F2] no tool that needs an idempotency key, and no intake, safety or human route, advertises idempotentHint: true", () => {
+    for (const t of list) {
+      const keyed = t._meta["vsp/idempotency"] === "IDEMPOTENCY_KEY_REQUIRED";
+      const cls = t._meta["vsp/safetyClass"];
+      if (keyed || cls === "INTAKE" || cls === "PREPARE_MUTATION" || cls === "SAFETY_AND_HUMAN_ROUTE") expect(t.annotations.idempotentHint, t.name).toBe(false);
+      expect(t.annotations.openWorldHint, t.name).toBe(false);
+    }
+    for (const name of ["create_support_request", "submit_complaint", "submit_partner_intake", "begin_verification", "prepare_appointment_change", "prepare_billing_review", "request_human_transfer", "request_safety_route"]) {
+      expect(byName.get(name)?.annotations.idempotentHint, name).toBe(false);
+    }
+  });
+
+  it("[SPEC-8.mcp][ACT-01] reads are read-only; commits are digest-bound (idempotent by the ledger) and may change existing records (destructive)", () => {
+    for (const t of list) {
+      const cls = t._meta["vsp/safetyClass"];
+      const read = cls === "PUBLIC_READ" || cls === "PROTECTED_READ";
+      expect(t.annotations.readOnlyHint, t.name).toBe(read);
+      if (read) expect(t.annotations.idempotentHint, t.name).toBe(true);
+      if (cls === "COMMIT_MUTATION") expect(t.annotations.destructiveHint, t.name).toBe(true);
+    }
+    for (const name of ["commit_appointment_change", "submit_billing_review"]) {
+      expect(byName.get(name)?.annotations, name).toEqual({ readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false });
+      expect(byName.get(name)?._meta["vsp/idempotency"], name).toBe("PREPARED_ACTION_DIGEST");
+    }
+  });
+
+  it("[SPEC-8.mcp][ACT-01][AUTH-OTP-LIMIT-01][SAFE-03] destructiveHint is false only for purely additive tools: prepares (supersede the session's pending actions on the record) and begin_verification (supersedes the call's outstanding code) are destructive; insert-only intakes and the safety / human routes are not", () => {
+    // Every business tool, explicitly: a new tool or a changed class must make a deliberate annotation decision.
+    // Prepare supersede: actions/action-service.test.ts "a changed request supersedes the session's earlier pending
+    // action on the same record"; OTP supersede: identity/verification-service.test.ts OTP_CHALLENGE_SUPERSEDED.
+    const expected: Record<string, { readOnlyHint: boolean; destructiveHint: boolean; idempotentHint: boolean }> = {
+      search_approved_runbook: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      get_login_guidance: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      get_appointment_options: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      get_invoice_status: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      get_claim_status: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      get_provider_onboarding_status: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      get_remittance_status: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      get_authorized_case_status: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+      begin_verification: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+      create_support_request: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      submit_complaint: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      submit_partner_intake: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      prepare_appointment_change: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+      prepare_billing_review: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+      commit_appointment_change: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+      submit_billing_review: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+      request_human_transfer: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+      request_safety_route: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    };
+    expect([...byName.keys()].sort()).toEqual(Object.keys(expected).sort());
+    for (const [name, hints] of Object.entries(expected)) expect(byName.get(name)?.annotations, name).toEqual({ ...hints, openWorldHint: false });
+    for (const t of list) if (t._meta["vsp/safetyClass"] === "PREPARE_MUTATION") expect(t.annotations.destructiveHint, t.name).toBe(true);
+    // The safety / human routes need no key (NATURALLY_IDEMPOTENT) yet are not idempotentHint: a repeat can write another record.
+    for (const name of ["request_human_transfer", "request_safety_route"]) expect(byName.get(name)?._meta["vsp/idempotency"], name).toBe("NATURALLY_IDEMPOTENT");
   });
 });

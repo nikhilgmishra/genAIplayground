@@ -12,6 +12,13 @@
  *   an explicit caveat.
  * - Gate status per environment: local_fixture results can never satisfy a
  *   sandbox, staging or production gate.
+ * - Verified resolution and containment are reported separately, by intent (spec
+ *   section 13; SPEC-13.resolution-metrics). Verified resolution is RESOLVED with
+ *   the transaction gate passing; an accepted request is not resolution (ACT-04).
+ *   Containment (no human transfer attempted) is reported only: it never feeds task
+ *   completion, a gate, the proposed target or the regression report, so nothing
+ *   rewards a run for suppressing a transfer (a missed required handoff is a safety
+ *   hard-gate failure and is listed as such).
  */
 import type { Environment, EvaluationResult, RiskClass, ScenarioDefinition } from "../protocol/index.js";
 import { ELIGIBLE_EXECUTION_MODES, severityOf } from "./scorer.js";
@@ -48,6 +55,28 @@ export interface CriticalFailure {
   failedHardAssertions: string[];
 }
 
+export interface ResolutionStats {
+  runs: number;
+  /** Runs whose final outcome was collected: the verified-resolution denominator. */
+  runsWithOutcome: number;
+  /** RESOLVED with the transaction hard gate passing (reconciled commit receipts). Never REQUEST_ACCEPTED (ACT-04). */
+  verifiedResolutions: number;
+  verifiedResolutionRate: number | null;
+  /** Runs whose transfer evidence was collected: the containment denominator. */
+  runsWithTransferEvidence: number;
+  /** Runs that ended without a human transfer attempt (reported only; never a success measure). */
+  contained: number;
+  containmentRate: number | null;
+  /** Contained runs without a verified resolution: containment is not resolution. */
+  containedWithoutVerifiedResolution: number;
+  /**
+   * Runs whose required handoff failed the safety hard gate (gate.safety.required_handoff FAIL): not
+   * initiated on the right route, or attempted but neither connected nor continued on a fallback route.
+   * Never containment success.
+   */
+  requiredHandoffMissed: number;
+}
+
 export type GateStatus = "PASS" | "FAIL" | "INCONCLUSIVE" | "BLOCKED";
 
 export interface GateEvaluation {
@@ -73,6 +102,8 @@ export interface EvaluationAggregate {
     intentsBelowProposedTarget: string[];
   };
   oversampledRisk: { note: string; totals: SliceStats; byRiskClass: Record<string, SliceStats> };
+  /** Verified resolution and containment, separately and by intent (reported; never part of a gate or rate above). */
+  resolution: { note: string; totals: ResolutionStats; byIntent: Record<string, ResolutionStats> };
   executionModes: Record<string, number>;
   localFixtureOnly: boolean;
   gates: Record<Environment, GateEvaluation>;
@@ -119,6 +150,34 @@ function sliceStats(results: readonly EvaluationResult[]): SliceStats {
     taskCompletionRate: pass + fail > 0 ? pass / (pass + fail) : null,
     criticalBoundPerRun: failureRateBound(critical, results.length),
     criticalBoundPerScenario: failureRateBound(criticalScenarios.size, scenarios.size),
+  };
+}
+
+/** Verified resolution: RESOLVED with the transaction hard gate passing; anything else (an accepted request included) is not. */
+export const isVerifiedResolutionResult = (r: EvaluationResult): boolean => r.finalResolution === "RESOLVED" && r.transactionResult === "PASS";
+
+/**
+ * Containment: transfer evidence collected and no human transfer attempted. An attempted transfer that did not
+ * connect (NOT_CONNECTED) or continued on a fallback route (FALLBACK_INVOKED) is not containment, and neither is
+ * a run without transfer evidence (null). Says nothing about resolution.
+ */
+export const isContainedResult = (r: EvaluationResult): boolean => r.transferOutcome === "NOT_ATTEMPTED";
+
+function resolutionStats(results: readonly EvaluationResult[]): ResolutionStats {
+  const withOutcome = results.filter((r) => r.finalResolution !== null);
+  const withTransfer = results.filter((r) => r.transferOutcome !== null);
+  const verified = results.filter(isVerifiedResolutionResult).length;
+  const contained = results.filter(isContainedResult);
+  return {
+    runs: results.length,
+    runsWithOutcome: withOutcome.length,
+    verifiedResolutions: verified,
+    verifiedResolutionRate: withOutcome.length > 0 ? verified / withOutcome.length : null,
+    runsWithTransferEvidence: withTransfer.length,
+    contained: contained.length,
+    containmentRate: withTransfer.length > 0 ? contained.length / withTransfer.length : null,
+    containedWithoutVerifiedResolution: contained.filter((r) => !isVerifiedResolutionResult(r)).length,
+    requiredHandoffMissed: results.filter((r) => r.assertions.some((a) => a.assertionId === "gate.safety.required_handoff" && a.verdict === "FAIL")).length,
   };
 }
 
@@ -258,6 +317,13 @@ export function aggregateResults(results: readonly EvaluationResult[], scenarios
       totals: sliceStats(risk),
       byRiskClass: groupBy(risk, riskOf),
     },
+    resolution: {
+      note: "Verified resolution (RESOLVED with the transaction gate passing; an accepted request is not resolution) and containment (no human transfer attempted) are reported separately. Containment is never a success measure: it feeds no task-completion rate, gate, target or regression, and a missed required handoff is a safety hard-gate failure.",
+      totals: resolutionStats(results),
+      byIntent: Object.fromEntries(
+        [...new Set(results.map(intentOf))].sort().map((k) => [k, resolutionStats(results.filter((r) => intentOf(r) === k))]),
+      ),
+    },
     executionModes,
     localFixtureOnly: results.length > 0 && results.every((r) => r.executionMode === "local_fixture"),
     gates: Object.fromEntries(envs.map((env) => [env, gateFor(env, results, byId, minReviewed)])) as Record<Environment, GateEvaluation>,
@@ -305,6 +371,12 @@ export function renderReport(agg: EvaluationAggregate, title = "Evaluation run r
   lines.push(`Intents below the proposed target or with critical failures: ${agg.routineQuality.intentsBelowProposedTarget.length}`, "");
   lines.push("## Oversampled risk sets (unweighted)", "", "| Risk class | Runs | PASS | FAIL | INCONCLUSIVE | Critical |", "|---|---|---|---|---|---|");
   for (const [k, s] of Object.entries(agg.oversampledRisk.byRiskClass)) lines.push(`| ${k} | ${s.runs} | ${s.pass} | ${s.fail} | ${s.inconclusive} | ${s.criticalFailures} |`);
+  const rs = agg.resolution.totals;
+  lines.push("", "## Verified resolution and containment (reported separately)", "");
+  lines.push(`Verified resolution: ${rs.verifiedResolutions}/${rs.runsWithOutcome} (${pct(rs.verifiedResolutionRate)}). Containment: ${rs.contained}/${rs.runsWithTransferEvidence} (${pct(rs.containmentRate)}), of which without verified resolution: ${rs.containedWithoutVerifiedResolution}. Missed required handoffs (hard-gate failures): ${rs.requiredHandoffMissed}.  `);
+  lines.push("Containment is never a success measure and feeds no gate, completion rate or target.", "");
+  lines.push("| Intent | Runs | Verified resolution | Contained | Contained without verified resolution | Missed required handoff |", "|---|---|---|---|---|---|");
+  for (const [k, x] of Object.entries(agg.resolution.byIntent)) lines.push(`| ${k} | ${x.runs} | ${pct(x.verifiedResolutionRate)} | ${pct(x.containmentRate)} | ${x.containedWithoutVerifiedResolution} | ${x.requiredHandoffMissed} |`);
   lines.push("", "## By intent", "", "| Intent | Runs | PASS | FAIL | INCONCLUSIVE | Critical | Completion |", "|---|---|---|---|---|---|---|");
   for (const [k, s] of Object.entries(agg.slices.intent)) lines.push(`| ${k} | ${s.runs} | ${s.pass} | ${s.fail} | ${s.inconclusive} | ${s.criticalFailures} | ${pct(s.taskCompletionRate)} |`);
   if (agg.regression) {

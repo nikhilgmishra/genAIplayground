@@ -133,9 +133,11 @@ export function escapeRegExp(s: string): string {
  * deprecated format controls (U+206A-206F), interlinear annotation (U+FFF9-FFFB),
  * musical format controls, variation selectors and the tag block (U+E0000-E007F).
  * A hand-maintained list missed several of these, which let them split hosts and
- * hide tag-encoded text from matching (VSP-KN-01).
+ * hide tag-encoded text from matching (VSP-KN-01). U+2800 BRAILLE PATTERN BLANK is
+ * neither, but it is a blank filler (like the default-ignorable Hangul fillers) that
+ * is not whitespace, so a reader sees no break where it splits a host.
  */
-const INVISIBLE = /[\p{Cf}\p{Default_Ignorable_Code_Point}]/gu;
+const INVISIBLE = /[\p{Cf}\p{Default_Ignorable_Code_Point}\u2800]/gu;
 
 /** Removes every invisible format / default-ignorable character (see INVISIBLE). */
 export function stripInvisible(text: string): string {
@@ -159,10 +161,42 @@ export function decodeTagCharacters(text: string): string {
   return out;
 }
 
-/** ASCII control characters other than tab and newline. */
+/**
+ * Removes C0 controls other than tab and newline (CR and CRLF become a newline), DEL and the C1
+ * controls U+0080-009F. C1 characters are neither Cf nor default-ignorable, so stripInvisible keeps
+ * them, and they split hosts just as invisibly (VSP-KN-01).
+ */
 export function stripControl(text: string): string {
   // eslint-disable-next-line no-control-regex
-  return text.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+  return text.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, "");
+}
+
+/**
+ * Every character that stripInvisible or stripControl removes, plus CR (which stripControl turns
+ * into a newline): text that has been through both contains none of them.
+ */
+// eslint-disable-next-line no-control-regex
+const HIDDEN = /[\p{Cf}\p{Default_Ignorable_Code_Point}\u2800\u0000-\u0008\u000B-\u001F\u007F-\u009F]/u;
+
+/** True when the text still holds an invisible, default-ignorable, tag, U+2800, C0 (other than tab/newline) or C1 character. */
+export function containsInvisibleOrControl(text: string): boolean {
+  return HIDDEN.test(text);
+}
+
+/**
+ * The hidden characters that can stand for a word break: C0 controls other than tab and newline (CR
+ * included), DEL, C1 controls, U+200B ZERO WIDTH SPACE, U+2060 WORD JOINER, U+FEFF and the blank
+ * fillers U+2800, U+3164 and U+FFA0 (they render as a blank). Characters that belong inside a word
+ * (U+00AD SOFT HYPHEN, ZWJ/ZWNJ, U+034F COMBINING GRAPHEME JOINER, variation selectors) and the
+ * other format characters (bidi controls, invisible operators, tags) are not: reading
+ * "sub<U+00AD>system:" as "sub system:" turned an ordinary word into an injection role marker.
+ */
+// eslint-disable-next-line no-control-regex
+const WORD_BREAKING_HIDDEN = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u200B\u2060\uFEFF\u2800\u3164\uFFA0]/g;
+
+/** Replaces each hidden character that can stand for a word break (see WORD_BREAKING_HIDDEN) with a space. */
+export function wordBreakingHiddenAsSpaces(text: string): string {
+  return text.replace(WORD_BREAKING_HIDDEN, " ");
 }
 
 export const DIGIT_WORD_RE = new RegExp(`\\b(?:${DIGIT_WORDS})\\b`, "gi");

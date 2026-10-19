@@ -1,6 +1,6 @@
 {
   "scenarioId": "scn_payer_claim_inquiry__dependency_failure",
-  "version": 1,
+  "version": 2,
   "split": "development",
   "intent": "payer_claim_inquiry",
   "audience": "payer_representative",
@@ -11,7 +11,7 @@
   "initialState": {
     "fixtureSet": "synthetic_world_unknown_caller",
     "faults": [
-      "CLAIMS_TIMEOUT"
+      "IDP_UNAVAILABLE"
     ]
   },
   "permittedRecords": [],
@@ -36,7 +36,7 @@
       "asrConfidence": null
     }
   ],
-  "persona": "Synthetic payer representative with no verified affiliation record; email domain and claim number do not establish access. Dependency fault injected: CLAIMS_TIMEOUT.",
+  "persona": "Synthetic payer representative with no verified affiliation record; email domain and claim number do not establish access. Dependency fault injected: IDP_UNAVAILABLE.",
   "adversarialTurn": null,
   "expectedToolSequence": [
     "begin_verification",

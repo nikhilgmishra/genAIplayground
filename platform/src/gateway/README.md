@@ -18,7 +18,7 @@ tool modules (definitions and execution); the pipeline owns everything around th
 | `session-binding.ts` | TB-01 modes: `trusted_header` (`X-VSP-Session-Ref`), `server_to_server_lookup` (`X-VSP-Interaction-Id` → `InteractionLookup`), `tool_argument_lookup_exception` (refused without an approval id). |
 | `gateway-audit.ts` | Content-free audit helper; the bearer session reference is always converted with `sessionBindingRefFor()`. |
 | `call-state.ts` | Per-process session leases and handoff index; read-only pending-action lookup. |
-| `mcp.ts` | MCP Streamable HTTP adapter (`POST /mcp`, stateless, JSON responses; `GET`/`DELETE` 405). Rate limited per JSON-RPC message; batches of at most `MCP_MAX_BATCH_MESSAGES` (10) dispatched one at a time, safety and human-route calls first. |
+| `mcp.ts` | MCP Streamable HTTP adapter (`POST /mcp`, stateless, JSON responses; `GET`/`DELETE` 405). Rate limited per JSON-RPC message; batches of at most `MCP_MAX_BATCH_MESSAGES` (10) dispatched one at a time, safety and human-route calls first. `tools/list` tool annotations from `mcpAnnotationsFor` (see "MCP tool annotations"). |
 | `call-sessions.ts` | `InteractionIndexCallSessions`: server-side call -> live session resolution for safety routes without a session context (console escalation; used only to revoke and flag). LOCAL FIXTURE interaction index; live BLOCKED (TB-01). |
 | `openapi.ts`, `generate-openapi.ts` | OpenAPI 3.1 document generated from the route definitions into `schemas/openapi/gateway.openapi.json`; `--check` fails on drift. |
 | `http/route.ts`, `http/app.ts` | Route definitions (one source for Fastify and OpenAPI), auth hook before parsing, strict params/body, response validation, helmet, no CORS, body limit, per-integration rate limit (route buckets for everything except the two tool transports), generic errors, opaque request ids. |
@@ -85,6 +85,59 @@ logged at error level (`gateway.audit.event_invalid`, field path and count only)
 grammar-valid evidence pointers only); an AUDIT_READ disclosure that still cannot be recorded returns
 `PERMANENT_FAILURE AUDIT_EVENT_INVALID` (no data), not the retryable `AUDIT_UNAVAILABLE`. Tests:
 `pipeline.transactions.test.ts`, `../../test/journeys/transactions.test.ts`.
+
+### MCP tool annotations (ACT-02; findings ACT-F2 / R-08)
+
+`tools/list` advertises the MCP `ToolAnnotations` derived from each pinned definition by
+`mcpAnnotationsFor` (hints for the client only; the pipeline enforces everything). Per the MCP
+specification `idempotentHint` means "calling again with the same ARGUMENTS has no additional effect".
+The idempotency key is not an argument (it travels in `Idempotency-Key` or MCP `_meta.idempotencyKey`), and
+since ACT-F2 an ambiguous intake timeout is `UNKNOWN_OUTCOME`: a retry with the same arguments and a new key
+creates a second record. So:
+
+`destructiveHint: false` claims "only additive updates" (the MCP default is `true`), so it is false only where
+that holds:
+
+| Tools | readOnly | destructive | idempotent | Why |
+|---|---|---|---|---|
+| PUBLIC_READ, PROTECTED_READ | true | false | true | no effect on the environment |
+| INTAKE `create_support_request`, `submit_complaint`, `submit_partner_intake` (`IDEMPOTENCY_KEY_REQUIRED`) | false | false | **false** | insert-only (a new record); repeat-safety hangs on the SAME key, not on the arguments |
+| INTAKE `begin_verification` (`IDEMPOTENCY_KEY_REQUIRED`) | false | **true** | **false** | a one-time-code begin makes its challenge the call's only outstanding one, so an earlier code stops working (`OTP_CHALLENGE_SUPERSEDED`, AUTH-OTP-LIMIT-01) |
+| PREPARE_MUTATION (`IDEMPOTENCY_KEY_REQUIRED`) | false | **true** | **false** | a new prepared action supersedes the session's earlier `PREPARED` / `CONFIRMED` actions on the same record (they become `INVALIDATED`; an in-doubt one gets a durable invalidation request), `actions/action-service.ts` |
+| COMMIT_MUTATION (`PREPARED_ACTION_DIGEST`) | false | **true** | true | the arguments are the action id + digest and the ledger replays the stored receipt; a commit changes existing records (reschedule, invoice state) |
+| SAFETY_AND_HUMAN_ROUTE (`NATURALLY_IDEMPOTENT`: no key needed) | false | false | **false** | a repeat returns the active journey, but can write another handoff record or incident and re-apply the escalation; the existing state a route changes is protective (it revokes uncommitted prepared actions), and it is deliberately never marked destructive so it is never held behind a confirmation (SAFE-03) |
+
+`openWorldHint` is false for every tool (only the enumerated, allowlisted systems). `_meta["vsp/idempotency"]`
+names the catalogue's retry mechanism (not the MCP hint), so a client can tell that an
+`IDEMPOTENCY_KEY_REQUIRED` retry must reuse its key. Before this change every tool, intakes included,
+advertised `idempotentHint: true` and `destructiveHint: false`. The annotations are computed at runtime from
+the pinned definitions (`begin_verification` is named in `SUPERSEDING_INTAKES`); the committed catalogue
+(`schemas/tools/catalog.json`) and its digest are unchanged. Whether the Talkdesk client honours annotations
+is UNKNOWN (VQ-TD-26). Tests: `mcp.test.ts`.
+
+### Notifications switched off: `begin_verification` offers the human route (OPS-KS-01)
+
+While `OUTBOUND_NOTIFICATIONS` or `INTEGRATION notifications` is engaged (or the switch state is
+unreadable) a verification service composed with the kill-switch reader (`notificationSwitches`) answers
+`VERIFICATION_UNAVAILABLE_USE_HUMAN` before any lookup (`platform/src/identity/README.md`), so
+`begin_verification` returns `nextStep: HUMAN_VERIFICATION` with the `verification.failed_generic` template
+(registry status DRAFT, pending support-operations review), and the telephony-control begin
+(`POST /telephony/v1/session/verification`) returns the same response with `speechTemplateId
+verification.failed_generic` and no match code: identical for real and unknown people. The switch
+reason is audit evidence only: a tool may attach `auditReasonCode` to a SUCCESS outcome
+(`ports.ts`; only for causes identical for every caller), which the pipeline writes as the `tool.invoke`
+reason code (a pipeline-owned reason such as the session reason or `LATE_SETTLEMENT` wins) and never
+returns; the telephony route records `verification.begun` as `DENIED` with that reason instead of
+`PENDING`. The policy catalogue still does not map `verification:begin` to the `notifications`
+integration, so policy allows the begin and the service decides. Tests: `tools/verification.test.ts`
+(real pipeline, policy and audit), `http/routes.test.ts`; both use the gateway test harness, which passes
+its kill-switch reader to the service.
+
+**Composition status (open):** the LOCAL container (`platform/src/main/container.ts`) does not yet pass
+`notificationSwitches` to `SecureVerificationService`. Until it does, the composed app keeps the earlier
+behaviour while these switches are engaged: the gated sender refuses the send (logged, nothing reaches the
+provider) and the caller still hears the generic "if eligible, a link was sent" answer, so staff must offer
+the human route. The missing line is `notificationSwitches: () => ops.killSwitches.snapshot(tenantId),`.
 
 ### `vsp_protected_actions_total` audit label (OPS-01; finding OPS-AUD-01)
 

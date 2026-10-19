@@ -33,6 +33,9 @@ locals {
     claims                 = { owner = "business_system_owner", readers = ["gateway", "worker"], description = "Claims API client" }
     provider-system        = { owner = "business_system_owner", readers = ["gateway", "worker"], description = "Provider system API client" }
     notifications          = { owner = "support_operations", readers = ["worker"], description = "Notification provider client (neutral messages only)" }
+    # DP-02: key material (32+ random bytes) for the keyed request hash in tool_request_idempotency
+    # (platform/src/actions/tool-idempotency.ts); one value shared by every gateway instance.
+    request-hash-pepper = { owner = "security_admin", readers = ["gateway"], description = "Shared pepper for keyed tool-request hashes (gateway instances only)" }
   }
 
   queue_defs = {
@@ -596,7 +599,10 @@ module "observability" {
   aurora_cluster_identifier = "${var.name_prefix}-ledger"
   sessions_table_name       = coalesce(var.sessions.existing_table_name, "${var.name_prefix}-sessions")
   queue_names               = { for k, q in local.queue_defs : k => "${var.name_prefix}-${k}${q.fifo ? ".fifo" : ""}" }
-  tags                      = local.base_tags
+  # The edge rate limit is only counted on the tool-caller paths (safety calls share them): alarm on it.
+  waf_web_acl_name             = module.ingress.web_acl_name
+  waf_rate_observe_metric_name = module.ingress.waf_rate_observe_metric_name
+  tags                         = local.base_tags
 }
 
 module "budgets" {

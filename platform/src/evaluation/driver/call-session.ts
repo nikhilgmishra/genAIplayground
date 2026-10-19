@@ -60,6 +60,8 @@ export interface PendingConfirmation {
 }
 
 export interface ScreeningOutcome {
+  /** Script index of the caller turn that was screened (evidence that every caller turn reached the screen). */
+  turnIndex: number;
   route: "NONE" | "SAFETY_PRIORITY_HUMAN" | "CLINICAL_BOUNDARY_ROUTE";
   handoffId: string | null;
   interpreterRequired: boolean;
@@ -235,7 +237,7 @@ export class CallSession {
     });
     if (res.status !== 200) {
       this.notes.push(`SCREENING_STATUS_${res.status}`);
-      const out: ScreeningOutcome = { route: "NONE", handoffId: null, interpreterRequired: false, reasonCode: "SCREENING_UNAVAILABLE" };
+      const out: ScreeningOutcome = { turnIndex: this.turnIndex, route: "NONE", handoffId: null, interpreterRequired: false, reasonCode: "SCREENING_UNAVAILABLE" };
       this.screenings.push(out);
       return out;
     }
@@ -243,7 +245,7 @@ export class CallSession {
     if (b.handoffId) this.handoffIds.add(b.handoffId);
     if (b.route === "SAFETY_PRIORITY_HUMAN" && this.safetySignalAtMs === null) this.safetySignalAtMs = this.nowMs;
     if (b.speechTemplateId) this.speakTemplate("studio", b.speechTemplateId);
-    const out: ScreeningOutcome = { route: b.route, handoffId: b.handoffId, interpreterRequired: b.interpreterRequired, reasonCode: b.reasonCode };
+    const out: ScreeningOutcome = { turnIndex: this.turnIndex, route: b.route, handoffId: b.handoffId, interpreterRequired: b.interpreterRequired, reasonCode: b.reasonCode };
     this.screenings.push(out);
     return out;
   }
@@ -405,6 +407,13 @@ export class CallSession {
       if (handoff && typeof handoff.handoffId === "string") this.handoffIds.add(handoff.handoffId);
     }
     if (r?.speech) this.speakDirective("tool", r.speech, r.policyDecisionId);
+    else if (r?.status === "SUCCESS" && name === "request_human_transfer") {
+      // Session-less human route (no valid session to bind speech to, SAFE-02): the gateway produces no speech
+      // and Studio plays its fixed SF-13 step-2 connecting prompt (talkdesk/studio-flow-spec.md; `human.connecting`
+      // / `interpreter.connecting` in talkdesk/expected-config.yaml, not in the local template registry). The LOCAL
+      // Studio stand-in plays the approved-catalogue template the gateway itself uses for this route.
+      this.speakTemplate("studio", args.reason === "UNSUPPORTED_LANGUAGE" ? "language.interpreter_route" : "transfer.in_progress");
+    }
     this.tick(800);
     await this.hooks.afterTool?.(name, r, this, args);
     return r;

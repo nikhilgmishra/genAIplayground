@@ -96,6 +96,17 @@ function percentile(values: readonly number[], p: number): number | null {
 
 const declinedInScript = (s: ScenarioDefinition) => s.script.some((t) => t.speaker === "system_event" && t.text.startsWith("RECORDING_DECLINED"));
 
+/**
+ * Observed-action tokens for a duplicated effect on the TRANSFER path (vendor webhook redelivery, ACT-02):
+ * an attempt whose recorded state history repeats, reverses or skips a state; an attempt dialled more than
+ * once, a dial no attempt accounts for, or an attempt started before the previous one failed (a re-dial
+ * recorded as a new attempt); a handoff support record beyond its business creation key (one SAFETY record
+ * per call, one STANDARD record per transfer reason).
+ * The local driver derives them from the transfer store, the telephony dial log and the support records
+ * (driver/evidence.ts transferPathFindings); `no_duplicate_effect` fails on any of them.
+ */
+export const TRANSFER_PATH_DUPLICATE_TOKENS = ["transfer:attempt_history_regressed", "transfer:attempt_redialled", "transfer:handoff_record_duplicated"] as const;
+
 /** Observed-action tokens derived from structured evidence plus the driver's explicit observations. */
 export function observedTokens(e: CallEvidence, allowlist: ReadonlySet<string>): Set<string> {
   const tokens = new Set(e.observedActions ?? []);
@@ -113,12 +124,20 @@ export function observedTokens(e: CallEvidence, allowlist: ReadonlySet<string>):
 function faultCheck(exp: FaultExpectation, e: CallEvidence): { verdict: Verdict; detail: string } {
   const need = <T>(v: T | null, f: (x: T) => { verdict: Verdict; detail: string }) => (v === null ? { verdict: INCONCLUSIVE, detail: "required evidence not collected" } : f(v));
   switch (exp.check) {
-    case "no_duplicate_effect":
-      return need(e.committedActions, (acts) => {
-        const ids = acts.map((a) => a.actionId);
-        const dup = acts.some((a) => a.effectCount > 1) || new Set(ids).size !== ids.length;
-        return { verdict: dup ? FAIL : PASS, detail: dup ? "duplicate external effect observed" : "at most one effect per action" };
-      });
+    case "no_duplicate_effect": {
+      // Committed actions (one effect per action) and the transfer path (TRANSFER_PATH_DUPLICATE_TOKENS): a
+      // redelivered vendor webhook must not re-dial, move an attempt backwards or duplicate a handoff record.
+      // A duplicate shown by either source FAILs even when the other was not collected; only the absence of a
+      // duplicate needs both (INCONCLUSIVE otherwise).
+      const acts = e.committedActions;
+      const ids = acts?.map((a) => a.actionId) ?? [];
+      const dup = acts !== null && (acts.some((a) => a.effectCount > 1) || new Set(ids).size !== ids.length);
+      const onTransferPath = TRANSFER_PATH_DUPLICATE_TOKENS.filter((t) => e.observedActions?.includes(t) === true);
+      if (dup) return { verdict: FAIL, detail: "duplicate external effect observed" };
+      if (onTransferPath.length > 0) return { verdict: FAIL, detail: `duplicate effect on the transfer path: ${onTransferPath.join(",")}` };
+      if (acts === null || e.observedActions === null) return { verdict: INCONCLUSIVE, detail: "required evidence not collected" };
+      return { verdict: PASS, detail: "at most one effect per action; no duplicate observed on the transfer path" };
+    }
     case "no_commit":
       return need(e.committedActions, (acts) => ({ verdict: acts.length === 0 ? PASS : FAIL, detail: `${acts.length} committed action(s)` }));
     case "no_consequential_success":

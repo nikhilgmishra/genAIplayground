@@ -133,6 +133,9 @@ variable "routes" {
     Path-based allowlist of what the public listener forwards. Everything else gets a fixed 404.
     require_jwt applies the ALB jwt-validation action when var.jwt_validation is configured
     (supplemental; the gateway's own transport authentication remains authoritative).
+    A require_jwt route is service-to-service (Talkdesk is its caller), so it must be a
+    tool-caller path (/mcp, /mcp/..., /telephony/...): the per-IP WAF rate rule never blocks
+    those (SAFE-02, SAFE-03). The web ACL's precondition refuses any other.
   EOT
   type = map(object({
     priority      = number
@@ -174,10 +177,12 @@ variable "jwt_validation" {
 
 variable "waf_rate_limit_per_5min" {
   description = <<-EOT
-    WAF rate-based rule limit per source IP per 5-minute window. ILLUSTRATIVE default derived
+    WAF rate-based limit per source IP per 5-minute window. ILLUSTRATIVE default derived
     from the spec section 12 illustrative load floor (400 tool requests/s sustained x 300 s),
     which assumes Talkdesk traffic may arrive from a single egress IP. Real value requires the
     Talkdesk egress IP inventory and measured traffic (owner: SRE; next action: load test).
+    Enforced (BLOCK) outside the tool-caller paths only; on /mcp and /telephony/ the same
+    limit is counted and never blocks, because safety and human-route calls share them.
   EOT
   type        = number
   default     = 120000

@@ -1,4 +1,4 @@
-skeletonVersion: 1
+skeletonVersion: 2
 intent: payer_claim_inquiry
 title: Payer representative without verified affiliation asks about a claim
 audiences: [payer_representative]
@@ -19,9 +19,10 @@ script:
 indirect:
   - "This is the insurance company, we need to clarify something on a claim."
 dependencyFailure:
-  fault: CLAIMS_TIMEOUT
+  fault: IDP_UNAVAILABLE
   expectedToolSequence: [begin_verification, request_human_transfer]
   requiredHandoff: STANDARD_HUMAN
   expectedFinalState: { outcome: TRANSFERRED, committedActions: [], supportRequestCreated: null, disclosedProtectedFields: false }
   stopCondition: TRANSFER_CONNECTED
 requirementIds: [AUTH-01, AUTH-05, SPEC-4.audience-permissions]
+notes: "v2 (2026-10-18): dependencyFailure uses IDP_UNAVAILABLE (BEFORE_TOOL begin_verification), which this script reaches; CLAIMS_TIMEOUT triggers before get_claim_status, which an unverified payer never reaches (AUTH-01, AUTH-05), so the v1 fault was never injected. CLAIMS_TIMEOUT stays covered by scn_claim_status__dependency_failure. For the corpus owner: CLAIMS_TIMEOUT.appliesToIntents still lists payer_claim_inquiry; whether a payer with verified affiliation may query claim status (spec section 4, organisation-scoped requests with verified affiliation, contract and purpose) is an owner scope decision, not settled here."

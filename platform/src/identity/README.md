@@ -16,7 +16,7 @@ AUTH-06, AUTH-07, DATA-01, DATA-04, and trust-boundary flags TB-01, TB-03, TB-06
 
 | Component | File | Kind | Notes |
 |---|---|---|---|
-| KV port | `ports.ts` (unchanged) | — | `KvStore`, `SessionService`, `VerificationService`, `AssertionService` |
+| KV port | `ports.ts` | — | `KvStore`, `SessionService`, `VerificationService`, `AssertionService`; additive `VerificationUnavailableReason` / optional `unavailableReason` on the begin results (OPS-KS-01) |
 | Memory KV store | `kv/memory-kv-store.ts` (`MemoryKvStoreFixture`) | local_fixture | Exact CAS semantics of the Dynamo store; `get` ignores TTL; `putIfAbsent` conflicts with a TTL-expired-but-unswept item (like DynamoDB); `sweepExpired()` simulates the lazy TTL sweep; deep copies on read/write |
 | DynamoDB KV store | `kv/dynamo-kv-store.ts` (`DynamoKvStore`) | live | `@aws-sdk/lib-dynamodb`: `GetCommand` (ConsistentRead), `PutCommand` + `attribute_not_exists(pk)`, CAS `PutCommand` + `#v = :expected` writing `version = expected + 1`, `DeleteCommand` + `attribute_exists(pk)` / `#v = :expected`, counters `UpdateCommand ADD #c :one, #v :one SET #t = if_not_exists(#t, :ttl)`. TTL attribute `ttl` (matches `infra/terraform/modules/dynamodb_sessions`). `ConditionalCheckFailedException` → `false`; every other SDK error → reason-coded `DependencyError` (SDK message dropped; unknown write outcome reported as `UNKNOWN`) |
 | Key derivation | `keys.ts` | — | Records keyed by `sha256` of bearer values (`ses#<sha256(sessionRef)>`, `vtx#…`, `otp#…`, `jti#…`); non-bearer binding ref `ses_bnd_<b64url(sha256)>` identical to the action ledger's |
@@ -75,8 +75,11 @@ Adapters owned by this module's engineer (documented here, they live in `platfor
 **Secure link (preferred, A2).** `beginSecureLink(ctx, {role, locator})` re-derives the session
 from server state (only `ctx.sessionRef`, `ctx.integration` and the expected generation are used),
 checks the role against the selected role, applies a per-session attempt limit, looks up candidates
-through `IdentityDirectory`, and ALWAYS returns `{transactionId, matchCode, response:
-"IF_ELIGIBLE_A_LINK_WAS_SENT"}`. A transaction (decoy when ineligible) is stored for every request.
+through `IdentityDirectory`, and returns `{transactionId, matchCode, response:
+"IF_ELIGIBLE_A_LINK_WAS_SENT"}` whatever the lookup found (the uniform `VERIFICATION_UNAVAILABLE_USE_HUMAN`
+only for causes that are the same for every caller: notifications switched off, see below, the
+per-session attempt limit or a directory outage). A transaction (decoy when ineligible) is stored for
+every request that reaches the lookup.
 Only exactly one ACTIVE candidate holding the role with a verified `portal_push` / `email` / `sms`
 channel (and within the per-account link limit, 5 per hour) gets a link. Over the limit, delivery is
 suppressed silently (the account holder is protected from a link flood) and `LINK_ACCOUNT_LIMIT` is
@@ -126,11 +129,37 @@ challenge (`sessionSeq`). Success → A1,
 treated as strong MFA.
 
 **Step-up (A3 for one digest).** `beginStepUp(ctx, actionDigest)` requires A2 with a bound
-account; sends `verify.step_up_link` to the account's registered channel. `completeStepUp` requires
+account; sends `verify.step_up_link` to the account's registered channel (or answers
+`VERIFICATION_UNAVAILABLE_USE_HUMAN` while notifications are switched off, see below). `completeStepUp` requires
 a fresh IdP authentication (`auth_time` within 120 s), the same actor, the same generation, and sets
 `stepUp = {actionDigest, verifiedAt, expiresAt (300 s)}` without raising the session-wide
 assurance. `effectiveAssuranceFor(ctx, digest, now)` returns A3 only for that digest while unexpired;
 `resolve` drops an expired step-up.
+
+**Notifications switched off (OPS-KS-01, caller-facing).** The composition root wraps the
+NotificationSender in `KillSwitchGatedNotificationSender` (`platform/src/ops/notification-gate.ts`), which
+refuses every ROUTINE send while `OUTBOUND_NOTIFICATIONS` or `INTEGRATION notifications` is engaged or the
+switch state is unreadable. So that the caller is not told to wait for a message that is never sent, the
+service takes the same snapshot reader (`VerificationServiceDeps.notificationSwitches`, i.e.
+`KillSwitchService.snapshot` for the deployment's tenant) and, at the start of `beginSecureLink`, `beginOtp`
+(after the `otpEnabled` check) and `beginStepUp`, applies the same pure decision (`notificationBlock`,
+purpose ROUTINE, INTEGRATION target = `notifications.integrationId`). When notifications are off it
+answers `VERIFICATION_UNAVAILABLE_USE_HUMAN` with `unavailableReason`
+`KILL_SWITCH_OUTBOUND_NOTIFICATIONS` / `KILL_SWITCH_INTEGRATION` / `KILL_SWITCH_STATE_UNAVAILABLE` (unreadable or
+malformed state, fail closed), and logs `identity.verification.notifications_switched_off` (reason code,
+binding ref, method only). This is decided BEFORE the per-session begin counter, any directory lookup, any
+account or destination throttle and any stored transaction or challenge: the switch state is global, so
+zero, one and many matches get the identical answer, and no counter that only real accounts have is spent
+(after release, the same call can still verify). `unavailableReason` is audit evidence only: the gateway
+records it on the `tool.invoke` event (MCP) or the `verification.begun` event (`DENIED`, telephony
+control) and never returns it. A switch engaged between this check and the send is still enforced by the
+gated sender (that one caller then hears the generic "if eligible" answer). Without the reader nothing is
+pre-checked. Tests: `[OPS-KS-01]` in `verification-service.test.ts`, `gateway/tools/verification.test.ts`,
+`gateway/http/routes.test.ts` (the identity and gateway test harnesses pass the reader).
+**Composition status (open):** the LOCAL container (`platform/src/main/container.ts`) does not yet pass
+`notificationSwitches`, so the composed app does not yet pre-check: while these switches are engaged the gated
+sender refuses the send and the caller still hears the generic "if eligible" answer. See integration
+contract item 0.
 
 **Completion result and audit binding (additive).** `completeSecureLink` / `completeStepUp` return
 `VerificationCompletion = { bound, reasonCode, binding? }`. `binding` = `{ callId, sessionBindingRef,
@@ -204,6 +233,12 @@ SYNTHETIC.
 
 ## Integration contract for other modules
 
+0. Composition root: pass `notificationSwitches` (the same `KillSwitchService.snapshot` reader the
+   `KillSwitchGatedNotificationSender` uses) to `SecureVerificationService`, so verification answers the
+   human route while notifications are switched off (OPS-KS-01). The dependency is optional, so omitting it
+   compiles and silently keeps the "if eligible" answer; `platform/src/main/container.ts` omits it today
+   (open: `notificationSwitches: () => ops.killSwitches.snapshot(tenantId),`). Once it is wired, the field
+   should become required so a composition root cannot omit it.
 1. Gateway: obtain the bearer `sessionRef` from the trusted transport binding (TB-01), call
    `sessions.resolve(sessionRef, integration)` on EVERY request; treat any `SessionInvalidError` or
    `DependencyError` as deny. Never accept actor/role/subject/assurance/consent from tool arguments.
@@ -249,6 +284,7 @@ in-process HTTP server on 127.0.0.1).
 | AUTH-ENUM-01 | Account-derived abuse signals only in the account-keyed monitor; identical observable sequences for real and unknown people past every limit; partial directory failure answers like no match | `[AUTH-ENUM-01]` in verification-service and enumeration-resistance integration tests |
 | AUTH-OTP-LIMIT-01 | Account guess budget reserved before each comparison; one outstanding challenge per call; call failure budget; abuse-flagged call accepts no digits | `[AUTH-OTP-LIMIT-01]` |
 | DP-02 (with actions) | Locator-bearing tool request hashes persisted only as HMAC(pepper, fingerprint) | `[DP-02]` in enumeration-resistance integration test and `actions/tool-idempotency.test.ts` |
+| OPS-KS-01 (caller-facing, with ops) | Notifications switched off ⇒ every begin (link, OTP, step-up) answers `VERIFICATION_UNAVAILABLE_USE_HUMAN` before any counter or lookup; reason code for audit only | `[OPS-KS-01]` in verification-service tests and gateway tool / route tests |
 
 ## Known gaps
 
@@ -272,3 +308,7 @@ in-process HTTP server on 127.0.0.1).
   engineering of the approval. Ambiguous matches go to the (not implemented here) human recovery route.
 - Global-table replicas evaluate conditional writes per region; correctness assumes the single
   write region documented in the Terraform module.
+- OPS-KS-01 caller-facing pre-check: not yet composed in the LOCAL container (see integration contract
+  item 0). Its INTEGRATION target is `notifications.integrationId` (the wrapped sender's id); the gated
+  sender targets its `integrationId` option when one is set, which the container does not set today, so the
+  two agree only while no custom gate target is configured.

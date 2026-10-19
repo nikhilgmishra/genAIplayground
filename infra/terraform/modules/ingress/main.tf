@@ -1,8 +1,21 @@
 # Talkdesk-facing ingress (spec section 3): the only internet-exposed surface.
 # HTTPS-only ALB with a TLS 1.3/1.2 policy, path allowlist with a fixed 404 default,
-# WAFv2 (AWS managed rule groups + rate-based rule, optional supplemental source
+# WAFv2 (AWS managed rule groups + rate-based rules, optional supplemental source
 # allowlist), access logs to a dedicated bucket, WAF logs with credentials redacted.
 # Authentication of the caller and of Talkdesk remains in the gateway.
+#
+# Rate limiting at the edge is fail-safe for the safety and human routes (SAFE-02,
+# SAFE-03, ADR-0012): the per-source-IP rate rule BLOCKs only requests OUTSIDE the
+# tool-caller paths (/mcp, /telephony/). Those paths carry request_safety_route,
+# request_human_transfer, utterance screening, the human request and the handoff, and
+# their only legitimate caller is Talkdesk, whose traffic for every concurrent call can
+# share one egress IP. WAF cannot tell a safety call from any other call on them, and
+# a per-IP block there would cut off safety and human transfers together with
+# everything else. On those paths the same limit is COUNTED (CloudWatch metric
+# `<prefix>-rate-observe-tool-paths`, alarmed by the observability module) and never
+# blocks; every request on them is still authenticated by the gateway, and every
+# non-safety tool call is metered per call and per integration there (ADR-0012).
+# With supplemental_allowlist_cidrs set, every other source is blocked outright.
 
 locals {
   alb_name        = "${var.name_prefix}-ingress"
@@ -26,19 +39,57 @@ locals {
     VisibilityConfig = merge(local.visibility, { MetricName = "${var.name_prefix}-allowlist" })
   }]
 
-  rate_rule = [{
-    Name     = "rate-limit-per-source-ip"
-    Priority = 1
-    Action   = { Block = {} }
-    Statement = {
-      RateBasedStatement = {
-        Limit               = var.waf_rate_limit_per_5min
-        AggregateKeyType    = "IP"
-        EvaluationWindowSec = 300
-      }
+  # The tool-caller paths of the default routes (mcp, telephony; see the header comment): "/mcp",
+  # "/mcp/..." and "/telephony/...". Case-sensitive match on the URI path as received (no
+  # transformation): a mis-cased or encoded variant is a non-tool path and gets the blocking limit,
+  # never the exemption (ALB path patterns are case-sensitive too, so a mis-cased variant gets the
+  # fixed 404; how the ALB treats a percent-encoded path is not verified offline). A regex string,
+  # not a ByteMatch, because ByteMatch search strings are binary blobs in the WAF API. Non-capturing
+  # groups only: AWS WAF's regex syntax excludes capturing subexpressions, and RE2 (Terraform, OPA)
+  # reads (?:...) the same way.
+  tool_caller_path_regex = "^/(?:mcp(?:/|$)|telephony/)"
+  tool_caller_paths = {
+    RegexMatchStatement = {
+      RegexString         = local.tool_caller_path_regex
+      FieldToMatch        = { UriPath = {} }
+      TextTransformations = [{ Priority = 0, Type = "NONE" }]
     }
-    VisibilityConfig = merge(local.visibility, { MetricName = "${var.name_prefix}-rate-limit" })
-  }]
+  }
+
+  rate_limit_metric_name   = "${var.name_prefix}-rate-limit"
+  rate_observe_metric_name = "${var.name_prefix}-rate-observe-tool-paths"
+
+  rate_rules = [
+    {
+      Name     = "rate-limit-per-source-ip"
+      Priority = 1
+      Action   = { Block = {} }
+      Statement = {
+        RateBasedStatement = {
+          Limit               = var.waf_rate_limit_per_5min
+          AggregateKeyType    = "IP"
+          EvaluationWindowSec = 300
+          ScopeDownStatement  = { NotStatement = { Statement = local.tool_caller_paths } }
+        }
+      }
+      VisibilityConfig = merge(local.visibility, { MetricName = local.rate_limit_metric_name })
+    },
+    {
+      # Never blocks: safety and human-route calls share these paths (SAFE-02, SAFE-03).
+      Name     = "rate-observe-tool-caller-paths"
+      Priority = 2
+      Action   = { Count = {} }
+      Statement = {
+        RateBasedStatement = {
+          Limit               = var.waf_rate_limit_per_5min
+          AggregateKeyType    = "IP"
+          EvaluationWindowSec = 300
+          ScopeDownStatement  = local.tool_caller_paths
+        }
+      }
+      VisibilityConfig = merge(local.visibility, { MetricName = local.rate_observe_metric_name })
+    },
+  ]
 
   managed_rules = [for i, g in var.waf_managed_rule_groups : {
     Name             = g
@@ -48,7 +99,7 @@ locals {
     VisibilityConfig = merge(local.visibility, { MetricName = "${var.name_prefix}-${lower(g)}" })
   }]
 
-  waf_rules = concat(local.allowlist_rules, local.rate_rule, local.managed_rules)
+  waf_rules = concat(local.allowlist_rules, local.rate_rules, local.managed_rules)
 
   jwt_enabled = var.jwt_validation != null
 }
@@ -340,6 +391,19 @@ resource "aws_wafv2_web_acl" "this" {
   }
 
   tags = var.tags
+
+  lifecycle {
+    # SAFE-02, SAFE-03: a service-to-service route (require_jwt: Talkdesk is its caller) outside the
+    # tool-caller paths would fall under the per-IP BLOCK rule, which cannot tell its safety or
+    # handoff traffic apart from the rest of Talkdesk's shared egress. Each pattern is checked through
+    # one sample path ("*" and "?" as "x"); that is exact here, because "x" occurs in neither
+    # "/mcp/" nor "/telephony/", so a sample can only match when the pattern's literal prefix does.
+    precondition {
+      condition = alltrue(flatten([for r in values(var.routes) : [for p in r.path_patterns :
+      can(regex(local.tool_caller_path_regex, replace(replace(p, "*", "x"), "?", "x")))] if r.require_jwt]))
+      error_message = "Every service-to-service (require_jwt) route must be a tool-caller path (/mcp, /mcp/..., /telephony/...); otherwise the per-IP rate rule can block Talkdesk's safety and handoff calls on it. Extend tool_caller_path_regex and the WAF-RATE probe paths together."
+    }
+  }
 }
 
 resource "aws_wafv2_web_acl_association" "alb" {

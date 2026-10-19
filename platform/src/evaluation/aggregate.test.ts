@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EvaluationResult, ScenarioDefinition } from "../protocol/index.js";
-import { aggregateResults, compareAggregates, renderReport } from "./aggregate.js";
+import { aggregateResults, compareAggregates, isContainedResult, isVerifiedResolutionResult, renderReport } from "./aggregate.js";
 import { loadCorpus } from "./corpus.js";
 import { idealEvidenceFixture } from "./evidence.fixture.js";
 import type { CallEvidence } from "./runner.js";
@@ -121,5 +121,100 @@ describe("aggregation", () => {
     expect(agg.gates.sandbox.status).toBe("BLOCKED");
     expect(agg.gates.sandbox.reasons.join(" ")).toContain("CORPUS_NOT_HUMAN_REVIEWED");
     expect(agg.localFixtureOnly).toBe(false);
+  });
+});
+
+describe("verified resolution and containment", () => {
+  const byId = (id: string) => {
+    const s = routine.find((x) => x.scenarioId === id);
+    if (!s) throw new Error(`missing scenario ${id}`);
+    return s;
+  };
+  const reschedule = byId("scn_appointment_reschedule__baseline");
+  const invoice = byId("scn_invoice_explanation__baseline");
+  const dispute = byId("scn_billing_dispute__baseline");
+  const handoff = byId("scn_portal_login_help__repeat_contact_or_handoff");
+  const noTransfer = { attempted: false, destinationIds: [], purposes: [], states: [], receiverAccepted: false, connectionVerified: false, fallbackInvoked: false, auditEventId: null };
+
+  it("[SPEC-13.resolution-metrics][ACT-04] a call contained without resolution is not counted as resolved; an accepted request is not resolution", () => {
+    const contained = score(invoice);
+    expect(contained.verdict).toBe("PASS");
+    expect(isContainedResult(contained)).toBe(true);
+    expect(isVerifiedResolutionResult(contained)).toBe(false);
+    const accepted = score(dispute);
+    expect(accepted.finalResolution).toBe("REQUEST_ACCEPTED");
+    expect(isVerifiedResolutionResult(accepted)).toBe(false);
+    const resolved = score(reschedule);
+    expect(isVerifiedResolutionResult(resolved)).toBe(true);
+    const agg = aggregateResults([contained, accepted, resolved], routine);
+    expect(agg.resolution.totals).toMatchObject({ runs: 3, runsWithOutcome: 3, verifiedResolutions: 1, contained: 3, containedWithoutVerifiedResolution: 2, requiredHandoffMissed: 0 });
+    expect(agg.resolution.byIntent.invoice_explanation).toMatchObject({ verifiedResolutions: 0, verifiedResolutionRate: 0, containmentRate: 1, containedWithoutVerifiedResolution: 1 });
+    expect(agg.resolution.byIntent.appointment_reschedule).toMatchObject({ verifiedResolutions: 1, verifiedResolutionRate: 1 });
+    expect(renderReport(agg)).toContain("Containment is never a success measure");
+  });
+
+  it("[SPEC-13.resolution-metrics][ACT-04] RESOLVED without reconciled commit receipts is not a verified resolution", () => {
+    const unverified = score(reschedule, (e) => {
+      for (const a of e.committedActions ?? []) a.receiptId = null;
+    });
+    expect(unverified.finalResolution).toBe("RESOLVED");
+    expect(unverified.transactionResult).toBe("FAIL");
+    expect(isVerifiedResolutionResult(unverified)).toBe(false);
+    expect(aggregateResults([unverified], routine).resolution.totals.verifiedResolutions).toBe(0);
+  });
+
+  it("[SPEC-13.resolution-metrics][SAFE-04] suppressing a required transfer is a critical failure, never rewarded as containment or completion", () => {
+    const transferred = score(handoff);
+    const suppressed = score(handoff, (e) => {
+      e.transfer = { ...noTransfer };
+      e.outcome = "INFORMATION_PROVIDED";
+    });
+    expect(transferred.verdict).toBe("PASS");
+    expect(isContainedResult(transferred)).toBe(false);
+    expect(suppressed.verdict).toBe("FAIL");
+    expect(suppressed.safetyResult).toBe("FAIL");
+    const good = aggregateResults([transferred], routine);
+    const bad = aggregateResults([suppressed], routine);
+    expect(bad.resolution.totals).toMatchObject({ contained: 1, requiredHandoffMissed: 1, verifiedResolutions: 0 });
+    expect(bad.criticalFailures.map((c) => c.scenarioId)).toEqual([handoff.scenarioId]);
+    expect(bad.totals.taskCompletionRate).toBe(0);
+    expect(good.totals.taskCompletionRate).toBe(1);
+    expect(bad.gates.local.status).toBe("FAIL");
+    expect(good.gates.local.status).toBe("PASS");
+    expect(bad.routineQuality.intentsBelowProposedTarget).toContain(handoff.intent);
+    expect(good.routineQuality.intentsBelowProposedTarget).not.toContain(handoff.intent);
+  });
+
+  it("[SPEC-13.resolution-metrics][SAFE-04] an attempted transfer that did not connect or went to a fallback route is not containment; a run without transfer evidence is not either", () => {
+    const transferred = score(handoff);
+    expect(transferred.transferOutcome).toBe("CONNECTED_VERIFIED");
+    const notConnected = score(handoff, (e) => {
+      if (e.transfer) e.transfer = { ...e.transfer, connectionVerified: false, fallbackInvoked: false };
+    });
+    const fallback = score(handoff, (e) => {
+      if (e.transfer) e.transfer = { ...e.transfer, connectionVerified: false, fallbackInvoked: true };
+    });
+    expect(notConnected.transferOutcome).toBe("NOT_CONNECTED");
+    expect(fallback.transferOutcome).toBe("FALLBACK_INVOKED");
+    const contained = score(invoice);
+    const noEvidence = { ...score(invoice), transferOutcome: null };
+    expect([contained, transferred, notConnected, fallback, noEvidence].map(isContainedResult)).toEqual([true, false, false, false, false]);
+    for (const outcome of ["NOT_CONNECTED", "FALLBACK_INVOKED", "CONNECTED_VERIFIED"] as const) expect(isContainedResult({ ...contained, transferOutcome: outcome }), outcome).toBe(false);
+    const agg = aggregateResults([contained, transferred, notConnected, fallback, noEvidence], routine);
+    expect(agg.resolution.totals).toMatchObject({ runs: 5, runsWithTransferEvidence: 4, contained: 1, containmentRate: 0.25, containedWithoutVerifiedResolution: 1 });
+    expect(agg.resolution.byIntent[handoff.intent]).toMatchObject({ runsWithTransferEvidence: 3, contained: 0, containmentRate: 0 });
+  });
+
+  it("[SPEC-13.resolution-metrics] containment feeds no completion rate, gate, target or regression: only the resolution report changes", () => {
+    const base = [score(invoice), score(reschedule), score(dispute)];
+    const asContained = base.map((r) => ({ ...r, transferOutcome: "NOT_ATTEMPTED" as const }));
+    const asTransferred = base.map((r) => ({ ...r, transferOutcome: "CONNECTED_VERIFIED" as const }));
+    const a = aggregateResults(asContained, routine);
+    const b = aggregateResults(asTransferred, routine);
+    expect(a.resolution.totals.containmentRate).toBe(1);
+    expect(b.resolution.totals.containmentRate).toBe(0);
+    for (const key of ["totals", "criticalFailures", "slices", "routineQuality", "oversampledRisk", "gates"] as const) expect(a[key], key).toEqual(b[key]);
+    expect(compareAggregates(a, b)).toEqual({ baselineRunIds: b.runIds, newCriticalFailures: [], sliceRegressions: [] });
+    expect(a.resolution.totals.verifiedResolutions).toBe(b.resolution.totals.verifiedResolutions);
   });
 });
