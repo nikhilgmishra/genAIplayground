@@ -1,0 +1,248 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/LongHorizonPlan.json",
+  "title": "LongHorizonPlan",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "long-horizon-plan.v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "long-horizon-plan.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "caseId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "workflowId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "subjectRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "planId": {
+      "type": "string",
+      "pattern": "^pln_[A-Za-z0-9_-]{16,64}$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000
+    },
+    "supersedesRevision": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "policySnapshotVersion": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+    },
+    "authorityCeiling": {
+      "type": "object",
+      "properties": {
+        "grantRef": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "permittedActions": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,31}(\\.[a-z][a-z0-9_]{1,31}){1,4}$"
+          }
+        }
+      },
+      "required": [
+        "grantRef",
+        "permittedActions"
+      ],
+      "additionalProperties": false
+    },
+    "steps": {
+      "minItems": 1,
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "pattern": "^stp_[a-z0-9_]{2,40}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "READ",
+              "PREPARE_ACTION",
+              "COMMIT_ACTION",
+              "WAIT_FOR_SYSTEM",
+              "WAIT_FOR_HUMAN",
+              "WAIT_FOR_CALLER",
+              "NOTIFY",
+              "VERIFY_EFFECT",
+              "ESCALATE"
+            ]
+          },
+          "capability": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{1,31}(\\.[a-z][a-z0-9_]{1,31}){1,4}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ownerQueue": {
+            "type": "string",
+            "pattern": "^q_[a-z0-9_]{2,40}$"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "retryBudget": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "dependsOn": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^stp_[a-z0-9_]{2,40}$"
+            }
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "IN_PROGRESS",
+              "WAITING",
+              "DONE",
+              "FAILED",
+              "SKIPPED",
+              "ESCALATED"
+            ]
+          }
+        },
+        "required": [
+          "stepId",
+          "kind",
+          "capability",
+          "action",
+          "ownerQueue",
+          "deadline",
+          "retryBudget",
+          "attempts",
+          "dependsOn",
+          "state"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "caseOwnerQueue": {
+      "type": "string",
+      "pattern": "^q_[a-z0-9_]{2,40}$"
+    },
+    "nextActionStepId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^stp_[a-z0-9_]{2,40}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lastVerifiedProgressAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "caseId",
+    "workflowId",
+    "occurredAt",
+    "causationId",
+    "subjectRef",
+    "planId",
+    "revision",
+    "supersedesRevision",
+    "policySnapshotVersion",
+    "authorityCeiling",
+    "steps",
+    "caseOwnerQueue",
+    "nextActionStepId",
+    "lastVerifiedProgressAt"
+  ],
+  "additionalProperties": false
+}

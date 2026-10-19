@@ -11,10 +11,10 @@ rules:
 - Activation ids use the AIN-NN prefix so they never collide with the invariant ids ACT-01..ACT-05 of docs/requirements/catalog.yaml.
 - Activation steps name commands that the listed work packages deliver; until those packages land the commands do not exist and the step cannot run. CAPABILITY= values are capability ids of docs/followon/capabilities.yaml.
 summary:
-  entries: 51
+  entries: 52
   byState:
     BLOCKED: 28
-    UNKNOWN: 23
+    UNKNOWN: 24
   proposed:
   - AIN-17
   - AIN-38
@@ -26,6 +26,7 @@ summary:
   - AIN-49
   - AIN-50
   - AIN-51
+  - AIN-52
   prqCovered: 55
   prqTotal: 55
   prqNotMapped: []
@@ -386,7 +387,7 @@ entries:
   - FO-06-34
   - FO-06-35
   - FO-06-36
-  - FO-06-37
+  - FO-06-37a
   - FO-06-38
   - FO-06-92
   - FO-07-16
@@ -496,7 +497,7 @@ entries:
   - FO-05-03
   - FO-05-16
   - FO-05-26
-  - FO-06-37
+  - FO-06-37a
   - FO-06-38
   - FO-10-49
   - FO-13-35
@@ -677,7 +678,7 @@ entries:
   - FO-20-30
   - FO-21-11
 - id: AIN-12
-  title: 'Client and provider identity providers: OIDC test clients, account-linking source of truth, registered-channel verification, recovery process; companion IdP client and hosting'
+  title: 'Client and provider identity providers: OIDC test clients, account-linking source of truth, registered-channel verification, recovery process; companion IdP client (companion hosting is AIN-52)'
   kind: identity providers
   ownerRole: Identity owner
   prq:
@@ -800,6 +801,7 @@ entries:
   - WP-22
   capabilityIds:
   - authority.registries
+  - handoff.transfer
   - privacy.operations
   - platform.invariants
   - journeys.end_to_end
@@ -818,6 +820,7 @@ entries:
   - FO-07-13
   - FO-20-08
   - FO-20-09
+  - FO-20-09a
   - FO-22-03
   - FO-22-04
 - id: AIN-15
@@ -1174,6 +1177,7 @@ entries:
   - FO-19-12
   - FO-20-12
   - FO-20-13
+  - FO-20-13a
   - FO-20-33
 - id: AIN-23
   title: Jurisdiction-approved recording and automated-agent disclosure, consent matrix and recording-declined alternative wording
@@ -1594,6 +1598,7 @@ entries:
   - FO-18-21
   - FO-19-70
   - FO-20-13
+  - FO-20-13a
   - FO-22-13
   - FO-22-27
 - id: AIN-32
@@ -2279,3 +2284,33 @@ entries:
   expectedEvidence: Vendor answer reference; no prerequisite record exists yet (proposed).
   blockingRequirementIds:
   - FO-03-43
+- id: AIN-52
+  title: 'Caller-facing companion origin: registered domain and DNS name, TLS certificate with an expiry owner, public-exposure review of the companion (WAF rules, CSP, origin separation from gateway and console) and its hosting in the workload account'
+  kind: domain, certificate and exposure review (companion)
+  ownerRole: Cloud platform owner with security
+  prq: []
+  relatedPrq:
+  - PRQ-037
+  - PRQ-005
+  - PRQ-051
+  proposed: true
+  approvalScopes: []
+  approvalRequests: []
+  currentState: UNKNOWN
+  stateSource: 'proposed: no record in docs/prerequisites.yaml; a proposed addition to the prerequisite register, not requested or approved'
+  unlocks: The secure web companion reachable outside local (FO-06-84 to FO-06-87) on its own origin.
+  softwarePrerequisites:
+  - WP-27
+  - WP-39
+  capabilityIds:
+  - companion.web
+  activationSteps:
+  - The platform owner registers the companion host name under an approved domain, issues its certificate (ACM) and records the expiry owner.
+  - Security reviews the companion's public exposure (WAF rule set, CSP, origin separation, the gateway calls it may make); the review is recorded with the AIN-41 review or separately.
+  - make infra-plan ENV=sandbox shows companion_service; make smoke ENV=sandbox checks the companion origin's TLS, CSP and that it reaches only the gateway API.
+  expectedEvidence: DNS and certificate inventory entry with expiry owner, the exposure review record and the smoke report; no prerequisite record exists yet (proposed).
+  blockingRequirementIds:
+  - FO-06-84
+  - FO-06-85
+  - FO-06-86
+  - FO-06-87

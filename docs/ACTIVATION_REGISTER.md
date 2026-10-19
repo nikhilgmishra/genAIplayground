@@ -14,7 +14,7 @@ Rules:
 
 ## Summary
 
-51 entries; current state: `BLOCKED` 28, `UNKNOWN` 23. 55 of 55 prerequisite records are mapped; every PRQ record is mapped to at least one entry. 10 entries are proposed (no PRQ record exists yet; proposed additions, not requests): AIN-17, AIN-38, AIN-44, AIN-45, AIN-46, AIN-47, AIN-48, AIN-49, AIN-50, AIN-51. Nothing is `APPROVED` or `EVIDENCED`: no external input has been supplied.
+52 entries; current state: `BLOCKED` 28, `UNKNOWN` 24. 55 of 55 prerequisite records are mapped; every PRQ record is mapped to at least one entry. 11 entries are proposed (no PRQ record exists yet; proposed additions, not requests): AIN-17, AIN-38, AIN-44, AIN-45, AIN-46, AIN-47, AIN-48, AIN-49, AIN-50, AIN-51, AIN-52. Nothing is `APPROVED` or `EVIDENCED`: no external input has been supplied.
 
 | ID | External input or authority | Owner role | PRQ | State | Unlocks | Blocked requirements | Software first |
 |---|---|---|---|---|---|---|---|
@@ -31,7 +31,7 @@ Rules:
 | AIN-11 | Approved versioned resolution contracts per workflow (audience, assurance, fields, success evidence, owner, deadline, after-hours, prohibited claims) ... | Business-system owners with the support owner | PRQ-033 | `BLOCKED` | Activation of each supported intent and workflow family; contracts move from DRAFT to APPROVED. | 13 | WP-30, WP-31 |
 | AIN-12 | Client and provider identity providers: OIDC test clients, account-linking source of truth, registered-channel verification, recovery process; ... | Identity owner | PRQ-005 | `BLOCKED` | Live OIDC discovery and portal A2 verification, live IdentityDirectory, secure web companion. | 24 | WP-05, WP-19, WP-27 |
 | AIN-13 | Workforce IdP client, JWKS URI, MFA amr values, console role-group mapping, workforce directory feed and break-glass workforce identities | Identity owner with security leadership | PRQ-036 | `BLOCKED` | Production console SSO, live StaffDirectory, offboarding sync and authenticated human-task approvals. | 14 | WP-05, WP-38 |
-| AIN-14 | Authoritative relationship, delegation, partner-contract, guardianship and consent systems of record | Identity owner with business-system owners and privacy counsel | PRQ-005, PRQ-007, PRQ-027 | `BLOCKED` | Live RelationshipDirectory, ConsentRegistry and AccountStateLookup connectors; J07-J09 and J17 sandbox counterparts. | 12 | WP-19, WP-22 |
+| AIN-14 | Authoritative relationship, delegation, partner-contract, guardianship and consent systems of record | Identity owner with business-system owners and privacy counsel | PRQ-005, PRQ-007, PRQ-027 | `BLOCKED` | Live RelationshipDirectory, ConsentRegistry and AccountStateLookup connectors; J07-J09 and J17 sandbox counterparts. | 13 | WP-19, WP-22 |
 | AIN-15 | Security-approved verification parameters and identity risk assessment: OTP expiry and attempts, secure-link expiry, idle duration, refresh policy, ... | Security leadership with the identity owner | PRQ-029, PRQ-030 | `BLOCKED` | Non-local use of OTP/secure-link verification and idle/refresh settings; A1 operations. | 8 | WP-05 |
 | AIN-16 | Notification provider contract and BAA scope, sender identities (10DLC, verified domains), approved neutral templates, delivery receipts and STOP ... | Identity owner with privacy counsel and procurement; communications owner for ... | PRQ-048 | `UNKNOWN` | Live email/SMS senders for secure links, OTP and follow-ups; notification kill switch can be opened. | 13 | WP-27 |
 | AIN-17 | Outbound voice activation: calling-consent policy, caller-ID registration, per-country legal basis, outbound budget and staffed callback queue | Support operations with privacy counsel and finance | none (proposed) | `UNKNOWN` | Outbound call placement on the SIP runtime (implemented but disabled by default). | 4 | WP-27 |
@@ -39,7 +39,7 @@ Rules:
 | AIN-19 | Independent continuity carrier/route for a whole-AI or whole-contact-centre outage and AI-off/overflow routing configuration | Support operations with procurement and telecom | PRQ-049 | `UNKNOWN` | Drilled independent telephony route (OPS-02) outside local. | 11 | WP-15, WP-45 |
 | AIN-20 | Staffed queues, schedules, skills, interpreter and relay paths, overflow capacity, outage-mode staffing, WFM data and receiver workspace | Support operations | PRQ-009 | `UNKNOWN` | Live human handoff destinations with real capacity, truthful wait times and receiver acceptance. | 23 | WP-28, WP-38 |
 | AIN-21 | Clinical safety: escalation scripts, staffed safety response plan, external transfer agreements, after-hours and unavailable-responder procedures, ... | Clinical safety lead | PRQ-008 | `BLOCKED` | Safety routing outside local (approved procedures, lexicon and destinations). | 21 | WP-15 |
-| AIN-22 | Approved caller-facing template versions (safety acknowledgment, clinical boundary, unavailable-responder update, disclosure, confirmation) and the ... | Clinical safety lead with privacy counsel | PRQ-028 | `BLOCKED` | Protected templates and pre-rendered fallback clips outside local. | 16 | WP-14, WP-15 |
+| AIN-22 | Approved caller-facing template versions (safety acknowledgment, clinical boundary, unavailable-responder update, disclosure, confirmation) and the ... | Clinical safety lead with privacy counsel | PRQ-028 | `BLOCKED` | Protected templates and pre-rendered fallback clips outside local. | 17 | WP-14, WP-15 |
 | AIN-23 | Jurisdiction-approved recording and automated-agent disclosure, consent matrix and recording-declined alternative wording | Privacy counsel | PRQ-026 | `BLOCKED` | Recording/processing consent paths and the recording-declined journey outside local. | 5 | WP-22, WP-14 |
 | AIN-24 | Applicability determinations (42 CFR Part 2, psychotherapy notes, state mental-health law, minors and representatives, recording, biometric, ... | Privacy counsel | PRQ-027 | `UNKNOWN` | Jurisdiction rows leave UNKNOWN; affected capabilities become eligible per jurisdiction. | 13 | WP-22, WP-44 |
 | AIN-25 | Retention schedule per data class (transient conversation, business records, restricted QA media, audit evidence), deletion mechanism and legal-hold ... | Privacy counsel with security leadership | PRQ-025 | `BLOCKED` | Retention jobs, RESTRICTED_QA_MEDIA storage and subject deletion outside local. | 14 | WP-22 |
@@ -48,7 +48,7 @@ Rules:
 | AIN-28 | Model, voice, dataset and benchmark licence reviews, voice rights and gated-access acceptance per artifact and pinned revision (for example WildGuard ... | Legal/licensing reviewer with privacy counsel and clinical safety lead | PRQ-044 | `UNKNOWN` | Use of gated or licence-restricted models, voices, datasets and benchmarks. | 17 | WP-09, WP-15, WP-34 |
 | AIN-29 | MODEL_VOICE_SELECTION approval per role (planner, router, extractor, monitor, judge, embedder, reranker, safety classifier, voice) | QA language lead with security leadership and clinical safety lead | PRQ-045 | `UNKNOWN` | Registry entries move to APPROVED_FOR_ROLE for non-local environments. | 8 | WP-09 |
 | AIN-30 | Billable test execution: paid model calls, vendor sandbox usage, Simulator, load and soak at scale, bounded optimizer compute | Finance with the platform owner | PRQ-010, PRQ-024 | `BLOCKED` | Any job whose execution profile is billable. | 17 | WP-41, WP-42, WP-45 |
-| AIN-31 | Human reviewers and labelled data: corpus reviewers (>=50 intents x 8 families, >=500 risk cases), clinicians, native speakers, judge labellers, ... | QA and language leads with the clinical safety lead | PRQ-012 | `BLOCKED` | HUMAN_REVIEWED scenarios, held-out acceptance sets, judge qualification and human-voice audio cases. | 23 | WP-35, WP-01 |
+| AIN-31 | Human reviewers and labelled data: corpus reviewers (>=50 intents x 8 families, >=500 risk cases), clinicians, native speakers, judge labellers, ... | QA and language leads with the clinical safety lead | PRQ-012 | `BLOCKED` | HUMAN_REVIEWED scenarios, held-out acceptance sets, judge qualification and human-voice audio cases. | 24 | WP-35, WP-01 |
 | AIN-32 | Approved public FAQ and runbook corpus snapshot, knowledge-source access (Salesforce Knowledge, buckets, KB APIs) and per-source metadata conventions | Knowledge owner with clinical safety lead and privacy counsel | PRQ-032 | `BLOCKED` | Knowledge snapshots served outside local. | 13 | WP-20, WP-33 |
 | AIN-33 | Reviewed OPA policy bundle version and digest with golden probes, approved for the target environment | Policy approver with security leadership | PRQ-031 | `BLOCKED` | Policy bundle use outside local. | 2 | WP-40 |
 | AIN-34 | Trusted approval signing keys (per role, in KMS) and signed ApprovalRecord files for the requested scopes | Security leadership (keys); accountable approvers named in approvals/README.md ... | PRQ-023, PRQ-024 | `BLOCKED` | Every approval-gated scope; without trusted keys no record counts outside local. | 19 | WP-07, WP-31, WP-40 |
@@ -69,6 +69,7 @@ Rules:
 | AIN-49 | BAA coverage, data retention and zero-retention settings evidenced per managed model and speech provider, endpoint and region (Bedrock model and ... | Privacy counsel with procurement and the platform owner | none (proposed) | `UNKNOWN` | PHI on a specific model or speech endpoint; the registry entry for that endpoint can reach APPROVED_FOR_ROLE for PHI-bearing roles. | 9 | WP-08, WP-09, WP-13, WP-16 |
 | AIN-50 | SIP carrier contract, trunk and DIDs for the LiveKit SIP reference route (independent of Talkdesk), with caller-ID registration and emergency-number ... | Telecom with procurement and support operations | none (proposed) | `UNKNOWN` | Inbound and outbound PSTN calls on the reference route; PSTN qualification of WP-12 beyond local softphones. | 8 | WP-12, WP-27, WP-45 |
 | AIN-51 | Talkdesk answer to VQ-TD-42: whether a documented SIP or BYOC interface lets Talkdesk-numbered calls reach the LiveKit runtime | Talkdesk administrator with telecom | none (proposed) | `UNKNOWN` | Talkdesk-numbered calls on the LiveKit runtime; without it the reference route needs its own carrier (AIN-50). | 1 | WP-12, WP-29 |
+| AIN-52 | Caller-facing companion origin: registered domain and DNS name, TLS certificate with an expiry owner, public-exposure review of the companion (WAF ... | Cloud platform owner with security | none (proposed) | `UNKNOWN` | The secure web companion reachable outside local (FO-06-84 to FO-06-87) on its own origin. | 4 | WP-27, WP-39 |
 
 ## Entries
 
@@ -208,7 +209,7 @@ Activation steps (commands are delivered by the packages above; they do not exis
 2. Store the OAuth client secret as a Secrets Manager reference named in the Talkdesk ConnectorProfile (AIN-36).
 3. make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=contact_center.talkdesk (connector wizard suites and drift check against the observed export).
 
-Blocked requirements (35): FO-01-10, FO-02-21, FO-02-31, FO-03-39, FO-03-41, FO-03-43, FO-05-16, FO-06-26, FO-06-27, FO-06-28, FO-06-29, FO-06-30, FO-06-31, FO-06-32, FO-06-33, FO-06-34, FO-06-35, FO-06-36, FO-06-37, FO-06-38, FO-06-92, FO-07-16, FO-10-01, FO-10-17, FO-10-49, FO-13-08, FO-13-13, FO-13-18, FO-13-24, FO-13-29, FO-13-35, FO-19-08, FO-19-27, FO-22-17, FO-22-32.
+Blocked requirements (35): FO-01-10, FO-02-21, FO-02-31, FO-03-39, FO-03-41, FO-03-43, FO-05-16, FO-06-26, FO-06-27, FO-06-28, FO-06-29, FO-06-30, FO-06-31, FO-06-32, FO-06-33, FO-06-34, FO-06-35, FO-06-36, FO-06-37a, FO-06-38, FO-06-92, FO-07-16, FO-10-01, FO-10-17, FO-10-49, FO-13-08, FO-13-13, FO-13-18, FO-13-24, FO-13-29, FO-13-35, FO-19-08, FO-19-27, FO-22-17, FO-22-32.
 
 ### AIN-07 Talkdesk transfer-event export and webhook/event authentication mechanism (TB-07, TB-09)
 
@@ -252,7 +253,7 @@ Activation steps (commands are delivered by the packages above; they do not exis
 1. Talkdesk administrator records sandbox results for MB/DT/BS/GX/AG/VI matrices (talkdesk/capability-gate.md).
 2. make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=conversation.talkdesk_native runs the same invariant suite as the LiveKit path (WP-43 adapters).
 
-Blocked requirements (17): FO-02-03, FO-02-06, FO-02-07, FO-02-12, FO-02-16, FO-02-18, FO-02-19, FO-02-23, FO-02-27, FO-02-31, FO-05-03, FO-05-16, FO-05-26, FO-06-37, FO-06-38, FO-10-49, FO-13-35.
+Blocked requirements (17): FO-02-03, FO-02-06, FO-02-07, FO-02-12, FO-02-16, FO-02-18, FO-02-19, FO-02-23, FO-02-27, FO-02-31, FO-05-03, FO-05-16, FO-05-26, FO-06-37a, FO-06-38, FO-10-49, FO-13-35.
 
 ### AIN-09 Salesforce sandbox without production data: integration identity, Case schema, sharing model, external ID fields, automation inventory, separately authorized write identity and CDC entitlement
 
@@ -321,7 +322,7 @@ Activation steps (commands are delivered by the packages above; they do not exis
 
 Blocked requirements (13): FO-04-43, FO-06-26, FO-06-72, FO-06-73, FO-06-75, FO-07-04, FO-12-11, FO-12-13, FO-20-03, FO-20-24, FO-20-29, FO-20-30, FO-21-11.
 
-### AIN-12 Client and provider identity providers: OIDC test clients, account-linking source of truth, registered-channel verification, recovery process; companion IdP client and hosting
+### AIN-12 Client and provider identity providers: OIDC test clients, account-linking source of truth, registered-channel verification, recovery process; companion IdP client (companion hosting is AIN-52)
 
 | Field | Value |
 |---|---|
@@ -377,7 +378,7 @@ Blocked requirements (14): FO-01-09, FO-03-28, FO-03-49, FO-05-09, FO-05-41, FO-
 | Approval requests | none |
 | Current state | `BLOCKED`: docs/prerequisites.yaml (PRQ-005=BLOCKED, PRQ-007=UNKNOWN, PRQ-027=UNKNOWN) |
 | Unlocks | Live RelationshipDirectory, ConsentRegistry and AccountStateLookup connectors; J07-J09 and J17 sandbox counterparts. |
-| Capabilities | `authority.registries`, `privacy.operations`, `platform.invariants`, `journeys.end_to_end` |
+| Capabilities | `authority.registries`, `handoff.transfer`, `privacy.operations`, `platform.invariants`, `journeys.end_to_end` |
 | Software that must exist first | WP-19, WP-22 |
 | Expected evidence | Authority connector qualification reports. |
 
@@ -386,7 +387,7 @@ Activation steps (commands are delivered by the packages above; they do not exis
 1. Owners supply endpoints and data contracts for each registry; mappings published (WP-31/WP-32).
 2. make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=authority.registries REGISTRY=<registry> (expired delegation denied, revocation propagates).
 
-Blocked requirements (12): FO-02-05, FO-05-32, FO-05-33, FO-05-35, FO-05-51, FO-05-52, FO-07-10, FO-07-13, FO-20-08, FO-20-09, FO-22-03, FO-22-04.
+Blocked requirements (13): FO-02-05, FO-05-32, FO-05-33, FO-05-35, FO-05-51, FO-05-52, FO-07-10, FO-07-13, FO-20-08, FO-20-09, FO-20-09a, FO-22-03, FO-22-04.
 
 ### AIN-15 Security-approved verification parameters and identity risk assessment: OTP expiry and attempts, secure-link expiry, idle duration, refresh policy, A1 low-risk operations and human-only high-risk changes
 
@@ -562,7 +563,7 @@ Activation steps (commands are delivered by the packages above; they do not exis
 1. Approvers sign AR-12 for exact template ids and versions; render clips with scripts/audio (WP-15) and record listen-back approval.
 2. make preflight ENV=sandbox confirms assertCatalogDeployable passes for the approved catalogue.
 
-Blocked requirements (16): FO-00-32, FO-01-16, FO-02-17, FO-09-28, FO-10-11, FO-10-30, FO-10-47, FO-10-50, FO-11-06, FO-13-07, FO-13-11, FO-13-27, FO-19-12, FO-20-12, FO-20-13, FO-20-33.
+Blocked requirements (17): FO-00-32, FO-01-16, FO-02-17, FO-09-28, FO-10-11, FO-10-30, FO-10-47, FO-10-50, FO-11-06, FO-13-07, FO-13-11, FO-13-27, FO-19-12, FO-20-12, FO-20-13, FO-20-13a, FO-20-33.
 
 ### AIN-23 Jurisdiction-approved recording and automated-agent disclosure, consent matrix and recording-declined alternative wording
 
@@ -758,7 +759,7 @@ Activation steps (commands are delivered by the packages above; they do not exis
 
 1. Reviewers are granted console review roles (AIN-13) and record ReviewRecords in the review queue (WP-35); no record is ever created by software.
 
-Blocked requirements (23): FO-02-17, FO-09-33, FO-09-49, FO-10-12, FO-13-03, FO-14-17, FO-14-34, FO-14-38, FO-17-13, FO-17-20, FO-17-21, FO-17-23, FO-17-27, FO-17-28, FO-17-29, FO-17-39, FO-18-05, FO-18-20, FO-18-21, FO-19-70, FO-20-13, FO-22-13, FO-22-27.
+Blocked requirements (24): FO-02-17, FO-09-33, FO-09-49, FO-10-12, FO-13-03, FO-14-17, FO-14-34, FO-14-38, FO-17-13, FO-17-20, FO-17-21, FO-17-23, FO-17-27, FO-17-28, FO-17-29, FO-17-39, FO-18-05, FO-18-20, FO-18-21, FO-19-70, FO-20-13, FO-20-13a, FO-22-13, FO-22-27.
 
 ### AIN-32 Approved public FAQ and runbook corpus snapshot, knowledge-source access (Salesforce Knowledge, buckets, KB APIs) and per-source metadata conventions
 
@@ -1198,3 +1199,27 @@ Activation steps (commands are delivered by the packages above; they do not exis
 2. If an interface exists, configure it as a SipTrunkProfile and qualify it with make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=contact_center.talkdesk SUITE=sip.
 
 Blocked requirements (1): FO-03-43.
+
+### AIN-52 Caller-facing companion origin: registered domain and DNS name, TLS certificate with an expiry owner, public-exposure review of the companion (WAF rules, CSP, origin separation from gateway and console) and its hosting in the workload account
+
+| Field | Value |
+|---|---|
+| Kind | domain, certificate and exposure review (companion) |
+| Owner role | Cloud platform owner with security |
+| Prerequisite records | none: proposed addition to the prerequisite register |
+| Related records (do not cover this entry) | PRQ-037, PRQ-005, PRQ-051 |
+| Approval scopes | none |
+| Approval requests | none |
+| Current state | `UNKNOWN`: proposed: no record in docs/prerequisites.yaml; a proposed addition to the prerequisite register, not requested or approved |
+| Unlocks | The secure web companion reachable outside local (FO-06-84 to FO-06-87) on its own origin. |
+| Capabilities | `companion.web` |
+| Software that must exist first | WP-27, WP-39 |
+| Expected evidence | DNS and certificate inventory entry with expiry owner, the exposure review record and the smoke report; no prerequisite record exists yet (proposed). |
+
+Activation steps (commands are delivered by the packages above; they do not exist before those packages land):
+
+1. The platform owner registers the companion host name under an approved domain, issues its certificate (ACM) and records the expiry owner.
+2. Security reviews the companion's public exposure (WAF rule set, CSP, origin separation, the gateway calls it may make); the review is recorded with the AIN-41 review or separately.
+3. make infra-plan ENV=sandbox shows companion_service; make smoke ENV=sandbox checks the companion origin's TLS, CSP and that it reaches only the gateway API.
+
+Blocked requirements (4): FO-06-84, FO-06-85, FO-06-86, FO-06-87.

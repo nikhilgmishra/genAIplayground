@@ -670,8 +670,8 @@ requirements:
   - platform/src/adapters/live/blocked-base.ts (BLOCKED_CAPABILITY_UNVERIFIED)
   - platform/src/adapters/live/blocked.test.ts:91-114
   - platform/src/gateway/http/webhook-routes.ts:6-14 (WEBHOOK_AUTH_UNVERIFIED outside local/ci)
-  gap: Correct fail-closed behaviour. However, the BLOCKED stubs (platform/src/adapters/live/business-systems-blocked.ts, talkdesk-blocked.ts) refuse documented-but-unimplemented operations (e.g. Talkdesk Explore report requests, Salesforce Knowledge reads) with the same BLOCKED_CAPABILITY_UNVERIFIED code as genuinely undocumented ones, so nobody can audit which refusals are legitimate. Add a per-operation reason UNSUPPORTED_UNDOCUMENTED vs NOT_IMPLEMENTED and fail the release preflight on any NOT_IMPLEMENTED operation in a live composition (section 0/21).
-  remediation: Keep the pattern for genuinely undocumented behavior only.
+  gap: 'None for the acceptance: every refused operation throws a typed BLOCKED error, reports unhealthy and names no invented endpoint (blocked.test.ts:91-114). Follow-up outside the acceptance, with owners: WP-06 adds typed refusal reasons UNSUPPORTED_UNDOCUMENTED versus NOT_IMPLEMENTED; WP-07 removes the BLOCKED stubs and its live-registry scan refuses any not-implemented operation in a live composition.'
+  remediation: Keep the pattern for genuinely undocumented behaviour only (WP-06); WP-07 live-registry scan.
   size: S
   environmentDependency: none
   regressionPackage: WP-06
@@ -681,6 +681,7 @@ requirements:
     - gap
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it; the reason-code follow-up is now a WP-06 deliverable instead of an unowned gap'
 - id: FO-06-26
   section: '6'
   subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
@@ -977,7 +978,7 @@ requirements:
   subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
   kind: software
   text: Treat Talkdesk Auth Gate as a component gate, not the identity provider; test missing, null, false, strings, uncleared values, expiry and reused sessions.
-  acceptance: Backend truth table/property tests pass; Studio-side tests (uncleared variable across steps, simulator) pass in sandbox.
+  acceptance: Backend truth table and property tests pass for missing, null, false, string, expired and reused-session values (only boolean true opens the gate). The Studio-side part (uncleared variable across steps, simulator, sandbox) is FO-06-37a.
   originalIds:
   - AUTH-07
   - AUTH-04
@@ -991,19 +992,47 @@ requirements:
   qualification: NOT_RUN
   evidence:
   - platform/src/identity/session-service.ts:28-42 (only boolean true opens)
-  - platform/src/identity/session-service.test.ts:33,85,184,194-261 ([AUTH-07])
-  - talkdesk/auth-gate.md (AG matrix)
-  - talkdesk/tools/package.test.mjs:166,188
-  gap: Studio behavior is NOT_RUN on a tenant.
-  remediation: Run the AG matrix in sandbox Studio and attach evidence.
+  - 'platform/src/identity/session-service.test.ts:33 (initial value literally false), :85 (second session revokes the first: no reused session), :126 (expired), :184 (session from a previous call), :194 (truth table), :200 (property: every non-true value is closed), :209 (malformed gate responses), :217, :248, :261 ([AUTH-07])'
+  gap: None for the backend part. The Studio-side checks are split to FO-06-37a (WP-45).
+  remediation: Keep; WP-29 re-runs the truth table when the Talkdesk connector lands.
   size: S
-  environmentDependency: Talkdesk sandbox Studio and simulator (PRQ-018)
+  environmentDependency: none (the Studio-side sandbox part is FO-06-37a)
   regressionPackage: WP-29
   provenance:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
     - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-2.auth-gate-values'
+    - 'Phase A repair round 2 (critic re-check): split: the backend truth table stays VERIFIED_LOCAL (every named backend value has a test); the Studio-side sandbox tests, which no local test can exercise, moved to FO-06-37a in WP-45'
+- id: FO-06-37a
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: evaluation
+  text: 'Studio-side Auth Gate tests (qualification part of FO-06-37): an uncleared variable carried across Studio steps, the simulator and the sandbox Studio flow keep the gate closed for every value other than boolean true.'
+  acceptance: The AG matrix (talkdesk/auth-gate.md) is executed in the Talkdesk sandbox Studio and simulator under its approval; each AG row records PASS, FAIL or INCONCLUSIVE with the simulator version.
+  originalIds:
+  - AUTH-07
+  - SPEC-2.auth-gate-values
+  derivedFrom: []
+  capabilityIds:
+  - conversation.talkdesk_native
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'talkdesk/auth-gate.md (AG matrix: a document, not an executable job)'
+  - 'talkdesk/tools/package.test.mjs:166 (expected Studio variable initialised to boolean false), :188 (matrix covers missing, null, false, string, expiry and reuse rows): static checks of the expected configuration only'
+  - no sandbox job definition or simulator script executes the matrix
+  gap: No qualification job runs the AG matrix in sandbox Studio or the simulator; the uncleared-variable-across-steps case is not exercised anywhere.
+  remediation: 'WP-45: sandbox Studio and simulator job definition for the AG matrix, executed only under its scoped approval, writing per-row results under evidence/qualification/.'
+  size: S
+  environmentDependency: Talkdesk sandbox Studio and simulator (PRQ-018)
+  workPackage: WP-45
+  provenance:
+    origin: repair-split
+    splitFrom: FO-06-37
+    repair:
+    - 'Phase A repair round 2 (critic re-check): Studio-side sandbox part split from FO-06-37 (critic: the acceptance named a sandbox step that no local test exercises)'
 - id: FO-06-38
   section: '6'
   subsection: Talkdesk / contact center (incl. generic SIP and local softphone)

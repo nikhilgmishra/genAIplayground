@@ -1,0 +1,471 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ConnectorProfile.json",
+  "title": "ConnectorProfile",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "connector-profile.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "dataClassification": "egressClass",
+    "versions": "vendor.apiVersion"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "connector-profile.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "profileId": {
+      "type": "string",
+      "pattern": "^cnp_[A-Za-z0-9_-]{16,64}$"
+    },
+    "profileVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "family": {
+      "type": "string",
+      "enum": [
+        "contact_center",
+        "sip_carrier",
+        "crm",
+        "cdp",
+        "warehouse",
+        "lakehouse",
+        "business_system",
+        "knowledge",
+        "notification",
+        "identity",
+        "model_provider"
+      ]
+    },
+    "system": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{1,40}$"
+    },
+    "vendor": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{1,40}$"
+        },
+        "api": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{1,63}$"
+        },
+        "apiVersion": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        }
+      },
+      "required": [
+        "name",
+        "api",
+        "apiVersion"
+      ],
+      "additionalProperties": false
+    },
+    "baseUrl": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^https:\\/\\/[A-Za-z0-9.-]{1,253}(:\\d{2,5})?(\\/[A-Za-z0-9._~/-]*)?$"
+    },
+    "allowedHosts": {
+      "minItems": 1,
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 253,
+        "pattern": "^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$"
+      }
+    },
+    "scopes": {
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9_.:/-]+$"
+      }
+    },
+    "credentialRef": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^(arn:aws:(secretsmanager|kms|ssm):[A-Za-z0-9-]{1,32}:[A-Za-z0-9]{1,32}:[A-Za-z0-9/_+=.@:-]{1,256}|local-fixture:[a-z0-9][a-z0-9._/-]{0,127})$"
+    },
+    "region": {
+      "type": "string",
+      "pattern": "^[a-z]{2}(-[a-z]+)+-[0-9]$|^global$|^local$"
+    },
+    "accountBinding": {
+      "type": "object",
+      "properties": {
+        "externalAccountRef": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "tenantBindingVerified": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "externalAccountRef",
+        "tenantBindingVerified"
+      ],
+      "additionalProperties": false
+    },
+    "writeMode": {
+      "type": "string",
+      "enum": [
+        "READ_ONLY",
+        "SANDBOX_WRITE",
+        "PRODUCTION_WRITE"
+      ]
+    },
+    "operations": {
+      "minItems": 1,
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.]{2,63}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "READ",
+              "WRITE",
+              "SUBSCRIBE",
+              "RECONCILE_LOOKUP"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ]
+          },
+          "pathTemplate": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^\\/[A-Za-z0-9._~/{}-]*$"
+          },
+          "idempotency": {
+            "type": "string",
+            "enum": [
+              "NATURALLY_IDEMPOTENT",
+              "IDEMPOTENCY_KEY_HEADER",
+              "EXTERNAL_ID_UPSERT",
+              "NOT_IDEMPOTENT_RECONCILE_REQUIRED"
+            ]
+          },
+          "reconcileOperationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.]{2,63}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "operationId",
+          "kind",
+          "enabled",
+          "method",
+          "pathTemplate",
+          "idempotency",
+          "reconcileOperationId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "mappings": {
+      "maxItems": 256,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sourceObject": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_.]{0,63}$"
+          },
+          "sourcePointer": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^(\\/([A-Za-z0-9_.~-]|~[01])*)+$"
+          },
+          "targetField": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9_.]{0,80}$"
+          },
+          "requirement": {
+            "type": "string",
+            "enum": [
+              "REQUIRED",
+              "OPTIONAL",
+              "PROHIBITED"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "string",
+              "integer",
+              "number",
+              "boolean",
+              "instant",
+              "date",
+              "money_minor_units",
+              "currency_code",
+              "enum_code",
+              "opaque_id"
+            ]
+          },
+          "semantic": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.:-]{2,80}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "authoritative": {
+            "type": "boolean"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "PUBLIC",
+              "INTERNAL",
+              "PHI",
+              "PHI_RESTRICTED",
+              "FINANCIAL",
+              "VERIFICATION_SECRET"
+            ]
+          }
+        },
+        "required": [
+          "sourceObject",
+          "sourcePointer",
+          "targetField",
+          "requirement",
+          "type",
+          "semantic",
+          "authoritative",
+          "classification"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "eventSchema": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaRef": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_.:-]{2,80}$"
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+            }
+          },
+          "required": [
+            "schemaRef",
+            "version"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pagination": {
+      "type": "object",
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "NONE",
+            "CURSOR",
+            "PAGE_TOKEN",
+            "KEYSET",
+            "OFFSET"
+          ]
+        },
+        "maxPageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "strategy",
+        "maxPageSize"
+      ],
+      "additionalProperties": false
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "requestsPerSecond": {
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 10000
+        },
+        "maxConcurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 30000
+        },
+        "retryBudget": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        }
+      },
+      "required": [
+        "requestsPerSecond",
+        "maxConcurrency",
+        "timeoutMs",
+        "retryBudget"
+      ],
+      "additionalProperties": false
+    },
+    "deletionBehavior": {
+      "type": "string",
+      "enum": [
+        "DELETE_EVENT",
+        "TOMBSTONE",
+        "SOFT_DELETE_FLAG",
+        "RECONCILIATION_ONLY",
+        "NOT_SUPPORTED"
+      ]
+    },
+    "retentionClass": {
+      "type": "string",
+      "enum": [
+        "TRANSIENT_CONVERSATION",
+        "BUSINESS_RECORD",
+        "RESTRICTED_QA_MEDIA",
+        "SECURITY_AUDIT"
+      ]
+    },
+    "egressClass": {
+      "type": "string",
+      "enum": [
+        "PUBLIC",
+        "INTERNAL",
+        "PHI",
+        "PHI_RESTRICTED",
+        "FINANCIAL",
+        "VERIFICATION_SECRET"
+      ]
+    },
+    "documentationUrl": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^https:\\/\\/[A-Za-z0-9.-]{1,253}(:\\d{2,5})?(\\/[A-Za-z0-9._~/-]*)?$"
+    },
+    "ownerRole": {
+      "type": "string",
+      "pattern": "^[a-z][a-z_]{2,40}$"
+    },
+    "capabilityEvidenceRefs": {
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^cpe_[A-Za-z0-9_-]{16,64}$"
+      }
+    },
+    "configDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "occurredAt",
+    "causationId",
+    "profileId",
+    "profileVersion",
+    "family",
+    "system",
+    "vendor",
+    "baseUrl",
+    "allowedHosts",
+    "scopes",
+    "credentialRef",
+    "region",
+    "accountBinding",
+    "writeMode",
+    "operations",
+    "mappings",
+    "eventSchema",
+    "pagination",
+    "limits",
+    "deletionBehavior",
+    "retentionClass",
+    "egressClass",
+    "documentationUrl",
+    "ownerRole",
+    "capabilityEvidenceRefs",
+    "configDigest"
+  ],
+  "additionalProperties": false
+}

@@ -70,20 +70,29 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.workspace
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/live/salesforce-rest.contract.test.ts
-  - platform/src/adapters/live/oidc-verifier.test.ts
-  - platform/src/outbox/sqs-publisher.contract.test.ts (stub)
-  gap: Only Salesforce HTTP emulator and in-process JWKS; no real Postgres, OIDC server, queue redelivery or media.
+  - platform/test/integration/_harness/postgres.test.ts (transactions and locking via PgPoolDb)
+  - platform/test/integration/_harness/oidc.test.ts (OIDC realms, three live verifiers)
+  - platform/test/integration/_harness/queue.test.ts (forced-overlap dispatch, redelivery, DLQ)
+  - platform/test/integration/_harness/workflow.test.ts (Step Functions Local with task tokens)
+  - 'platform/test/integration/_harness/livekit.test.ts: ''[FO-17-03] two WebRTC participants exchange audio through livekit-server; the server API lists and removes them'''
+  - 'livekit.test.ts: ''[FO-17-03] a SIP INVITE is dispatched into a LiveKit room by the inbound trunk, answered once an agent publishes audio, and ended by BYE''; ''[FO-17-03] an INVITE for a number no inbound trunk serves is refused with a final 4xx'''
+  - 'make test-integration SUITE=_harness: 10 files, 71/71 passed (two consecutive runs)'
+  gap: RTP media on the SIP leg and the SIP test agents are WP-12. Carrier trunks, TURN, PSTN codecs and carrier DTMF stay NOT_RUN. The CI integration job has not run on GitHub yet.
   remediation: Build compose Layer-2 suite.
   size: L
   environmentDependency: none
-  workPackage: WP-03
+  regressionPackage: WP-03
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-03
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-04
   section: '17'
   kind: evaluation
@@ -625,11 +634,16 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-05 builds the injection point (session idle expiry (lastActivityAt) in the identity service and the DynamoDB session store) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:AUTH_EXPIRY_IDLE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-04 builds the injection point (session idle expiry (lastActivityAt) in the identity service and the DynamoDB session store) together with WP-05; WP-05 owns the Layer-2 test tagged [FAULT:AUTH_EXPIRY_IDLE] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
   workPackage: WP-05
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-04
+  - WP-05
+  postconditionPackages:
+  - WP-05
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -654,11 +668,15 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-14 builds the injection point (emission-time session re-check at the audio release boundary) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:AUTH_EXPIRY_DURING_SPEECH]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-14 builds the injection point (emission-time session re-check at the audio release boundary) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:AUTH_EXPIRY_DURING_SPEECH]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
   workPackage: WP-14
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-14
+  postconditionPackages:
+  - WP-14
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -683,16 +701,23 @@ requirements:
   - scenarios/fixtures/failures/AUTH_EXPIRY_MID_CALL.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case AUTH_EXPIRY_MID_CALL (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:AUTH_EXPIRY_MID_CALL] test.
-  remediation: WP-01 builds the injection point (session expiry between prepare and commit (injected clock)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:AUTH_EXPIRY_MID_CALL]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-04 and WP-05 build the injection point (session expiry between prepare and commit (injected clock)); WP-07 owns the Layer-2 test tagged [FAULT:AUTH_EXPIRY_MID_CALL] and drives that seam; the asserted postconditions also observe components of WP-04, which WP-07 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
-  workPackage: WP-01
+  workPackage: WP-07
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  - WP-05
+  postconditionPackages:
+  - WP-04
+  - WP-07
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-07: the commit path with zero provider calls is observable only through the composed live gateway over the DynamoDB Local session store, which WP-07 composes after WP-04 and WP-05.'
 - id: FO-17-24.DELEGATION_REVOKED
   section: '17'
   subsection: Fault matrix
@@ -712,16 +737,22 @@ requirements:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   - 'related, outside the fault matrix: platform/src/business/recheck.ts (representation recheck) and platform/test/journeys/j2-billing-dispute.test.ts:243'
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-01 builds the injection point (relationship-directory revocation while work is pending (recheck under durable grants)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:DELEGATION_REVOKED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-19 builds the injection point (relationship-directory revocation while work is pending (recheck under durable grants)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:DELEGATION_REVOKED]; the asserted postconditions also observe components of WP-04, which WP-19 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-01
+  workPackage: WP-19
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-19
+  postconditionPackages:
+  - WP-04
+  - WP-19
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-19: the injection point is the relationship directory, whose live connector and emulator WP-19 builds; the recheck under durable grants runs on postgres:16 (WP-04) with that live adapter.'
 - id: FO-17-24.CONSENT_REVOKED
   section: '17'
   subsection: Fault matrix
@@ -741,22 +772,31 @@ requirements:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   - 'related, outside the fault matrix: platform/src/workflows/engine.test.ts:719 and platform/test/journeys/j2-billing-dispute.test.ts:243 test revocation without a fault plan'
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-01 builds the injection point (consent-registry revocation during a call and while work is pending) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:CONSENT_REVOKED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-19 and WP-22 build the injection point (consent-registry revocation during a call and while work is pending); WP-30 owns the Layer-2 test tagged [FAULT:CONSENT_REVOKED] and drives that seam; the asserted postconditions also observe components of WP-11, WP-17, WP-22 and WP-27, each of which WP-30 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-01
+  workPackage: WP-30
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-19
+  - WP-22
+  postconditionPackages:
+  - WP-11
+  - WP-17
+  - WP-22
+  - WP-27
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-30: the consent registry (WP-19) and revocation propagation (WP-22) are phase D, and the asserted postconditions need the media-path recording and processing control (WP-11, WP-17) and pending outreach (WP-27, phase E); WP-30 is the first package that depends on all of them.'
 - id: FO-17-24.CONCURRENT_SAME_ACCOUNT
   section: '17'
   subsection: Fault matrix
   kind: evaluation
-  text: 'Fault matrix CONCURRENT_SAME_ACCOUNT: Two concurrent calls change the same appointment. The fault is injected at its real injection point (a second call commits to the same record while the first awaits confirmation (multi-connection variant runs in the WP-04 postgres:16 contention suite)), the run proves the fault point was reached, and the postconditions are asserted.'
-  acceptance: A fault plan CONCURRENT_SAME_ACCOUNT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:CONCURRENT_SAME_ACCOUNT] injects it at a second call commits to the same record while the first awaits confirmation (multi-connection variant runs in the WP-04 postgres:16 contention suite) and asserts that it was reached and that exactly one effect; the stale prepared action is invalidated with STATE_CHANGED; EvaluationResult records requestedFault=CONCURRENT_SAME_ACCOUNT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  text: 'Fault matrix CONCURRENT_SAME_ACCOUNT: Two concurrent calls change the same appointment. The fault is injected at its real injection point (a second call commits to the same record while the first awaits confirmation (two gateway sessions on two postgres:16 connections with the WP-04 race helper, against the WP-23 reference business API; never PGlite)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan CONCURRENT_SAME_ACCOUNT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:CONCURRENT_SAME_ACCOUNT] injects it at a second call commits to the same record while the first awaits confirmation (two gateway sessions on two postgres:16 connections with the WP-04 race helper, against the WP-23 reference business API; never PGlite) and asserts that it was reached and that exactly one effect; the stale prepared action is invalidated with STATE_CHANGED; EvaluationResult records requestedFault=CONCURRENT_SAME_ACCOUNT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
   originalIds:
   - SPEC-16.fault-concurrent-calls
   - ACT-02
@@ -770,16 +810,23 @@ requirements:
   - scenarios/fixtures/failures/CONCURRENT_SAME_ACCOUNT.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case CONCURRENT_SAME_ACCOUNT (in-process fixture stack; counted only when the fixture state shows the fault manifested)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:CONCURRENT_SAME_ACCOUNT] test.
-  remediation: WP-01 builds the injection point (a second call commits to the same record while the first awaits confirmation (multi-connection variant runs in the WP-04 postgres:16 contention suite)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:CONCURRENT_SAME_ACCOUNT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-04 and WP-23 build the injection point (a second call commits to the same record while the first awaits confirmation (two gateway sessions on two postgres:16 connections with the WP-04 race helper, against the WP-23 reference business API; never PGlite)); WP-25 owns the Layer-2 test tagged [FAULT:CONCURRENT_SAME_ACCOUNT] and drives that seam; the asserted postconditions also observe components of WP-23, which WP-25 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
-  workPackage: WP-01
+  workPackage: WP-25
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  - WP-23
+  postconditionPackages:
+  - WP-23
+  - WP-25
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-25: the multi-connection run needs postgres:16 (WP-04 race helper, never PGlite: ADR-0018 decision 7.2), the reference business API as the shared record (WP-23) and the action protocol that invalidates the stale prepared action (WP-25).'
 - id: FO-17-24.CHANGED_SLOT_DURING_CONFIRMATION
   section: '17'
   subsection: Fault matrix
@@ -798,16 +845,21 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-01 builds the injection point (the scheduling source changes the slot version between read-back and commit) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:CHANGED_SLOT_DURING_CONFIRMATION]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-23 builds the injection point (the scheduling source changes the slot version between read-back and commit); WP-25 owns the Layer-2 test tagged [FAULT:CHANGED_SLOT_DURING_CONFIRMATION] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-01
+  workPackage: WP-25
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-25
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-25: the slot version changes in the reference business API (WP-23) and the refusal, proposal refresh and new confirmation run through the action protocol and business services WP-25 owns (J02 conflict refresh).'
 - id: FO-17-24.INTERRUPTED_CONFIRMATION
   section: '17'
   subsection: Fault matrix
@@ -827,11 +879,16 @@ requirements:
   - scenarios/fixtures/failures/INTERRUPTED_CONFIRMATION.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case INTERRUPTED_CONFIRMATION (in-process fixture stack; counted as injected when it is armed, not when it manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:INTERRUPTED_CONFIRMATION] test.
-  remediation: WP-14 builds the injection point (barge-in during the confirmation read-back at the audio boundary) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:INTERRUPTED_CONFIRMATION]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-13 builds the injection point (barge-in during the confirmation read-back at the audio boundary) together with WP-14; WP-14 owns the Layer-2 test tagged [FAULT:INTERRUPTED_CONFIRMATION] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-14
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-13
+  - WP-14
+  postconditionPackages:
+  - WP-14
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -854,11 +911,18 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-24 builds the injection point (a context source older than its freshness budget (warehouse snapshot older than a payment)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:STALE_SOURCE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-21 builds the injection point (a context source older than its freshness budget (warehouse snapshot older than a payment)) together with WP-24; WP-24 owns the Layer-2 test tagged [FAULT:STALE_SOURCE] and drives that seam; the asserted postconditions also observe components of WP-14 and WP-23, each of which WP-24 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
   workPackage: WP-24
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-21
+  - WP-24
+  postconditionPackages:
+  - WP-14
+  - WP-23
+  - WP-24
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -881,11 +945,16 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-24 builds the injection point (two sources or events disagree on a field used by the snapshot) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:CONTRADICTORY_EVENT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-18 builds the injection point (two sources or events disagree on a field used by the snapshot) together with WP-24; WP-24 owns the Layer-2 test tagged [FAULT:CONTRADICTORY_EVENT] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
   workPackage: WP-24
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-18
+  - WP-24
+  postconditionPackages:
+  - WP-24
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -910,11 +979,15 @@ requirements:
   - scenarios/fixtures/failures/EVENTS_OUT_OF_ORDER.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case EVENTS_OUT_OF_ORDER (in-process fixture stack; counted only when the fixture state shows the fault manifested)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:EVENTS_OUT_OF_ORDER] test.
-  remediation: WP-28 builds the injection point (carrier transfer events delivered out of order to the carrier_event_inbox) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:EVENTS_OUT_OF_ORDER]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-28 builds the injection point (carrier transfer events delivered out of order to the carrier_event_inbox) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:EVENTS_OUT_OF_ORDER]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-28
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-28
+  postconditionPackages:
+  - WP-28
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -939,11 +1012,15 @@ requirements:
   - scenarios/fixtures/failures/DUPLICATE_WEBHOOK.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case DUPLICATE_WEBHOOK (in-process fixture stack; counted only when the fixture state shows the fault manifested)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:DUPLICATE_WEBHOOK] test.
-  remediation: WP-04 builds the injection point (inbound inbox redelivery with the same (tenant, source, event_id) and outbox redelivery) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:DUPLICATE_WEBHOOK]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-04 builds the injection point (inbound inbox redelivery with the same (tenant, source, event_id) and outbox redelivery) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:DUPLICATE_WEBHOOK]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-04
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  postconditionPackages:
+  - WP-04
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -966,11 +1043,17 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-29 builds the injection point (a vendor event that never arrives (Talkdesk/Salesforce emulator drops it)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:MISSING_WEBHOOK]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-29 builds the injection point (a vendor event that never arrives (Talkdesk/Salesforce emulator drops it)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:MISSING_WEBHOOK]; the asserted postconditions also observe components of WP-04 and WP-06, each of which WP-29 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
   workPackage: WP-29
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-29
+  postconditionPackages:
+  - WP-04
+  - WP-06
+  - WP-29
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -995,11 +1078,15 @@ requirements:
   - scenarios/fixtures/failures/SCHEDULING_TIMEOUT_AFTER_COMMIT.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case SCHEDULING_TIMEOUT_AFTER_COMMIT (in-process fixture stack; counted only when the fixture state shows the fault manifested)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:SCHEDULING_TIMEOUT_AFTER_COMMIT] test.
-  remediation: WP-25 builds the injection point (the reference business API applies the change and times out the response) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:SCHEDULING_TIMEOUT_AFTER_COMMIT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-23 builds the injection point (the reference business API applies the change and times out the response); WP-25 owns the Layer-2 test tagged [FAULT:SCHEDULING_TIMEOUT_AFTER_COMMIT] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-25
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-25
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1024,11 +1111,17 @@ requirements:
   - scenarios/fixtures/failures/CRASH_AFTER_COMMIT.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case CRASH_AFTER_COMMIT (in-process fixture stack; counted only when the fixture state shows the fault manifested)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:CRASH_AFTER_COMMIT] test.
-  remediation: WP-25 builds the injection point (worker process death between the provider commit and the ledger record (two workers on postgres:16)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:CRASH_AFTER_COMMIT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-04 builds the injection point (worker process death between the provider commit and the ledger record (two workers on postgres:16)) together with WP-25; WP-25 owns the Layer-2 test tagged [FAULT:CRASH_AFTER_COMMIT] and drives that seam; the asserted postconditions also observe components of WP-23, which WP-25 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-25
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  - WP-25
+  postconditionPackages:
+  - WP-23
+  - WP-25
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1052,11 +1145,16 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-25 builds the injection point (the commit receipt or completion event never arrives) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:RECEIPT_LOST]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-23 builds the injection point (the commit receipt or completion event never arrives) together with WP-25; WP-25 owns the Layer-2 test tagged [FAULT:RECEIPT_LOST] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
   workPackage: WP-25
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-23
+  - WP-25
+  postconditionPackages:
+  - WP-25
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1080,11 +1178,17 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-25 builds the injection point (the receipt arrives after the reconcile budget or after a newer turn) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:RECEIPT_LATE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-23 builds the injection point (the receipt arrives after the reconcile budget or after a newer turn) together with WP-25; WP-25 owns the Layer-2 test tagged [FAULT:RECEIPT_LATE] and drives that seam; the asserted postconditions also observe components of WP-14, which WP-25 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
   workPackage: WP-25
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-23
+  - WP-25
+  postconditionPackages:
+  - WP-14
+  - WP-25
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1109,11 +1213,15 @@ requirements:
   - scenarios/fixtures/failures/SALESFORCE_OUTAGE.json (fault plan v2)
   - platform/src/evaluation/driver/local-driver.ts inject() case SALESFORCE_OUTAGE (in-process fixture stack; counted as injected when it is armed, not when it manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:SALESFORCE_OUTAGE] test.
-  remediation: WP-29 builds the injection point (the Salesforce emulator refuses connections for the whole call) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:SALESFORCE_OUTAGE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-29 builds the injection point (the Salesforce emulator refuses connections for the whole call) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:SALESFORCE_OUTAGE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-29
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-29
+  postconditionPackages:
+  - WP-29
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1136,16 +1244,22 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-06 builds the injection point (a connector response or metadata whose fields differ from the profile mapping) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:SCHEMA_DRIFT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-06 builds the injection point (a connector response or metadata whose fields differ from the profile mapping); WP-32 owns the Layer-2 test tagged [FAULT:SCHEMA_DRIFT] and drives that seam; the asserted postconditions also observe components of WP-06, which WP-32 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-06
+  workPackage: WP-32
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-06
+  postconditionPackages:
+  - WP-06
+  - WP-32
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-06 -> WP-32: the asserted postcondition "readiness turns the capability UNKNOWN" needs the readiness registry, which WP-32 builds in phase F; WP-06 builds the drifted-metadata injection point and the typed drift error.'
 - id: FO-17-24.DLQ_FULL
   section: '17'
   subsection: Fault matrix
@@ -1163,16 +1277,22 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-06 builds the injection point (the dead-letter destination is at capacity or unwritable (ElasticMQ)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:DLQ_FULL]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-04 builds the injection point (the dead-letter destination is at capacity or unwritable (ElasticMQ)); WP-07 owns the Layer-2 test tagged [FAULT:DLQ_FULL] and drives that seam; the asserted postconditions also observe components of WP-06, which WP-07 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-06
+  workPackage: WP-07
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-04
+  postconditionPackages:
+  - WP-06
+  - WP-07
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-06 -> WP-07: the dead-letter destination is the WP-04 SqsPublisher DLQ on ElasticMQ and WP-06 runs in parallel with WP-04; WP-07 composes the connector runtime with that DLQ and owns the alarm rules (observability group, phase B).'
 - id: FO-17-24.MODEL_REFUSAL
   section: '17'
   subsection: Fault matrix
@@ -1191,16 +1311,24 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-08 builds the injection point (the model emulator returns a provider refusal) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:MODEL_REFUSAL]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-08 builds the injection point (the model emulator returns a provider refusal); WP-17 owns the Layer-2 test tagged [FAULT:MODEL_REFUSAL] and drives that seam; the asserted postconditions also observe components of WP-08, WP-14 and WP-15, each of which WP-17 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-08
+  workPackage: WP-17
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-08
+  postconditionPackages:
+  - WP-08
+  - WP-14
+  - WP-15
+  - WP-17
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-08 -> WP-17: "no improvised speech" and the approved template or human route are observable only at the audio boundary of the composed cascade (WP-14, WP-15, WP-17); WP-08 builds the emulator refusal.'
 - id: FO-17-24.MODEL_HANG
   section: '17'
   subsection: Fault matrix
@@ -1219,16 +1347,23 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-08 builds the injection point (the model stream stalls past its deadline) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:MODEL_HANG]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-08 builds the injection point (the model stream stalls past its deadline); WP-15 owns the Layer-2 test tagged [FAULT:MODEL_HANG] and drives that seam; the asserted postconditions also observe components of WP-08 and WP-10, each of which WP-15 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-08
+  workPackage: WP-15
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-08
+  postconditionPackages:
+  - WP-08
+  - WP-10
+  - WP-15
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-08 -> WP-15: the asserted postconditions "the approved fallback plays" and "safety is unaffected" need the fallback player and safety runtime WP-15 builds; the stall comes from the WP-08 emulator through the WP-10 harness deadline (WP-15 now depends on WP-10).'
 - id: FO-17-24.MODEL_OVERLOAD
   section: '17'
   subsection: Fault matrix
@@ -1246,16 +1381,23 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-08 builds the injection point (the model emulator returns overload/rate-limit errors) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:MODEL_OVERLOAD]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-08 builds the injection point (the model emulator returns overload/rate-limit errors); WP-17 owns the Layer-2 test tagged [FAULT:MODEL_OVERLOAD] and drives that seam; the asserted postconditions also observe components of WP-08 and WP-15, each of which WP-17 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-08
+  workPackage: WP-17
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-08
+  postconditionPackages:
+  - WP-08
+  - WP-15
+  - WP-17
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-08 -> WP-17: "admission sheds model work first" changes platform/src/ops/admission.ts (ops shared group, phase C owner WP-17) and "the safe route stays usable" needs WP-15; WP-08 builds the overload responses.'
 - id: FO-17-24.ASR_FAILURE
   section: '17'
   subsection: Fault matrix
@@ -1274,16 +1416,21 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-13 builds the injection point (the ASR sidecar or managed ASR fails or returns no partials) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:ASR_FAILURE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-13 builds the injection point (the ASR sidecar or managed ASR fails or returns no partials); WP-15 owns the Layer-2 test tagged [FAULT:ASR_FAILURE] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-13
+  workPackage: WP-15
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-13
+  postconditionPackages:
+  - WP-15
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-13 -> WP-15: the asserted postconditions (safety signal UNRESOLVED, a human offered) belong to the safety runtime and continuity route WP-15 builds (J11 ASR failure); WP-13 builds the sidecar and adapter failure.'
 - id: FO-17-24.TTS_FAILURE
   section: '17'
   subsection: Fault matrix
@@ -1302,16 +1449,21 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-13 builds the injection point (the TTS sidecar or managed TTS fails mid-utterance) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:TTS_FAILURE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-13 builds the injection point (the TTS sidecar or managed TTS fails mid-utterance); WP-15 owns the Layer-2 test tagged [FAULT:TTS_FAILURE] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-13
+  workPackage: WP-15
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-13
+  postconditionPackages:
+  - WP-15
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-13 -> WP-15: the asserted postcondition "the pre-rendered fallback clip plays" needs the fallback clip player WP-15 builds; WP-13 builds the sidecar and adapter failure.'
 - id: FO-17-24.JUDGE_FAILURE
   section: '17'
   subsection: Fault matrix
@@ -1330,11 +1482,17 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-35 builds the injection point (the pre-release or monitor judge times out or errors) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:JUDGE_FAILURE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-35 builds the injection point (the pre-release or monitor judge times out or errors) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:JUDGE_FAILURE]; the asserted postconditions also observe components of WP-14 and WP-15, each of which WP-35 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
   workPackage: WP-35
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-35
+  postconditionPackages:
+  - WP-14
+  - WP-15
+  - WP-35
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1359,11 +1517,16 @@ requirements:
   - scenarios/fixtures/failures/RECEIVER_UNAVAILABLE.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case RECEIVER_UNAVAILABLE (in-process fixture stack; counted only when the fixture state shows the fault manifested)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:RECEIVER_UNAVAILABLE] test.
-  remediation: WP-28 builds the injection point (no staffed receiver accepts within the attempt window) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:RECEIVER_UNAVAILABLE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-28 builds the injection point (no staffed receiver accepts within the attempt window) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:RECEIVER_UNAVAILABLE]; the asserted postconditions also observe components of WP-15, which WP-28 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-28
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-28
+  postconditionPackages:
+  - WP-15
+  - WP-28
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1387,11 +1550,16 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-28 builds the injection point (the receiver client declines the transfer) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:RECEIVER_DECLINED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-28 builds the injection point (the receiver client declines the transfer) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:RECEIVER_DECLINED]; the asserted postconditions also observe components of WP-15, which WP-28 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
   workPackage: WP-28
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-28
+  postconditionPackages:
+  - WP-15
+  - WP-28
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1416,11 +1584,15 @@ requirements:
   - scenarios/fixtures/failures/TRANSFER_FAILED.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case TRANSFER_FAILED (in-process fixture stack; counted only when the fixture state shows the fault manifested)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:TRANSFER_FAILED] test.
-  remediation: WP-28 builds the injection point (the first allowlisted destination rejects the transfer) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:TRANSFER_FAILED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-28 builds the injection point (the first allowlisted destination rejects the transfer) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:TRANSFER_FAILED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-28
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-28
+  postconditionPackages:
+  - WP-28
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1444,11 +1616,17 @@ requirements:
   - scenarios/fixtures/failures/BRIDGE_DROPPED.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case BRIDGE_DROPPED (in-process fixture stack; counted only when the fixture state shows the fault manifested)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:BRIDGE_DROPPED] test.
-  remediation: WP-28 builds the injection point (the bridge drops after receiver acceptance (LiveKit/SIP warm transfer)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:BRIDGE_DROPPED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-12 builds the injection point (the bridge drops after receiver acceptance (LiveKit/SIP warm transfer)) together with WP-28; WP-28 owns the Layer-2 test tagged [FAULT:BRIDGE_DROPPED] and drives that seam; the asserted postconditions also observe components of WP-15, which WP-28 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-28
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-12
+  - WP-28
+  postconditionPackages:
+  - WP-15
+  - WP-28
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1472,11 +1650,17 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-25 builds the injection point (the caller declines recording on the media path) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:RECORDING_REFUSED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-11 builds the injection point (the caller declines recording on the media path); WP-25 owns the Layer-2 test tagged [FAULT:RECORDING_REFUSED] and drives that seam; the asserted postconditions also observe components of WP-11 and WP-17, each of which WP-25 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
   workPackage: WP-25
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-11
+  postconditionPackages:
+  - WP-11
+  - WP-17
+  - WP-25
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1501,11 +1685,15 @@ requirements:
   - scenarios/fixtures/failures/AUDIT_OUTAGE.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case AUDIT_OUTAGE (in-process fixture stack; counted as injected when it is armed, not when it manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:AUDIT_OUTAGE] test.
-  remediation: WP-04 builds the injection point (the central sink and local audit outbox cannot be written (MinIO Object Lock and Postgres in Layer 2)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:AUDIT_OUTAGE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-04 builds the injection point (the central sink and local audit outbox cannot be written (MinIO Object Lock and Postgres in Layer 2)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:AUDIT_OUTAGE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-04
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  postconditionPackages:
+  - WP-04
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1530,16 +1718,22 @@ requirements:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   - 'related, outside the fault matrix: platform/src/gateway/pipeline.db-outage.test.ts and platform/src/business/db-outage.test.ts (PGlite outage tests)'
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-04 builds the injection point (the primary database write fails (postgres:16 stopped or read-only)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:LOCAL_PERSISTENCE_FAILURE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-04 builds the injection point (the primary database write fails (postgres:16 stopped or read-only)); WP-15 owns the Layer-2 test tagged [FAULT:LOCAL_PERSISTENCE_FAILURE] and drives that seam; the asserted postconditions also observe components of WP-12, which WP-15 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-04
+  workPackage: WP-15
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-04
+  postconditionPackages:
+  - WP-12
+  - WP-15
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-04 -> WP-15: the asserted postcondition "the telephone route remains usable" needs the SIP route (WP-12) and the AI-off continuity route WP-15 builds; WP-04 builds the postgres:16 stopped or read-only injection point.'
 - id: FO-17-24.REDACTION_FAILURE
   section: '17'
   subsection: Fault matrix
@@ -1559,16 +1753,24 @@ requirements:
   - scenarios/fixtures/failures/REDACTION_FAILURE.json (fault plan v1)
   - 'platform/src/evaluation/driver/local-driver.ts:189-193 (UNINJECTABLE_FAULTS: NO_REDACTION_STAGE_IN_LOCAL_CALL_PATH; refused, never simulated as success)'
   gap: 'The local driver refuses the plan: no injection point exists.'
-  remediation: WP-22 builds the injection point (the redaction stage fails on a transcript segment) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:REDACTION_FAILURE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-22 builds the injection point (the redaction stage fails on a transcript segment); WP-35 owns the Layer-2 test tagged [FAULT:REDACTION_FAILURE] and drives that seam; the asserted postconditions also observe components of WP-17, WP-21 and WP-22, each of which WP-35 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
-  workPackage: WP-22
+  workPackage: WP-35
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-22
+  postconditionPackages:
+  - WP-17
+  - WP-21
+  - WP-22
+  - WP-35
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-22 -> WP-35: the asserted postcondition "never shipped to general logs, analytics or judges" needs transcript segments from the media path (WP-17), the CDP/analytics export (WP-21) and the judges and monitors WP-35 builds; WP-22 builds the redaction-stage failure and the quarantine.'
 - id: FO-17-24.SOURCE_DELETED
   section: '17'
   subsection: Fault matrix
@@ -1586,16 +1788,24 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-22 builds the injection point (a subject or source record is deleted while work is pending) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:SOURCE_DELETED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-22 builds the injection point (a subject or source record is deleted while work is pending); WP-24 owns the Layer-2 test tagged [FAULT:SOURCE_DELETED] and drives that seam; the asserted postconditions also observe components of WP-18, WP-20 and WP-22, each of which WP-24 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-22
+  workPackage: WP-24
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-22
+  postconditionPackages:
+  - WP-18
+  - WP-20
+  - WP-22
+  - WP-24
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-22 -> WP-24: the asserted postconditions "caches drop it" and "later disclosure does not use it" need the ContextCacheKey caches and snapshot assembly WP-24 builds; WP-22 builds the deletion while work is pending and the tombstones.'
 - id: FO-17-24.SOURCE_MERGED
   section: '17'
   subsection: Fault matrix
@@ -1613,16 +1823,22 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-19 builds the injection point (the identity directory merges two subjects) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:SOURCE_MERGED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-19 builds the injection point (the identity directory merges two subjects); WP-24 owns the Layer-2 test tagged [FAULT:SOURCE_MERGED] and drives that seam; the asserted postconditions also observe components of WP-19, which WP-24 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-19
+  workPackage: WP-24
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-19
+  postconditionPackages:
+  - WP-19
+  - WP-24
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-19 -> WP-24: the asserted postcondition "caches invalidated" covers the ContextCacheKey caches WP-24 builds; WP-19 builds the identity-directory merge.'
 - id: FO-17-24.SOURCE_SPLIT
   section: '17'
   subsection: Fault matrix
@@ -1640,16 +1856,22 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-19 builds the injection point (the identity directory splits one subject into two) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:SOURCE_SPLIT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-19 builds the injection point (the identity directory splits one subject into two); WP-24 owns the Layer-2 test tagged [FAULT:SOURCE_SPLIT] and drives that seam; the asserted postconditions also observe components of WP-19, which WP-24 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
-  workPackage: WP-19
+  workPackage: WP-24
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-19
+  postconditionPackages:
+  - WP-19
+  - WP-24
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-19 -> WP-24: the asserted postcondition "nothing is disclosed across the split" covers context snapshots and caches WP-24 builds; WP-19 builds the identity-directory split.'
 - id: FO-17-24.REGIONAL_FAILOVER
   section: '17'
   subsection: Fault matrix
@@ -1668,11 +1890,16 @@ requirements:
   - scenarios/fixtures/failures/REGIONAL_FAILOVER.json (fault plan v1)
   - 'platform/src/evaluation/driver/local-driver.ts:189-193 (UNINJECTABLE_FAULTS: WRITE_FENCE_NEEDS_CONTAINER_RESTART; refused, never simulated as success)'
   gap: 'The local driver refuses the plan: no injection point exists.'
-  remediation: WP-42 builds the injection point (regional uncertainty with the application write fence (FO-16-44a)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:REGIONAL_FAILOVER]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-42 builds the injection point (regional uncertainty with the application write fence (FO-16-44a)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:REGIONAL_FAILOVER]; the asserted postconditions also observe components of WP-25, which WP-42 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none for software; DR drill authority for VERIFIED_SANDBOX
   workPackage: WP-42
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-42
+  postconditionPackages:
+  - WP-25
+  - WP-42
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1697,11 +1924,17 @@ requirements:
   - scenarios/fixtures/failures/QUOTA_EXHAUSTED.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case QUOTA_EXHAUSTED (in-process fixture stack; counted as injected when it is armed, not when it manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:QUOTA_EXHAUSTED] test.
-  remediation: WP-42 builds the injection point (vendor or AI quota exhausted mid-call (shared quota counters)) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:QUOTA_EXHAUSTED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-42 builds the injection point (vendor or AI quota exhausted mid-call (shared quota counters)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:QUOTA_EXHAUSTED]; the asserted postconditions also observe components of WP-15 and WP-28, each of which WP-42 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-42
   faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-42
+  postconditionPackages:
+  - WP-15
+  - WP-28
+  - WP-42
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1725,11 +1958,16 @@ requirements:
   evidence:
   - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
   gap: No fault plan, no injection point and no reached-and-asserted run.
-  remediation: WP-42 builds the injection point (the spend ledger reaches a tenant/cohort/model ceiling mid-call) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:BUDGET_EXHAUSTED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-42 builds the injection point (the spend ledger reaches a tenant/cohort/model ceiling mid-call) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:BUDGET_EXHAUSTED]; the asserted postconditions also observe components of WP-15, which WP-42 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
   workPackage: WP-42
   faultSource: prompt section 17
+  injectionPointPackages:
+  - WP-42
+  postconditionPackages:
+  - WP-15
+  - WP-42
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1754,11 +1992,15 @@ requirements:
   - scenarios/fixtures/failures/BILLING_TIMEOUT.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case BILLING_TIMEOUT (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:BILLING_TIMEOUT] test.
-  remediation: WP-23 builds the injection point (reference business API billing read timeout) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:BILLING_TIMEOUT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-23 builds the injection point (reference business API billing read timeout) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:BILLING_TIMEOUT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-23
   faultSource: registry
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-23
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1782,11 +2024,15 @@ requirements:
   - scenarios/fixtures/failures/CLAIMS_TIMEOUT.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case CLAIMS_TIMEOUT (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:CLAIMS_TIMEOUT] test.
-  remediation: WP-23 builds the injection point (reference business API claims read timeout) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:CLAIMS_TIMEOUT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-23 builds the injection point (reference business API claims read timeout) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:CLAIMS_TIMEOUT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-23
   faultSource: registry
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-23
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1811,11 +2057,15 @@ requirements:
   - scenarios/fixtures/failures/PROVIDER_API_TIMEOUT.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case PROVIDER_API_TIMEOUT (in-process fixture stack; counted as injected when it is armed, not when it manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:PROVIDER_API_TIMEOUT] test.
-  remediation: WP-23 builds the injection point (reference business API provider-network timeout before send) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:PROVIDER_API_TIMEOUT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-23 builds the injection point (reference business API provider-network timeout before send) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:PROVIDER_API_TIMEOUT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-23
   faultSource: registry
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-23
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1839,11 +2089,15 @@ requirements:
   - scenarios/fixtures/failures/SCHEDULING_UNAVAILABLE.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case SCHEDULING_UNAVAILABLE (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:SCHEDULING_UNAVAILABLE] test.
-  remediation: WP-23 builds the injection point (reference business API scheduling read refused before send) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:SCHEDULING_UNAVAILABLE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-23 builds the injection point (reference business API scheduling read refused before send) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:SCHEDULING_UNAVAILABLE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-23
   faultSource: registry
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-23
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1868,11 +2122,15 @@ requirements:
   - scenarios/fixtures/failures/PARTIAL_WRITE.json (fault plan v2)
   - platform/src/evaluation/driver/local-driver.ts inject() case PARTIAL_WRITE (in-process fixture stack; counted only when the fixture state shows the fault manifested)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:PARTIAL_WRITE] test.
-  remediation: WP-23 builds the injection point (reference business API applies the first step of a multi-step write then fails) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:PARTIAL_WRITE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-23 builds the injection point (reference business API applies the first step of a multi-step write then fails) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:PARTIAL_WRITE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-23
   faultSource: registry
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-23
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1896,11 +2154,15 @@ requirements:
   - scenarios/fixtures/failures/KNOWLEDGE_STALE.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case KNOWLEDGE_STALE (in-process fixture stack; counted only when the fixture state shows the fault manifested)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:KNOWLEDGE_STALE] test.
-  remediation: WP-20 builds the injection point (the only matching approved article expires or is superseded) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:KNOWLEDGE_STALE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-20 builds the injection point (the only matching approved article expires or is superseded) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:KNOWLEDGE_STALE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-20
   faultSource: registry
+  injectionPointPackages:
+  - WP-20
+  postconditionPackages:
+  - WP-20
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1925,11 +2187,15 @@ requirements:
   - scenarios/fixtures/failures/IDP_UNAVAILABLE.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case IDP_UNAVAILABLE (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:IDP_UNAVAILABLE] test.
-  remediation: WP-05 builds the injection point (the OIDC provider (Keycloak) is unavailable during secure-link approval) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:IDP_UNAVAILABLE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-05 builds the injection point (the OIDC provider (Keycloak) is unavailable during secure-link approval) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:IDP_UNAVAILABLE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-05
   faultSource: registry
+  injectionPointPackages:
+  - WP-05
+  postconditionPackages:
+  - WP-05
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1953,11 +2219,15 @@ requirements:
   - scenarios/fixtures/failures/NOTIFICATION_PROVIDER_DOWN.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case NOTIFICATION_PROVIDER_DOWN (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:NOTIFICATION_PROVIDER_DOWN] test.
-  remediation: WP-27 builds the injection point (the email/SMS sender (Mailpit/LocalStack) is unavailable) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:NOTIFICATION_PROVIDER_DOWN]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-27 builds the injection point (the email/SMS sender (Mailpit/LocalStack) is unavailable) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:NOTIFICATION_PROVIDER_DOWN]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-27
   faultSource: registry
+  injectionPointPackages:
+  - WP-27
+  postconditionPackages:
+  - WP-27
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -1982,11 +2252,15 @@ requirements:
   - scenarios/fixtures/failures/POLICY_ENGINE_ERROR.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case POLICY_ENGINE_ERROR (in-process fixture stack; counted as injected when it is armed, not when it manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:POLICY_ENGINE_ERROR] test.
-  remediation: WP-01 builds the injection point (the in-process OPA evaluation throws or is undefined) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:POLICY_ENGINE_ERROR]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-01 builds the injection point (the in-process OPA evaluation throws or is undefined) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:POLICY_ENGINE_ERROR]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-01
   faultSource: registry
+  injectionPointPackages:
+  - WP-01
+  postconditionPackages:
+  - WP-01
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -2011,11 +2285,15 @@ requirements:
   - scenarios/fixtures/failures/GUARDRAIL_LIMIT.json (fault plan v1)
   - platform/src/evaluation/driver/local-driver.ts inject() case GUARDRAIL_LIMIT (in-process fixture stack; counted as injected when it is armed, not when it manifests)
   gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:GUARDRAIL_LIMIT] test.
-  remediation: WP-15 builds the injection point (the conversation guard reaches its refusal count or turn limit during a safety interaction) in its own adapter, emulator or runtime and a Layer-2 test tagged [FAULT:GUARDRAIL_LIMIT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  remediation: WP-15 builds the injection point (the conversation guard reaches its refusal count or turn limit during a safety interaction) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:GUARDRAIL_LIMIT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   workPackage: WP-15
   faultSource: registry
+  injectionPointPackages:
+  - WP-15
+  postconditionPackages:
+  - WP-15
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
@@ -2154,9 +2432,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/README.md (quality scores never change a verdict)
+  - platform/src/evaluation/scorer.test.ts:83 (committed state from an LLM judge or transcript cannot establish a commit), :92 (perfect quality scores do not rescue a missed safety handoff), :107 (TRANSFERRED needs receiver acceptance and verified connection), :220 (assurance comes from session records)
   - platform/src/evaluation/scorer.ts
-  - platform/src/evaluation/scorer.test.ts
   gap: None.
   remediation: Keep.
   size: S
@@ -2166,6 +2443,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-17-31
   section: '17'
   kind: evaluation

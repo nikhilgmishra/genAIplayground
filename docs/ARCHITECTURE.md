@@ -585,7 +585,7 @@ show its main dependencies only.
 flowchart BT
   subgraph L0["Contracts"]
     protocol["protocol EXTEND WP-02"]
-    shared["shared EXISTS"]
+    shared["shared EXISTS, registry group"]
   end
   subgraph L1["Platform services"]
     db["db EXTEND WP-04"]
@@ -594,10 +594,10 @@ flowchart BT
     cfg["config EXTEND WP-07, WP-31"]
     egress["egress check: privacy/egress.ts WP-08,<br/>connectors/http WP-06"]
     priv["privacy EXTEND WP-22"]
-    ops["ops EXISTS, WP-42"]
+    ops["ops EXTEND, ops group: WP-07, WP-17, WP-25,<br/>WP-30, WP-38, then WP-42 and WP-43"]
   end
   subgraph L2["Trust and transport"]
-    pol["policy EXISTS"]
+    pol["policy EXTEND, policy group;<br/>input.ts WP-22 in phase D"]
     calls["calls NEW: binding WP-11, lease WP-14"]
     idn["identity EXTEND WP-04, WP-05"]
     audm["audit EXTEND WP-04"]
@@ -625,7 +625,7 @@ flowchart BT
     bus["business EXTEND WP-25, WP-30"]
   end
   subgraph L5["Trusted boundaries"]
-    gwm["gateway EXTEND WP-14"]
+    gwm["gateway EXTEND: pipeline WP-14,<br/>gateway group"]
     capi["console-api EXTEND WP-38"]
   end
   subgraph L5B["Operator services"]
@@ -640,17 +640,17 @@ flowchart BT
     mods["models NEW WP-08, WP-09, WP-16"]
     prm["prompts NEW WP-10"]
     harm["harness NEW WP-10"]
-    mediap["media/ package NEW WP-11 to WP-17"]
+    mediap["media/ package NEW WP-11 to WP-17,<br/>then the media group"]
   end
   gwc["gateway-client NEW WP-07: generated from the gateway OpenAPI"]
   subgraph L7["Composition and tooling"]
     mainm["main EXTEND WP-07, phase integration packages"]
     wrk["worker EXTEND WP-07"]
-    evalm["evaluation EXTEND WP-01, WP-34"]
+    evalm["evaluation EXTEND WP-01, WP-34;<br/>manifest.ts then WP-40"]
     loc["fixtures, adapters/local, demo: local and ci only"]
   end
   subgraph PKG["Other workspace packages, HTTP only"]
-    cons["console/ EXISTS"]
+    cons["console/ EXISTS, console group"]
     compn["companion/ NEW WP-27"]
     rba["services/reference-business-api NEW WP-23"]
     sidec["sidecars/ NEW WP-13, WP-15, WP-20"]
@@ -770,7 +770,9 @@ allowed imports; an ESLint import-allowlist rule in `platform/eslint.config.js`,
 and `companion/eslint.config.js` and a dependency-cruiser test (`.dependency-cruiser.cjs`,
 `platform/test/architecture`) check it, and an undeclared module directory fails the test (FO-03-03,
 FO-03-11, FO-06-24). After phase B the module register changes hands with the registry group (WP-07, then
-each phase integration package).
+each phase integration package). The four ESLint configurations (including `console/eslint.config.js`) and
+`.dependency-cruiser.cjs` form the `lint` shared group: WP-06 then WP-07 in phase B, each phase integration
+package after that and WP-43 in phase G, so every rule below has an enforcing owner in every phase.
 
 1. **Allowlist for untrusted-output orchestration.** `platform/src/models`, `platform/src/prompts`,
    `platform/src/harness` and the `media/` package may import only:
@@ -806,7 +808,8 @@ each phase integration package).
    and `media/src/main.ts`) never import `fixtures`, `adapters/local`, `demo`, `evaluation` or test
    emulators; the configuration guard rejects fixture kinds outside local/ci (OPS-04).
 5. **HTTP-only packages.** `console/` and `companion/` reach the platform over HTTP only, through clients
-   generated from the single contract source (FO-04-01, WP-02). `services/reference-business-api` and the
+   generated from the single contract source (FO-04-01, WP-02); `console/eslint.config.js` and
+   `companion/eslint.config.js` (`lint` group) enforce it. `services/reference-business-api` and the
    `sidecars/` are reached only over their documented protocols.
 6. **Improvement and publication.** `platform/src/improvement` writes drafts and evaluation results and
    acts only within signed canary limits; it never imports policy, identity or the publication path of
@@ -983,14 +986,17 @@ each package's `owns` list is authoritative, and this table is a reading aid):
 | `infra/terraform/**` incl. `modules/media_hosts`, `modules/media_ingress`, `modules/console_service`, `modules/org_perimeter` | WP-39 | media, SIP, RTP and TURN hosts, service split, perimeter, secondary region |
 | `platform/src/main/live-container.ts`, `platform/src/main/live-modules.ts`, `platform/src/main/audit-exporter.ts` | WP-07, then each phase integration package | live composition root and the audit-exporter entry point |
 | `platform/src/gateway-client` | WP-07, then the registry group owner of each phase | generated gateway client for the untrusted group, `console/` and `companion/` |
-| `platform/architecture/modules.yaml`, `.dependency-cruiser.cjs`, `platform/test/architecture`, `platform/eslint.config.js`, `media/eslint.config.js`, `companion/eslint.config.js` | WP-06 (the module register then moves to the registry group) | module register and import allowlist enforcement |
-| `platform/src/protocol/**` (new contract files) | WP-02 in phase B; then `auth.ts` WP-05, `audit.ts` WP-04, `connector.ts` WP-06 then WP-32, `call-binding.ts` WP-11, `media.ts` WP-14, `policy.ts` and `common.ts` WP-22 then WP-25, `support.ts` WP-28 then WP-29, `models.ts` WP-09, `workflow.ts` WP-26, `evaluation.ts` WP-34 | the 34 follow-on contracts |
+| `platform/architecture/modules.yaml`, `.dependency-cruiser.cjs`, `platform/test/architecture`, `platform/eslint.config.js`, `media/eslint.config.js`, `companion/eslint.config.js`, `console/eslint.config.js` | WP-06 in phase B; the module register then moves with the registry group, and the ESLint configurations and `.dependency-cruiser.cjs` with the `lint` group (WP-07, then each phase integration package, WP-43 in phase G) | module register and import allowlist enforcement |
+| `platform/src/protocol/**` (new contract files) | WP-02 in phase B; then `auth.ts` WP-05, `audit.ts` WP-04, `connector.ts` WP-06 then WP-32, `models.ts` WP-09, `call-binding.ts` WP-11, `media.ts` WP-14, `context-facts.ts` WP-18, `identity-link.ts` WP-19, `knowledge.ts` WP-20, `policy.ts` and `common.ts` WP-22 then WP-25, `context-snapshot.ts` WP-24, `actions.ts` and `effects.ts` WP-25, `workflow.ts` WP-26, `support.ts` WP-28 then WP-29, `plan.ts` WP-30, `activation.ts` WP-31, `evaluation.ts` WP-34, `review.ts` WP-35, `improvement.ts` WP-36, `release.ts` WP-40; WP-43 in phase G | the 34 follow-on contracts |
+| `platform/src/evaluation/manifest.ts` | WP-01 (B), WP-34 (F), WP-40 (G), then WP-43 | release-manifest builder; it emits the legacy `ReleaseStatus` (mapped to the two axes by WP-02's `statusAxesFromLegacy`) until WP-40 moves it and the deploy gate to the two axes (ADR-0018 decision 7.4) |
 | `platform/src/ingress`, `platform/src/audit/exporter` | WP-04 | authenticated inbound inbox; audit exporter and separate verifier |
 | `platform/src/connectors/runtime`, `profile`, `dsl`, `secrets`, `http` | WP-06 | connector runtime, token manager and egress-classified transport |
 | `platform/src/connectors/authority`, `knowledge`, `warehouse`, `lakehouse`, `cdp`, `talkdesk`, `salesforce`, `catalog` | WP-19, WP-20, WP-21, WP-29, WP-32 | connector families and catalogue |
 | `platform/src/models/port`, `adapters`, `emulators`; `registry`, `qualify`; `native` | WP-08; WP-09; WP-16 | model ports, registry, native audio |
 | `platform/src/harness`, `platform/src/prompts` | WP-10 | bounded harness |
 | `platform/src/calls/binding`; `media/src/worker`, `lifecycle`, `codecs`, `binding`, `recovery`, `playback` | WP-11 | CallBinding store and issuance; media runtime core |
+| `media/src/recording` | WP-11 | consent-driven recording and processing control: LiveKit egress recording and the transcription and analysis taps run only under GRANTED or NOT_REQUIRED consent, and the actual state is exposed as the typed `MediaProcessingState` readout that WP-11 adds to `platform/src/protocol/call-binding.ts` (the injection point of RECORDING_REFUSED; J12 in WP-25) |
+| `media/src/**`, `media/test/**` (`media` shared group, from phase C) | the phase C feature packages for the subtrees they build, then WP-17 (C), WP-25 (D), WP-30 (E), WP-38 (F), WP-43 (G); `media/src/main.ts` stays in the composition group and `media/src/transfer` with WP-28 until phase G | a defect that a later journey or fault run finds on the media path has an owner in that phase |
 | `media/src/sip` | WP-12 | SIP reference route and DTMF isolation |
 | `media/src/speech`, `sidecars/speech` | WP-13 | ASR, VAD, TTS |
 | `platform/src/calls/lease`, `media/src/egress`, `platform/src/voice/**` | WP-14 (`gate.ts` and `freshness.ts` then pass to WP-24, which depends on WP-14) | CallOwnerLease and the audio release boundary |
@@ -1012,14 +1018,28 @@ each package's `owns` list is authoritative, and this table is a reading aid):
 | `platform/src/monitors`, `platform/src/review` | WP-35 | monitors, judges, review records |
 | `platform/src/improvement/observations`, `clusters`, `proposals`, `replay`, `optimizers`; `canary`, `training` | WP-36; WP-37 | controlled improvement |
 | `platform/src/qualification` | WP-45 | operator qualification and ActivationRecords |
+| `platform/src/ops/**`, `platform/test/load/**` (`ops` shared group) | WP-07 (B), WP-17 (C), WP-25 (D), WP-30 (E), WP-38 (F), WP-42 then WP-43 (G); `platform/src/ops/notification-gate.ts` stays with WP-27 until phase G | kill switches, admission, budgets, capacity, the integration gate and the load harness |
+| `platform/src/policy/**` with `policy/**` (`policy` shared group) | WP-05 (B), WP-17 (C), WP-25 (D), WP-30 (E), WP-38 (F), WP-43 (G); `platform/src/policy/input.ts` and `policy/vsp/privacy.rego` with WP-22 in phase D (phase C integration excluded) | policy engine, PolicyInput builder (consent dimensions, jurisdiction, Part 2) and Rego bundles |
+| `platform/src/gateway/ports.ts`, `mask.ts`, `gateway-audit.ts`, `fixtures/**`, `http/route.ts`, `http/tool-routes.ts`, `http/health-routes.ts`, `http/tool-rate-limit.ts` (`gateway` shared group) | WP-05 then WP-07 (B), WP-14 then WP-17 (C), WP-25 (D), WP-30 (E), WP-38 (F), WP-43 (G); `pipeline.ts`, `call-state.ts`, `call-sessions.ts` and `session-binding.ts` WP-14, `auth.ts` and `http/portal-routes.ts` WP-05, `http/webhook-routes.ts` WP-04, `http/media-routes.ts` WP-11, `http/companion-routes.ts` WP-27, `http/telephony-routes.ts` WP-28, `mcp.ts` WP-29 | gateway ports, masks, route helpers, readiness routes and the test harness |
+| `platform/src/shared/**`, `platform/src/fixtures/**` (registry group) | WP-07 (B), then each phase integration package, WP-43 (G) | errors, ids, clock, canonical JSON and the synthetic world |
 | `docs/security/threats/proposed/<WP-id>-threats.md` | each feature package | draft STRIDE rows, merged into `docs/security/threat-model.md` section 8 by the threat-model group owner of the phase |
+| `docs/privacy/data-flows/proposed/<WP-id>-flows.md` | each feature package | draft DF rows, merged into `docs/privacy/data-flow-inventory.md` by the `data-flows` group owner of the phase (WP-07, WP-17, WP-25, WP-30, WP-38, WP-44) |
 | `docs/MODEL_REGISTRY.md` | WP-44 | generated model registry document |
 
 Migrations: package WP-NN owns `platform/migrations/2NN0_*.sql` to `2NN9_*.sql` (for example WP-04 owns
 2040 to 2049), numbered in dependency order (ownership rules of the plan). This replaces the module ranges
 10xx to 14xx that an earlier draft of this section proposed. The module ranges in section 3, convention 9,
-still describe the existing migrations.
+still describe the existing migrations, which the plan lists as unowned by design: applied migrations are
+immutable, and every schema change is a new file in a package's range.
 
-Every path named in this section has an owner in the plan. One naming question stays open: WP-03 and WP-11
-name the LiveKit server and RTC SDKs, while prompt section 3 and ADR-0018 decision 1.1 name the LiveKit
-Agents Node framework (ADR-0018 open item 2).
+Every path named in this section has an owner in the plan. The plan generator also checks file ownership
+over the working tree: a co-located test belongs to the owner of its source file, no file has two owners that
+can run in parallel, every file has an owner or is listed as unowned by design, and no file that a phase B-F
+package needs is first owned in phase G (ownership rules of the plan).
+
+The LiveKit Agents Node framework that prompt section 3 and ADR-0018 decision 1.1 name is part of the WP-03
+dependency set (`@livekit/agents` with its Silero VAD and LiveKit turn-detector plugins, next to the RTC
+transport and the server SDK for room, SIP and webhook administration), and WP-11 builds the media worker on
+it. One question stays open (ADR-0018 open item 2): whether those plugins provide the VAD and end-of-turn
+detection the media worker needs at the pinned version. WP-11 verifies it against the running worker and
+records the plugin list, and any function that needs a Python worker, in its ADR draft.

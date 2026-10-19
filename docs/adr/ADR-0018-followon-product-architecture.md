@@ -317,15 +317,27 @@ Not added:
    - `RELEASE_PACKAGE_VERIFIED` means the same checks passed on the built and signed release bundle.
 3. A missing BAA, contract, credential or approval moves only the environment axis and is recorded in
    the single activation register. A stub is never presented as a missing tenant input.
-4. One change migrates the single-axis `ReleaseStatus` (`platform/src/protocol/release.ts:115`), the
-   traceability generator, the integration inventory, `docs/IMPLEMENTATION_STATUS.md` and the docs-pack
-   vocabulary test together:
+4. The single-axis `ReleaseStatus` (`platform/src/protocol/release.ts`) migrates in stages, so that no
+   phase leaves a consumer that does not compile or a gate that reads a value nobody produces:
+   - WP-02 (phase B) adds the two-axis types (`SoftwareStatus`, `EnvironmentStatus`, `QualificationResult`,
+     `StatusAxes`, `CapabilityStatus`) and optional two-axis fields on `ReleaseManifest`. `ReleaseStatus`
+     stays as the mapped legacy field, and `statusAxesFromLegacy` maps it without dropping the old value.
+   - WP-01 (phase B) moves the traceability generator to both axes and qualification.
+   - WP-40 (phase G) moves the manifest builder (`platform/src/evaluation/manifest.ts`, owned by WP-01 in
+     phase B and WP-34 in phase F) and the deploy gate (`scripts/ci/check-release-manifest.ts`) to the
+     two axes. From then on, a manifest that carries only the legacy value is refused for sandbox and
+     above.
+   - WP-44 (phase G) moves `docs/IMPLEMENTATION_STATUS.md`, the integration inventory and the docs-pack
+     vocabulary test. Until then, a banner at the top of `docs/IMPLEMENTATION_STATUS.md` names
+     `docs/followon/gap-ledger.yaml` and `docs/GAP_CLOSURE.md` as the current two-axis register.
+
+   The mapping rules hold at every stage:
    - `IMPLEMENTED_OFFLINE` maps to `IMPLEMENTED` or `VERIFIED_LOCAL` according to the evidence, never
-     automatically.
+     automatically. The legacy mapping gives `IMPLEMENTED`.
    - `BLOCKED` splits into software `MISSING` (the code is absent) or environment `NOT_CONFIGURED` (the
      inputs are absent).
    - Missing evidence stays `INCONCLUSIVE` and is never `PASS` (OPS-03).
-5. Until that change lands, documents keep their existing rows in the old vocabulary, and rows added for
+5. Until those stages land, documents keep their existing rows in the old vocabulary, and rows added for
    the follow-on components use the two axes: threats FT-01 onwards in `docs/security/threat-model.md`
    section 8 and data flows DF-27 onwards in `docs/privacy/data-flow-inventory.md`. The docs-pack test
    (`platform/test/docs`, WP-44) still checks the old vocabulary on the legacy T-NN rows only.
@@ -333,7 +345,12 @@ Not added:
 ### 8. Deployable units and topology
 
 Infrastructure is WP-39 (`infra/terraform/**`, `deploy/reference/**`); images, signing and the release
-bundle are WP-40.
+bundle are WP-40. Release sequencing is decided in the plan's ownership rules. WP-40 builds the release
+machinery and a first signed bundle on real artifacts, and WP-41 and WP-42 rehearse deploy, rollback, load and
+chaos on that bundle. After its closure fixes, WP-43 re-runs the unchanged build-release and preflight. Only
+this post-closure bundle, which binds the closure commit, can be cited as `RELEASE_PACKAGE_VERIFIED`
+evidence. The release step stays with WP-40 because WP-41 to WP-43 need the release tooling and a signed
+bundle to exist.
 
 * **ECS Fargate:** the gateway, the worker, the audit exporter (entry point
   `platform/src/main/audit-exporter.ts`, WP-07; exporter and verifier in `platform/src/audit/exporter`,
@@ -371,8 +388,9 @@ The topology diagrams are in `docs/ARCHITECTURE.md` sections 6.3.2 and 6.3.3.
   `MISSING` until that package lands. Feature packages draft further rows in
   `docs/security/threats/proposed/<WP-id>-threats.md`, and the threat-model owner of each phase merges
   them. `docs/privacy/data-flow-inventory.md` gains rows DF-27 to DF-40 for
-  the flows in `docs/ARCHITECTURE.md` section 6.5. The retention matrix (WP-22) still needs runtime audio
-  evidence and turn envelopes.
+  the flows in `docs/ARCHITECTURE.md` section 6.5. Feature packages draft further DF rows in
+  `docs/privacy/data-flows/proposed/<WP-id>-flows.md`, and the `data-flows` group owner of each phase
+  merges them. The retention matrix (WP-22) still needs runtime audio evidence and turn envelopes.
 * The single activation register (`docs/followon/activation-register.yaml`, generated from
   `docs/followon/source/activations.yaml`) carries the inputs this record needs:
   - the SIP carrier contract, trunk and numbers for the reference route (AIN-50); PSTN test calls and
@@ -386,9 +404,11 @@ The topology diagrams are in `docs/ARCHITECTURE.md` sections 6.3.2 and 6.3.3.
   - a security review of self-hosted LiveKit, LiveKit SIP and TURN (AIN-46; the independent penetration
     test AIN-41 also names the media plane);
   - standing spend ceilings for media hosts and GPU hosts (AIN-48);
-  - the Talkdesk answer to VQ-TD-42 (AIN-51).
+  - the Talkdesk answer to VQ-TD-42 (AIN-51);
+  - the caller-facing companion origin: domain, DNS name, TLS certificate with an expiry owner and the
+    public-exposure review of the companion (AIN-52).
 
-  AIN-46 to AIN-51 have no PRQ record; they are proposed additions to the prerequisite register, not
+  AIN-46 to AIN-52 have no PRQ record; they are proposed additions to the prerequisite register, not
   requests that were sent. None of these inputs blocks software work.
 * Operating cost and effort rise. The design adds EC2 media hosts with UDP networking, TURN, a Redis bus,
   inference hosts, and more images to scan and sign. The cost model gains dimensions for media legs, GPU
@@ -406,23 +426,32 @@ The topology diagrams are in `docs/ARCHITECTURE.md` sections 6.3.2 and 6.3.3.
      an independent backend. No context-window size is assumed for Nova 2.5 Sonic. They must be confirmed
      from current provider documentation before WP-16 builds the adapters, and each provider, region and
      data path is qualified separately (FO-03-34, AIN-26).
-  2. **LiveKit facts to verify when the version is pinned** (WP-03 pins, WP-11 and WP-12 verify): whether
-     `livekit-sip` and multi-node `livekit-server` need Redis; the default SIP, RTP, WebRTC and TURN port
-     ranges; whether TURN is the server's embedded TURN or a separate server; whether the Node SDK has the
-     VAD and turn-detection plugins needed (otherwise a Python worker for that function only); the
-     documented webhook signing; the SIP transfer operations; and how `livekit-sip` delivers DTMF. WP-03
-     and WP-11 name the LiveKit server and RTC SDKs; the LiveKit Agents Node framework that decision 1.1
-     and prompt section 3 name must be added to that dependency set or replaced by a recorded decision.
-     Until verified, `docs/ARCHITECTURE.md` section 6 and this record state these as assumptions to check,
-     not as facts.
+  2. **LiveKit facts to verify at the pinned versions** (WP-03 pins, WP-11 and WP-12 verify). WP-03's
+     dependency set pins the LiveKit Agents Node framework that decision 1.1 and prompt section 3 name
+     (`@livekit/agents` with its Silero VAD and LiveKit turn-detector plugins), next to the RTC transport and
+     the server SDK for room, SIP and webhook administration. WP-11 builds the worker on that framework.
+     Still to verify:
+     - whether the pinned Node plugins provide the VAD and end-of-turn detection the media worker needs
+       (otherwise a Python worker for that function only, recorded by WP-11);
+     - whether `livekit-sip` and multi-node `livekit-server` need Redis;
+     - the default SIP, RTP, WebRTC and TURN port ranges;
+     - whether TURN is the server's embedded TURN or a separate server;
+     - the documented webhook signing;
+     - the SIP transfer operations;
+     - how `livekit-sip` delivers DTMF.
+
+     Until verified, `docs/ARCHITECTURE.md` section 6 and this record state these as assumptions to
+     check, not as facts.
   3. **VQ-TD-42** is unanswered (AIN-51): whether Talkdesk offers a documented SIP or BYOC interface.
      Without one, Talkdesk-numbered calls cannot reach the LiveKit runtime, and the SIP reference route
      needs its own carrier trunk and numbers (AIN-50).
   4. **DTMF isolation under LiveKit SIP** (the TB-03 equivalent, AUTH-06): digits must reach neither ASR,
      models, recordings, transcripts nor logs, and pausing one recorder is not enough. WP-12's local tests
-     cover the platform's own recorders only; the carrier's recordings and in-band tones need qualification
-     per carrier (AIN-50), and the media-plane security review covers DTMF isolation under LiveKit SIP
-     (AIN-46). Until both pass, OTP over DTMF stays disabled.
+     cover the platform's own recorders only (their start and stop is the WP-11 recording control in
+     `media/src/recording`, read back through the `MediaProcessingState` readout). The carrier's
+     recordings and in-band tones need qualification per carrier (AIN-50), and the media-plane security
+     review covers DTMF isolation under LiveKit SIP (AIN-46). Until both pass, OTP over DTMF stays
+     disabled.
   5. **Step Functions Local** task-token callback fidelity (decision 6.4).
 
   Ownership gaps that an earlier draft of this record listed as open are now assigned in the plan source:
@@ -430,7 +459,10 @@ The topology diagrams are in `docs/ARCHITECTURE.md` sections 6.3.2 and 6.3.3.
   entry point (WP-07); the audit exporter and verifier module (WP-04); the module register, the ESLint
   configurations of `media/` and `companion/` and the restriction of `platform/src/connectors/http` to an
   egress-classified transport (WP-06); the `conversation_runtime` channel (WP-02); the application region
-  write fence FO-16-44a (WP-42).
+  write fence FO-16-44a (WP-42). Files that phases B to F need but that only a phase G package owned now
+  have earlier owners: the policy engine and PolicyInput builder, the gateway helpers and test harness,
+  the shared utilities and synthetic world, the console-api fixtures and the release-manifest builder. The
+  plan generator fails when such a file appears again.
 
 ## Alternatives considered
 

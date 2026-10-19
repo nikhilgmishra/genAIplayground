@@ -2,6 +2,22 @@
   "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/AuditEvent.json",
   "title": "AuditEvent",
   "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "audit.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "interactionId": "callId",
+    "actorRef": "actorRef",
+    "subjectRef": "subjectRef",
+    "sessionGeneration": "sessionGeneration",
+    "turnId": "turnId",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "dataClassification": "dataClass",
+    "versions": "versions",
+    "provenance": "sourceComponent",
+    "outcome": "outcome"
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
@@ -32,6 +48,10 @@
           "type": "null"
         }
       ]
+    },
+    "causationId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
     },
     "tenantId": {
       "type": "string",

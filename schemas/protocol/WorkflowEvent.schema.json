@@ -2,9 +2,32 @@
   "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/WorkflowEvent.json",
   "title": "WorkflowEvent",
   "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "workflow-event.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "workflowId": "workflowId",
+    "actorRef": "actor.ref",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "versions": "definitionVersion",
+    "provenance": "trigger"
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "workflow-event.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "causationId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
     "eventId": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"

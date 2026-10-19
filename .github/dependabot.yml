@@ -1,5 +1,8 @@
 # Dependency update proposals (spec section 14: dependency pinning). Every update is a
-# reviewed pull request that runs the full CI gate; nothing auto-merges.
+# reviewed pull request that runs the full CI gate; nothing auto-merges. Versions stay exact
+# (versioning-strategy: increase keeps "x.y.z"; `node scripts/vsp/runner.mts check-deps` fails a range).
+# cooldown: a release is proposed only after it has been public for the given days (supply-chain
+# buffer against compromised releases; the WP-03 pins followed the same rule at pin time).
 version: 2
 updates:
   - package-ecosystem: npm
@@ -8,9 +11,16 @@ updates:
       interval: weekly
     open-pull-requests-limit: 10
     versioning-strategy: increase
+    cooldown:
+      default-days: 7
     groups:
       aws-sdk:
         patterns: ["@aws-sdk/*"]
+      # The Agents plugins declare an exact peer on @livekit/agents: they must move together.
+      livekit:
+        patterns: ["@livekit/*", "livekit-server-sdk"]
+      opentelemetry:
+        patterns: ["@opentelemetry/*"]
       dev-tooling:
         dependency-type: development
 
@@ -18,11 +28,23 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: docker
     directory: "/platform"
     schedule:
       interval: weekly
+
+  # Layer-2 emulator images (tag and digest pins in the compose fragments).
+  - package-ecosystem: docker-compose
+    directories:
+      - "/deploy/local"
+      - "/deploy/local/services"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: terraform
     directories:

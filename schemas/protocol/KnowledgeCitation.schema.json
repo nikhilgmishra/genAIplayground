@@ -1,0 +1,288 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/KnowledgeCitation.json",
+  "title": "KnowledgeCitation",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "knowledge-citation.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "expiresAt": "expiresAt",
+    "dataClassification": "sensitivity",
+    "versions": "articleVersion",
+    "provenance": "sourceRef"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "knowledge-citation.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "expiresAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "citationId": {
+      "type": "string",
+      "pattern": "^kb_[A-Za-z0-9][A-Za-z0-9_.-]{2,63}@v[1-9][0-9]{0,8}$"
+    },
+    "articleVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 999999999
+    },
+    "snapshotDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "span": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "chars"
+            },
+            "start": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "end": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          "required": [
+            "kind",
+            "start",
+            "end"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "field"
+            },
+            "fieldPath": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9_.]{0,80}$"
+            }
+          },
+          "required": [
+            "kind",
+            "fieldPath"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "spanDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sensitivity": {
+      "type": "string",
+      "enum": [
+        "PUBLIC_FAQ",
+        "PROTECTED_OPERATIONAL"
+      ]
+    },
+    "audiences": {
+      "minItems": 1,
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": [
+              "client",
+              "prospective_client",
+              "provider",
+              "practice_staff",
+              "partner",
+              "payer_representative",
+              "personal_representative"
+            ]
+          },
+          {
+            "type": "string",
+            "const": "public"
+          }
+        ]
+      }
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(-[A-Za-z]{2})?$"
+    },
+    "jurisdiction": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Z]{2}(-[A-Z0-9]{1,3})?$"
+        },
+        {
+          "type": "string",
+          "const": "UNKNOWN"
+        }
+      ]
+    },
+    "effectiveFrom": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "approval": {
+      "type": "object",
+      "properties": {
+        "approvedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "approvalRef": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^apr_[A-Za-z0-9_-]{8,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ownerRole": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]{2,40}$"
+        }
+      },
+      "required": [
+        "approvedAt",
+        "approvalRef",
+        "ownerRole"
+      ],
+      "additionalProperties": false
+    },
+    "retrieval": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "FULL_TEXT",
+            "VECTOR",
+            "HYBRID",
+            "HYBRID_RERANKED",
+            "DIRECT_REFERENCE"
+          ]
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "method",
+        "rank"
+      ],
+      "additionalProperties": false
+    },
+    "freshness": {
+      "type": "object",
+      "properties": {
+        "indexedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "sourceUpdatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stale": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "indexedAt",
+        "sourceUpdatedAt",
+        "stale"
+      ],
+      "additionalProperties": false
+    },
+    "sourceRef": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "occurredAt",
+    "causationId",
+    "expiresAt",
+    "citationId",
+    "articleVersion",
+    "snapshotDigest",
+    "span",
+    "spanDigest",
+    "sensitivity",
+    "audiences",
+    "language",
+    "jurisdiction",
+    "effectiveFrom",
+    "approval",
+    "retrieval",
+    "freshness",
+    "sourceRef"
+  ],
+  "additionalProperties": false
+}

@@ -666,9 +666,11 @@ requirements:
   remediation: Add compatibility section.
   size: S
   environmentDependency: none
-  workPackage: WP-37
+  workPackage: WP-40
   provenance:
     origin: extraction
+    repair:
+    - 'Phase A repair round 4 (wave B1 ledger job): moved from WP-37 to WP-40: the in-flight workflow compatibility record is a ReleaseManifest binding in platform/src/protocol/release.ts and platform/src/evaluation/manifest.ts, which no phase F package may edit; WP-40 records it from the WP-26 version-migration mapping and WP-37 rollback reads it'
 - id: FO-18-29
   section: '18'
   kind: constraint

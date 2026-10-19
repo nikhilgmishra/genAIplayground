@@ -529,8 +529,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/retention/datasets.ts; registry.ts; job.ts
-  - platform/src/retention/retention.test.ts
+  - 'platform/src/retention/datasets.test.ts:87 (datasets registered with their data classes), :120 (no approved duration: BLOCKED_RETENTION_UNSET)'
+  - platform/src/retention/retention.test.ts:101,123 (no duration without an approval)
+  - platform/src/config/guard.test.ts:131,315 (null retention is a RETENTION_UNSET violation outside local/ci)
   - platform/config/production.json:255 (retention null)
   gap: Durations are null pending counsel; new datasets (audio, timelines, model logs) not yet declared.
   remediation: Declare new datasets as they are added.
@@ -541,6 +542,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-01-21
   section: '1'
   kind: software

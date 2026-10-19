@@ -8,17 +8,34 @@
 import { z } from "zod";
 import {
   Assurance,
+  ConsentProfile,
+  DisclosureClassification,
   ConsentState,
   IsoDateTime,
+  Jurisdiction,
   OpaqueId,
+  ProcessingBasisKind,
+  ProcessingPurpose,
   Role,
   VerificationMethod,
   VersionLabel,
   opaqueIdWithPrefix,
 } from "./common.js";
 
+export const AUTH_CONTEXT_SCHEMA_VERSION = "auth-context.v1";
+
 export const SessionRef = opaqueIdWithPrefix("ses");
 export type SessionRef = z.infer<typeof SessionRef>;
+
+/**
+ * Trusted integration channels, including the follow-on `conversation_runtime` channel: the media /
+ * conversation runtime calls the gateway with its own integration identity plus the trusted
+ * CallBinding (ADR-0018 decision 1.6). IntegrationIdentity.channel below keeps the original six
+ * values until the identity owner (WP-05: gateway/auth.ts fixture credentials, session-service and
+ * session-store channel allowlists) adopts this enum; no other value is ever accepted.
+ */
+export const IntegrationChannel = z.enum(["mcp_tools", "telephony_control", "portal", "console", "worker", "webhook", "conversation_runtime"]);
+export type IntegrationChannel = z.infer<typeof IntegrationChannel>;
 
 /** Authenticated service identity of the calling integration (e.g. Talkdesk MCP connector). */
 export const IntegrationIdentity = z.strictObject({
@@ -63,7 +80,49 @@ export const DelegatedAuthority = z.strictObject({
 });
 export type DelegatedAuthority = z.infer<typeof DelegatedAuthority>;
 
+/** Bases that rely on no approved matrix entry: public information, and the honest "unknown". */
+export const UNAPPROVED_PROCESSING_BASES = ["PUBLIC_INFORMATION", "UNKNOWN"] as const satisfies readonly ProcessingBasisKind[];
+/**
+ * Bases that may be recorded for an UNKNOWN jurisdiction: the two unapproved bases and safety
+ * routing, which never waits for jurisdiction or account authentication (SAFE-02). Every other basis
+ * is a jurisdiction-specific matrix entry, so it cannot apply where the jurisdiction is unknown
+ * (an unknown jurisdiction never inherits a permissive policy).
+ */
+export const UNKNOWN_JURISDICTION_BASES = ["PUBLIC_INFORMATION", "UNKNOWN", "SAFETY_ROUTING"] as const satisfies readonly ProcessingBasisKind[];
+
+/**
+ * Permitted processing basis established by the identity service from the counsel-approved
+ * jurisdiction/purpose matrix (follow-on prompt section 5): never from a caller statement or model.
+ * Every basis except PUBLIC_INFORMATION and UNKNOWN names the approval record of the matrix entry it
+ * relies on; UNKNOWN never carries one; only PUBLIC_INFORMATION, UNKNOWN and SAFETY_ROUTING may be
+ * recorded for an UNKNOWN jurisdiction.
+ */
+export const ProcessingBasis = z
+  .strictObject({
+    basis: ProcessingBasisKind,
+    purpose: ProcessingPurpose,
+    jurisdiction: Jurisdiction,
+    /** Approval record of the matrix entry relied on; null only for PUBLIC_INFORMATION and UNKNOWN. */
+    approvalRef: z.string().regex(/^apr_[A-Za-z0-9_-]{8,64}$/).nullable(),
+    establishedAt: IsoDateTime,
+    source: z.enum(["identity_service", "consent_registry", "delegation_registry", "policy_matrix"]),
+  })
+  .superRefine((b, ctx) => {
+    const unapproved = (UNAPPROVED_PROCESSING_BASES as readonly string[]).includes(b.basis);
+    if (!unapproved && b.approvalRef === null) ctx.addIssue({ code: "custom", message: "PROCESSING_BASIS_WITHOUT_APPROVAL", path: ["approvalRef"] });
+    if (b.basis === "UNKNOWN" && b.approvalRef !== null) ctx.addIssue({ code: "custom", message: "UNKNOWN_BASIS_WITH_APPROVAL", path: ["approvalRef"] });
+    if (b.jurisdiction === "UNKNOWN" && !(UNKNOWN_JURISDICTION_BASES as readonly string[]).includes(b.basis)) {
+      ctx.addIssue({ code: "custom", message: "BASIS_FOR_UNKNOWN_JURISDICTION", path: ["jurisdiction"] });
+    }
+  });
+export type ProcessingBasis = z.infer<typeof ProcessingBasis>;
+
 export const AuthContext = z.strictObject({
+  /**
+   * Contract version (follow-on common envelope). Optional while session-store.ts (WP-05) does not
+   * set it; absent means auth-context.v1.
+   */
+  schemaVersion: z.literal(AUTH_CONTEXT_SCHEMA_VERSION).optional(),
   tenantId: OpaqueId,
   callId: OpaqueId,
   sessionRef: SessionRef,
@@ -89,6 +148,15 @@ export const AuthContext = z.strictObject({
     .strictObject({ actionDigest: z.string().regex(/^[a-f0-9]{64}$/), verifiedAt: IsoDateTime, expiresAt: IsoDateTime })
     .nullable(),
   integration: IntegrationIdentity,
+  /** Server-established processing basis (FO-04-05); additive until the session service sets it. */
+  processingBasis: ProcessingBasis.optional(),
+  /** Per-dimension consent (follow-on prompt section 5); additive until the session service sets it. */
+  consentProfile: ConsentProfile.optional(),
+  /**
+   * Highest classification the session may disclose under its current assurance and basis. Never
+   * VERIFICATION_SECRET: verification secrets are disclosed to no one (AUTH-06).
+   */
+  dataClassification: DisclosureClassification.optional(),
 });
 export type AuthContext = z.infer<typeof AuthContext>;
 

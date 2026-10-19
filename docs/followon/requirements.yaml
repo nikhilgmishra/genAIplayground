@@ -5,7 +5,7 @@ asOf: '2026-10-19'
 source: docs/spec/voice-support-followon-specification.txt
 baseCommit: 8c0f5a0
 generator: docs/tools/followon/generate.py
-method: 'Requirement extraction per prompt-section group (five chunks) followed by an independent skeptic challenge per chunk; challenge corrections override the original values and missed requirements are appended. A Phase A completeness critic then re-checked the result and this repair applied its findings: every VERIFIED_LOCAL row was re-opened against its cited tests under the strict rule, stale rows were refreshed against 8c0f5a0, the fault matrix was split per fault, section 23 constraints were added, original ids were reconciled with docs/requirements/catalog.yaml, and every row gained capability ids.'
+method: 'Requirement extraction per prompt-section group (five chunks) followed by an independent skeptic challenge per chunk; challenge corrections override the original values and missed requirements are appended. A Phase A completeness critic then re-checked the result and this repair applied its findings: every VERIFIED_LOCAL row was re-opened against its cited tests under the strict rule, stale rows were refreshed against 8c0f5a0, the fault matrix was split per fault, section 23 constraints were added, original ids were reconciled with docs/requirements/catalog.yaml, and every row gained capability ids. A second critic pass re-checked the repaired ledger; round 2 retired NOT_APPLICABLE, downgraded the remaining VERIFIED_LOCAL rows whose acceptance named an element no test exercises, split the sandbox part of FO-06-37, and fixed companion infrastructure ownership, WP-39 sequencing and the LiveKit Agents framework in the plan. Rounds 3 and 4 made the fault and journey rows generator-checked for dependency inversion and added file-level ownership checks over the working tree (derived co-located ownership, no parallel co-owners, no unowned file, no file needed in phases B-F first owned in phase G).'
 idScheme: FO-<section>-<nn>; a split row adds a suffix "a" (FO-16-44a); fault-matrix rows are FO-17-24.<FAULT_ID>. originalIds are ids of docs/requirements/catalog.yaml only; derivedFrom holds ADR, TB and follow-on prompt section references. capabilityIds name docs/followon/capabilities.yaml entries.
 sections:
   '0': Mission and working authority
@@ -39,7 +39,7 @@ kinds:
 - evaluation
 - operations
 - software
-count: 1166
+count: 1170
 requirements:
 - id: FO-00-01
   section: '0'
@@ -2871,7 +2871,18 @@ requirements:
   - SPEC-2.auth-gate-values
   capabilityIds:
   - conversation.talkdesk_native
-  acceptance: Backend truth table/property tests pass; Studio-side tests (uncleared variable across steps, simulator) pass in sandbox.
+  acceptance: Backend truth table and property tests pass for missing, null, false, string, expired and reused-session values (only boolean true opens the gate). The Studio-side part (uncleared variable across steps, simulator, sandbox) is FO-06-37a.
+- id: FO-06-37a
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  text: 'Studio-side Auth Gate tests (qualification part of FO-06-37): an uncleared variable carried across Studio steps, the simulator and the sandbox Studio flow keep the gate closed for every value other than boolean true.'
+  kind: evaluation
+  originalIds:
+  - AUTH-07
+  - SPEC-2.auth-gate-values
+  capabilityIds:
+  - conversation.talkdesk_native
+  acceptance: The AG matrix (talkdesk/auth-gate.md) is executed in the Talkdesk sandbox Studio and simulator under its approval; each AG row records PASS, FAIL or INCONCLUSIVE with the simulator version.
 - id: FO-06-38
   section: '6'
   subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
@@ -6861,7 +6872,24 @@ requirements:
   - SAFE-03
   capabilityIds:
   - operator.console
+  relatedIds:
+  - FO-14-41a
   acceptance: Each scope engages/releases with role check, reason and audit; gateway/worker/notification paths honor it; unreadable state fails closed for nonessential work.
+- id: FO-14-41a
+  section: '14'
+  text: 'Controls: the MODEL_VERSION and VOICE_VERSION kill switches are honoured wherever a model version or a voice version is selected (split from FO-14-41).'
+  kind: software
+  originalIds:
+  - SPEC-13.killswitch
+  - OPS-02
+  - SAFE-03
+  capabilityIds:
+  - models.registry
+  - voice.cascade
+  - voice.native
+  relatedIds:
+  - FO-14-41
+  acceptance: Engaging MODEL_VERSION for a bound model version makes harness role resolution refuse that version and use the next entry of the registry's approved fallback graph, or the approved template or human route when none is approved; engaging VOICE_VERSION for a TTS voice version makes TTS use an approved alternative voice or the fallback clip, and for a native voice version refuses new native sessions and switches active ones to the controlled cascade with buffer flush; SAFETY and HUMAN_ROUTE are never blocked; an unreadable kill-switch state fails closed for nonessential work; tests engage and release each switch in the composed cascade and native paths and assert the audited reason.
 - id: FO-14-42
   section: '14'
   text: 'Controls: quota and budget settings.'
@@ -8467,14 +8495,14 @@ requirements:
 - id: FO-17-24.CONCURRENT_SAME_ACCOUNT
   section: '17'
   subsection: Fault matrix
-  text: 'Fault matrix CONCURRENT_SAME_ACCOUNT: Two concurrent calls change the same appointment. The fault is injected at its real injection point (a second call commits to the same record while the first awaits confirmation (multi-connection variant runs in the WP-04 postgres:16 contention suite)), the run proves the fault point was reached, and the postconditions are asserted.'
+  text: 'Fault matrix CONCURRENT_SAME_ACCOUNT: Two concurrent calls change the same appointment. The fault is injected at its real injection point (a second call commits to the same record while the first awaits confirmation (two gateway sessions on two postgres:16 connections with the WP-04 race helper, against the WP-23 reference business API; never PGlite)), the run proves the fault point was reached, and the postconditions are asserted.'
   kind: evaluation
   originalIds:
   - SPEC-16.fault-concurrent-calls
   - ACT-02
   capabilityIds:
   - evaluation.test_truth
-  acceptance: A fault plan CONCURRENT_SAME_ACCOUNT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:CONCURRENT_SAME_ACCOUNT] injects it at a second call commits to the same record while the first awaits confirmation (multi-connection variant runs in the WP-04 postgres:16 contention suite) and asserts that it was reached and that exactly one effect; the stale prepared action is invalidated with STATE_CHANGED; EvaluationResult records requestedFault=CONCURRENT_SAME_ACCOUNT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  acceptance: A fault plan CONCURRENT_SAME_ACCOUNT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:CONCURRENT_SAME_ACCOUNT] injects it at a second call commits to the same record while the first awaits confirmation (two gateway sessions on two postgres:16 connections with the WP-04 race helper, against the WP-23 reference business API; never PGlite) and asserts that it was reached and that exactly one effect; the stale prepared action is invalidated with STATE_CHANGED; EvaluationResult records requestedFault=CONCURRENT_SAME_ACCOUNT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
 - id: FO-17-24.CHANGED_SLOT_DURING_CONFIRMATION
   section: '17'
   subsection: Fault matrix
@@ -10531,6 +10559,17 @@ requirements:
   - authority.registries
   - journeys.end_to_end
   acceptance: Journey routes ambiguous authority to specialist with no disclosure.
+- id: FO-20-09a
+  section: '20'
+  text: 'J09 accepted-transfer leg: the routed handoff for ambiguous minor, proxy or guardian authority ends in an accepted transfer to the authorized-specialist destination, or keeps an accountable owner when the receiver declines or is unavailable; nothing protected is disclosed before or after acceptance.'
+  kind: evaluation
+  originalIds:
+  - SPEC-4.audience-permissions
+  capabilityIds:
+  - authority.registries
+  - handoff.transfer
+  - journeys.end_to_end
+  acceptance: 'Journey j09b in compose: an ambiguous-authority call reaches the authorized-specialist destination through the WP-28 receiver client with acceptance verified; decline and unavailable receivers leave an accountable owner and the next approved route; no protected disclosure in speech, tool output or audit detail.'
 - id: FO-20-10
   section: '20'
   text: J10 Unverified caller requests human; context package, acceptance and audio bridge verified; receiver unavailable/declines/drop retains accountable ownership.
@@ -10578,6 +10617,8 @@ requirements:
   capabilityIds:
   - actions.effects
   - journeys.end_to_end
+  relatedIds:
+  - FO-20-33
   acceptance: Media runtime shows recorder off and processing as disclosed.
 - id: FO-20-13
   section: '20'
@@ -10589,7 +10630,18 @@ requirements:
   capabilityIds:
   - safety.routing
   - journeys.end_to_end
-  acceptance: Audio tests for relay and approved language variant with reviewer sign-off.
+  acceptance: Audio tests for relay routing and the approved language variant; the qualified-reviewer sign-off is the qualification row FO-20-13a.
+- id: FO-20-13a
+  section: '20'
+  text: 'J13 qualified-reviewer sign-off: the approved language variant''s real-audio run is reviewed and signed off by qualified language reviewers before the variant is offered to callers.'
+  kind: evaluation
+  originalIds:
+  - SPEC-16.journey-8
+  - SPEC-11.interpreter
+  capabilityIds:
+  - safety.routing
+  - journeys.end_to_end
+  acceptance: A ReviewRecord from a qualified language reviewer, bound to the j13 audio run and to the variant's registry entry, exists before the variant is enabled; without it the variant stays disabled and calls route to accessible assistance.
 - id: FO-20-14
   section: '20'
   text: J14 Repeat contact resumes permitted issue history, tasks and recent conversations; shared phone and wrong account receive no protected recap.

@@ -23,10 +23,19 @@ ownershipRules:
 - 'Threat rows: each feature package drafts STRIDE rows for its boundary in docs/security/threats/proposed/<WP-id>-threats.md; the threat-model group owner of the phase merges them into docs/security/threat-model.md.'
 - 'Journeys: each package owns its platform/test/journeys/jNN-*.test.ts files; the journey harness and the existing original-numbered journey tests belong to the journeys-harness group; WP-43 owns the whole directory in phase G.'
 - 'Invariant obligations: every package listed in the secondaryPackages of an FO-02-xx row adds positive, adversarial and failure-injection tests for that invariant at its own boundary, in its own test directory, tagged with the invariant id; its acceptance lists the obligation (generated from the ledger). platform/test/invariants/** holds the register and the cross-adapter suite (WP-01 in B, WP-43 in G).'
-- 'Fault injection: the package that owns an FO-17-24.<FAULT_ID> row builds that injection point in its own adapter, emulator or runtime with a Layer-2 test tagged [FAULT:<id>] that asserts the fault was reached and the postconditions held; WP-01 owns the fault plans, WP-34 wires injection points into the evaluation drivers and WP-42 gates the denominator.'
+- 'Fault injection: the package that owns an FO-17-24.<FAULT_ID> row runs its Layer-2 test tagged [FAULT:<id>], which proves the fault was reached and asserts the postconditions. Each row names injectionPointPackages (the packages that build the injection point as a seam with its own local test) and postconditionPackages (the packages whose components the asserted postconditions observe); the owner is one of them or depends on every one of them, which the generator checks. WP-01 owns the fault plans, WP-34 wires the injection points into the evaluation drivers and WP-42 gates the denominator.'
 - 'Early start: a later-phase package marked earlyStart depends only on earlier phases and may be a dependency of an earlier phase package; the generator checks both conditions.'
 - 'Compose: WP-03 owns deploy/local/compose.yaml and services/core.compose.yaml; other packages own deploy/local/services/<name>.compose.yaml files, which the runner loads automatically.'
 - 'Runbooks: each existing runbook body under docs/RUNBOOKS belongs to its domain package until phase G, when WP-44 owns docs/RUNBOOKS/**; docs/RUNBOOKS/README.md is in the status-docs group.'
+- 'Operations controls: platform/src/ops/** (kill switches, admission, budgets, capacity, integration gate) is the ops shared group with an owner in every phase; WP-27 alone owns platform/src/ops/notification-gate.ts and its test until phase G. A feature package that needs a switch or an admission class delivers a module-local port (for example a VersionGate or OutboundCallGate interface in its own module) and the phase owner of the ops and composition groups implements it with platform/src/ops; modules under the WP-06 import allowlist (harness, models, prompts, media/) never import platform/src/ops, and the media worker receives switch decisions from the control plane through the generated gateway client.'
+- 'Media path after creation: media/src/** and media/test/** form the media shared group (C WP-17, D WP-25, E WP-30, F WP-38, G WP-43; media/src/main.ts stays in the composition group and media/src/transfer/** with WP-28 until phase G), so a defect that a later journey or fault run finds on the media path (J12, RECORDING_REFUSED, CONSENT_REVOKED, live-call join) has an owner in that phase; the phase C feature packages own their own subtrees while they build them.'
+- 'Phase G closure: WP-43 owns every source tree in phase G (platform/src, media/src, media/test, companion/src, console/src, console/e2e, services/*/src and sidecars, including the release-manifest builder, the ReleaseManifest contract and the migration runner after WP-40 and WP-41 have changed them) as well as the shared groups it lists, because every earlier owner is its ancestor; a defect found by the phase G audio, chaos, companion, console or journey checks therefore always has an owner. WP-44 and WP-45 own documents, registers and qualification only.'
+- 'Co-located files: a package that owns a source file D/Y.<ext> (ts, tsx, mts, cts, js, mjs, cjs) also owns its co-located tests D/Y.test.<ext> and D/Y.<suffix>.test.<ext> (the longest matching source wins, so pipeline.transactions.test.ts belongs to the owner of pipeline.ts), and a package that owns a directory-level pattern D/*.<ext> also owns D/README.md. The generator derives this ownership from the working tree and applies it in every ownership check, so a co-located test is never orphaned by a file-level owns entry.'
+- 'Timely ownership: no file a phase B-F package needs waits for phase G. A file under platform/src, platform/test, console/src, console/e2e, media/src, media/test, companion/src, services/*/src or sidecars that a MISSING or IMPLEMENTED row of a phase B-F package cites (evidence, gap, remediation, acceptance), that a phase B-F package names in its deliverables, acceptance or notes, or that a file first owned in phases B-F imports, has an owner before phase G, and so does a file that imports a file first owned in phases B-F (a change there can break it in the default typecheck and test suites); the generator fails otherwise. A module owned from its feature phase onwards is the intended phasing (earlier rows cite it as context, and an earlier package that needs a change in it records the change for that owner); only a first owner in phase G is a hole, because then nobody can fix a defect found in it during phases B-F.'
+- 'Unowned by design: every file in the working tree has an owner except the paths listed in unownedByDesign, which nobody edits (verbatim specifications, applied migrations, the licence); the generator fails on a file that has neither, and on a listed path that has an owner.'
+- 'Data-flow rows: each feature package that adds or changes a data flow drafts DF rows in docs/privacy/data-flows/proposed/<WP-id>-flows.md; the data-flows group owner of the phase merges them into docs/privacy/data-flow-inventory.md (rows DF-27 onwards use the two status axes, ADR-0018 decision 7.5).'
+- 'Journeys: a journey row (FO-20, J01-J20 and its split legs) names componentPackages, the packages that build the components its acceptance exercises or asserts; the owning package is one of them or depends on every one of them (no dependency inversion), which the generator checks as it does for the fault rows.'
+- 'Release sequencing (decided): WP-40 builds the release machinery (images, SBOM, provenance, signing, ReleaseManifest bindings, preflight, build-release) and a first bundle on real artifacts so the bindings and signatures are exercised; WP-41 and WP-42 consume that bundle for deploy, rollback, load and chaos rehearsals; WP-43 re-runs the unchanged build-release and preflight after its closure fixes, and only that post-closure bundle, which binds the closure commit, can be cited as RELEASE_PACKAGE_VERIFIED evidence. The release step does not move after WP-43, because WP-41 to WP-43 need the release tooling and a signed bundle to exist.'
 sharedFiles:
 - group: deps
   files:
@@ -39,6 +48,13 @@ sharedFiles:
   - companion/package.json
   - services/reference-business-api/package.json
   - .npmrc
+  - tsconfig.base.json
+  - platform/tsconfig.json
+  - platform/tsconfig.build.json
+  - console/tsconfig.json
+  - media/tsconfig.json
+  - companion/tsconfig.json
+  - services/reference-business-api/tsconfig.json
   ownerByPhase:
     B: WP-03
     C: WP-17
@@ -58,6 +74,7 @@ sharedFiles:
   - platform/src/worker/**
   - media/src/main.ts
   - platform/src/gateway/http/app.ts
+  - platform/src/demo/**
   ownerByPhase:
     B: WP-07
     C: WP-17
@@ -70,6 +87,14 @@ sharedFiles:
   - platform/src/protocol/registry.ts
   - platform/src/protocol/index.ts
   - platform/src/protocol/tools.ts
+  - platform/src/protocol/followon.ts
+  - platform/src/protocol/common-fields.ts
+  - platform/src/protocol/registry-check.ts
+  - platform/src/protocol/generate-schemas.ts
+  - platform/src/protocol/console-openapi.ts
+  - platform/src/protocol/digests.ts
+  - platform/src/protocol/contracts.ts
+  - platform/src/protocol/tool-envelope.ts
   - schemas/openapi/**
   - schemas/tools/**
   - platform/src/gateway/tools/**
@@ -79,6 +104,8 @@ sharedFiles:
   - platform/src/gateway/openapi.ts
   - platform/src/gateway-client/**
   - platform/architecture/modules.yaml
+  - platform/src/shared/**
+  - platform/src/fixtures/**
   ownerByPhase:
     B: WP-07
     C: WP-17
@@ -89,6 +116,7 @@ sharedFiles:
 - group: config
   files:
   - platform/src/config/*.ts
+  - platform/src/config/__evidence__/**
   - platform/config/*.json
   ownerByPhase:
     B: WP-07
@@ -111,6 +139,7 @@ sharedFiles:
   files:
   - policy/**
   - scripts/policy.sh
+  - platform/src/policy/**
   ownerByPhase:
     B: WP-05
     C: WP-17
@@ -121,6 +150,7 @@ sharedFiles:
 - group: console
   files:
   - platform/src/console-api/*.ts
+  - platform/src/console-api/fixtures/**
   - console/src/App.tsx
   - console/src/navigation.ts
   - console/src/api/**
@@ -129,6 +159,10 @@ sharedFiles:
   - console/src/main.tsx
   - console/src/styles.css
   - console/src/test/**
+  - console/src/content/**
+  - console/src/vite-env.d.ts
+  - console/index.html
+  - console/README.md
   ownerByPhase:
     B: WP-05
     C: WP-17
@@ -142,6 +176,11 @@ sharedFiles:
   - scripts/vsp/runner.mts
   - deploy/local/compose.yaml
   - platform/vitest.config.ts
+  - platform/vitest.integration.config.ts
+  - console/vite.config.ts
+  - console/vitest.config.ts
+  - .gitignore
+  - .dockerignore
   ownerByPhase:
     B: WP-03
     C: WP-17
@@ -153,6 +192,7 @@ sharedFiles:
 - group: ci
   files:
   - .github/workflows/ci.yml
+  - scripts/ci/check-workflows.mjs
   ownerByPhase:
     B: WP-03
     C: WP-17
@@ -170,6 +210,7 @@ sharedFiles:
   - docs/TEST_EVIDENCE.md
   - docs/IMPLEMENTATION_STATUS.md
   - evidence/test-reports/**
+  - platform/test/docs/**
   excludes:
   - evidence/test-reports/traceability.json
   ownerByPhase:
@@ -239,6 +280,91 @@ sharedFiles:
   ownerByPhase:
     B: WP-01
     G: WP-43
+- group: ops
+  files:
+  - platform/src/ops/**
+  - platform/test/load/**
+  excludes:
+  - platform/src/ops/notification-gate.ts
+  - platform/src/ops/notification-gate.test.ts
+  ownerByPhase:
+    B: WP-07
+    C: WP-17
+    D: WP-25
+    E: WP-30
+    F: WP-38
+    G:
+    - WP-42
+    - WP-43
+- group: media
+  files:
+  - media/src/**
+  - media/test/**
+  excludes:
+  - media/src/main.ts
+  - media/src/transfer/**
+  ownerByPhase:
+    C: WP-17
+    D: WP-25
+    E: WP-30
+    F: WP-38
+    G: WP-43
+- group: gateway
+  files:
+  - platform/src/gateway/ports.ts
+  - platform/src/gateway/mask.ts
+  - platform/src/gateway/gateway-audit.ts
+  - platform/src/gateway/README.md
+  - platform/src/gateway/fixtures/**
+  - platform/src/gateway/http/route.ts
+  - platform/src/gateway/http/tool-routes.ts
+  - platform/src/gateway/http/health-routes.ts
+  - platform/src/gateway/http/tool-rate-limit.ts
+  - platform/src/gateway/http/routes.test.ts
+  ownerByPhase:
+    B:
+    - WP-05
+    - WP-07
+    C:
+    - WP-14
+    - WP-17
+    D: WP-25
+    E: WP-30
+    F: WP-38
+    G: WP-43
+- group: lint
+  files:
+  - platform/eslint.config.js
+  - media/eslint.config.js
+  - companion/eslint.config.js
+  - console/eslint.config.js
+  - .dependency-cruiser.cjs
+  ownerByPhase:
+    B:
+    - WP-06
+    - WP-07
+    C: WP-17
+    D: WP-25
+    E: WP-30
+    F: WP-38
+    G: WP-43
+- group: data-flows
+  files:
+  - docs/privacy/data-flow-inventory.md
+  ownerByPhase:
+    B: WP-07
+    C: WP-17
+    D: WP-25
+    E: WP-30
+    F: WP-38
+    G: WP-44
+unownedByDesign:
+- path: docs/spec/**
+  reason: Verbatim specifications (the original specification and the follow-on prompt); never edited (follow-on prompt section 0).
+- path: platform/migrations/0*.sql
+  reason: Applied migrations are immutable; every schema change is a new platform/migrations/2NN0-2NN9 file owned by package WP-NN.
+- path: LICENSE
+  reason: Licence text, changed only by the repository owner, never by a work package.
 generatedArtifacts:
 - path: schemas/protocol/*.schema.json
   generator: pnpm --filter @vsp/platform schemas:gen
@@ -280,8 +406,8 @@ summary:
     F: 8
     G: 6
     H: 1
-  requirementsAssigned: 1061
-  regressionItems: 101
+  requirementsAssigned: 1063
+  regressionItems: 107
   waves: 25
   earlyStart:
   - WP-23
@@ -309,11 +435,6 @@ packages:
   - FO-17-15
   - FO-17-16
   - FO-17-17
-  - FO-17-24.AUTH_EXPIRY_MID_CALL
-  - FO-17-24.DELEGATION_REVOKED
-  - FO-17-24.CONSENT_REVOKED
-  - FO-17-24.CONCURRENT_SAME_ACCOUNT
-  - FO-17-24.CHANGED_SLOT_DURING_CONFIRMATION
   - FO-17-24.POLICY_ENGINE_ERROR
   - FO-17-35
   - FO-17-41
@@ -328,8 +449,8 @@ packages:
   - FO-17-40
   - FO-17-43
   counts:
-    MISSING: 6
-    IMPLEMENTED: 22
+    MISSING: 3
+    IMPLEMENTED: 20
     regression: 3
   capabilityIds:
   - evaluation.test_truth
@@ -345,12 +466,8 @@ packages:
   - OPS-04
   - OPS-06
   faultObligations:
-  - AUTH_EXPIRY_MID_CALL
-  - CHANGED_SLOT_DURING_CONFIRMATION
-  - CONCURRENT_SAME_ACCOUNT
-  - CONSENT_REVOKED
-  - DELEGATION_REVOKED
   - POLICY_ENGINE_ERROR
+  faultInjectionPoints: []
   owns:
   - platform/src/evaluation/*.ts
   - evidence/evaluation/**
@@ -362,15 +479,14 @@ packages:
   - corpus
   - journeys-harness
   - invariants
-  excludes:
-  - platform/src/evaluation/manifest.ts
+  excludes: []
   deliverables:
   - Fresh corpus run after fix wave 5 written as a new historical run (evidence/evaluation/corpus-local-<date>w5.*); the w4 summary, report and root-cause files stay unchanged; supersedes/rerunOf fields link the two.
   - Root-cause classification of every historical FAIL/INCONCLUSIVE into product, fixture, scorer or expectation defect, each with a rerun result.
   - Required-scenario manifest per gate; taskCompletionRate and every rate computed over the fixed denominator (INCONCLUSIVE, NOT_RUN and skipped count as not-PASS); coverage-hole section in the aggregate.
   - Family-level split key (intent skeleton plus account) with a leakage check across dev, tuning, held-out and regression corpora; corpus diff check that requires a review record for any expectation change.
   - A mutation test per scorer gate proving the gate can FAIL; fault scenarios PASS only when the intended fault point was reached and postconditions held.
-  - 'Fixed fault registry: scenarios/fixtures/failures holds a plan for each of the 50 fault ids of the FO-17-24.<FAULT_ID> rows (25 existing plans plus the 25 prompt section 17 items), each naming its injection point and owning package; injection points on existing components are built here (AUTH_EXPIRY_MID_CALL, CONCURRENT_SAME_ACCOUNT, CHANGED_SLOT_DURING_CONFIRMATION, DELEGATION_REVOKED, CONSENT_REVOKED, POLICY_ENGINE_ERROR); a fault without a reached-and-asserted run is INCONCLUSIVE and listed as a coverage hole.'
+  - 'Fixed fault registry: scenarios/fixtures/failures holds a plan for each of the 50 fault ids of the FO-17-24.<FAULT_ID> rows (25 existing plans plus the 25 prompt section 17 items), each naming its injection point, the packages that build it and the package that owns its Layer-2 run (injectionPointPackages and workPackage of its FO-17-24 row); only the POLICY_ENGINE_ERROR injection point (a fault-injecting decorator around the in-process OPA WASM engine, an accepted Layer-2 protocol) and its [FAULT:POLICY_ENGINE_ERROR] test are built here, and the in-process local-driver injection of the other plans is never cited as a Layer-2 run; a fault without a reached-and-asserted run is INCONCLUSIVE and listed as a coverage hole.'
   - 'EvaluationResult population using the WP-02 fields: version digests, seed, split, requestedFault and reachedFault from independent evidence (not driver self-report), rerunCommand, judge labels and audio evidence refs.'
   - 'Invariant register: docs/requirements/catalog.yaml extended with enforcement location, threat id, positive/adversarial/failure-injection test ids, evidence artifact, owner role, activation dependency and the secondary packages of each FO-02-xx row for all 27 invariants; platform/test/invariants/** holds the register test; failure-injection tests for AUTH-03, AUTH-05, DATA-01, DATA-04, ACT-04, SAFE-01, SAFE-05, OPS-04 and OPS-06; threat rows for DATA-02, DATA-03, ACT-04, SAFE-01, OPS-03 and OPS-05.'
   - Traceability generator reads docs/followon/requirements.yaml, gap-ledger.yaml and capabilities.yaml and emits Software, Environment and Qualification columns per requirement and per capability; it fails when an originalId does not resolve to docs/requirements/catalog.yaml, when a catalog id has no FO row, or when an AIN id is used as an originalId; one shared UNKNOWN-classification helper (FO-22-07). Owns evidence/test-reports/traceability.json in phase B (excluded from the WP-07 status-docs group).
@@ -383,10 +499,11 @@ packages:
   - 'python3 -I docs/tools/followon/generate.py --check (the traceability inputs are consistent: every originalId resolves, every catalog id is covered)'
   - pnpm --filter @vsp/platform exec vitest run test/invariants (register lists all 27 invariants with their secondary packages and existing test ids)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-03] [AUTH-05] [DATA-01] [DATA-04] [ACT-04] [SAFE-01] [SAFE-05] [OPS-03] [OPS-04] [OPS-06] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:AUTH_EXPIRY_MID_CALL] [FAULT:CHANGED_SLOT_DURING_CONFIRMATION] [FAULT:CONCURRENT_SAME_ACCOUNT] [FAULT:CONSENT_REVOKED] [FAULT:DELEGATION_REVOKED] [FAULT:POLICY_ENGINE_ERROR] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:POLICY_ENGINE_ERROR] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
   - 'AIN-31: scenarios count as HUMAN_REVIEWED only with real reviewer records; nothing in this package can mark them reviewed.'
-  notes: []
+  notes:
+  - platform/src/evaluation/manifest.ts (the release-manifest builder that reads the evaluation evidence) is owned here in phase B, by WP-34 in phase F and by WP-40 in phase G; its status field stays the mapped legacy ReleaseStatus until WP-40 emits the two axes (ADR-0018 decision 7.4).
 - id: WP-02
   phase: B
   title: 'Contract registry: the 34 follow-on contracts, common envelope and two-axis status types'
@@ -432,7 +549,6 @@ packages:
   - FO-04-39
   - FO-04-40
   - FO-04-41
-  - FO-04-42
   - FO-04-43
   - FO-04-44
   - FO-04-45
@@ -442,27 +558,31 @@ packages:
   - FO-04-02
   - FO-04-04
   - FO-04-16
+  - FO-04-42
   counts:
-    MISSING: 20
-    IMPLEMENTED: 23
-    regression: 3
+    MISSING: 0
+    IMPLEMENTED: 42
+    regression: 4
   capabilityIds:
   - platform.contracts
   invariantObligations:
   - AUTH-03
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/src/protocol/**
   - schemas/protocol/**
   - approvals/schema/**
+  - approvals/README.md
   - schemas/openapi/console.openapi.json
   - docs/security/threats/proposed/WP-02-*
+  - docs/privacy/data-flows/proposed/WP-02-*
   ownsGroups: []
   excludes: []
   deliverables:
   - 'New contract files: protocol/call-binding.ts (CallBinding; WP-11 owns it from phase C), protocol/media.ts (TurnEnvelope, CarrierEvent, SpeechPlan, AudioReleaseReceipt), protocol/context-facts.ts (ContextFact, SourceWatermark), protocol/identity-link.ts (IdentityLink), protocol/context-snapshot.ts (ContextSnapshot), protocol/knowledge.ts (KnowledgeCitation), protocol/models.ts (ModelInvocation, ModelDecision), protocol/effects.ts (EffectVerification, CaseLink), protocol/connector.ts (ConnectorProfile, CapabilityEvidence; WP-06 then WP-32 own it), protocol/improvement.ts (ChangeProposal, CanarySpec), protocol/activation.ts (ActivationReport, ActivationRecord), protocol/review.ts (ReviewRecord, DatasetItem), protocol/plan.ts (LongHorizonPlan).'
   - ConfirmationReceipt (alias of ActionConfirmation plus actorRef and expiresAt), ActionGrant, HumanTask and TenantConfig registered; AuthContext gains processingBasis; SupportRequest moves CRM ids into CaseLink; EvaluationResult gains local_emulator, model_text and audio execution modes; ToolResult carries freshness/watermark refs.
-  - 'Two-axis status types: SoftwareStatus, EnvironmentStatus and QualificationResult replace the single-axis ReleaseStatus in ReleaseManifest and capability records (old values mapped, not silently dropped).'
+  - 'Two-axis status types: SoftwareStatus, EnvironmentStatus and QualificationResult added to ReleaseManifest and capability records next to the single-axis ReleaseStatus, which stays as the mapped legacy field (old values mapped, never silently dropped) until WP-40 moves the manifest builder and the deploy gate to the two axes (ADR-0018 decision 7.4).'
   - Common envelope mixin (tenant_id, interaction_id, case_id, workflow_id, opaque actor/subject refs, session_generation, turn_id, request_id, causation_id, schema_version, occurred_at); Pagination, TimeRange, Money (ISO 4217 enum, integer minor units) and UTC instant plus business timezone primitives; bounded lengths everywhere.
   - FOLLOWON_CONTRACTS registry test (34 names plus alias map) that fails on an absent, non-strict or unversioned contract; cardinality tests (one person many roles, many cases per call, many calls per case).
   - Console API contract moved into the zod registry with generated schemas/openapi/console.openapi.json.
@@ -487,28 +607,29 @@ packages:
   dependsOn: []
   earliestWave: 1
   requirementIds:
-  - FO-03-14
   - FO-16-01
+  - FO-19-63
+  - FO-19-69
+  regressionIds:
+  - FO-03-14
   - FO-16-13
   - FO-16-14
+  - FO-16-15
   - FO-16-16
   - FO-16-21
   - FO-16-23
   - FO-17-03
-  - FO-19-63
   - FO-19-64
   - FO-19-67
-  - FO-19-69
-  regressionIds:
-  - FO-16-15
   counts:
-    MISSING: 9
+    MISSING: 0
     IMPLEMENTED: 3
-    regression: 1
+    regression: 10
   capabilityIds:
   - platform.workspace
   invariantObligations: []
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - deploy/local/services/core.compose.yaml
   - deploy/local/README.md
@@ -523,13 +644,14 @@ packages:
   - companion/tsconfig.json
   - services/reference-business-api/tsconfig.json
   - docs/security/threats/proposed/WP-03-*
+  - docs/privacy/data-flows/proposed/WP-03-*
   ownsGroups:
   - deps
   - runner
   - ci
   excludes: []
   deliverables:
-  - Exact-pinned dependency set for every planned package resolved from the registry and locked once (LiveKit server and RTC SDKs, OpenAI and Bedrock runtime clients, OpenTelemetry SDK and OTLP exporters, onnxruntime-node, Playwright with axe, parsers for PDF/DOCX, SES/SNS/Athena/Glue clients, gRPC/Avro for Salesforce Pub/Sub, dependency-cruiser); new workspace packages media/, companion/ and services/reference-business-api/ with skeleton package.json and tsconfig.
+  - Exact-pinned dependency set for every planned package resolved from the registry and locked once (the LiveKit Agents Node framework @livekit/agents with the Silero VAD and LiveKit turn-detector plugins the media worker needs (names and versions confirmed from the registry at pin time; ADR-0018 decision 1.1, open item 2) and its RTC transport, the LiveKit server SDK for room, SIP and webhook administration, OpenAI and Bedrock runtime clients, OpenTelemetry SDK and OTLP exporters, onnxruntime-node, Playwright with axe, parsers for PDF/DOCX, SES/SNS/Athena/Glue clients, gRPC/Avro for Salesforce Pub/Sub, dependency-cruiser); new workspace packages media/, companion/ and services/reference-business-api/ with skeleton package.json and tsconfig.
   - deploy/local/services/core.compose.yaml with digest-pinned postgres:16 with pgvector, amazon/dynamodb-local, ElasticMQ, MinIO with Object Lock, LocalStack (KMS, Secrets Manager, SNS, SES), Keycloak, Step Functions Local, Mailpit, ClamAV, livekit-server and livekit-sip; the runner loads every deploy/local/services/*.compose.yaml so later packages add services without editing compose.yaml.
   - 'Integration harness: VSP_INTEGRATION=1 vitest project (platform/vitest.integration.config.ts) that waits for service health, labels each test with the emulated service it used, and keeps unit fakes out of Layer 2.'
   - Makefile and scripts/vsp/runner.mts with doctor-free skeleton targets up, down, test-unit and test-integration; real exit codes preserved; no target calls a billable endpoint.
@@ -542,6 +664,7 @@ packages:
   - pnpm install --frozen-lockfile && pnpm typecheck && pnpm lint
   - make test-unit returns the vitest exit code (a deliberately failing test makes it non-zero)
   - make test-unit writes evidence/test-reports/vitest-unit.json and its exit code equals the vitest exit code
+  - pnpm-lock.yaml pins @livekit/agents and its VAD and turn-detection plugins to exact versions (a range or a missing plugin fails pnpm install --frozen-lockfile in CI); the pinned list with versions and licences is handed to WP-44 for docs/INVENTORY.md
   externalActivation:
   - 'None: emulators only; container images come from Docker Hub (reachable).'
   notes: []
@@ -590,7 +713,6 @@ packages:
   - FO-16-41
   - FO-17-24.DUPLICATE_WEBHOOK
   - FO-17-24.AUDIT_OUTAGE
-  - FO-17-24.LOCAL_PERSISTENCE_FAILURE
   - FO-19-07a
   - FO-19-82
   - FO-22-08
@@ -600,7 +722,7 @@ packages:
   - FO-15-44
   - FO-15-46
   counts:
-    MISSING: 18
+    MISSING: 17
     IMPLEMENTED: 21
     regression: 4
   capabilityIds:
@@ -616,7 +738,19 @@ packages:
   faultObligations:
   - AUDIT_OUTAGE
   - DUPLICATE_WEBHOOK
-  - LOCAL_PERSISTENCE_FAILURE
+  faultInjectionPoints:
+  - fault: AUTH_EXPIRY_IDLE
+    runBy: WP-05
+  - fault: AUTH_EXPIRY_MID_CALL
+    runBy: WP-07
+  - fault: CONCURRENT_SAME_ACCOUNT
+    runBy: WP-25
+  - fault: CRASH_AFTER_COMMIT
+    runBy: WP-25
+  - fault: DLQ_FULL
+    runBy: WP-07
+  - fault: LOCAL_PERSISTENCE_FAILURE
+    runBy: WP-15
   owns:
   - platform/src/db/**
   - platform/src/audit/**
@@ -634,6 +768,7 @@ packages:
   - docs/RUNBOOKS/audit-sink-outage.md
   - platform/src/protocol/audit.ts
   - docs/security/threats/proposed/WP-04-*
+  - docs/privacy/data-flows/proposed/WP-04-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -645,7 +780,7 @@ packages:
   - postgres:16 multi-connection contention suite (two dispatchers, two workers, two commit attempts) covering FOR UPDATE SKIP LOCKED claims, commit_attempt_id fencing, one in-doubt commit per record and row_version predicates (FO-10-43, FO-11-13, FO-16-41); PGlite results are never cited for concurrency (ADR-0018 decision 7.2).
   - SqsPublisher DLQ on ElasticMQ with bounded redrive and audited operator repair (FO-06-10); audit manifests signed with the WP-02 AuditManifest signature fields.
   - Audit exporter and separate verifier module (platform/src/audit/exporter/**) runnable under its own task identity with read-only sink credentials (FO-15-40); WP-07 adds the platform/src/main/audit-exporter.ts entry point and WP-39 its service and IAM.
-  - Injection points and [FAULT:<id>] Layer-2 tests for AUDIT_OUTAGE, LOCAL_PERSISTENCE_FAILURE and DUPLICATE_WEBHOOK.
+  - 'Injection points and [FAULT:<id>] Layer-2 tests for AUDIT_OUTAGE and DUPLICATE_WEBHOOK; reusable seams for later Layer-2 runs: postgres:16 stopped or read-only (LOCAL_PERSISTENCE_FAILURE, run by WP-15), the two-connection race and worker-kill helpers exported from platform/test/integration/substrate/contention-harness.ts (CONCURRENT_SAME_ACCOUNT and CRASH_AFTER_COMMIT, run by WP-25), the DynamoDB Local session store with an injectable clock (AUTH_EXPIRY_MID_CALL, run by WP-07) and an ElasticMQ dead-letter queue at capacity or unwritable (DLQ_FULL, run by WP-07).'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-04-threats.md (merged into docs/security/threat-model.md by the phase integration package).
   acceptance:
   - make up PROFILE=core && make test-integration SUITE=substrate (PgPoolDb, DynamoKvStore, SqsPublisher, S3 sink, KMS signer)
@@ -654,7 +789,8 @@ packages:
   - tsx scripts/vsp/verify-audit.mts --env local exits 0 on an intact chain and non-zero after a deleted event
   - make test-integration SUITE=substrate FILTER=contention (two connections race; exactly one effect; never run on PGlite)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-04] [ACT-02] [OPS-01] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:AUDIT_OUTAGE] [FAULT:DUPLICATE_WEBHOOK] [FAULT:LOCAL_PERSISTENCE_FAILURE] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:AUDIT_OUTAGE] [FAULT:DUPLICATE_WEBHOOK] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:AUTH_EXPIRY_IDLE] (run by WP-05), [FAULT:AUTH_EXPIRY_MID_CALL] (run by WP-07), [FAULT:CONCURRENT_SAME_ACCOUNT] (run by WP-25), [FAULT:CRASH_AFTER_COMMIT] (run by WP-25), [FAULT:DLQ_FULL] (run by WP-07), [FAULT:LOCAL_PERSISTENCE_FAILURE] (run by WP-15); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - 'AIN-01 and AIN-03: VERIFIED_SANDBOX needs the AWS sandbox and the separately administered audit account; nothing here calls AWS.'
   notes: []
@@ -717,11 +853,10 @@ packages:
   - FO-05-42
   - FO-05-43
   - FO-05-44
-  - FO-14-56
   counts:
     MISSING: 15
     IMPLEMENTED: 12
-    regression: 21
+    regression: 20
   capabilityIds:
   - identity.caller
   - identity.workforce
@@ -731,6 +866,9 @@ packages:
   faultObligations:
   - AUTH_EXPIRY_IDLE
   - IDP_UNAVAILABLE
+  faultInjectionPoints:
+  - fault: AUTH_EXPIRY_MID_CALL
+    runBy: WP-07
   owns:
   - platform/src/identity/*.ts
   - platform/src/gateway/auth.ts
@@ -747,9 +885,11 @@ packages:
   - docs/RUNBOOKS/authentication-bypass.md
   - platform/src/protocol/auth.ts
   - docs/security/threats/proposed/WP-05-*
+  - docs/privacy/data-flows/proposed/WP-05-*
   ownsGroups:
   - policy
   - console
+  - gateway
   excludes:
   - policy/vsp/privacy.rego
   - policy/vsp/privacy_test.rego
@@ -759,7 +899,7 @@ packages:
   - Live StaffDirectory resolving (issuer, sub) to roles from configured IdP group claims, refusing unknown groups, MFA amr enforced; operator offboarding by directory active-state checks; break-glass issuance workflow (request, independent approval, expiry, post-use review) and dual-controlled SSO-outage recovery identities.
   - Policy data for human-only high-risk changes and tenant-approved A1 operations; verified identity service supplies processing basis.
   - Keycloak realm import with synthetic client, provider, partner and workforce users and role groups.
-  - Injection points and [FAULT:<id>] tests for AUTH_EXPIRY_IDLE and IDP_UNAVAILABLE.
+  - Injection points and [FAULT:<id>] tests for AUTH_EXPIRY_IDLE and IDP_UNAVAILABLE; the injected-clock session-expiry seam on the live identity path that WP-07 drives for [FAULT:AUTH_EXPIRY_MID_CALL].
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-05-threats.md (merged into docs/security/threat-model.md by the phase integration package).
   acceptance:
   - make up PROFILE=core && make test-integration SUITE=identity (discovery, PKCE exchange, replayed code refused, unknown redirect refused, idle expiry, refresh keeps subject, offboarded user refused)
@@ -768,6 +908,7 @@ packages:
   - pnpm --filter @vsp/console exec vitest run src/auth
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-01] [AUTH-04] pass in this package''s own suites.'
   - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:AUTH_EXPIRY_IDLE] [FAULT:IDP_UNAVAILABLE] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:AUTH_EXPIRY_MID_CALL] (run by WP-07); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - 'AIN-12, AIN-13 and AIN-15: real IdP clients, workforce group mapping and approved verification/idle parameters; until then only the Keycloak realm is used.'
   notes: []
@@ -782,6 +923,7 @@ packages:
   earliestWave: 2
   requirementIds:
   - FO-03-11
+  - FO-03-25
   - FO-03-29
   - FO-05-39
   - FO-05-56
@@ -805,28 +947,33 @@ packages:
   - FO-06-21
   - FO-06-22
   - FO-06-23
+  - FO-08-17
+  - FO-08-35
   - FO-15-19
   - FO-15-26
   - FO-16-31
   - FO-16-39
-  - FO-17-24.SCHEMA_DRIFT
-  - FO-17-24.DLQ_FULL
   - FO-19-08
+  - FO-23-08
   regressionIds:
   - FO-06-25
   counts:
-    MISSING: 18
-    IMPLEMENTED: 13
+    MISSING: 16
+    IMPLEMENTED: 17
     regression: 1
   capabilityIds:
+  - platform.substrate
   - connectors.runtime
+  - knowledge.retrieval
   - privacy.operations
+  - governance.documents
   invariantObligations:
   - DATA-01
   - ACT-03
-  faultObligations:
-  - DLQ_FULL
-  - SCHEMA_DRIFT
+  faultObligations: []
+  faultInjectionPoints:
+  - fault: SCHEMA_DRIFT
+    runBy: WP-32
   owns:
   - platform/src/connectors/runtime/**
   - platform/src/connectors/profile/**
@@ -849,7 +996,9 @@ packages:
   - companion/eslint.config.js
   - platform/architecture/modules.yaml
   - docs/security/threats/proposed/WP-06-*
-  ownsGroups: []
+  - docs/privacy/data-flows/proposed/WP-06-*
+  ownsGroups:
+  - lint
   excludes: []
   deliverables:
   - 'ConnectorRuntime: profile loader and validator, allowlisted HTTP client (no redirects, size/time bounds, account binding verified on first authenticated call, egress classification), shared OAuth2/JWT token manager (cache, single refresh on 401, rotation picked up without restart), SecretResolver over Secrets Manager with version stages and refresh on auth failure.'
@@ -860,15 +1009,18 @@ packages:
   - 'Emulator conformance convention: every connector family runs its exact production adapter against a protocol emulator in Layer 2.'
   - 'Module-boundary allowlist enforcement: platform/architecture/modules.yaml declares every module directory under platform/src, media/src, companion/src, console/src and services/*/src that any package in docs/followon/work-packages.yaml plans (including the new domain, entity, transfer, notifications, ingress, privacy-ops, grounding, readiness, tenant-config, qualification, calls, context, connectors, monitors, review, improvement, studio, harness, models and prompts modules) with its allowed imports; an ESLint import-allowlist rule in platform/eslint.config.js, media/eslint.config.js and companion/eslint.config.js plus a dependency-cruiser test (platform/test/architecture) enforce that harness, models, prompts and media/ import only protocol, shared, resilience, observability, the egress check, the egress-classified transport in platform/src/connectors/http (which imports no profile, secret, DSL or connector family) and the generated gateway client; an undeclared directory fails the test (FO-03-11).'
   - Egress-classified HTTP client in platform/src/connectors/http that checks EgressGuard per request for every outbound destination (FO-15-19); WP-07 moves the existing Salesforce REST adapter, notification sender and OTLP exporter onto it.
-  - Timeout and retry classification applied by the runtime to every connector with per-adapter contract tests (timeout before/after send, connection refused, 429/503, nested retry) (FO-06-08); injection points and [FAULT:<id>] tests for SCHEMA_DRIFT and DLQ_FULL.
+  - Timeout and retry classification applied by the runtime to every connector with per-adapter contract tests (timeout before/after send, connection refused, 429/503, nested retry) (FO-06-08); the SCHEMA_DRIFT injection point (drifted fields or metadata from a connector emulator produce a typed drift error from the mapping DSL with no partial write; its Layer-2 run with readiness is WP-32) and the stop-consuming, keep-checkpoint behaviour when the dead-letter destination refuses a write (asserted by the WP-07 [FAULT:DLQ_FULL] run on the WP-04 ElasticMQ DLQ).
+  - 'Decision-gated dependency check (FO-03-25, FO-08-17, FO-08-35, FO-23-08): platform/architecture/modules.yaml lists decision-gated technologies (EventBridge fan-out, graph stores and graph retrievers, semantic caches, the Personal Agent Protocol) with their package names, import specifiers and module kinds, and every cache module declares kind exact or semantic; the platform/test/architecture suite fails when one appears in a package manifest, lockfile, import or declared module without an Accepted ADR id recorded against it (for graph retrieval the ADR must cite a WP-20 retrieval evaluation report; for a semantic cache, the FO-07-42 key and a re-check-on-return test).'
+  - 'Typed refusal reasons for unsupported vendor operations (FO-06-25 follow-up): UNSUPPORTED_UNDOCUMENTED for vendor behaviour that is not documented, distinct from NOT_IMPLEMENTED for documented behaviour that is not built; the WP-07 live-registry scan refuses any NOT_IMPLEMENTED operation in a live composition.'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-06-threats.md (merged into docs/security/threat-model.md by the phase integration package).
   acceptance:
   - pnpm --filter @vsp/platform exec vitest run src/connectors src/adapters src/resilience
   - make up PROFILE=core && make test-integration SUITE=connectors (LocalStack Secrets Manager rotation, 401 single refresh, host outside profile refused, Retry-After honoured, checkpoint resume after crash)
   - pnpm lint (new restricted-import and SQL-interpolation rules active with zero violations)
   - pnpm --filter @vsp/platform exec vitest run test/architecture (every module directory declared; a deliberate harness -> actions import fails the rule)
+  - pnpm --filter @vsp/platform exec vitest run test/architecture (fixture manifests that add an EventBridge client, a graph retriever, a semantic cache module or a Personal Agent Protocol dependency without an Accepted ADR each fail)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [DATA-01] [ACT-03] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:DLQ_FULL] [FAULT:SCHEMA_DRIFT] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:SCHEMA_DRIFT] (run by WP-32); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - 'AIN-36: per-connector Secrets Manager entries and rotation owners are activation inputs; the runtime refuses a missing reference.'
   notes: []
@@ -891,7 +1043,10 @@ packages:
   - FO-03-30
   - FO-03-49
   - FO-14-53
+  - FO-14-56
   - FO-16-11
+  - FO-17-24.AUTH_EXPIRY_MID_CALL
+  - FO-17-24.DLQ_FULL
   - FO-19-06
   - FO-21-03
   - FO-21-10
@@ -904,19 +1059,25 @@ packages:
   - FO-16-05
   - FO-16-10
   counts:
-    MISSING: 11
-    IMPLEMENTED: 2
+    MISSING: 12
+    IMPLEMENTED: 4
     regression: 5
   capabilityIds:
+  - identity.caller
   - identity.workforce
+  - connectors.runtime
   - platform.composition
   - operator.console
+  - evaluation.test_truth
   invariantObligations:
   - AUTH-02
   - DATA-01
   - OPS-01
   - OPS-04
-  faultObligations: []
+  faultObligations:
+  - AUTH_EXPIRY_MID_CALL
+  - DLQ_FULL
+  faultInjectionPoints: []
   owns:
   - platform/src/adapters/live/**
   - platform/src/config/rules/**
@@ -934,6 +1095,10 @@ packages:
   - status-docs
   - threat-model
   - journeys-harness
+  - ops
+  - gateway
+  - lint
+  - data-flows
   excludes: []
   deliverables:
   - 'platform/src/main/live-container.ts and live-modules.ts: composes PgPoolDb, DynamoKvStore, SqsPublisher, S3ObjectLockAuditSink, KmsAssertionSigner, JwtAccessTokenAuthenticator, JwksOidcVerifier, live StaffDirectory and the connector runtime; buildContainer(local|ci) stays as the regression composition.'
@@ -945,14 +1110,19 @@ packages:
   - platform/src/main/audit-exporter.ts entry point composing the WP-04 exporter and verifier under a separate identity; generated gateway client in platform/src/gateway-client (from schemas/openapi/gateway.openapi.json) that the untrusted group may import; deploy/local/services/app.compose.yaml (application images) and otel-collector.compose.yaml.
   - Existing outbound clients (Salesforce REST adapter, notification sender, OTLP exporter) moved onto the WP-06 egress-classified client; the per-capability activation map uses the capability ids of docs/followon/capabilities.yaml; development bypasses (local sign-in, fixture tokens, dev keys) are absent from the live composition (FO-14-53).
   - 'Decision status housekeeping: ADR-0006 marked superseded by ADR-0018 and ADR-0001 marked amended in their status lines and docs/DECISIONS.md rows, unless Phase A already did it.'
-  - Phase B merge of the threat-row fragments docs/security/threats/proposed/WP-0*-*.md into docs/security/threat-model.md.
+  - Phase B merge of the threat-row fragments docs/security/threats/proposed/WP-0*-*.md into docs/security/threat-model.md and of the data-flow fragments docs/privacy/data-flows/proposed/WP-0*-*.md into docs/privacy/data-flow-inventory.md.
+  - 'Approval trust anchor on the real protocol (FO-14-56): KmsTrustedKeyResolver composed in the live container with an endpoint override; the composition suite on LocalStack KMS verifies an ApprovalRecord signed with KMS Sign and refuses an ENCRYPT_DECRYPT key, a local PEM key in a sandbox profile and a foreign key.'
+  - 'Layer-2 fault runs in platform/test/integration/composition: [FAULT:AUTH_EXPIRY_MID_CALL] (the composed live gateway over the DynamoDB Local session store with the WP-05 injected clock: a commit after expiry fails closed with zero calls to a loopback provider recorder while the session row still exists) and [FAULT:DLQ_FULL] (the connector runtime composed with the WP-04 ElasticMQ dead-letter queue at capacity: consumption stops, the alarm rule fires and the source checkpoint is kept).'
+  - 'ops shared group (phase B owner): the kill-switch, admission and budget services are composed in the live container; a feature package that needs a new switch or admission class records it here instead of editing platform/src/ops.'
   acceptance:
   - make up PROFILE=core && make test-integration SUITE=composition (sandbox-profile config boots gateway, worker and console against emulators; /health/ready lists capability states)
   - pnpm --filter @vsp/platform exec vitest run src/main src/config (fixture adapters refused in non-local composition; no LIVE_COMPOSITION_NOT_IMPLEMENTED path remains)
   - node scripts/ci/check-metric-names.mjs; pnpm --filter @vsp/platform schemas:check catalog:check openapi:check
   - pnpm test && pnpm typecheck && pnpm lint
   - make test-integration SUITE=composition FILTER=no-dev-bypass (local sign-in, fixture tokens and dev keys refused in the sandbox profile)
+  - make test-integration SUITE=composition FILTER=approval-trust (GetPublicKey against LocalStack KMS; a KMS-signed approval verifies; local, foreign and wrong-usage keys are refused)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-02] [DATA-01] [OPS-01] [OPS-04] pass in this package''s own suites.'
+  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:AUTH_EXPIRY_MID_CALL] [FAULT:DLQ_FULL] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
   - 'AIN-01, AIN-34 and AIN-36: real AWS resources, approval signing keys and secrets; without them the composed environment starts with those capabilities NOT_CONFIGURED.'
   notes: []
@@ -978,13 +1148,10 @@ packages:
   - FO-09-46
   - FO-16-18
   - FO-16-24
-  - FO-17-24.MODEL_REFUSAL
-  - FO-17-24.MODEL_HANG
-  - FO-17-24.MODEL_OVERLOAD
   - FO-19-09
   regressionIds: []
   counts:
-    MISSING: 14
+    MISSING: 11
     IMPLEMENTED: 0
     regression: 0
   capabilityIds:
@@ -992,10 +1159,14 @@ packages:
   invariantObligations:
   - DATA-01
   - OPS-05
-  faultObligations:
-  - MODEL_HANG
-  - MODEL_OVERLOAD
-  - MODEL_REFUSAL
+  faultObligations: []
+  faultInjectionPoints:
+  - fault: MODEL_HANG
+    runBy: WP-15
+  - fault: MODEL_OVERLOAD
+    runBy: WP-17
+  - fault: MODEL_REFUSAL
+    runBy: WP-17
   owns:
   - platform/src/models/port/**
   - platform/src/models/adapters/**
@@ -1008,6 +1179,7 @@ packages:
   - platform/src/observability/catalog/models.ts
   - docs/adr/proposed/WP-08-*
   - docs/security/threats/proposed/WP-08-*
+  - docs/privacy/data-flows/proposed/WP-08-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -1015,14 +1187,14 @@ packages:
   - 'Adapters: OpenAI Responses (streaming, tool calls, refusal, usage), Bedrock ConverseStream (tool use, cancellation, guardrail/refusal mapping), OpenAI-compatible vLLM variant with its tool-parser settings; refusal classifier and safe fallback (approved template or human route) on refusal, hang or overload.'
   - Protocol-exact emulators (OpenAI Responses SSE, Bedrock event stream) runnable in compose; a recorded-response provider for CI; real-model local profile requiring only a reviewed credential or licensed local weights.
   - Provider catalogue discovery command writing a dated snapshot of available model ids per configured account.
-  - Injection points and [FAULT:<id>] tests for MODEL_REFUSAL, MODEL_HANG and MODEL_OVERLOAD in the protocol-exact emulators.
+  - Injection points for MODEL_REFUSAL, MODEL_HANG and MODEL_OVERLOAD in the protocol-exact emulators (provider refusal, stalled stream, 429/503 with Retry-After), each with an adapter-level test of the typed result, deadline cancellation, breaker and Retry-After handling; the Layer-2 [FAULT:] runs that assert audio-side postconditions are WP-15 (MODEL_HANG) and WP-17 (MODEL_REFUSAL, MODEL_OVERLOAD).
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-08-threats.md (merged into docs/security/threat-model.md by the phase integration package).
   acceptance:
   - pnpm --filter @vsp/platform exec vitest run src/models (streaming, tool-call round trip, cancellation, refusal, timeout and breaker tests per adapter against the emulators)
   - make up PROFILE=core,models && make test-integration SUITE=models
   - with no credential configured, the real-model profile reports NOT_CONFIGURED and makes no network call (test asserts zero outbound requests)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [DATA-01] [OPS-05] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:MODEL_HANG] [FAULT:MODEL_OVERLOAD] [FAULT:MODEL_REFUSAL] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:MODEL_HANG] (run by WP-15), [FAULT:MODEL_OVERLOAD] (run by WP-17), [FAULT:MODEL_REFUSAL] (run by WP-17); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - AIN-26 (provider accounts and data controls), AIN-49 (BAA and retention per model endpoint and region), AIN-02 (BAA before PHI), AIN-27 (GPU for self-hosted vLLM), AIN-30 (paid calls).
   notes: []
@@ -1076,6 +1248,7 @@ packages:
   - OPS-04
   - OPS-06
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/src/models/registry/**
   - platform/src/models/qualify/**
@@ -1087,6 +1260,7 @@ packages:
   - evidence/models/**
   - docs/adr/proposed/WP-09-*
   - docs/security/threats/proposed/WP-09-*
+  - docs/privacy/data-flows/proposed/WP-09-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -1097,6 +1271,7 @@ packages:
   - 'Champion/challenger fields: absent results select no champion.'
   - 'Section 23 constraints: verification date and source on every API/model/licence detail; separate licence fields for code, weights, voice and dataset artifacts; capability fields (context window, quotas, endpoints) stay UNVERIFIED until a dated source is recorded; revisions and weight digests pinned and bound into the release manifest (FO-23-01, FO-23-03, FO-23-12, FO-23-13).'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-09-threats.md (merged into docs/security/threat-model.md by the phase integration package).
+  - 'MODEL_VERSION hook (FO-14-41a): every registry entry carries the version label that the MODEL_VERSION kill switch targets, and role resolution exposes the next entry of the approved fallback graph (or none) for a blocked version.'
   acceptance:
   - pnpm --filter @vsp/platform exec vitest run src/models/registry src/models/qualify src/config
   - tsx scripts/vsp/model-qualify.mts --model <emulator-entry> --profile emulator produces a bake-off report under evidence/models/ and exits 0; with no results the report states NO_CHAMPION
@@ -1168,6 +1343,7 @@ packages:
   - SAFE-01
   - SAFE-03
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/src/harness/**
   - platform/src/prompts/**
@@ -1175,6 +1351,7 @@ packages:
   - platform/src/observability/catalog/harness.ts
   - docs/adr/proposed/WP-10-*
   - docs/security/threats/proposed/WP-10-*
+  - docs/privacy/data-flows/proposed/WP-10-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -1185,6 +1362,7 @@ packages:
   - 'ModelInvocation/ModelDecision audit with minimized metadata and no raw hidden reasoning; one complete real model path: config -> adapter -> harness -> gateway tools -> SpeechPlan.'
   - 'Not-yet-triggered constraints become tested at the first model path: clinical-boundary output validation on generated speech (FO-00-32, FO-13-10), model narratives and summaries never stored as facts (FO-04-19, FO-04-47), model proposals cannot set actor, authority, fees or success (FO-11-03), declarative profiles never become model-callable operations (FO-06-24), structured decision summaries without raw reasoning (FO-15-35), no general coding/data tools (FO-23-11).'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-10-threats.md (merged into docs/security/threat-model.md by the phase integration package).
+  - 'MODEL_VERSION consumer (FO-14-41a): harness role resolution asks a module-local VersionGate port about the bound model version (the harness does not import platform/src/ops: WP-06 import allowlist; WP-17 implements the port with killSwitchBlock) and on a blocked version uses the WP-09 fallback entry, or the approved template or human route when none is approved; unit tests engage and release the switch.'
   acceptance:
   - pnpm --filter @vsp/platform exec vitest run src/harness (budget exhaustion, allowlist refusal, prompt-injection channel separation, specialist cannot commit)
   - make up PROFILE=core,models && make test-integration SUITE=harness (multi-step investigation over the emulator produces proposals only; gateway enforces scope even when the model proposes otherwise)
@@ -1220,8 +1398,8 @@ packages:
   - FO-22-16
   regressionIds: []
   counts:
-    MISSING: 13
-    IMPLEMENTED: 2
+    MISSING: 12
+    IMPLEMENTED: 3
     regression: 0
   capabilityIds:
   - voice.media_runtime
@@ -1230,6 +1408,9 @@ packages:
   - DATA-03
   - SAFE-02
   faultObligations: []
+  faultInjectionPoints:
+  - fault: RECORDING_REFUSED
+    runBy: WP-25
   owns:
   - media/src/worker/**
   - media/src/lifecycle/**
@@ -1245,18 +1426,23 @@ packages:
   - platform/src/protocol/call-binding.ts
   - platform/src/calls/binding/**
   - docs/security/threats/proposed/WP-11-*
+  - docs/privacy/data-flows/proposed/WP-11-*
+  - media/src/recording/**
   ownsGroups: []
   excludes: []
   deliverables:
-  - media/ Node worker on the LiveKit server SDK and RTC client (Python worker only if a required plugin demands it, recorded in an ADR superseding ADR-0006).
+  - 'media/ worker on the LiveKit Agents Node framework pinned by WP-03, against self-hosted livekit-server and livekit-sip: it registers as an Agents worker, accepts room jobs and takes room, participant and audio-track handling from the framework, while tool calls, budgets and typed state stay in the WP-10 harness behind the gateway (ADR-0018 decision 1.1 and its rejected alternative "LiveKit Agents'' own model and tool orchestration"). A Python worker is added only when a required supported plugin does not exist for Node at the pinned version, and only for that function; the verified plugin list (VAD, turn detection) and any such exception are recorded in docs/adr/proposed/WP-11-* (FO-03-18, ADR-0018 open item 2).'
   - Codec conversion G.711 mu-law/A-law 8 kHz, Opus and PCM 16/24 kHz with resampling tests from ffmpeg-generated fixtures.
   - Call lifecycle (join, participant changes, hold, transfer leg, hang-up) calling SessionService and invalidating pending speech/actions; playback controls (slower, repeat).
   - CallBinding store and issuance in platform/src/calls/binding (contract in platform/src/protocol/call-binding.ts) between the media worker and the control plane, bound to carrier interaction id and session generation; recovery after worker crash rebinds by carrier interaction id with a new generation or routes to a human.
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-11-threats.md (merged into docs/security/threat-model.md by the phase integration package).
+  - 'Consent-driven recording and processing control on the media path (media/src/recording): LiveKit egress recording and the transcription and analysis taps start only when the call''s recording and AI-processing consent dimensions, delivered with the CallBinding through the generated gateway client, are GRANTED or NOT_REQUIRED (UNKNOWN is not consent), stop at the next frame boundary on decline or revocation, and never report a call as unrecorded while a tap still runs; the actual state (recording, transcription, analysis, consent dimension and version, disclosure template id, changedAt) is exposed as a typed MediaProcessingState readout in platform/src/protocol/call-binding.ts, read by tests from the worker and the LiveKit egress API independently of the platform''s own record; a mismatch with the disclosed state routes the call to a human. This is the injection point for RECORDING_REFUSED and what J12 (WP-25) and CONSENT_REVOKED (WP-30) assert against; positive, adversarial and failure-injection tests tagged [DATA-03].'
   acceptance:
   - pnpm --filter @vsp/media exec vitest run (codec round trips, lifecycle state machine)
-  - make up PROFILE=core,media && make test-integration SUITE=media (synthetic participant joins a LiveKit room, audio frames flow both ways, worker restart yields a new generation)
+  - make up PROFILE=core,media && make test-integration SUITE=media (the worker registers with livekit-server as an Agents worker and receives the room job; synthetic participant joins a LiveKit room, audio frames flow both ways, worker restart yields a new generation)
+  - 'make test-integration SUITE=media FILTER=recording (caller declines recording: LiveKit egress stops and the MediaProcessingState readout shows recording and transcription off; a forced mismatch routes to a human)'
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-03] [DATA-03] [SAFE-02] pass in this package''s own suites.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:RECORDING_REFUSED] (run by WP-25); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - AIN-46 (security review of the self-hosted media plane) before non-local use; none locally (livekit-server image pulls).
   notes: []
@@ -1292,6 +1478,9 @@ packages:
   - SAFE-05
   - OPS-02
   faultObligations: []
+  faultInjectionPoints:
+  - fault: BRIDGE_DROPPED
+    runBy: WP-28
   owns:
   - media/src/sip/**
   - deploy/local/sip/**
@@ -1300,6 +1489,7 @@ packages:
   - platform/src/config/rules/sip.ts
   - docs/adr/proposed/WP-12-*
   - docs/security/threats/proposed/WP-12-*
+  - docs/privacy/data-flows/proposed/WP-12-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -1312,6 +1502,7 @@ packages:
   acceptance:
   - make up PROFILE=core,media,sip && make test-integration SUITE=sip (inbound INVITE answered, RTP both ways, unauthenticated peer refused, DTMF digits absent from transcript/log/recording artifacts)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-01] [AUTH-06] [SAFE-02] [SAFE-05] [OPS-02] pass in this package''s own suites.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:BRIDGE_DROPPED] (run by WP-28); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - AIN-18 (PSTN test calls), AIN-50 (reference-route carrier trunk and numbers), AIN-46 (media-plane security review) and AIN-47 (SIP/TURN certificates and DNS) for PSTN and non-local use; no live call is placed without them.
   notes: []
@@ -1337,11 +1528,9 @@ packages:
   - FO-10-19
   - FO-10-39
   - FO-15-12
-  - FO-17-24.ASR_FAILURE
-  - FO-17-24.TTS_FAILURE
   regressionIds: []
   counts:
-    MISSING: 12
+    MISSING: 10
     IMPLEMENTED: 2
     regression: 0
   capabilityIds:
@@ -1351,9 +1540,14 @@ packages:
   - AUTH-06
   - DATA-01
   - DATA-02
-  faultObligations:
-  - ASR_FAILURE
-  - TTS_FAILURE
+  faultObligations: []
+  faultInjectionPoints:
+  - fault: ASR_FAILURE
+    runBy: WP-15
+  - fault: INTERRUPTED_CONFIRMATION
+    runBy: WP-14
+  - fault: TTS_FAILURE
+    runBy: WP-15
   owns:
   - media/src/speech/**
   - sidecars/speech/**
@@ -1361,20 +1555,21 @@ packages:
   - platform/test/integration/speech/**
   - docs/adr/proposed/WP-13-*
   - docs/security/threats/proposed/WP-13-*
+  - docs/privacy/data-flows/proposed/WP-13-*
   ownsGroups: []
   excludes: []
   deliverables:
   - ASR sidecar (faster-whisper/CTranslate2 with whisper-large-v3-turbo or a smaller qualified model on CPU) plus a managed streaming ASR adapter behind an AsrPort; chunked buffering and partial stability.
-  - Silero VAD on its ONNX runtime; endpointing combining VAD, ASR partial stability and timing; long-pause, stutter and speech-impairment tolerances; backchannel versus interruption classification; barge-in detection calling the existing bargeIn logic and flushing provider and local buffers.
+  - Silero VAD through the LiveKit Agents Silero plugin pinned by WP-03 (ONNX runtime) and turn detection through the Agents turn-detector plugin, or, where a plugin is unavailable for Node at the pinned version, the function-scoped Python worker of ADR-0018 decision 1.1; endpointing combining VAD, ASR partial stability and timing; long-pause, stutter and speech-impairment tolerances; backchannel versus interruption classification; barge-in detection calling the existing bargeIn logic and flushing provider and local buffers.
   - TtsPort with Kokoro-82M local sidecar and one managed TTS adapter; pronunciation and number controls.
   - Classification and egress rules for the audio path (volunteered clinical speech makes the path sensitive); static check that no prosody/emotion feature is exported.
-  - Injection points and [FAULT:<id>] tests for ASR_FAILURE and TTS_FAILURE.
+  - 'Injection points for ASR_FAILURE and TTS_FAILURE in the sidecars and managed adapters (sidecar stopped, no partials, failure mid-utterance), each with an adapter-level test; their Layer-2 [FAULT:] runs, which assert the safety signal, the human offer and the fallback clip, are WP-15''s. VOICE_VERSION hook (FO-14-41a): TTS voice selection checks the voice version against the switch decision the control plane serves through the generated gateway client (media/ does not import platform/src/ops) and on a blocked version uses an approved alternative voice or the fallback clip.'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-13-threats.md (merged into docs/security/threat-model.md by the phase integration package).
   acceptance:
   - 'make up PROFILE=core,media,speech && make test-integration SUITE=speech (ffmpeg/TTS-generated fixtures: endpointing, barge-in flush, pause tolerance)'
   - pnpm --filter @vsp/media exec vitest run src/speech
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-01] [AUTH-06] [DATA-01] [DATA-02] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:ASR_FAILURE] [FAULT:TTS_FAILURE] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:ASR_FAILURE] (run by WP-15), [FAULT:INTERRUPTED_CONFIRMATION] (run by WP-14), [FAULT:TTS_FAILURE] (run by WP-15); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - AIN-26/AIN-49 for managed ASR/TTS (BAA and retention per endpoint and region); AIN-27 for real-time GPU throughput; AIN-28 for voice rights.
   notes: []
@@ -1435,6 +1630,7 @@ packages:
   faultObligations:
   - AUTH_EXPIRY_DURING_SPEECH
   - INTERRUPTED_CONFIRMATION
+  faultInjectionPoints: []
   owns:
   - platform/src/voice/**
   - media/src/egress/**
@@ -1451,7 +1647,9 @@ packages:
   - platform/src/calls/lease/**
   - talkdesk/expected-config.yaml
   - docs/security/threats/proposed/WP-14-*
-  ownsGroups: []
+  - docs/privacy/data-flows/proposed/WP-14-*
+  ownsGroups:
+  - gateway
   excludes: []
   deliverables:
   - SpeechPlan (superset of SpeechDirective) and AudioReleaseReceipt emitted from the only egress in the media worker; approved content/audio digest and actual playback status (completed/cut off) recorded.
@@ -1478,6 +1676,7 @@ packages:
   - WP-12
   - WP-14
   - WP-09
+  - WP-10
   earliestWave: 9
   requirementIds:
   - FO-01-28
@@ -1499,6 +1698,10 @@ packages:
   - FO-13-35
   - FO-15-47
   - FO-16-57
+  - FO-17-24.MODEL_HANG
+  - FO-17-24.ASR_FAILURE
+  - FO-17-24.TTS_FAILURE
+  - FO-17-24.LOCAL_PERSISTENCE_FAILURE
   - FO-17-24.GUARDRAIL_LIMIT
   - FO-17-31
   - FO-19-12
@@ -1513,10 +1716,13 @@ packages:
   - FO-13-06
   - FO-13-09
   counts:
-    MISSING: 17
+    MISSING: 21
     IMPLEMENTED: 8
     regression: 6
   capabilityIds:
+  - platform.substrate
+  - models.providers
+  - voice.speech
   - safety.routing
   - continuity.ai_off
   - journeys.end_to_end
@@ -1526,7 +1732,12 @@ packages:
   - SAFE-03
   - OPS-02
   faultObligations:
+  - ASR_FAILURE
   - GUARDRAIL_LIMIT
+  - LOCAL_PERSISTENCE_FAILURE
+  - MODEL_HANG
+  - TTS_FAILURE
+  faultInjectionPoints: []
   owns:
   - platform/src/safety/**
   - media/src/fallback/**
@@ -1543,6 +1754,7 @@ packages:
   - docs/RUNBOOKS/ai-off-route.md
   - docs/RUNBOOKS/dependency-outage.md
   - docs/security/threats/proposed/WP-15-*
+  - docs/privacy/data-flows/proposed/WP-15-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -1553,12 +1765,13 @@ packages:
   - J11 (safety without authentication, indirect/uncertain speech, ASR/judge failure, after-hours; the failed-transfer leg is WP-28) and J13 (unsupported language, impairment, relay) in local protocol-realistic mode.
   - 'Procedure records (FO-13-11): schema with procedure kind, jurisdiction, version, digest and CLINICAL_SCRIPTS approval ref referenced by the per-procedure configuration; preflight refuses safety routing outside local without a verified record. GUARDRAIL_LIMIT injection point and [FAULT:GUARDRAIL_LIMIT] test.'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-15-threats.md (merged into docs/security/threat-model.md by the phase integration package).
+  - 'Layer-2 fault runs on the safety and continuity path: [FAULT:ASR_FAILURE] and [FAULT:TTS_FAILURE] (WP-13 injection points: the safety signal is UNRESOLVED where relevant and a human is offered; the pre-rendered fallback clip plays and no protected content is improvised), [FAULT:MODEL_HANG] (WP-08 emulator stall through the WP-10 harness deadline: the call is cancelled, the breaker opens, the approved fallback plays and safety routing is unaffected) and [FAULT:LOCAL_PERSISTENCE_FAILURE] (WP-04 postgres:16 stopped or read-only: protected reads and writes are refused, no mutation is acknowledged and the SIP continuity route stays usable). WP-15 depends on WP-10 so that the ConversationGuard hook and the hang run use the real harness.'
   acceptance:
   - pnpm --filter @vsp/platform exec vitest run src/safety
   - 'make up PROFILE=core,media,sip,speech && make test-integration SUITE=safety (TTS and model stopped: the safety clip plays and the route starts within 2 s; AI health down: SIP dispatch reaches the human queue)'
   - make test-integration SUITE=journeys FILTER=j11,j13
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [ACT-05] [SAFE-02] [SAFE-03] [OPS-02] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:GUARDRAIL_LIMIT] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:ASR_FAILURE] [FAULT:GUARDRAIL_LIMIT] [FAULT:LOCAL_PERSISTENCE_FAILURE] [FAULT:MODEL_HANG] [FAULT:TTS_FAILURE] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
   - AIN-21 and AIN-22 (approved procedures, wording, lexicon and clips), AIN-19/AIN-20 (independent route and staffed safety queues), AIN-28 (WildGuard gated terms).
   notes: []
@@ -1597,12 +1810,14 @@ packages:
   - SAFE-01
   - SAFE-02
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - media/src/native/**
   - platform/src/models/native/**
   - platform/test/integration/native/**
   - docs/adr/proposed/WP-16-*
   - docs/security/threats/proposed/WP-16-*
+  - docs/privacy/data-flows/proposed/WP-16-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -1610,6 +1825,7 @@ packages:
   - 'Mode-switch controller: one active output track per call, generation bump on switch, provider and local buffer flush; classes that cannot be pre-emission controlled are routed to the controlled cascade; native audio behind a buffer is checked against authorized facts and protected slots.'
   - Context scoping per mode; native continuity/latency qualification suite and opt-in native-audio experiment profile (open-weight candidates) that is never marketed as protected-ready.
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-16-threats.md (merged into docs/security/threat-model.md by the phase integration package).
+  - 'VOICE_VERSION hook (FO-14-41a), from the switch decision served through the generated gateway client: a native session is not started for an engaged voice version, and an active one switches to the controlled cascade with generation bump and buffer flush.'
   acceptance:
   - 'make up PROFILE=core,media,models && make test-integration SUITE=native (emulated native session: protected class forces controlled path; switch flushes buffers with no overlapping audio; protected context never appears in the native session payload)'
   - 'make test-integration SUITE=native FILTER=delegation (GPT-Live client delegation: every backend call reaches the gateway through the harness with the trusted CallBinding and the conversation_runtime channel; a delegated call without it is refused)'
@@ -1643,6 +1859,9 @@ packages:
   - FO-10-54
   - FO-13-31
   - FO-13-32
+  - FO-14-41a
+  - FO-17-24.MODEL_REFUSAL
+  - FO-17-24.MODEL_OVERLOAD
   - FO-17-32
   - FO-17-33
   - FO-17-34
@@ -1654,17 +1873,23 @@ packages:
   - FO-22-30
   regressionIds: []
   counts:
-    MISSING: 16
+    MISSING: 19
     IMPLEMENTED: 4
     regression: 0
   capabilityIds:
+  - models.providers
+  - models.registry
+  - voice.native
   - voice.cascade
   - journeys.end_to_end
   invariantObligations:
   - AUTH-06
   - DATA-02
   - ACT-05
-  faultObligations: []
+  faultObligations:
+  - MODEL_OVERLOAD
+  - MODEL_REFUSAL
+  faultInjectionPoints: []
   owns:
   - media/src/cascade/**
   - platform/test/audio/**
@@ -1686,23 +1911,34 @@ packages:
   - traceability
   - threat-model
   - journeys-harness
+  - ops
+  - media
+  - gateway
+  - lint
+  - data-flows
   excludes:
   - policy/vsp/privacy.rego
   - policy/vsp/privacy_test.rego
+  - platform/src/policy/input.ts
+  - platform/src/policy/input.test.ts
   deliverables:
-  - 'Voice mode A wiring: streaming ASR -> harness -> SpeechPlan validation -> controlled TTS/audio queue, default for protected facts.'
+  - 'Voice mode A wiring: streaming ASR -> harness -> SpeechPlan validation -> controlled TTS/audio queue, default for protected facts; the ASR and transcript taps run only while the WP-11 MediaProcessingState reports processing on.'
   - 'Audio journey test in compose: synthetic caller (TTS-generated audio over SIP) completes a verified read and a confirmed commit against the reference-business-api container (WP-23), not an in-process fixture; J01 public guidance with recovery from a malicious turn.'
   - test-audio command; audio evidence kept separately as actual audio, model transcript and independent ASR transcript (RESTRICTED_QA_MEDIA handling); readout listen-back suite for protected templates x slot types.
   - Timestamps for ASR, reasoning, tools, validation, synthesis, buffers and network; vsp_turn_latency_ms and barge-in stop metrics with measurement-path labels (local loop is never reported as PSTN latency); priority-route initiation and utterance-to-detection timing.
   - Phase C integration of shared files, schemas, compose profiles, Makefile targets and ledgers.
-  - Phase C merge of the threat-row fragments docs/security/threats/proposed/WP-{08..16}-*.md into docs/security/threat-model.md.
+  - Phase C merge of the threat-row fragments docs/security/threats/proposed/WP-{08..16}-*.md into docs/security/threat-model.md and of the data-flow fragments docs/privacy/data-flows/proposed/WP-{08..16}-*.md into docs/privacy/data-flow-inventory.md.
+  - 'ops shared group (phase C owner) and FO-14-41a: the composition root implements the WP-10 VersionGate port with killSwitchBlock and the gateway serves voice-version switch decisions to the media worker, so the WP-09/WP-10 MODEL_VERSION and WP-13/WP-16 VOICE_VERSION hooks are live; composed cascade and native tests engage and release both switches, and SAFETY and HUMAN_ROUTE stay unblocked.'
+  - 'Layer-2 fault runs through the composed cascade: [FAULT:MODEL_REFUSAL] (WP-08 emulator refusal: an approved template or the human route is spoken and no model text reaches the audio queue) and [FAULT:MODEL_OVERLOAD] (bounded retries within Retry-After; platform/src/ops/admission.ts gains a model-work admission class shed before PROTECTED_READ; the safe route stays usable).'
   acceptance:
   - make up PROFILE=core,media,sip,speech,models && make test-audio (exit 0; evidence/audio/<runId>.json lists per-stage latency and receipts)
   - make test-integration SUITE=journeys FILTER=j01
   - invariant tests at the audio boundary for ACT-05, AUTH-06 and DATA-02 pass (platform/test/audio/invariants)
   - pnpm test && pnpm typecheck && pnpm lint && pnpm --filter @vsp/platform schemas:check
   - make up PROFILE=core,media,sip,speech,models,domain && make test-integration SUITE=journeys FILTER=audio-to-action (the commit is verified by reading the reference business API)
+  - make test-integration SUITE=audio FILTER=version-kill-switches (MODEL_VERSION and VOICE_VERSION engaged and released on the composed cascade and native paths; SAFETY and HUMAN_ROUTE unaffected; unreadable switch state fails closed for nonessential work) (FO-14-41a)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-06] [DATA-02] [ACT-05] pass in this package''s own suites.'
+  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:MODEL_OVERLOAD] [FAULT:MODEL_REFUSAL] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
   - AIN-18 for handset/PSTN latency; AIN-31 consented human voices (synthetic TTS audio locally).
   notes: []
@@ -1744,6 +1980,9 @@ packages:
   invariantObligations:
   - DATA-04
   faultObligations: []
+  faultInjectionPoints:
+  - fault: CONTRADICTORY_EVENT
+    runBy: WP-24
   owns:
   - platform/src/context/timeline/**
   - platform/src/context/facts/**
@@ -1756,6 +1995,7 @@ packages:
   - platform/src/observability/catalog/context.ts
   - docs/adr/proposed/WP-18-*
   - docs/security/threats/proposed/WP-18-*
+  - docs/privacy/data-flows/proposed/WP-18-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -1768,6 +2008,7 @@ packages:
   - make up PROFILE=core && make test-integration SUITE=context-store (duplicate/reordered/backfilled events converge; projection p95 under 5 s in the local profile is reported, not claimed for tenants)
   - pnpm --filter @vsp/platform exec vitest run src/context
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [DATA-04] pass in this package''s own suites.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:CONTRADICTORY_EVENT] (run by WP-24); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - 'AIN-38: tenant event feeds and stream access for real sources.'
   notes: []
@@ -1793,8 +2034,7 @@ packages:
   - FO-07-15
   - FO-11-27
   - FO-12-17
-  - FO-17-24.SOURCE_MERGED
-  - FO-17-24.SOURCE_SPLIT
+  - FO-17-24.DELEGATION_REVOKED
   - FO-19-16
   - FO-19-24
   - FO-20-08
@@ -1807,19 +2047,26 @@ packages:
   - FO-05-35
   - FO-12-16
   counts:
-    MISSING: 13
+    MISSING: 12
     IMPLEMENTED: 7
     regression: 4
   capabilityIds:
   - identity.caller
   - authority.registries
+  - evaluation.test_truth
   - journeys.end_to_end
   invariantObligations:
   - AUTH-01
   - AUTH-05
   faultObligations:
-  - SOURCE_MERGED
-  - SOURCE_SPLIT
+  - DELEGATION_REVOKED
+  faultInjectionPoints:
+  - fault: CONSENT_REVOKED
+    runBy: WP-30
+  - fault: SOURCE_MERGED
+    runBy: WP-24
+  - fault: SOURCE_SPLIT
+    runBy: WP-24
   owns:
   - platform/src/entity/**
   - platform/src/connectors/authority/**
@@ -1831,20 +2078,22 @@ packages:
   - platform/test/journeys/j09-*
   - docs/adr/proposed/WP-19-*
   - docs/security/threats/proposed/WP-19-*
+  - docs/privacy/data-flows/proposed/WP-19-*
   ownsGroups: []
   excludes: []
   deliverables:
   - IdentityLink store and resolver (closed enum of allowed link evidence; no fuzzy email/name/phone, shared-device, CDP alias or model inference), identity_link_quarantine with review, reversible merge/split with cache invalidation fan-out, graph classified as sensitive.
   - 'Live connectors on the connector runtime: IdentityDirectory (SCIM 2.0 or tenant REST, exact-match lookup), RelationshipDirectory (REST or FHIR PractitionerRole/RelatedPerson, validity intervals, guardianship), ConsentRegistry and AccountStateLookup; emulators for each.'
   - Recheck under durable grants uses the live adapters; reviewable matching for ambiguous repeat contact.
-  - J08 partner/payer scoping and J09 minor/proxy ambiguity journeys in local protocol-realistic mode.
-  - Voice familiarity, CDP aliases and model inference never raise assurance or create links (FO-05-23); injection points and [FAULT:<id>] tests for SOURCE_MERGED and SOURCE_SPLIT.
+  - J08 partner/payer scoping and J09 minor/proxy ambiguity journeys in local protocol-realistic mode; J09 ends in a routed handoff to the authorized-specialist destination class with an accountable owner, and its accepted-transfer leg (FO-20-09a, journey j09b) is run by WP-30 on the WP-28 receiver client.
+  - 'Voice familiarity, CDP aliases and model inference never raise assurance or create links (FO-05-23); injection points for SOURCE_MERGED and SOURCE_SPLIT in the identity-directory emulator (their Layer-2 runs are WP-24''s, which owns the context caches) and for a consent-registry revocation (CONSENT_REVOKED, run by WP-30); the relationship-directory revocation injection point with its Layer-2 [FAULT:DELEGATION_REVOKED] test (PgWorkflowEngine on postgres:16 with the live RelationshipDirectory in the recheck under durable grants: the pending disclosure or action is refused and POLICY_CHANGED_PENDING_ACTION is recorded; nothing is disclosed).'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-19-threats.md (merged into docs/security/threat-model.md by the phase integration package).
   acceptance:
   - make up PROFILE=core && make test-integration SUITE=entity (expired delegation denied without disclosure; ambiguous link quarantined; merge invalidates caches)
   - make test-integration SUITE=journeys FILTER=j08,j09
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-01] [AUTH-05] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:SOURCE_MERGED] [FAULT:SOURCE_SPLIT] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:DELEGATION_REVOKED] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:CONSENT_REVOKED] (run by WP-30), [FAULT:SOURCE_MERGED] (run by WP-24), [FAULT:SOURCE_SPLIT] (run by WP-24); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - 'AIN-12 and AIN-14: authoritative identity, relationship, partner and consent systems of record.'
   notes: []
@@ -1878,6 +2127,7 @@ packages:
   - FO-08-13
   - FO-08-14
   - FO-08-15
+  - FO-08-16
   - FO-08-18
   - FO-08-20
   - FO-08-21
@@ -1892,12 +2142,11 @@ packages:
   regressionIds:
   - FO-08-05
   - FO-08-06
-  - FO-08-16
   - FO-08-19
   counts:
     MISSING: 17
-    IMPLEMENTED: 14
-    regression: 4
+    IMPLEMENTED: 15
+    regression: 3
   capabilityIds:
   - knowledge.retrieval
   invariantObligations:
@@ -1907,6 +2156,7 @@ packages:
   - OPS-06
   faultObligations:
   - KNOWLEDGE_STALE
+  faultInjectionPoints: []
   owns:
   - platform/src/knowledge/**
   - platform/src/connectors/knowledge/**
@@ -1922,6 +2172,7 @@ packages:
   - docs/adr/proposed/WP-20-*
   - docs/RUNBOOKS/knowledge-release.md
   - docs/security/threats/proposed/WP-20-*
+  - docs/privacy/data-flows/proposed/WP-20-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -1930,11 +2181,13 @@ packages:
   - Self-hosted CPU embedding and reranker sidecar (bge-m3 / bge-reranker-v2-m3 or a smaller qualified pair, ONNX) registered in the model registry; pgvector hybrid retrieval with filters before ranking; jurisdiction from the trusted AuthContext.
   - GroundingVerifier and KnowledgeCitation with exact version and span; typed CONFLICT/EXPIRED/JURISDICTION reasons; retrieval evaluation (recall@k, ranking, citation and source-version accuracy, negative retrieval, poisoning) with per-domain tuning profiles.
   - KNOWLEDGE_STALE [FAULT:KNOWLEDGE_STALE] test over the real ingestion path; group and organization ACLs on items (FO-08-03); document byte caps before parsing (FO-08-08); approval bound to an authenticated reviewer and a measured poisoning evaluation set (FO-08-09).
+  - 'Transaction data kept out of knowledge (FO-08-16): ingestion detects transaction data (amounts tied to an account, invoice, claim, account and member identifier shapes) with its own quarantine reason and adversarial corpus cases; GroundingVerifier refuses a FINANCIAL_FACT or PROTECTED_FACT slot whose source is a KnowledgeCitation instead of a tool result.'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-20-threats.md (merged into docs/security/threat-model.md by the phase integration package).
   acceptance:
   - pnpm --filter @vsp/platform exec vitest run src/knowledge src/grounding src/evaluation/retrieval
   - make up PROFILE=core,retrieval && make test-integration SUITE=knowledge (malicious attachment quarantined; unapproved item never served; deleted source purged from embeddings)
   - retrieval evaluation report written under evidence/evaluation/retrieval/ with recall@k and citation accuracy
+  - pnpm --filter @vsp/platform exec vitest run src/knowledge src/grounding (a pasted invoice or balance is quarantined with the transaction-data reason; a balance grounded on a knowledge item is refused)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-05] [SAFE-01] [SAFE-05] [OPS-06] pass in this package''s own suites.'
   - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:KNOWLEDGE_STALE] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
@@ -1980,6 +2233,9 @@ packages:
   - AUTH-05
   - DATA-01
   faultObligations: []
+  faultInjectionPoints:
+  - fault: STALE_SOURCE
+    runBy: WP-24
   owns:
   - platform/src/connectors/warehouse/**
   - platform/src/connectors/lakehouse/**
@@ -1991,6 +2247,7 @@ packages:
   - platform/test/integration/data/**
   - docs/adr/proposed/WP-21-*
   - docs/security/threats/proposed/WP-21-*
+  - docs/privacy/data-flows/proposed/WP-21-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -2003,6 +2260,7 @@ packages:
   - make up PROFILE=core,lakehouse && make test-integration SUITE=data (deleted row never returned; template outside registry refused; Snowflake emulator async/cancel paths)
   - pnpm --filter @vsp/platform exec vitest run src/connectors/warehouse src/connectors/lakehouse src/connectors/cdp
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-05] [DATA-01] pass in this package''s own suites.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:STALE_SOURCE] (run by WP-24); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - AIN-38 (Snowflake, Glue/Athena with Lake Formation, CDP workspace and privacy approval of the event contract).
   notes: []
@@ -2031,6 +2289,7 @@ packages:
   - FO-08-30
   - FO-08-31
   - FO-08-32
+  - FO-08-33
   - FO-08-34
   - FO-15-08
   - FO-15-09
@@ -2039,34 +2298,33 @@ packages:
   - FO-15-30
   - FO-15-32
   - FO-15-57
-  - FO-17-24.REDACTION_FAILURE
-  - FO-17-24.SOURCE_DELETED
   - FO-19-18
   - FO-19-83
-  - FO-20-17
   - FO-22-12
   regressionIds:
   - FO-01-20
   - FO-05-48
   - FO-08-25
   - FO-08-26
-  - FO-08-33
   - FO-15-16
-  - FO-15-31
   counts:
-    MISSING: 22
-    IMPLEMENTED: 6
-    regression: 7
+    MISSING: 19
+    IMPLEMENTED: 7
+    regression: 5
   capabilityIds:
   - privacy.operations
-  - journeys.end_to_end
   invariantObligations:
   - DATA-02
   - DATA-03
   - DATA-04
-  faultObligations:
-  - REDACTION_FAILURE
-  - SOURCE_DELETED
+  faultObligations: []
+  faultInjectionPoints:
+  - fault: CONSENT_REVOKED
+    runBy: WP-30
+  - fault: REDACTION_FAILURE
+    runBy: WP-35
+  - fault: SOURCE_DELETED
+    runBy: WP-24
   owns:
   - platform/src/memory/**
   - platform/src/privacy/**
@@ -2074,10 +2332,10 @@ packages:
   - platform/src/privacy-ops/**
   - policy/vsp/privacy.rego
   - policy/vsp/privacy_test.rego
+  - platform/src/policy/input.ts
   - scripts/vsp/privacy-delete.mts
   - platform/migrations/222*
   - platform/test/integration/privacy/**
-  - platform/test/journeys/j17-*
   - docs/privacy/retention-matrix.md
   - docs/adr/proposed/WP-22-*
   - docs/RUNBOOKS/phi-exposure.md
@@ -2086,6 +2344,7 @@ packages:
   - docs/compliance/jurisdiction-matrix.yaml
   - docs/compliance/jurisdiction-matrix.schema.json
   - docs/security/threats/proposed/WP-22-*
+  - docs/privacy/data-flows/proposed/WP-22-*
   ownsGroups: []
   excludes:
   - platform/src/privacy/egress.ts
@@ -2094,17 +2353,18 @@ packages:
   - Consent model with distinct recording, AI processing, support purpose, disclosure authority, notification and marketing dimensions and states GRANTED/DECLINED/UNKNOWN/EXPIRED/NOT_REQUIRED with expiresAt; jurisdiction and Part 2 program/record attributes in policy input with fail-restrictive defaults.
   - 'Revocation consumers: sessions, caches, memory (suppressSubject), projections and pending work; memory versions with correction history, allowedPurposes, prohibited inference stems, per-entry deletion.'
   - Deletion/correction/access/export orchestrator over the dataset registry (transcripts, audio, projections, summaries, embeddings, exports, vendor copies) with verifiers, tombstones checked on restore, signed per-class retention approvals, S3 quarantine store for raw audio and failed redaction; privacy-delete command.
-  - J17 consent or delegation revoked, or source corrected/deleted, while work is pending.
+  - Revocation and deletion consumers and events that J17 (FO-20-17, run by WP-25 once the WP-24 context caches exist) drives end to end; the PolicyInput builder platform/src/policy/input.ts (owned here in phase D, phase C integration excluded) carries the consent dimensions, jurisdiction and Part 2 attributes.
   - 'Machine-readable jurisdiction/processing-purpose matrix: docs/compliance/jurisdiction-matrix.schema.json and docs/compliance/jurisdiction-matrix.yaml (all decisions UNKNOWN until counsel acts), a loader in platform/src/privacy-ops/jurisdiction feeding PolicyInput.jurisdiction and part2 with fail-restrictive defaults, and a check that fails on schema errors and rows past nextReviewBy (FO-15-57); WP-32 consumes staleness in readiness and WP-44 owns only the counsel-facing content.'
-  - Injection points and [FAULT:<id>] tests for REDACTION_FAILURE and SOURCE_DELETED; revocation events published for context caches (consumed by WP-24).
+  - Injection points for REDACTION_FAILURE (the redaction stage fails on a transcript segment, which is quarantined) and SOURCE_DELETED (a subject or source record deleted while work is pending; tombstones re-applied on restore), each with a local test; their Layer-2 runs are WP-35 (logs, analytics export and judge inputs) and WP-24 (context caches and snapshots); revocation propagation consumed by WP-24 and by the WP-30 [FAULT:CONSENT_REVOKED] run; revocation events published for context caches (consumed by WP-24).
+  - 'Cross-customer transcript guard (FO-08-33): a schema check over all migrations, in the dataset-registry tests, fails when a table, index or vector store holding transcript or caller-utterance text is not tenant- and subject-scoped under forced RLS, or is keyed across customers; it runs on every later migration (WP-13, WP-34 to WP-36).'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-22-threats.md (merged into docs/security/threat-model.md by the phase integration package).
   acceptance:
   - pnpm --filter @vsp/platform exec vitest run src/privacy src/memory src/retention src/privacy-ops; bash scripts/policy.sh test
-  - make up PROFILE=core && make test-integration SUITE=privacy (deleted subject absent from timeline, memory, embeddings and caches; restore of an older backup re-applies tombstones)
+  - make up PROFILE=core && make test-integration SUITE=privacy (deleted subject absent from timeline, memory, embeddings and the session and memory caches this package owns; restore of an older backup re-applies tombstones; the WP-24 ContextCacheKey caches are asserted by the WP-24 [FAULT:SOURCE_DELETED] run and by J17 in WP-25)
   - tsx scripts/vsp/privacy-delete.mts --subject <synthetic> --env local --dry-run lists every dataset; the real run verifies deletion
-  - make test-integration SUITE=journeys FILTER=j17
+  - pnpm --filter @vsp/platform exec vitest run src/retention (a fixture migration adding a cross-customer transcript index fails the schema check)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [DATA-02] [DATA-03] [DATA-04] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:REDACTION_FAILURE] [FAULT:SOURCE_DELETED] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:CONSENT_REVOKED] (run by WP-30), [FAULT:REDACTION_FAILURE] (run by WP-35), [FAULT:SOURCE_DELETED] (run by WP-24); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - AIN-25 (retention schedule and deletion policy), AIN-23/AIN-24 (consent matrix, jurisdiction determinations); vendor deletion paths need vendor APIs (AIN-09, AIN-38).
   notes: []
@@ -2157,6 +2417,17 @@ packages:
   - PARTIAL_WRITE
   - PROVIDER_API_TIMEOUT
   - SCHEDULING_UNAVAILABLE
+  faultInjectionPoints:
+  - fault: CHANGED_SLOT_DURING_CONFIRMATION
+    runBy: WP-25
+  - fault: CONCURRENT_SAME_ACCOUNT
+    runBy: WP-25
+  - fault: RECEIPT_LATE
+    runBy: WP-25
+  - fault: RECEIPT_LOST
+    runBy: WP-25
+  - fault: SCHEDULING_TIMEOUT_AFTER_COMMIT
+    runBy: WP-25
   owns:
   - platform/src/domain/**
   - services/reference-business-api/src/**
@@ -2166,6 +2437,7 @@ packages:
   - platform/test/integration/domain/**
   - docs/adr/proposed/WP-23-*
   - docs/security/threats/proposed/WP-23-*
+  - docs/privacy/data-flows/proposed/WP-23-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -2174,10 +2446,12 @@ packages:
   - HTTP adapters implementing read, prepare, commit, receipt and reconcile against the reference API with tenant mappings through the DSL; capability tests runnable by operators.
   - Injection points and [FAULT:<id>] tests in the reference business API for BILLING_TIMEOUT, CLAIMS_TIMEOUT, PROVIDER_API_TIMEOUT, SCHEDULING_UNAVAILABLE and PARTIAL_WRITE.
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-23-threats.md (merged into docs/security/threat-model.md by the phase integration package).
+  - 'Reusable seams in the reference business API for later Layer-2 runs: a slot-version change between read-back and commit (CHANGED_SLOT_DURING_CONFIRMATION, run by WP-25) and a shared appointment record for two concurrent commits (CONCURRENT_SAME_ACCOUNT, run by WP-25), plus the receipt-drop and late-receipt controls (RECEIPT_LOST, RECEIPT_LATE).'
   acceptance:
   - make up PROFILE=core,domain && make test-integration SUITE=domain (timeout-after-commit reconciled without duplicate; non-idempotent operation never blindly retried)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-02] [AUTH-05] [ACT-02] [ACT-03] pass in this package''s own suites.'
   - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:BILLING_TIMEOUT] [FAULT:CLAIMS_TIMEOUT] [FAULT:PARTIAL_WRITE] [FAULT:PROVIDER_API_TIMEOUT] [FAULT:SCHEDULING_UNAVAILABLE] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault injection points built here for Layer-2 runs owned by later packages: [FAULT:CHANGED_SLOT_DURING_CONFIRMATION] (run by WP-25), [FAULT:CONCURRENT_SAME_ACCOUNT] (run by WP-25), [FAULT:RECEIPT_LATE] (run by WP-25), [FAULT:RECEIPT_LOST] (run by WP-25), [FAULT:SCHEDULING_TIMEOUT_AFTER_COMMIT] (run by WP-25); each seam has a local test proving it produces the fault, and the owning package''s [FAULT:<id>] test drives it.'
   externalActivation:
   - AIN-10 (tenant domain APIs, sandboxes, idempotency semantics) and AIN-11 (approved contracts) for tenant activation.
   notes: []
@@ -2223,24 +2497,33 @@ packages:
   - FO-15-11
   - FO-17-24.STALE_SOURCE
   - FO-17-24.CONTRADICTORY_EVENT
+  - FO-17-24.SOURCE_DELETED
+  - FO-17-24.SOURCE_MERGED
+  - FO-17-24.SOURCE_SPLIT
   - FO-19-15
   - FO-20-04
   - FO-20-14
   regressionIds:
   - FO-07-40
   counts:
-    MISSING: 26
+    MISSING: 29
     IMPLEMENTED: 5
     regression: 1
   capabilityIds:
+  - authority.registries
   - context.assembly
+  - privacy.operations
   - journeys.end_to_end
   invariantObligations:
   - AUTH-05
   - DATA-04
   faultObligations:
   - CONTRADICTORY_EVENT
+  - SOURCE_DELETED
+  - SOURCE_MERGED
+  - SOURCE_SPLIT
   - STALE_SOURCE
+  faultInjectionPoints: []
   owns:
   - platform/src/context/assembly/**
   - platform/src/protocol/context-snapshot.ts
@@ -2252,6 +2535,7 @@ packages:
   - docs/adr/proposed/WP-24-*
   - platform/src/voice/gate.ts
   - docs/security/threats/proposed/WP-24-*
+  - docs/privacy/data-flows/proposed/WP-24-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -2261,14 +2545,14 @@ packages:
   - Per-call context subscription with versioned updates that invalidate stale proposed answers and pending confirmations, filtered by relevance; selection traces persisted for staff.
   - Gate freshness check for spoken facts (voice/freshness.ts); J04 invoice with recent payment absent from warehouse (live billing adapter from WP-23); J14 repeat contact with shared phone and wrong account protections.
   - 'Revocation-triggered invalidation: consent, delegation and identity-link revocation events (WP-22, WP-19) invalidate every ContextCacheKey and projection entry for the subject; J17 depends on it.'
-  - Gate checks in platform/src/voice/gate.ts verify KnowledgeCitation version and span through the WP-20 GroundingVerifier instead of presence (FO-08-37 gate part) and apply freshness budgets; memory never overrides current sources (FO-08-29); no protected context before authorization (FO-07-29); injection points and [FAULT:<id>] tests for STALE_SOURCE and CONTRADICTORY_EVENT.
+  - 'Gate checks in platform/src/voice/gate.ts verify KnowledgeCitation version and span through the WP-20 GroundingVerifier instead of presence (FO-08-37 gate part) and apply freshness budgets; memory never overrides current sources (FO-08-29); no protected context before authorization (FO-07-29); injection points and [FAULT:<id>] tests for STALE_SOURCE and CONTRADICTORY_EVENT; Layer-2 [FAULT:SOURCE_DELETED] (WP-22 deletion while work is pending: timeline, memory, embeddings and every ContextCacheKey entry drop the subject, later snapshots do not use it and tombstones survive a postgres:16 restore) and [FAULT:SOURCE_MERGED] and [FAULT:SOURCE_SPLIT] (WP-19 identity-directory merge and split: reviewed merge only, caches invalidated, links quarantined and nothing disclosed across the split).'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-24-threats.md (merged into docs/security/threat-model.md by the phase integration package).
   acceptance:
   - pnpm --filter @vsp/platform exec vitest run src/context/assembly src/voice
   - make up PROFILE=core,lakehouse && make test-integration SUITE=context-assembly (cached assembly p95 reported; stale warehouse fact triggers live lookup or honest unknown)
   - make test-integration SUITE=journeys FILTER=j04,j14
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-05] [DATA-04] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:CONTRADICTORY_EVENT] [FAULT:STALE_SOURCE] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:CONTRADICTORY_EVENT] [FAULT:SOURCE_DELETED] [FAULT:SOURCE_MERGED] [FAULT:SOURCE_SPLIT] [FAULT:STALE_SOURCE] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
   - AIN-10 and AIN-38 for real authoritative sources.
   notes: []
@@ -2307,6 +2591,8 @@ packages:
   - FO-11-32
   - FO-12-04
   - FO-12-15
+  - FO-17-24.CONCURRENT_SAME_ACCOUNT
+  - FO-17-24.CHANGED_SLOT_DURING_CONFIRMATION
   - FO-17-24.SCHEDULING_TIMEOUT_AFTER_COMMIT
   - FO-17-24.CRASH_AFTER_COMMIT
   - FO-17-24.RECEIPT_LOST
@@ -2315,6 +2601,7 @@ packages:
   - FO-20-02
   - FO-20-07
   - FO-20-12
+  - FO-20-17
   - FO-21-06
   regressionIds:
   - FO-11-01
@@ -2329,11 +2616,13 @@ packages:
   - FO-11-24
   - FO-11-29
   counts:
-    MISSING: 15
-    IMPLEMENTED: 16
+    MISSING: 17
+    IMPLEMENTED: 17
     regression: 11
   capabilityIds:
+  - privacy.operations
   - actions.effects
+  - evaluation.test_truth
   - journeys.end_to_end
   invariantObligations:
   - DATA-03
@@ -2342,11 +2631,14 @@ packages:
   - ACT-03
   - ACT-04
   faultObligations:
+  - CHANGED_SLOT_DURING_CONFIRMATION
+  - CONCURRENT_SAME_ACCOUNT
   - CRASH_AFTER_COMMIT
   - RECEIPT_LATE
   - RECEIPT_LOST
   - RECORDING_REFUSED
   - SCHEDULING_TIMEOUT_AFTER_COMMIT
+  faultInjectionPoints: []
   owns:
   - platform/src/actions/**
   - platform/src/business/**
@@ -2358,6 +2650,8 @@ packages:
   - platform/test/journeys/j02-*
   - platform/test/journeys/j07-*
   - platform/test/journeys/j12-*
+  - platform/test/journeys/j17-*
+  - docs/resolution-contracts.md
   - docs/RUNBOOKS/reconciliation-and-dlq-repair.md
   - docs/RUNBOOKS/duplicate-commit.md
   - platform/src/protocol/common.ts
@@ -2375,6 +2669,11 @@ packages:
   - traceability
   - threat-model
   - journeys-harness
+  - ops
+  - media
+  - gateway
+  - lint
+  - data-flows
   excludes:
   - platform/src/business/services/knowledge.ts
   - policy/vsp/privacy.rego
@@ -2384,16 +2683,17 @@ packages:
   - PreparedAction preconditions and source refs rechecked at commit; DISPATCHED state; outbox dispatch for asynchronous kinds; per-provider visibility windows; OperationCapabilities (idempotent, lookup-capable, neither) per provider operation; compensation only as explicit domain ActionKinds.
   - Reconcile budget with escalation to a WAITING_FOR_HUMAN task (no endless polling); ConfirmationReceipt with actorRef and expiry; ActionGrant purpose, action digest or parameter bounds, max uses and approval ref.
   - One controlled executor for domain commits, case upserts, notifications and transfers (ADR); issue-level outcomes (RESOLVED_WITH_EVIDENCE ... WAITING_FOR_*, reopened, partially resolved) append-only.
-  - J02 verified reschedule with conflict refresh and source verification; J07 provider onboarding/remittance with expired delegation and cross-practice denial (live relationship connector); J12 recording declined with actual recorder/processing state matching the disclosure on the media path; Phase D integration of all D modules into the live composition.
-  - Injection points and [FAULT:<id>] tests for CRASH_AFTER_COMMIT, SCHEDULING_TIMEOUT_AFTER_COMMIT, RECEIPT_LOST, RECEIPT_LATE and RECORDING_REFUSED.
-  - Phase D merge of the threat-row fragments docs/security/threats/proposed/WP-{18..24}-*.md into docs/security/threat-model.md.
+  - ? J02 verified reschedule with conflict refresh and source verification; J07 provider onboarding/remittance with expired delegation and cross-practice denial (live relationship connector); J12 recording declined with actual recorder/processing state (the WP-11 MediaProcessingState readout and the LiveKit egress state) matching the disclosure on the media path (the configured-alternative leg is FO-20-33, WP-30); J17 consent or delegation revoked, or source corrected or deleted, while work is pending
+    : the WP-22 revocation and deletion consumers and the WP-24 ContextCacheKey invalidation leave no derived store (memory, timeline projections, context caches, pending confirmations) that discloses or acts on the revoked data; Phase D integration of all D modules into the live composition.
+  - 'Injection points and [FAULT:<id>] tests for CRASH_AFTER_COMMIT, SCHEDULING_TIMEOUT_AFTER_COMMIT, RECEIPT_LOST, RECEIPT_LATE and RECORDING_REFUSED (asserted against the WP-11 MediaProcessingState readout), plus [FAULT:CONCURRENT_SAME_ACCOUNT] (two gateway sessions on two postgres:16 connections with the WP-04 race helper against the WP-23 reference business API: exactly one effect, the stale prepared action invalidated with STATE_CHANGED; never PGlite) and [FAULT:CHANGED_SLOT_DURING_CONFIRMATION] (WP-23 slot-version change: commit re-reads the version, refuses, refreshes the proposal and needs a new confirmation).'
+  - Phase D merge of the threat-row fragments docs/security/threats/proposed/WP-{18..24}-*.md into docs/security/threat-model.md and of the data-flow fragments docs/privacy/data-flows/proposed/WP-{18..24}-*.md into docs/privacy/data-flow-inventory.md.
   acceptance:
   - pnpm --filter @vsp/platform exec vitest run src/actions src/business
   - 'make up PROFILE=core,domain && make test-integration SUITE=effects (emulator acknowledges a write whose read-back differs: outcome stays unverified; crash after commit creates no duplicate on postgres:16 with two workers)'
   - make test-integration SUITE=journeys FILTER=j02,j04,j07,j08,j09,j12,j14,j17
   - pnpm test && pnpm typecheck && pnpm lint && pnpm --filter @vsp/platform schemas:check catalog:check
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [DATA-03] [ACT-01] [ACT-02] [ACT-03] [ACT-04] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:CRASH_AFTER_COMMIT] [FAULT:RECEIPT_LATE] [FAULT:RECEIPT_LOST] [FAULT:RECORDING_REFUSED] [FAULT:SCHEDULING_TIMEOUT_AFTER_COMMIT] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:CHANGED_SLOT_DURING_CONFIRMATION] [FAULT:CONCURRENT_SAME_ACCOUNT] [FAULT:CRASH_AFTER_COMMIT] [FAULT:RECEIPT_LATE] [FAULT:RECEIPT_LOST] [FAULT:RECORDING_REFUSED] [FAULT:SCHEDULING_TIMEOUT_AFTER_COMMIT] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
   - AIN-10 and AIN-11; AIN-21 domain-owner approval of compensation policies.
   notes: []
@@ -2435,6 +2735,7 @@ packages:
   - ACT-02
   - OPS-01
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/src/workflows/**
   - infra/stepfunctions/**
@@ -2443,6 +2744,7 @@ packages:
   - platform/test/integration/workflows/**
   - docs/adr/proposed/WP-26-*
   - docs/security/threats/proposed/WP-26-*
+  - docs/privacy/data-flows/proposed/WP-26-*
   ownsGroups: []
   excludes:
   - platform/src/workflows/transfer.ts
@@ -2516,6 +2818,7 @@ packages:
   - OPS-05
   faultObligations:
   - NOTIFICATION_PROVIDER_DOWN
+  faultInjectionPoints: []
   owns:
   - platform/src/notifications/**
   - platform/src/workflows/notification-policy.ts
@@ -2532,21 +2835,23 @@ packages:
   - platform/test/integration/notifications/**
   - docs/adr/proposed/WP-27-*
   - docs/security/threats/proposed/WP-27-*
+  - docs/privacy/data-flows/proposed/WP-27-*
   ownsGroups: []
   excludes: []
   deliverables:
   - SES/SMTP email and SMS sender adapters on the connector runtime with registered-recipient enforcement in the sender wrapper, decideNotification wired, frequency/contact caps, STOP/opt-out webhook with revocation of queued sends, delivery-receipt ingestion via the inbox and a delivered/read/acted/resolved status model.
   - Outbound call profile (country/recipient, purpose, consent or exemption, caller ID, recording, budget) enforced by the guard and the same decision as notifications; LiveKit SIP outbound placement behind it; emergency-number denylist.
-  - 'Companion SPA and routes: authentication bound to exactly one call session/generation, review of prepared actions and summaries, re-confirmation of material changes during long-running work (WAITING_FOR_CALLER), asynchronous replies bound to the case.'
+  - 'Companion SPA and routes: authentication bound to exactly one call session/generation, review of prepared actions and summaries, re-confirmation of material changes during long-running work (WAITING_FOR_CALLER), asynchronous replies bound to the case; the companion''s CSP and security headers are defined here, and WP-39 provisions its ECS service, public ALB host, WAF, IAM and origin.'
   - NOTIFICATION_PROVIDER_DOWN [FAULT:NOTIFICATION_PROVIDER_DOWN] test against Mailpit/LocalStack.
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-27-threats.md (merged into docs/security/threat-model.md by the phase integration package).
+  - 'Outbound-call kill-switch hook (FO-14-41): LiveKit SIP outbound placement refuses through a module-local OutboundCallGate port that WP-30 implements with an OUTBOUND_CALLS scope; consent revocation cancels queued sends and pending outbound placements (asserted by the WP-30 [FAULT:CONSENT_REVOKED] run).'
   acceptance:
   - make up PROFILE=core,media,sip && make test-integration SUITE=notifications (Mailpit receives only registered recipients; STOP cancels a queued send; outbound placement refused without an activated profile)
   - pnpm --filter @vsp/companion exec vitest run && pnpm --filter @vsp/platform exec vitest run src/notifications
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-04] [DATA-01] [ACT-01] [SAFE-05] [OPS-05] pass in this package''s own suites.'
   - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:NOTIFICATION_PROVIDER_DOWN] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
-  - AIN-16 (notification vendor, BAA, templates), AIN-17 (outbound calling authority), AIN-12 (companion IdP client and hosting).
+  - 'AIN-16 (notification vendor, BAA, templates), AIN-17 (outbound calling authority), AIN-12 (companion IdP client), AIN-52 (companion origin: domain, DNS name, certificate and public-exposure review; WP-39 provisions the AWS service).'
   notes: []
 - id: WP-28
   phase: E
@@ -2609,6 +2914,7 @@ packages:
   - RECEIVER_DECLINED
   - RECEIVER_UNAVAILABLE
   - TRANSFER_FAILED
+  faultInjectionPoints: []
   owns:
   - platform/src/transfer/**
   - platform/src/workflows/transfer.ts
@@ -2627,6 +2933,7 @@ packages:
   - platform/src/protocol/support.ts
   - platform/test/journeys/j11b-*
   - docs/security/threats/proposed/WP-28-*
+  - docs/privacy/data-flows/proposed/WP-28-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -2707,6 +3014,7 @@ packages:
   faultObligations:
   - MISSING_WEBHOOK
   - SALESFORCE_OUTAGE
+  faultInjectionPoints: []
   owns:
   - platform/src/connectors/talkdesk/**
   - platform/src/connectors/salesforce/**
@@ -2724,6 +3032,7 @@ packages:
   - docs/adr/proposed/WP-29-*
   - docs/RUNBOOKS/vendor-behavior-change.md
   - docs/security/threats/proposed/WP-29-*
+  - docs/privacy/data-flows/proposed/WP-29-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -2763,11 +3072,13 @@ packages:
   - FO-12-20
   - FO-12-21
   - FO-12-22
+  - FO-17-24.CONSENT_REVOKED
   - FO-18-22
   - FO-19-22
   - FO-20-03
   - FO-20-05
   - FO-20-06
+  - FO-20-09a
   - FO-20-15
   - FO-20-24
   - FO-20-25
@@ -2784,15 +3095,20 @@ packages:
   - FO-22-23
   regressionIds: []
   counts:
-    MISSING: 17
+    MISSING: 19
     IMPLEMENTED: 11
     regression: 0
   capabilityIds:
+  - authority.registries
+  - handoff.transfer
   - workflows.families
+  - evaluation.test_truth
   - journeys.end_to_end
   invariantObligations:
   - ACT-04
-  faultObligations: []
+  faultObligations:
+  - CONSENT_REVOKED
+  faultInjectionPoints: []
   owns:
   - platform/src/protocol/plan.ts
   - platform/src/workflows/definitions/**
@@ -2803,6 +3119,8 @@ packages:
   - platform/test/journeys/j15-*
   - platform/test/integration/families/**
   - platform/src/business/**
+  - platform/test/journeys/j09b-*
+  - docs/resolution-contracts.md
   ownsGroups:
   - deps
   - composition
@@ -2817,18 +3135,27 @@ packages:
   - traceability
   - threat-model
   - journeys-harness
+  - ops
+  - media
+  - gateway
+  - lint
+  - data-flows
   excludes: []
   deliverables:
   - System steps for billing dispute, claim, provider document/remittance, referral-status investigation, partner onboarding, callback and support sync; starters for the four families not yet started by a business service.
   - ResolutionContracts with audience, assurance, allowed data/actions, sources, exact success proof, confirmation, deadline, owner, after-hours, exceptions, prohibited claims and tests for appointment cancellation/creation (tenant-gated), referral/authorization status, accessibility/relay routing, recording-declined alternative, callback, repeat-contact resumption, complaint, case follow-up, portal guidance and hosted payment-link routing; intent-coverage test.
   - LongHorizonPlan with bounded executable steps from approved capabilities and grant-scope checks on replanning; per-call issue list (call_issues) for multiple issues, concurrent calls and reconnects; reopen transitions from scheduled case observation; repeat-contact tracking.
-  - J03, J05, J06 and J15 in local protocol-realistic mode; Phase E integration of all E modules.
-  - Phase E merge of the threat-row fragments docs/security/threats/proposed/WP-{26..29}-*.md into docs/security/threat-model.md.
+  - J03, J05, J06 and J15 in local protocol-realistic mode; the J09 accepted-transfer leg (FO-20-09a, journey j09b: ambiguous minor, proxy or guardian authority reaches the authorized-specialist destination through the WP-28 receiver client with acceptance verified, decline and unavailable keep an accountable owner) and the J12 configured-alternative leg (FO-20-33 bound to the WP-11 recorder control, j12 re-run); Phase E integration of all E modules.
+  - Phase E merge of the threat-row fragments docs/security/threats/proposed/WP-{26..29}-*.md into docs/security/threat-model.md and of the data-flow fragments docs/privacy/data-flows/proposed/WP-{26..29}-*.md into docs/privacy/data-flow-inventory.md.
+  - 'ops shared group (phase E owner): an OUTBOUND_CALLS kill-switch scope in platform/src/ops/kill-switches.ts implementing the WP-27 OutboundCallGate, with engage/release tests on outbound placement (FO-14-41).'
+  - 'Layer-2 [FAULT:CONSENT_REVOKED]: a consent-registry revocation (WP-19 emulator) during a call and while work is pending stops recording and processing on the media path (WP-11 MediaProcessingState readout and LiveKit egress state), cancels pending outreach (WP-27 queued sends and outbound placements) and applies on the next request (WP-22 revocation consumers).'
   acceptance:
   - pnpm --filter @vsp/platform contracts:check && pnpm --filter @vsp/platform exec vitest run src/business src/workflows
-  - make up PROFILE=core,domain,media,sip && make test-integration SUITE=journeys FILTER=j03,j05,j06,j10,j15,j16
+  - make up PROFILE=core,domain,media,sip && make test-integration SUITE=journeys FILTER=j03,j05,j06,j09b,j10,j12,j15,j16
   - bash scripts/policy.sh test && pnpm test && pnpm typecheck && pnpm lint
+  - pnpm --filter @vsp/platform exec vitest run src/ops && make test-integration SUITE=notifications FILTER=outbound-kill-switch (OUTBOUND_CALLS engaged refuses LiveKit SIP outbound placement with an audited reason; released allows it) (FO-14-41)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [ACT-04] pass in this package''s own suites.'
+  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:CONSENT_REVOKED] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
   - AIN-11 (approved contracts, owners, deadlines, cancellation authority), AIN-10 (domain APIs), AIN-20 (staffed owner queues).
   notes: []
@@ -2860,13 +3187,16 @@ packages:
   - OPS-04
   - OPS-06
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/src/tenant-config/**
   - platform/src/protocol/activation.ts
+  - platform/src/protocol/tenant.ts
   - platform/migrations/231*
   - platform/test/integration/tenant-config/**
   - docs/adr/proposed/WP-31-*
   - docs/security/threats/proposed/WP-31-*
+  - docs/privacy/data-flows/proposed/WP-31-*
   ownsGroups:
   - config
   excludes: []
@@ -2906,17 +3236,21 @@ packages:
   - FO-14-09
   - FO-16-12
   - FO-16-37
+  - FO-17-24.SCHEMA_DRIFT
   - FO-21-05
   regressionIds: []
   counts:
-    MISSING: 13
+    MISSING: 14
     IMPLEMENTED: 2
     regression: 0
   capabilityIds:
+  - connectors.runtime
   - operator.onboarding
   invariantObligations:
   - OPS-03
-  faultObligations: []
+  faultObligations:
+  - SCHEMA_DRIFT
+  faultInjectionPoints: []
   owns:
   - platform/src/readiness/**
   - platform/src/connectors/catalog/**
@@ -2927,6 +3261,7 @@ packages:
   - platform/test/integration/onboarding/**
   - docs/adr/proposed/WP-32-*
   - docs/security/threats/proposed/WP-32-*
+  - docs/privacy/data-flows/proposed/WP-32-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -2935,10 +3270,12 @@ packages:
   - Test wizard endpoints and pages; write/reconcile steps only with SANDBOX_WRITE access mode and an approval record; CapabilityEvidence signed via KMS with tiers CODE, EMULATOR and VENDOR; readiness registry feeding /health/ready capability probes.
   - Readiness keyed by docs/followon/capabilities.yaml ids; stale or UNKNOWN jurisdiction-matrix rows (WP-22 loader) appear as blocking reasons for the affected capabilities (FO-15-57 readiness part).
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-32-threats.md (merged into docs/security/threat-model.md by the phase integration package).
+  - 'Layer-2 [FAULT:SCHEMA_DRIFT]: a connector emulator returning drifted fields or metadata makes the WP-06 mapping refuse the record with a typed drift error, writes nothing, and turns the affected capability UNKNOWN in readiness and /health/ready.'
   acceptance:
   - pnpm --filter @vsp/console exec vitest run src/pages/onboarding && pnpm --filter @vsp/platform exec vitest run src/readiness src/connectors/catalog
   - make up PROFILE=core,domain && make test-integration SUITE=onboarding (wizard against emulators records EMULATOR-tier evidence; write step refused without SANDBOX_WRITE approval)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [OPS-03] pass in this package''s own suites.'
+  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:SCHEMA_DRIFT] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
   - AIN-36 (credentials per connector), AIN-06/AIN-09/AIN-10/AIN-38 for VENDOR-tier evidence.
   notes: []
@@ -2972,6 +3309,7 @@ packages:
   - operator.studio
   invariantObligations: []
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/src/studio/**
   - platform/src/console-api/routes/studio/**
@@ -2982,6 +3320,7 @@ packages:
   - platform/test/integration/studio/**
   - docs/adr/proposed/WP-33-*
   - docs/security/threats/proposed/WP-33-*
+  - docs/privacy/data-flows/proposed/WP-33-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -3035,6 +3374,7 @@ packages:
   - ACT-04
   - OPS-03
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/src/evaluation/driver/**
   - platform/src/evaluation/simulator/**
@@ -3046,10 +3386,10 @@ packages:
   - docs/evaluation/**
   - docs/adr/proposed/WP-34-*
   - docs/security/threats/proposed/WP-34-*
+  - docs/privacy/data-flows/proposed/WP-34-*
   ownsGroups:
   - corpus
-  excludes:
-  - platform/src/evaluation/manifest.ts
+  excludes: []
   deliverables:
   - Model driver and SimulatedCaller (pinned open-weight model on CPU or recorded-response provider in CI) with dual-control user actions and final source-state verification (tau2 patterns after licence check, docs/evaluation/benchmark-licences.yaml).
   - 'Audio driver: full-duplex scripted callers with noise, accents, codecs, overlap, delayed tools, disfluency, backchannels and unrelated speech; WER and important-entity error; tau-Voice/tau-Knowledge style task and conversation metrics.'
@@ -3087,6 +3427,7 @@ packages:
   - FO-17-20
   - FO-17-21
   - FO-17-24.JUDGE_FAILURE
+  - FO-17-24.REDACTION_FAILURE
   - FO-17-25
   - FO-17-26
   - FO-17-27
@@ -3100,16 +3441,19 @@ packages:
   regressionIds:
   - FO-17-30
   counts:
-    MISSING: 20
+    MISSING: 21
     IMPLEMENTED: 3
     regression: 1
   capabilityIds:
+  - privacy.operations
   - evaluation.monitors
   invariantObligations:
   - DATA-02
   - SAFE-01
   faultObligations:
   - JUDGE_FAILURE
+  - REDACTION_FAILURE
+  faultInjectionPoints: []
   owns:
   - platform/src/monitors/**
   - platform/src/review/**
@@ -3123,6 +3467,7 @@ packages:
   - docs/adr/proposed/WP-35-*
   - docs/RUNBOOKS/unsafe-output.md
   - docs/security/threats/proposed/WP-35-*
+  - docs/privacy/data-flows/proposed/WP-35-*
   ownsGroups:
   - corpus
   excludes: []
@@ -3130,14 +3475,14 @@ packages:
   - Monitor registry (ASR entity accuracy, uncertainty, language support, intent routing, prompt injection, scope, minimization, safety miss) with deterministic checks plus judges qualified on blind human labels with severity definitions and confidence intervals; generator/judge family separation; random sample of unflagged conversations; continuous monitor evaluation.
   - ReviewRecord store replacing in-file review fields; DatasetItem provenance (SYNTHETIC, CONSENTED_PRODUCTION, LICENSED with consent/approval refs) enforced by a CI check; reviewer-owned held-out split; review queues for corpus (>=50 intents x 8 families, >=500 risk cases), clinician safety dataset, critical events and pilot safety transfers; warmth/clarity rubric and rating capture.
   - 'Evaluation Studio: corpus and version management, schema-driven scenario builder, waveform/timeline replay of restricted audio evidence, expected versus observed state, judge/human disagreement, slices and regressions.'
-  - JUDGE_FAILURE injection point and [FAULT:JUDGE_FAILURE] test; judge reports give sample counts and intervals and never state 100% without them (FO-23-06).
+  - 'JUDGE_FAILURE injection point and [FAULT:JUDGE_FAILURE] test; Layer-2 [FAULT:REDACTION_FAILURE] (WP-22 redaction-stage failure on a transcript segment from the composed media path: the segment is quarantined and absent from general logs, the WP-21 CDP/analytics export and every judge and monitor input); judge reports give sample counts and intervals and never state 100% without them (FO-23-06).'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-35-threats.md (merged into docs/security/threat-model.md by the phase integration package).
   acceptance:
   - pnpm --filter @vsp/platform exec vitest run src/monitors src/review && pnpm --filter @vsp/console exec vitest run src/pages/evaluation src/pages/review
   - dataset provenance CI check rejects an item without provenance (test)
   - judge qualification report with precision/recall and intervals written under evidence/evaluation/judges/ from the labelled set
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [DATA-02] [SAFE-01] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:JUDGE_FAILURE] reach the fault at its injection point and assert its postconditions.'
+  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:JUDGE_FAILURE] [FAULT:REDACTION_FAILURE] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
   - AIN-31 (human reviewers, labellers, raters, clinicians), AIN-29 (qualified judge model), AIN-44 (consented production data).
   notes: []
@@ -3177,6 +3522,7 @@ packages:
   - improvement.pipeline
   invariantObligations: []
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/src/improvement/observations/**
   - platform/src/improvement/clusters/**
@@ -3191,6 +3537,7 @@ packages:
   - platform/test/integration/improvement/**
   - docs/adr/proposed/WP-36-*
   - docs/security/threats/proposed/WP-36-*
+  - docs/privacy/data-flows/proposed/WP-36-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -3223,7 +3570,6 @@ packages:
   - FO-18-25
   - FO-18-26
   - FO-18-27
-  - FO-18-28
   - FO-18-29
   - FO-23-02
   - FO-23-04
@@ -3231,13 +3577,14 @@ packages:
   regressionIds: []
   counts:
     MISSING: 11
-    IMPLEMENTED: 3
+    IMPLEMENTED: 2
     regression: 0
   capabilityIds:
   - improvement.canary_training
   invariantObligations:
   - DATA-03
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/src/improvement/canary/**
   - platform/src/improvement/training/**
@@ -3246,6 +3593,7 @@ packages:
   - platform/test/integration/canary/**
   - docs/adr/proposed/WP-37-*
   - docs/security/threats/proposed/WP-37-*
+  - docs/privacy/data-flows/proposed/WP-37-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -3319,6 +3667,7 @@ packages:
   invariantObligations:
   - AUTH-02
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/src/console-api/routes/calls/**
   - platform/src/console-api/routes/cases/**
@@ -3332,7 +3681,6 @@ packages:
   - console/src/pages/controls/**
   - console/src/pages/insights/**
   - console/e2e/**
-  - platform/src/ops/budgets.ts
   - platform/migrations/238*
   - platform/test/journeys/j20-*
   - docs/RUNBOOKS/kill-switch-operations.md
@@ -3349,6 +3697,11 @@ packages:
   - traceability
   - threat-model
   - journeys-harness
+  - ops
+  - media
+  - gateway
+  - lint
+  - data-flows
   excludes: []
   deliverables:
   - 'Calls and cases: live call state from the media runtime and session store, source-grounded timeline with identity scope, authorized join/takeover of a live call via the LiveKit room or SIP bridge, receiver screen pop of the HandoffPackage, trace call -> context snapshot -> model proposal -> policy -> action -> effect -> CRM -> human acceptance, evidence broker issuing short-lived audited references.'
@@ -3356,12 +3709,13 @@ packages:
   - 'Insights: verified resolution, repeat contact and reopens, unresolved promises, demand, effort, CSAT response, escalation appropriateness and cost per verified resolution.'
   - Playwright end-to-end suite with axe (WCAG 2.2 AA target) against the composed console API, timezone-aware rendering, forms validated by generated schemas.
   - J20 operator journey; Phase F integration of routes, navigation, RBAC table and console.rego.
-  - SQS DLQ repair (FO-14-25), content-reference retrieval for authorized investigators (FO-14-40), consumers for the MODEL_VERSION and VOICE_VERSION switches plus per-tool-family and per-tenant scopes (FO-14-41).
-  - Phase F merge of the threat-row fragments docs/security/threats/proposed/WP-{31..37}-*.md into docs/security/threat-model.md.
+  - SQS DLQ repair (FO-14-25), content-reference retrieval for authorized investigators (FO-14-40), per-tool-family and per-tenant kill-switch scopes in platform/src/ops/kill-switches.ts (ops shared group, phase F owner) and every scope wired on the controls page and console API (FO-14-41); the MODEL_VERSION and VOICE_VERSION consumers are FO-14-41a (WP-17) and OUTBOUND_CALLS is WP-30.
+  - Phase F merge of the threat-row fragments docs/security/threats/proposed/WP-{31..37}-*.md into docs/security/threat-model.md and of the data-flow fragments docs/privacy/data-flows/proposed/WP-{31..37}-*.md into docs/privacy/data-flow-inventory.md.
   acceptance:
   - make up PROFILE=core,domain,media && pnpm --filter @vsp/console exec playwright test (data, empty, error and loading states per page; axe violations zero)
   - make test-integration SUITE=journeys FILTER=j20
   - bash scripts/policy.sh test && pnpm test && pnpm typecheck && pnpm lint
+  - pnpm --filter @vsp/platform exec vitest run src/ops src/console-api (per-tool-family and per-tenant scopes engage and release with role check, reason and audit; every scope is listed and operable on the controls page) (FO-14-41)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-02] pass in this package''s own suites.'
   externalActivation:
   - AIN-13 (workforce IdP for production console), AIN-20 (receiver workspace).
@@ -3369,12 +3723,21 @@ packages:
 - id: WP-39
   phase: G
   title: 'Infrastructure for the follow-on topology: media/SIP/RTP/TURN hosts, service split, security perimeter, multi-AZ and secondary-region failover, reference deployment'
-  goal: The release can be deployed to AWS-managed or self-hosted reference environments with an explicit media network topology, separately deployed services and a perimeter where no key or IAM policy editor can undo narrow grants.
+  goal: The release can be deployed to AWS-managed or self-hosted reference environments with an explicit media network topology, separately deployed services and a perimeter where no key or IAM policy editor can undo narrow grants, including every deployable unit and sidecar that phases B to E deliver.
   size: L
   dependsOn:
   - WP-07
+  - WP-08
   - WP-12
-  earliestWave: 7
+  - WP-13
+  - WP-15
+  - WP-17
+  - WP-20
+  - WP-26
+  - WP-27
+  - WP-28
+  - WP-29
+  earliestWave: 14
   requirementIds:
   - FO-00-20
   - FO-01-17
@@ -3391,6 +3754,7 @@ packages:
   - FO-15-25
   - FO-15-27
   - FO-15-29
+  - FO-15-31
   - FO-15-43
   - FO-15-54
   - FO-16-04
@@ -3408,14 +3772,16 @@ packages:
   regressionIds: []
   counts:
     MISSING: 8
-    IMPLEMENTED: 21
+    IMPLEMENTED: 22
     regression: 0
   capabilityIds:
+  - privacy.operations
   - operator.console
   - deploy.infrastructure
   invariantObligations:
   - OPS-02
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - infra/terraform/**
   - deploy/reference/**
@@ -3424,6 +3790,7 @@ packages:
   - docs/RUNBOOKS/regional-failover.md
   - docs/adr/proposed/WP-39-*
   - docs/security/threats/proposed/WP-39-*
+  - docs/privacy/data-flows/proposed/WP-39-*
   ownsGroups: []
   excludes: []
   deliverables:
@@ -3433,15 +3800,20 @@ packages:
   - Multi-AZ placement, secondary US region with write fencing and external-effect reconciliation before resume, DR/AZ drill job definitions (AWS FIS) gated by approval.
   - 'Self-hosted reference deployment (compose or Helm: PostgreSQL, LiveKit, OPA bundle, MinIO, OIDC IdP) separated from optional managed services.'
   - infra/terraform/modules/console_service (FO-03-49a) and the audit-exporter service and IAM; the infrastructure part of cross-region fencing (FO-16-44); TURN/SIP certificates, DNS and media-host spend alarms named by AIN-47 and AIN-48.
+  - 'infra/terraform/modules/companion_service (FO-06-84): ECS Fargate service for the companion/ image behind the public ALB on its own host name (an origin separate from the gateway and the console), WAF web ACL, task IAM role limited to calling the gateway API, CSP and security headers enforced at the edge as well as by the app, DNS record and ACM certificate with a DaysToExpiry alarm (AIN-52).'
+  - 'Services, IAM and egress allowlist entries for every deployable unit and sidecar that earlier phases deliver (docs/ARCHITECTURE.md section 6.3.1): vLLM (WP-08), speech (WP-13), safety (WP-15) and retrieval (WP-20) sidecar hosts, the conversation runtime (WP-11 to WP-17), the Step Functions bridge task-token IAM (WP-26), notification senders (WP-27, SES/SNS), transfer carrier events (WP-28) and vendor connector egress (WP-29, Talkdesk and Salesforce Pub/Sub); a unit inventory in deploy/reference/units.yaml is checked so that a unit without a service, IAM role or egress entry fails.'
+  - 'Object Lock scope check (FO-15-31): a terraform test fails when any bucket other than the audit bucket enables Object Lock or default retention.'
   - STRIDE threat rows for this package's boundary in docs/security/threats/proposed/WP-39-threats.md (merged into docs/security/threat-model.md by the phase integration package).
   acceptance:
   - bash scripts/terraform-check.sh && bash scripts/terraform-policy.sh test (all modules incl. new ones; tftest asserts perimeter denials and OIDC subject claims)
   - bash scripts/terraform-plan-offline.sh for sandbox, staging, production and production-dr roots
   - docker compose -f deploy/reference/compose.yaml config validates and the reference stack boots the release image locally
+  - bash scripts/terraform-check.sh covers companion_service and the unit inventory (a unit in deploy/reference/units.yaml without a service, IAM role or egress entry fails; a second Object-Locked bucket fails)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [OPS-02] pass in this package''s own suites.'
   externalActivation:
-  - 'AIN-01, AIN-03, AIN-04 (AWS accounts, audit account, regions and DR authority); AIN-46, AIN-47 and AIN-48 (media-plane security review, TURN/SIP certificates and DNS, media-host and GPU spend ceilings); AIN-45 merge of PR #26 for main-branch hardening.'
-  notes: []
+  - 'AIN-01, AIN-03, AIN-04 (AWS accounts, audit account, regions and DR authority); AIN-46, AIN-47 and AIN-48 (media-plane security review, TURN/SIP certificates and DNS, media-host and GPU spend ceilings); AIN-45 merge of PR #26 for main-branch hardening; AIN-52 (companion domain, DNS, certificate and exposure review).'
+  notes:
+  - Depends on WP-08, WP-13, WP-15, WP-17, WP-20, WP-26, WP-27, WP-28 and WP-29 so that every unit whose AWS service, IAM or egress it provisions exists first; WP-39 is the only owner of infra/terraform/** in every phase, so no other package can add those resources later.
 - id: WP-40
   phase: G
   title: 'Supply chain and release: images, digest and SHA pinning, SBOM/provenance/signing, ReleaseManifest bindings, preflight and the reproducible release bundle'
@@ -3466,6 +3838,7 @@ packages:
   - FO-16-02
   - FO-16-06
   - FO-16-51
+  - FO-18-28
   - FO-19-34
   - FO-19-37
   - FO-19-56
@@ -3487,16 +3860,18 @@ packages:
   - FO-19-97
   counts:
     MISSING: 11
-    IMPLEMENTED: 20
+    IMPLEMENTED: 21
     regression: 1
   capabilityIds:
   - connectors.runtime
   - privacy.operations
+  - improvement.canary_training
   - release.supply_chain
   invariantObligations:
   - OPS-04
   - OPS-06
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/Dockerfile
   - console/Dockerfile
@@ -3516,23 +3891,27 @@ packages:
   - docs/adr/proposed/WP-40-*
   - docs/RUNBOOKS/policy-release.md
   - .github/gitleaks.toml
+  - .dockerignore
+  - approvals/README.md
   ownsGroups:
   - deps
   - ci
   excludes: []
   deliverables:
   - Images for platform, console, media, companion and sidecars built locally with base images pinned by digest; GitHub Actions pinned by full SHA; pnpm audit blocking on high and critical with recorded exceptions; deprecation/EOL check; image and dependency scanning; SBOM, provenance and cosign signing; SBOM diff between releases.
-  - 'ReleaseManifest bindings: commit (--source-commit passed by every gate), dependency/model locks, image digests, SBOM/provenance, IaC plan, schema/migrations, workflow definitions, connector profile digests, carrier configuration, model/voice registry entries, prompts, policy, knowledge/context schemas, corpus, all test evidence in a common envelope with freshness, quotas/load, retention/egress digests, environment, rollback target and approvals; manifest signature produced and verified (not presence-only); approval subjects for every scope.'
+  - 'ReleaseManifest bindings: commit (--source-commit passed by every gate), dependency/model locks, image digests, SBOM/provenance, IaC plan, schema/migrations, workflow definitions, connector profile digests, in-flight workflow compatibility (the workflow definition versions each release can serve, from the WP-26 version-migration mapping, read by the WP-37 rollback; FO-18-28), carrier configuration, model/voice registry entries, prompts, policy, knowledge/context schemas, corpus, all test evidence in a common envelope with freshness, quotas/load, retention/egress digests, environment, rollback target and approvals; manifest signature produced and verified (not presence-only); approval subjects for every scope.'
   - preflight command (guard, approvals, adapters, capability readiness keyed by capability ids) and build-release writing dist/release/<releaseId>/ with SHA256SUMS; operator installation guide docs/INSTALL.md.
   - Manifest signature produced and verified and rollbackTarget resolved against a prior signed manifest and a rehearsed restore (FO-19-94); built console bundle scanned for secrets and configuration export redaction tested (FO-06-19); PHI-pattern scan of CI logs (FO-15-21); sidecar inventory check that Python sidecars hold inference/evaluation code only (FO-03-15).
   acceptance:
   - make build-release (runs tests first, builds images, writes dist/release/<releaseId>/SHA256SUMS and a signed manifest; exit 0 locally with status reflecting evidence)
-  - tsx --test scripts/ci/check-release-manifest.test.ts (missing binding, stale evidence or unverifiable signature blocks)
+  - tsx --test scripts/ci/check-release-manifest.test.ts (missing binding, stale evidence or unverifiable signature blocks; the gate reads the two-axis status, and a manifest that carries only the legacy ReleaseStatus is refused for sandbox and above)
   - make preflight ENV=local passes; make preflight ENV=sandbox lists every missing activation input by AIN id and exits non-zero
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [OPS-04] [OPS-06] pass in this package''s own suites.'
   externalActivation:
   - AIN-35 (registry, Sigstore/OIDC publish role, reviewed SHAs/digests, GitHub environments), AIN-34 (approval signing keys).
-  notes: []
+  notes:
+  - 'Release sequencing (decided, ownership rules): this package builds the release machinery and a first signed bundle on real artifacts; WP-41 and WP-42 rehearse deploy, rollback, load and chaos on it; WP-43 re-runs the unchanged build-release and preflight after its closure fixes, and only that post-closure bundle can be cited as RELEASE_PACKAGE_VERIFIED evidence.'
+  - 'Status migration (ADR-0018 decision 7.4): the manifest builder (platform/src/evaluation/manifest.ts) and the deploy gate (scripts/ci/check-release-manifest.ts) move from the legacy ReleaseStatus to the WP-02 two-axis StatusAxes and CapabilityStatus here; until then ReleaseManifest.status is the mapped legacy value.'
 - id: WP-41
   phase: G
   title: 'Single entry point and operational commands: doctor, configure, seed-synthetic, demo, test-contract, deploy, smoke, migrations expand/contract, backup, restore and rollback'
@@ -3577,6 +3956,7 @@ packages:
   invariantObligations:
   - OPS-05
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - scripts/vsp/**
   - .github/workflows/deploy.yml
@@ -3585,6 +3965,7 @@ packages:
   - platform/migrations/241*
   - docs/RUNBOOKS/restore-drill.md
   - docs/adr/proposed/WP-41-*
+  - evidence/demo/**
   ownsGroups:
   - runner
   excludes:
@@ -3602,7 +3983,7 @@ packages:
   deliverables:
   - Runner targets for all 26 named commands (doctor, configure, up, seed-synthetic, demo, test-unit, test-contract, test-integration, test-audio, test-chaos, eval, model-qualify, load, soak, build-release, infra-validate, infra-plan, deploy, smoke, qualify-tenant, verify-audit, privacy-delete, backup, restore, rollback, down) plus preflight; execution profiles and allowlists for every external effect; runner tests asserting exit codes; infra-validate runs Terraform fmt/validate/test and the infra policy tests (FO-19-77).
   - doctor (tool versions, Docker, ports, config), configure (validated config generator), seed-synthetic through public/admin APIs, demo on the composed stack failing without backend evidence, test-contract.
-  - Migration phase metadata (expand/migrate/contract), schema-version compatibility check refusing code-schema mismatch, N/N-1 payload compatibility tests for outbox and workflows; deploy (expand-only migration job, approval-gated, --source-commit), smoke (/health/ready, auth, tool call, audit write), backup (pg_dump archive, object-lock manifests, config versions; AWS snapshot/PITR export), restore into a new database with migrationsDigest check, verify-audit and ledger reconciliation, rollback to the manifest rollback target.
+  - Migration phase metadata (expand/migrate/contract), schema-version compatibility check refusing code-schema mismatch, N/N-1 payload compatibility tests for outbox and workflows; deploy (expand-only migration job, approval-gated, --source-commit), smoke (/health/ready, auth, tool call, audit write, and a reachability and TLS check of every deployed unit in deploy/reference/units.yaml, including the companion origin and its CSP), backup (pg_dump archive, object-lock manifests, config versions; AWS snapshot/PITR export), restore into a new database with migrationsDigest check, verify-audit and ledger reconciliation, rollback to the manifest rollback target.
   acceptance:
   - make doctor && make up && make seed-synthetic && make demo && make smoke ENV=local && make down (each exit 0)
   - make backup ENV=local && make restore ENV=local FROM=<archive> (new database; integrity verified; data-loss window recorded)
@@ -3667,13 +4048,13 @@ packages:
   - BUDGET_EXHAUSTED
   - QUOTA_EXHAUSTED
   - REGIONAL_FAILOVER
+  faultInjectionPoints: []
   owns:
   - scripts/load/**
   - scripts/chaos/**
   - platform/test/load/**
   - scripts/capacity_model.py
   - docs/capacity-cost-model.md
-  - platform/src/ops/**
   - deploy/local/services/toxiproxy.compose.yaml
   - scripts/vsp/load.mts
   - scripts/vsp/soak.mts
@@ -3685,10 +4066,10 @@ packages:
   - docs/adr/proposed/WP-42-*
   - docs/RUNBOOKS/unexpected-spending.md
   - docs/security/threats/proposed/WP-42-*
-  ownsGroups: []
-  excludes:
-  - platform/src/ops/notification-gate.ts
-  - platform/src/ops/notification-gate.test.ts
+  - docs/privacy/data-flows/proposed/WP-42-*
+  ownsGroups:
+  - ops
+  excludes: []
   deliverables:
   - Call-level load generator (media plus tool traffic) with profiles local, composed and cloud; soak mode; shared quota/capacity counters for multi-instance admission; >=400 req/s tool-path target against the composed stack.
   - 'test-chaos with toxiproxy: worker crash, reconnect, session expiry, participant changes, rolling deploy, audit outage, model/TTS outage, quota/cost exhaustion; J18 with no duplicate action, false completion or unusable continuity route.'
@@ -3766,11 +4147,20 @@ packages:
   - journeys.end_to_end
   invariantObligations: []
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/test/hostile/**
   - platform/test/journeys/**
   - evidence/closure/**
   - platform/src/**
+  - media/src/**
+  - media/test/**
+  - companion/src/**
+  - console/src/**
+  - console/e2e/**
+  - services/*/src/**
+  - sidecars/**
+  - docs/resolution-contracts.md
   ownsGroups:
   - composition
   - registry
@@ -3781,24 +4171,26 @@ packages:
   - corpus
   - journeys-harness
   - invariants
-  excludes:
-  - platform/src/evaluation/manifest.ts
-  - platform/src/protocol/release.ts
-  - platform/src/db/migrate.ts
-  - platform/src/db/compat/**
-  - platform/src/ops/**
+  - ops
+  - media
+  - gateway
+  - lint
+  excludes: []
   deliverables:
   - ConversationAdapterUnderTest (http, mcp, livekit-cascade, livekit-native) and the invariant suite tagged per invariant run against each; positive, adversarial and failure-injection results per invariant recorded for the control evidence map.
   - J19 hostile payloads (cross-tenant, SSRF, arbitrary dial target, policy override, export) including model-driven variants and direct API attacks bypassing the conversational prompt; parameterized hostile-request job runnable against a deployed environment.
-  - All journeys re-run together on one composed stack; full unit, contract, integration, audio, chaos, policy, Terraform and docs checks executed; defects fixed; module integration check that every production component has a composition-root call site.
+  - All journeys re-run together on one composed stack; full unit, contract, integration, audio, chaos, policy, Terraform and docs checks executed; defects fixed in whichever tree they occur (platform/src, media, companion, console, services/*/src, sidecars, all owned here in phase G); module integration check that every production component has a composition-root call site.
   - Cross-adapter closure of the invariant obligations that the secondary packages of FO-02-01..27 delivered at their own boundaries.
+  - After the closure fixes, make build-release and make preflight ENV=local run again so the reproducible release bundle binds the closure commit; the bundle WP-40 built before closure is superseded and is never cited as RELEASE_PACKAGE_VERIFIED evidence.
   acceptance:
   - make test-unit test-contract test-integration test-audio test-chaos (all exit 0) and make test-integration SUITE=journeys (J01-J20)
   - make test-integration SUITE=invariants ADAPTERS=http,mcp,livekit-cascade,livekit-native
   - pnpm test && pnpm typecheck && pnpm lint && bash scripts/policy.sh test && bash scripts/terraform-check.sh
+  - make build-release after the closure fixes (dist/release/<releaseId>/ manifest binds the closure commit and the evidence of this package)
   externalActivation:
   - AIN-41 (independent pentest), AIN-06/AIN-18 for vendor and PSTN counterparts (defined in WP-45).
-  notes: []
+  notes:
+  - 'Release sequencing (decided, ownership rules): the bundle WP-40 built before closure is superseded by the bundle rebuilt here with the unchanged build-release; the release step stays with WP-40 because WP-41 to WP-43 need its tooling and a signed bundle to exist.'
 - id: WP-44
   phase: G
   title: Delivery documents and compliance support registers generated from machine-readable sources, with docs-pack truth checks
@@ -3871,6 +4263,7 @@ packages:
   - governance.documents
   invariantObligations: []
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - docs/GAP_CLOSURE.md
   - docs/KNOWN_LIMITATIONS.md
@@ -3883,7 +4276,6 @@ packages:
   - docs/ARCHITECTURE.md
   - docs/DATA_FLOWS.md
   - docs/security/**
-  - docs/privacy/data-flow-inventory.md
   - docs/compliance/**
   - docs/requirements/**
   - docs/vendor-integration-inventory.md
@@ -3896,6 +4288,7 @@ packages:
   - status-docs
   - traceability
   - threat-model
+  - data-flows
   excludes: []
   deliverables:
   - Generators with --check for IMPLEMENTATION_STATUS (both axes per capability), GAP_CLOSURE (from gap-ledger.yaml), REQUIREMENTS_TRACEABILITY (from requirements.yaml and test tags), CONTROL_EVIDENCE_MAP (catalog + test tags + threat ids), CONFIGURATION_REFERENCE (zod schema plus infra variables), MODEL_REGISTRY, CONNECTOR_CATALOG, KNOWN_LIMITATIONS and module dependency diagrams; HANDOFF and refreshed INVENTORY (ancestry, lock digest, tool versions, Docker/emulator availability, every non-PASS check).
@@ -3905,7 +4298,7 @@ packages:
   - platform/test/docs test that runs python3 -I docs/tools/followon/generate.py --check, so CI fails when docs/followon/*.yaml, GAP_CLOSURE.md or ACTIVATION_REGISTER.md drift from docs/followon/source/; IMPLEMENTATION_STATUS rendered per capability from docs/followon/capabilities.yaml.
   - Root README.md and the package.json description updated from "offline vertical slice" to the delivered product; docs/RUNBOOKS index and consistency across the domain runbooks owned by earlier packages.
   - 'Wording checks for section 23 and section 0 constraints: research-derived claims, vendor public pages cited as evidence, vendor model names or performance figures presented as ours, comparative or superiority claims, "battle hardened" and readiness labels (FO-23-07, FO-23-09, FO-23-14, FO-23-15, FO-00-24, FO-00-31).'
-  - Phase G merge of the threat-row fragments docs/security/threats/proposed/WP-{39..43}-*.md into docs/security/threat-model.md.
+  - Phase G merge of the threat-row fragments docs/security/threats/proposed/WP-{39..43}-*.md into docs/security/threat-model.md and of the data-flow fragments docs/privacy/data-flows/proposed/WP-{39..43}-*.md into docs/privacy/data-flow-inventory.md.
   acceptance:
   - pnpm --filter @vsp/platform exec vitest run test/docs (all generators in --check mode report no drift)
   - node scripts/docs/generate-all.mjs --check
@@ -3929,6 +4322,7 @@ packages:
   - FO-01-15a
   - FO-06-34
   - FO-06-36
+  - FO-06-37a
   - FO-15-15
   - FO-16-08
   - FO-16-64
@@ -3937,23 +4331,27 @@ packages:
   - FO-19-40
   - FO-19-51
   - FO-19-81
+  - FO-20-13a
   - FO-20-21
   - FO-21-11
   - FO-21-12
   regressionIds:
   - FO-19-39
   counts:
-    MISSING: 11
+    MISSING: 13
     IMPLEMENTED: 6
     regression: 1
   capabilityIds:
   - telephony.pstn
+  - safety.routing
+  - conversation.talkdesk_native
   - journeys.end_to_end
   - activation.qualification
   invariantObligations:
   - OPS-03
   - OPS-05
   faultObligations: []
+  faultInjectionPoints: []
   owns:
   - platform/src/qualification/**
   - scripts/qualify/**
@@ -3974,7 +4372,7 @@ packages:
   deliverables:
   - qualify-tenant and a qualification CLI with suites per capability id of docs/followon/capabilities.yaml (health, auth, tool calls, connectors, transfer, notifications, audio) writing ActivationRecords {capabilityId, tenantId, environment, evidence, approvals, expiry} and ActivationReports.
   - 'Gated Layer-5 job definitions: vendor sandbox suites (Talkdesk, Salesforce, domain systems), PSTN test-call plan, human acceptance, security/pentest, load/soak at scale, restore/failover drills; per-vendor settings collectors for contract/BAA/feature evidence; sandbox/PSTN counterparts for every journey.'
-  - Activation step generation from activation-register.yaml (exact commands, settings, expected evidence, remaining qualification list); execution only when the scoped approval exists; Talkdesk sandbox Studio/AG matrix, AI-off route and simulator runbooks executed only under AR-01/AR-06.
+  - 'Activation step generation from activation-register.yaml (exact commands, settings, expected evidence, remaining qualification list); execution only when the scoped approval exists; Talkdesk sandbox Studio/AG matrix job (FO-06-37a: every AG row, including an uncleared variable across steps, run in sandbox Studio and the simulator with per-row results), AI-off route and simulator runbooks executed only under AR-01/AR-06.'
   - Prerequisite register structure (docs/prerequisites.yaml schema, docs/PREREQUISITES.md renderer) and docs/release/** (phase gates, approval requests); the proposed AIN entries without PRQ records are offered to their owners as proposed records, never created as approved or requested.
   acceptance:
   - make qualify-tenant TENANT=synthetic ENV=local (all suites against emulators; ActivationReport written; exit 0)

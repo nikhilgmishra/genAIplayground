@@ -46,17 +46,28 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
+      - name: Runtime pin is a supported Node.js LTS line everywhere it is pinned (FO-03-14)
+        run: node scripts/vsp/runner.mts check-runtime --require-running
+
+      - name: Every dependency is exact-pinned, locked, installed at the locked version and licensed; the planned dependency set is present
+        run: node scripts/vsp/runner.mts check-deps
+
       - name: Fetch pinned tools (OPA, Terraform; SHA256 verified)
         run: bash scripts/fetch-tools.sh
 
       - name: Lint
         run: pnpm lint
 
-      - name: Typecheck
+      - name: Typecheck (workspace packages and the runner)
         run: pnpm typecheck
 
-      - name: Unit tests (platform + console)
-        run: pnpm test
+      - name: Unit tests (make test-unit; real exit code, evidence/test-reports/vitest-unit.json)
+        run: make test-unit
+
+      - name: Contract, docs and journey tests (platform)
+        env:
+          VSP_TEST_REPORT_DIR: ${{ github.workspace }}/evidence/test-reports
+        run: pnpm --filter @vsp/platform exec vitest run --project contract --project docs --project journey
 
       - name: Policy tests (OPA bundle)
         run: |
@@ -134,6 +145,52 @@ jobs:
         with:
           name: evidence-build-test
           path: evidence/
+          if-no-files-found: warn
+
+  integration:
+    name: Layer-2 integration (local composition, emulators only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5 # pin to full commit SHA before production
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4 # pin to full commit SHA before production
+        with:
+          node-version-file: .nvmrc
+
+      - name: Enable pnpm via corepack
+        run: corepack enable
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Start the core composition (digest-pinned images, 127.0.0.1 only, no billable endpoint)
+        run: make up PROFILE=core
+
+      - name: Layer-2 harness suite (production adapters against the emulators)
+        run: make test-integration SUITE=_harness
+
+      - name: Composition state on failure
+        if: failure()
+        run: |
+          make ps || true
+          make logs SERVICE= 2>&1 | tail -n 400 || true
+
+      - name: Tear down the CI composition (containers and every volume of the project)
+        if: always()
+        run: make down PURGE=1 PURGE_AUDIT=1
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4 # pin to full commit SHA before production
+        with:
+          name: evidence-integration
+          path: |
+            evidence/test-reports/vitest-integration.json
+            evidence/test-reports/vitest-integration.emulation.json
+            evidence/runs/local-*.json
           if-no-files-found: warn
 
   terraform:
@@ -231,6 +288,12 @@ jobs:
             --input evidence/runs/pnpm-list.json \
             --licenses evidence/runs/licenses.json \
             --output evidence/runs/sbom.cdx.json
+
+      - name: Direct dependency inventory with locked versions and licences (hand-off to docs/INVENTORY.md)
+        run: |
+          mkdir -p evidence/runs
+          node scripts/vsp/runner.mts check-deps --inventory --json > evidence/runs/deps-inventory.json
+          node scripts/vsp/runner.mts check-deps --inventory > evidence/runs/deps-inventory.md
 
       - name: Upload SBOM and evidence
         if: always()

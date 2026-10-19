@@ -1,5 +1,14 @@
 # Implementation status
 
+> **Current register: the follow-on gap ledger.** This file is the single-axis status record of the
+> original offline slice. It stays in that vocabulary until WP-44 regenerates it per capability
+> (ADR-0018 decision 7.4). The current two-axis register (software status, environment status,
+> qualification, evidence and work package for every requirement) is
+> [`followon/gap-ledger.yaml`](followon/gap-ledger.yaml), rendered as [`GAP_CLOSURE.md`](GAP_CLOSURE.md);
+> both axes per capability are in [`followon/capabilities.yaml`](followon/capabilities.yaml), and missing
+> external inputs are in [`ACTIVATION_REGISTER.md`](ACTIVATION_REGISTER.md). Where this file and the
+> ledger differ, the ledger is current.
+
 Checkpoint for handoff (spec "Progress and handoff"): what is implemented, how it was verified,
 what is blocked and what comes next, so another session can continue without guessing.
 

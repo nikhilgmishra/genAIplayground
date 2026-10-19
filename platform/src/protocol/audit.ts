@@ -44,6 +44,12 @@ export const AuditEvent = z.strictObject({
   occurredAt: IsoDateTime,
   correlationId: OpaqueId,
   parentId: OpaqueId.nullable(),
+  /**
+   * Event or request that caused this one (follow-on envelope; distinct from the hierarchical
+   * parentId). Optional: absent on events written before the field existed, so their hash chain
+   * is unchanged; covered by the hash when present.
+   */
+  causationId: OpaqueId.optional(),
   tenantId: OpaqueId,
   actorRef: OpaqueId.nullable(),
   subjectRef: OpaqueId.nullable(),
@@ -91,6 +97,15 @@ export const AuditEventInput = AuditEvent.omit({
 });
 export type AuditEventInput = z.infer<typeof AuditEventInput>;
 
+export const AuditManifestSignature = z.strictObject({
+  algorithm: z.enum(["ECDSA_P256_SHA256", "RSASSA_PSS_SHA256", "ED25519"]),
+  /** KMS key ARN (or labelled local fixture key) that signed; never key material. */
+  keyRef: z.string().max(512).regex(/^(arn:aws:kms:[A-Za-z0-9-]{1,32}:[0-9]{12}:key\/[A-Za-z0-9-]{1,128}|local-fixture:[a-z0-9][a-z0-9._/-]{0,127})$/),
+  /** base64url signature value. */
+  value: z.string().min(16).max(1024).regex(/^[A-Za-z0-9_-]+$/),
+});
+export type AuditManifestSignature = z.infer<typeof AuditManifestSignature>;
+
 /** Tamper-evident manifest for a shipped batch. Hashing alone does not prove completeness. */
 export const AuditManifest = z.strictObject({
   manifestId: OpaqueId,
@@ -103,5 +118,16 @@ export const AuditManifest = z.strictObject({
   batchDigest: Sha256Hex,
   createdAt: IsoDateTime,
   objectKey: z.string().max(256),
+  /**
+   * Detached signature over the canonical manifest without the three signature fields, by the
+   * audit exporter's KMS key (follow-on prompt section 15). Optional until the exporter (WP-04)
+   * signs; a verifier treats an unsigned manifest as unsigned, never as verified.
+   */
+  signature: AuditManifestSignature.optional(),
+  signedAt: IsoDateTime.optional(),
+  signerRole: z.enum(["audit_exporter", "audit_writer"]).optional(),
 });
 export type AuditManifest = z.infer<typeof AuditManifest>;
+
+/** True when all three signature fields are present together (partial signatures are invalid). */
+export const manifestSignaturePresent = (m: AuditManifest): boolean => m.signature !== undefined && m.signedAt !== undefined && m.signerRole !== undefined;

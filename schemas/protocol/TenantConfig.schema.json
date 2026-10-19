@@ -1,0 +1,314 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/TenantConfig.json",
+  "title": "TenantConfig",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "tenant-config.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "versions": "configVersion"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "tenant-config.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "configVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "IN_REVIEW",
+        "PUBLISHED",
+        "ROLLED_BACK"
+      ]
+    },
+    "label": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 80,
+      "pattern": "^[A-Za-z0-9 .,&()'-]+$"
+    },
+    "businessTimeZone": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64,
+      "pattern": "^(UTC|[A-Za-z]+(\\/[A-Za-z0-9_+-]+){1,2})$"
+    },
+    "locales": {
+      "minItems": 1,
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z]{2,3}-[A-Z]{2}$"
+      }
+    },
+    "jurisdictions": {
+      "minItems": 1,
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^[A-Z]{2}(-[A-Z0-9]{1,3})?$"
+          },
+          {
+            "type": "string",
+            "const": "UNKNOWN"
+          }
+        ]
+      }
+    },
+    "regions": {
+      "type": "object",
+      "properties": {
+        "primary": {
+          "type": "string",
+          "pattern": "^[a-z]{2}(-[a-z]+)+-[0-9]$"
+        },
+        "secondary": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z]{2}(-[a-z]+)+-[0-9]$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "usOnly": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "primary",
+        "secondary",
+        "usOnly"
+      ],
+      "additionalProperties": false
+    },
+    "processingPurposes": {
+      "minItems": 1,
+      "maxItems": 13,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "support_administration",
+          "identity_verification",
+          "safety_routing",
+          "human_handoff",
+          "case_follow_up",
+          "notification_delivery",
+          "quality_assurance",
+          "evaluation",
+          "model_improvement",
+          "security_audit",
+          "legal_obligation",
+          "analytics_aggregate",
+          "marketing"
+        ]
+      }
+    },
+    "retentionDays": {
+      "type": "object",
+      "properties": {
+        "TRANSIENT_CONVERSATION": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "BUSINESS_RECORD": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "RESTRICTED_QA_MEDIA": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "SECURITY_AUDIT": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 36500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "TRANSIENT_CONVERSATION",
+        "BUSINESS_RECORD",
+        "RESTRICTED_QA_MEDIA",
+        "SECURITY_AUDIT"
+      ],
+      "additionalProperties": false
+    },
+    "retentionPolicyRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "connectorProfileRefs": {
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^cnp_[A-Za-z0-9_-]{16,64}$"
+      }
+    },
+    "enabledCapabilities": {
+      "maxItems": 128,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$"
+      }
+    },
+    "escalationDestinations": {
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^dst_[a-z0-9_]{2,40}$"
+      }
+    },
+    "approvalsRequired": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "PHI_PROCESSING",
+          "VENDOR_SANDBOX_INTEGRATION",
+          "BILLABLE_TEST_EXECUTION",
+          "PSTN_TEST_CALLS",
+          "PRODUCTION_DEPLOYMENT",
+          "PILOT_EXPOSURE",
+          "MODEL_VOICE_SELECTION",
+          "POLICY_RELEASE",
+          "KNOWLEDGE_RELEASE",
+          "CLINICAL_SCRIPTS",
+          "RETENTION_SCHEDULE",
+          "STATIC_CREDENTIAL_EXCEPTION",
+          "SECURITY_REVIEW"
+        ]
+      }
+    },
+    "configDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "publishedBy": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reviewedBy": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "occurredAt",
+    "causationId",
+    "configVersion",
+    "status",
+    "label",
+    "businessTimeZone",
+    "locales",
+    "jurisdictions",
+    "regions",
+    "processingPurposes",
+    "retentionDays",
+    "retentionPolicyRef",
+    "connectorProfileRefs",
+    "enabledCapabilities",
+    "escalationDestinations",
+    "approvalsRequired",
+    "configDigest",
+    "publishedBy",
+    "reviewedBy"
+  ],
+  "additionalProperties": false
+}

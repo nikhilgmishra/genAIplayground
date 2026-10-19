@@ -1,0 +1,32 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/PageRequest.json",
+  "title": "PageRequest",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "pageSize": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
+    },
+    "cursor": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 512,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "pageSize",
+    "cursor"
+  ],
+  "additionalProperties": false
+}

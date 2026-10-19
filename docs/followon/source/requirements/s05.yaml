@@ -15,8 +15,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/common.ts:58-66
-  - platform/src/identity/README.md:6-8
+  - platform/src/protocol/common.ts:58-66 (Assurance A0..A3 with the comment "Application policy assurance tiers (NOT NIST AAL certifications)")
+  - platform/src/policy/engine.property.test.ts:58,67 (policy property tests range over every Assurance tier)
+  - 'platform/src/identity/README.md:6-7 (documentation element: "application policy tiers ..., not NIST levels")'
   - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
   gap: None.
   remediation: Keep.
@@ -27,6 +28,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-05-02
   section: '5'
   kind: software
@@ -347,9 +349,7 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/verification-service.test.ts:358-372
-  - platform/src/identity/README.md (same generation check)
-  - platform/src/identity/verification-service.test.ts:225 (generation change refuses binding), :561 (OTP challenge bound to session and generation)
+  - platform/src/identity/verification-service.test.ts:225 (generation change refuses binding), :358-372 (same call and generation, no other bound actor), :561 (OTP challenge bound to session and generation)
   gap: None.
   remediation: Keep.
   size: S
@@ -359,6 +359,7 @@ requirements:
     origin: extraction
     repair:
     - VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1); evidence lines added
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-05-15
   section: '5'
   kind: software
@@ -623,8 +624,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/README.md (OTP fallback)
-  - platform/src/identity/verification-service.test.ts
+  - platform/src/identity/verification-service.test.ts:529 (a caller-supplied sendTo number is a ValidationError; codes go only to a registered channel)
+  - platform/src/identity/verification-service.test.ts:115 (no begin input can carry a phone number), :507 (a recent number change blocks OTP)
   gap: None.
   remediation: Keep.
   size: S
@@ -634,6 +635,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-05-26
   section: '5'
   kind: software
@@ -922,9 +924,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - policy/vsp/authz.rego:675
-  - policy/vsp/console.rego:240
-  - docs/TEST_EVIDENCE.md:50 (225/225)
+  - policy/vsp/authz.rego:675 and policy/vsp/console.rego:240 (default deny)
+  - policy/vsp/authz_test.rego:88 (unknown action is DEFAULT_DENY), policy/vsp/console_test.rego:79 (unknown console action is DEFAULT_DENY)
+  - docs/TEST_EVIDENCE.md:50 (225/225 Rego tests)
   gap: None.
   remediation: Keep.
   size: S
@@ -934,6 +936,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-05-38
   section: '5'
   kind: software
@@ -949,8 +952,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/migrations (tenant RLS)
-  - platform/src/gateway/mask.ts; mask.test.ts
+  - platform/src/gateway/mask.ts; mask.test.ts (field masks)
+  - platform/src/audit/migration.test.ts:129,139, platform/src/actions/ledger-schema.test.ts:32,48,70, platform/src/outbox/outbox.test.ts:71, platform/src/knowledge/ingest.test.ts:243 (RLS as app_runtime/app_worker roles on PGlite)
   - platform/src/ops/kill-switches.test.ts:111
   gap: RLS untested on PostgreSQL server.
   remediation: PostgreSQL container run.
@@ -961,6 +964,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-05-39
   section: '5'
   kind: software
@@ -1193,7 +1197,7 @@ requirements:
   qualification: NOT_RUN
   evidence:
   - platform/src/identity/session-service.test.ts:332
-  - platform/src/actions/action-service.invalidation.test.ts
+  - platform/src/actions/action-service.test.ts:214,222 (a session generation change invalidates the pending action at confirmation, and at commit with zero provider calls)
   gap: None.
   remediation: Keep.
   size: S
@@ -1203,6 +1207,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 4 (wave B1 ledger job): citation corrected: the generation-change invalidation is exercised in action-service.test.ts, not in action-service.invalidation.test.ts (barge-in and supersede); status unchanged'
 - id: FO-05-49
   section: '5'
   kind: software

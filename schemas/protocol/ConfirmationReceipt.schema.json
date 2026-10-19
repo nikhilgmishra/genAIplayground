@@ -1,0 +1,121 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ConfirmationReceipt.json",
+  "title": "ConfirmationReceipt",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "confirmation-receipt.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "actorRef": "actorRef",
+    "sessionGeneration": "sessionGeneration",
+    "turnId": "turnId",
+    "causationId": "causationId",
+    "occurredAt": "capturedAt",
+    "expiresAt": "expiresAt",
+    "provenance": "method"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "confirmation-receipt.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "actorRef": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "sessionGeneration": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000000
+    },
+    "turnId": {
+      "type": "string",
+      "pattern": "^turn_[A-Za-z0-9_-]{4,64}$"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "receiptId": {
+      "type": "string",
+      "pattern": "^cfr_[A-Za-z0-9_-]{16,64}$"
+    },
+    "actionId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sessionRef": {
+      "type": "string",
+      "pattern": "^ses_[A-Za-z0-9_-]{16,64}$"
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "dtmf_keypress",
+        "deterministic_skill_affirmative",
+        "portal_approval",
+        "human_agent"
+      ]
+    },
+    "capturedBy": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{3,64}$"
+    },
+    "capturedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "auditEventId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "actorRef",
+    "sessionGeneration",
+    "turnId",
+    "expiresAt",
+    "causationId",
+    "receiptId",
+    "actionId",
+    "digest",
+    "sessionRef",
+    "method",
+    "capturedBy",
+    "capturedAt",
+    "auditEventId"
+  ],
+  "additionalProperties": false
+}

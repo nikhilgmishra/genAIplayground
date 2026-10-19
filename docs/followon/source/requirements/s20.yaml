@@ -25,6 +25,12 @@ requirements:
   size: L
   environmentDependency: tenant-approved KB content
   workPackage: WP-17
+  componentPackages:
+  - WP-08
+  - WP-10
+  - WP-11
+  - WP-13
+  - WP-14
   provenance:
     origin: extraction
 - id: FO-20-02
@@ -51,6 +57,11 @@ requirements:
   size: L
   environmentDependency: scheduling API spec and sandbox
   workPackage: WP-25
+  componentPackages:
+  - WP-05
+  - WP-17
+  - WP-23
+  - WP-25
   provenance:
     origin: extraction
 - id: FO-20-03
@@ -75,6 +86,10 @@ requirements:
   size: L
   environmentDependency: tenant authorization of create/cancel
   workPackage: WP-30
+  componentPackages:
+  - WP-23
+  - WP-25
+  - WP-30
   provenance:
     origin: extraction
 - id: FO-20-04
@@ -100,6 +115,12 @@ requirements:
   size: L
   environmentDependency: billing system and warehouse access
   workPackage: WP-24
+  componentPackages:
+  - WP-14
+  - WP-18
+  - WP-21
+  - WP-23
+  - WP-24
   provenance:
     origin: extraction
 - id: FO-20-05
@@ -125,6 +146,13 @@ requirements:
   size: L
   environmentDependency: billing and CRM sandboxes
   workPackage: WP-30
+  componentPackages:
+  - WP-17
+  - WP-23
+  - WP-26
+  - WP-27
+  - WP-29
+  - WP-30
   provenance:
     origin: extraction
 - id: FO-20-06
@@ -150,6 +178,11 @@ requirements:
   size: L
   environmentDependency: claims/referral source access
   workPackage: WP-30
+  componentPackages:
+  - WP-23
+  - WP-25
+  - WP-26
+  - WP-30
   provenance:
     origin: extraction
 - id: FO-20-07
@@ -176,6 +209,10 @@ requirements:
   size: L
   environmentDependency: provider/credentialing system access
   workPackage: WP-25
+  componentPackages:
+  - WP-19
+  - WP-23
+  - WP-25
   provenance:
     origin: extraction
 - id: FO-20-08
@@ -201,6 +238,10 @@ requirements:
   size: M
   environmentDependency: partner registry
   workPackage: WP-19
+  componentPackages:
+  - WP-05
+  - WP-07
+  - WP-19
   provenance:
     origin: extraction
     challengeCorrected:
@@ -223,14 +264,50 @@ requirements:
   - scenarios/risk/minor_confidentiality.json, expired_proxy.json
   - scenarios/skeletons/representative_minor_access.yaml
   gap: No journey test; specialist route not modelled.
-  remediation: Add a relationship-registry connector field for guardianship/minor status with an emulator. Policy routes ambiguous or expired proxy authority to a configured authorized-specialist destination (new destination class). The journey asserts no protected disclosure and an accepted transfer to that destination.
+  remediation: Add a relationship-registry connector field for guardianship/minor status with an emulator. Policy routes ambiguous or expired proxy authority to a configured authorized-specialist destination (new destination class). The journey asserts no protected disclosure and a routed handoff to that destination with an accountable owner (a HandoffPackage carrying the authorized-specialist destination class). The accepted-transfer leg is FO-20-09a (WP-30), because accepted transfer is built by WP-28 in phase E.
   size: M
   environmentDependency: relationship/guardianship source
   workPackage: WP-19
+  componentPackages:
+  - WP-07
+  - WP-19
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
+    repair:
+    - 'Phase A repair round 4 (wave B1 ledger job): accepted-transfer leg split into FO-20-09a (WP-30): WP-19 (phase D) cannot assert an accepted transfer, which WP-28 builds in phase E (journey dependency inversion)'
+- id: FO-20-09a
+  section: '20'
+  kind: evaluation
+  text: 'J09 accepted-transfer leg: the routed handoff for ambiguous minor, proxy or guardian authority ends in an accepted transfer to the authorized-specialist destination, or keeps an accountable owner when the receiver declines or is unavailable; nothing protected is disclosed before or after acceptance.'
+  acceptance: 'Journey j09b in compose: an ambiguous-authority call reaches the authorized-specialist destination through the WP-28 receiver client with acceptance verified; decline and unavailable receivers leave an accountable owner and the next approved route; no protected disclosure in speech, tool output or audit detail.'
+  originalIds:
+  - SPEC-4.audience-permissions
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  - handoff.transfer
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/skeletons/representative_minor_access.yaml
+  gap: No authorized-specialist destination class, durable transfer store or receiver client exists to accept the transfer.
+  remediation: Run the accepted-transfer leg of J09 on the WP-19 relationship registry and the WP-28 receiver client and warm transfer (journey j09b).
+  size: M
+  environmentDependency: relationship/guardianship source
+  provenance:
+    origin: repair-split
+    splitFrom: FO-20-09
+    repair:
+    - 'Phase A repair round 4 (critic journey-inversion gap): accepted-transfer leg of J09 moved to WP-30, which depends on WP-19 (relationship registry) and WP-28 (accepted transfer)'
+  workPackage: WP-30
+  componentPackages:
+  - WP-19
+  - WP-28
+  - WP-30
 - id: FO-20-10
   section: '20'
   kind: evaluation
@@ -254,6 +331,10 @@ requirements:
   size: L
   environmentDependency: staffed queue for live
   workPackage: WP-28
+  componentPackages:
+  - WP-11
+  - WP-12
+  - WP-28
   provenance:
     origin: extraction
 - id: FO-20-11
@@ -281,6 +362,10 @@ requirements:
   size: L
   environmentDependency: clinical safety approval (PRQ-008) and staffed safety routes
   workPackage: WP-15
+  componentPackages:
+  - WP-11
+  - WP-13
+  - WP-15
   provenance:
     origin: extraction
     repair:
@@ -315,6 +400,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 6b): failed-transfer leg of J11 moved to WP-28, which builds the transfer store, receiver client and warm transfer'
   workPackage: WP-28
+  componentPackages:
+  - WP-12
+  - WP-14
+  - WP-15
+  - WP-28
 - id: FO-20-12
   section: '20'
   kind: evaluation
@@ -324,6 +414,8 @@ requirements:
   - SPEC-16.journey-7
   - DATA-03
   derivedFrom: []
+  relatedIds:
+  - FO-20-33
   capabilityIds:
   - actions.effects
   - journeys.end_to_end
@@ -333,17 +425,23 @@ requirements:
   evidence:
   - platform/test/journeys/j5-j7-j8-routing.test.ts:129 (fixture recorder)
   gap: No real recording control.
-  remediation: Implement in media runtime.
+  remediation: Implement in the media runtime (WP-11 recorder control and MediaProcessingState readout, WP-22 consent dimensions). The configured-alternative leg (the recording_declined_alternative@1 contract and its route) is FO-20-33 in WP-30, which binds the contract to this recorder control and re-runs j12.
   size: M
   environmentDependency: approved disclosure scripts
   workPackage: WP-25
+  componentPackages:
+  - WP-11
+  - WP-22
+  - WP-25
   provenance:
     origin: extraction
+    repair:
+    - 'Phase A repair round 4 (wave B1 ledger job): configured-alternative leg delegated to FO-20-33 (WP-30) by cross-reference, so WP-25 asserts only what its components provide (recorder and processing state against the disclosure)'
 - id: FO-20-13
   section: '20'
   kind: evaluation
   text: J13 Unsupported language/speech impairment/relay routes to accessible assistance; approved language variant tested with real audio and qualified reviewers.
-  acceptance: Audio tests for relay and approved language variant with reviewer sign-off.
+  acceptance: Audio tests for relay routing and the approved language variant; the qualified-reviewer sign-off is the qualification row FO-20-13a.
   originalIds:
   - SPEC-16.journey-8
   - SPEC-11.interpreter
@@ -358,12 +456,47 @@ requirements:
   - platform/test/journeys/j5-j7-j8-routing.test.ts:167 (interpreter destination, fixture)
   - scenarios/skeletons/relay_service_caller.yaml
   gap: No audio, no language variant.
-  remediation: Audio runtime + reviewer workflow.
+  remediation: Audio runtime tests for relay routing and the approved language variant; reviewer sign-off in FO-20-13a (WP-45).
   size: L
   environmentDependency: qualified language reviewers and approved translations
   workPackage: WP-15
+  componentPackages:
+  - WP-13
+  - WP-15
   provenance:
     origin: extraction
+    repair:
+    - 'Phase A repair round 4 (wave B1 ledger job): reviewer sign-off (a human step) split into the qualification row FO-20-13a (WP-45), as the status rules require'
+- id: FO-20-13a
+  section: '20'
+  kind: evaluation
+  text: 'J13 qualified-reviewer sign-off: the approved language variant''s real-audio run is reviewed and signed off by qualified language reviewers before the variant is offered to callers.'
+  acceptance: A ReviewRecord from a qualified language reviewer, bound to the j13 audio run and to the variant's registry entry, exists before the variant is enabled; without it the variant stays disabled and calls route to accessible assistance.
+  originalIds:
+  - SPEC-16.journey-8
+  - SPEC-11.interpreter
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  - journeys.end_to_end
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: No reviewer workflow, ReviewRecord store or qualified language reviewers exist.
+  remediation: 'WP-45: a qualification step that requires the WP-35 ReviewRecord of a qualified language reviewer for the variant before activation and keeps the variant disabled without it.'
+  size: S
+  environmentDependency: qualified language reviewers and approved translations
+  provenance:
+    origin: repair-split
+    splitFrom: FO-20-13
+    repair:
+    - 'Phase A repair round 4 (critic text/evidence gap 4): the human reviewer sign-off of J13 is a qualification step, split from FO-20-13'
+  workPackage: WP-45
+  componentPackages:
+  - WP-15
+  - WP-35
+  - WP-45
 - id: FO-20-14
   section: '20'
   kind: evaluation
@@ -387,6 +520,10 @@ requirements:
   size: L
   environmentDependency: none
   workPackage: WP-24
+  componentPackages:
+  - WP-18
+  - WP-19
+  - WP-24
   provenance:
     origin: extraction
 - id: FO-20-15
@@ -411,6 +548,11 @@ requirements:
   size: L
   environmentDependency: none
   workPackage: WP-30
+  componentPackages:
+  - WP-11
+  - WP-14
+  - WP-25
+  - WP-30
   provenance:
     origin: extraction
     challengeCorrected:
@@ -435,16 +577,22 @@ requirements:
   - platform/test/journeys/faults.test.ts:297-341 (fixture)
   - platform/src/adapters/live/salesforce-rest.contract.test.ts:253-309 (emulator)
   gap: Not composed end to end through the real adapter.
-  remediation: 'In the composed stack (FO-19-63), run the Salesforce emulator (salesforce-emulator.fixture.ts promoted to a container) behind toxiproxy. Test: create a support request, cut the emulator, assert RETRY_SCHEDULED and an internal SR reference distinct from any Case id, restore it, assert exactly one Case by external id. Then inject a timeout after commit and assert reconcile-by-external-id with no second upsert.'
+  remediation: 'In the composed stack (FO-19-63), run the Salesforce emulator (salesforce-emulator.fixture.ts promoted to a container, WP-29) with its own fault controls; the outage is a paused emulator container (docker pause) and the timeout after commit is the emulator delaying its response after the write, so the WP-42 toxiproxy fragment (phase G) is not needed. Test: create a support request, cut the emulator, assert RETRY_SCHEDULED and an internal SR reference distinct from any Case id, restore it, assert exactly one Case by external id. Then inject a timeout after commit and assert reconcile-by-external-id with no second upsert.'
   size: M
   environmentDependency: Salesforce sandbox and Case schema (PRQ-006)
   workPackage: WP-29
+  componentPackages:
+  - WP-04
+  - WP-06
+  - WP-29
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    repair:
+    - 'Phase A repair round 4 (wave B1 ledger job): outage and timeout-after-commit injected by the WP-29 emulator and a paused container instead of toxiproxy, which WP-42 builds in phase G (journey dependency inversion)'
 - id: FO-20-17
   section: '20'
   kind: evaluation
@@ -465,12 +613,20 @@ requirements:
   - platform/test/journeys/recheck.test.ts
   - platform/src/actions/action-service.invalidation.test.ts
   gap: Recheck covers consent/authority; no propagation to memory/caches/projections.
-  remediation: After FO-19-18.
+  remediation: WP-25 runs j17 once the WP-22 revocation and deletion consumers and the WP-24 ContextCacheKey invalidation exist (after FO-19-18); revocation or deletion while a task is pending leaves no derived store (memory, timeline projections, context caches, pending confirmations) that discloses or acts on the revoked data.
   size: L
   environmentDependency: none
-  workPackage: WP-22
+  workPackage: WP-25
+  componentPackages:
+  - WP-18
+  - WP-19
+  - WP-22
+  - WP-24
+  - WP-25
   provenance:
     origin: extraction
+    repair:
+    - 'Phase A repair round 4 (wave B1 ledger job): moved from WP-22 to WP-25: the ContextCacheKey caches are built by WP-24, which depends on WP-22, so WP-22 could not meet the acceptance (journey dependency inversion)'
 - id: FO-20-18
   section: '20'
   kind: evaluation
@@ -496,6 +652,10 @@ requirements:
   size: XL
   environmentDependency: multi-region environment for real failover
   workPackage: WP-42
+  componentPackages:
+  - WP-04
+  - WP-15
+  - WP-42
   provenance:
     origin: extraction
 - id: FO-20-19
@@ -524,6 +684,11 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-43
+  componentPackages:
+  - WP-06
+  - WP-10
+  - WP-20
+  - WP-43
   provenance:
     origin: extraction
 - id: FO-20-20
@@ -548,6 +713,14 @@ requirements:
   size: XL
   environmentDependency: none
   workPackage: WP-38
+  componentPackages:
+  - WP-31
+  - WP-32
+  - WP-33
+  - WP-35
+  - WP-36
+  - WP-37
+  - WP-38
   provenance:
     origin: extraction
 - id: FO-20-21
@@ -644,6 +817,10 @@ requirements:
   size: M
   environmentDependency: CRM schema and complaint policy owner
   workPackage: WP-30
+  componentPackages:
+  - WP-26
+  - WP-29
+  - WP-30
   provenance:
     origin: extraction
 - id: FO-20-25
@@ -668,6 +845,9 @@ requirements:
   size: M
   environmentDependency: CRM schema
   workPackage: WP-30
+  componentPackages:
+  - WP-29
+  - WP-30
   provenance:
     origin: extraction
 - id: FO-20-26
@@ -691,6 +871,9 @@ requirements:
   size: S
   environmentDependency: tenant portal recovery content
   workPackage: WP-30
+  componentPackages:
+  - WP-20
+  - WP-30
   provenance:
     origin: extraction
 - id: FO-20-27
@@ -715,6 +898,10 @@ requirements:
   size: M
   environmentDependency: billing hosted payment page (PRQ-050), PCI scope
   workPackage: WP-30
+  componentPackages:
+  - WP-23
+  - WP-27
+  - WP-30
   provenance:
     origin: extraction
 - id: FO-20-28

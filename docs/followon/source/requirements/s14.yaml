@@ -1015,6 +1015,8 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - operator.console
+  relatedIds:
+  - FO-14-41a
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
@@ -1024,16 +1026,50 @@ requirements:
   - platform/src/console-api/kill-switches.test.ts
   - console/src/pages/KillSwitchesPage.test.tsx
   - platform/src/ops/notification-gate.test.ts
-  gap: 'MODEL_VERSION switch exists but no model routing exists to fall back to; per-tool-family and per-tenant scopes absent. IMPLEMENTED, not VERIFIED_LOCAL: The MODEL_VERSION and VOICE_VERSION switches have no consumer and "outbound" covers OUTBOUND_NOTIFICATIONS only (platform/src/ops/kill-switches.ts:34,89-95); per-tool-family and per-tenant scopes are absent.'
-  remediation: Wire MODEL_VERSION to the model harness router and add tenant scope.
+  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: per-tool-family and per-tenant scopes are absent, and "outbound" covers OUTBOUND_NOTIFICATIONS only (platform/src/ops/kill-switches.ts:34,89-95), so outbound voice calls have no switch. The MODEL_VERSION and VOICE_VERSION scopes exist but have no consumer; that part is split out as FO-14-41a.'
+  remediation: 'WP-38, phase F owner of the ops shared group (platform/src/ops/**), adds the per-tool-family and per-tenant scopes to kill-switches.ts and wires every scope on the controls page and console API. The OUTBOUND_CALLS scope and its consumer land in phase E: WP-27 delivers the outbound-dialer hook and WP-30 adds the scope as the phase E ops group owner. The MODEL_VERSION and VOICE_VERSION consumers are FO-14-41a (WP-17).'
   size: S
   environmentDependency: none
+  workPackage: WP-38
   provenance:
     origin: extraction
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the MODEL_VERSION and VOICE_VERSION switches have no consumer and "outbound" covers OUTBOUND_NOTIFICATIONS only (platform/src/ops/kill-switches.ts:34,89-95); per-tool-family and per-tenant scopes are absent.'
+    - 'Phase A repair round 3 (re-check gap 2a, kill-switch ownership): the MODEL_VERSION and VOICE_VERSION consumers are split out as FO-14-41a (WP-17, hooks from WP-09, WP-10, WP-13 and WP-16); platform/src/ops/** becomes the ops shared group with an owner in every phase, so WP-38 can add scopes in phase F.'
     repairStatusFrom: VERIFIED_LOCAL
-  workPackage: WP-38
+- id: FO-14-41a
+  section: '14'
+  kind: software
+  text: 'Controls: the MODEL_VERSION and VOICE_VERSION kill switches are honoured wherever a model version or a voice version is selected (split from FO-14-41).'
+  acceptance: Engaging MODEL_VERSION for a bound model version makes harness role resolution refuse that version and use the next entry of the registry's approved fallback graph, or the approved template or human route when none is approved; engaging VOICE_VERSION for a TTS voice version makes TTS use an approved alternative voice or the fallback clip, and for a native voice version refuses new native sessions and switches active ones to the controlled cascade with buffer flush; SAFETY and HUMAN_ROUTE are never blocked; an unreadable kill-switch state fails closed for nonessential work; tests engage and release each switch in the composed cascade and native paths and assert the audited reason.
+  originalIds:
+  - SPEC-13.killswitch
+  - OPS-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - models.registry
+  - voice.cascade
+  - voice.native
+  relatedIds:
+  - FO-14-41
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/ops/kill-switches.ts:94-95,115-116,128-129 (MODEL_VERSION and VOICE_VERSION scopes evaluated by killSwitchBlock)
+  - platform/src/ops/admission.ts:84-85,147-153 (admission forwards modelVersion and voiceVersion only when a caller supplies them)
+  - 'no caller at 8c0f5a0 supplies modelVersion or voiceVersion: no model routing, TTS voice selection or native voice session exists'
+  gap: 'No consumer: no model routing, TTS voice selection or native voice path exists to honour the two switches.'
+  remediation: 'WP-09 exposes the version label and the approved fallback graph per registry entry; WP-10 asks a module-local VersionGate port about the bound model version during role resolution; WP-13 (TTS voices) and WP-16 (native sessions) check voice versions against the switch decision served through the generated gateway client (none of these modules imports platform/src/ops: WP-06 import allowlist); WP-17, phase C owner of the ops and composition shared groups, implements the port with killSwitchBlock, serves the voice decisions and runs the engage/release tests on the composed cascade and native paths.'
+  size: M
+  environmentDependency: none
+  workPackage: WP-17
+  provenance:
+    origin: repair-split
+    splitFrom: FO-14-41
+    repair:
+    - 'Phase A repair round 3 (re-check gap 2a): the consumer work FO-14-41 assigned to WP-38 needs model routing (WP-09, WP-10) and native voice (WP-16), which WP-38 does not own; it is split out and owned by the phase C integration package.'
 - id: FO-14-42
   section: '14'
   kind: software
@@ -1414,23 +1450,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: VERIFIED_LOCAL
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/config/approvals.ts
-  - platform/src/config/approvals.test.ts
-  - platform/src/config/guard.test.ts
+  - platform/src/config/approvals.ts:383-394 (KmsTrustedKeyResolver over @aws-sdk/client-kms GetPublicKey)
+  - platform/src/config/approvals.test.ts:206 (KMS resolver tested with a fixture client, no network or emulator), :69, :80, :168 (unsigned, malformed and foreign-key records refused)
+  - platform/src/config/guard.test.ts:315 (signing keys and trust anchors enforced before non-local use)
   - platform/src/config/__evidence__/production-guard-violations.json
-  gap: None in code; trust anchor key not yet provisioned.
-  remediation: Keep; add test that demo-signed records fail every production scope.
+  gap: 'Environment, role and signed-subject matching and the refusal of local keys are tested in process, but "verify against a KMS trust key" is exercised only with a fixture KMS client: GetPublicKey has never run against LocalStack KMS or KMS, and the live composition that would use the resolver is refused today.'
+  remediation: 'WP-07: compose KmsTrustedKeyResolver in the live container with an endpoint override and verify in the composition suite on LocalStack KMS (ECC_NIST_P256 SIGN_VERIFY key; a record signed with KMS Sign verifies; an ENCRYPT_DECRYPT key, a local PEM key and a foreign key are refused).'
   size: S
   environmentDependency: none
-  regressionPackage: WP-05
+  workPackage: WP-07
   provenance:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL -> IMPLEMENTED: the KMS trust-key element is tested only with a fixture client, not on the real protocol or an emulator'
+    repairStatusFrom: VERIFIED_LOCAL
 - id: FO-14-57
   section: '14'
   kind: software

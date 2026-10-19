@@ -1,0 +1,26 @@
+# Local Layer-2 composition: entry file (WP-03; docs/ARCHITECTURE.md section 6.3.2, ADR-0018 decision 6).
+#
+# Do not add services here. scripts/vsp/runner.mts (make up / make down) loads this file plus every
+# deploy/local/services/*.compose.yaml fragment, so each package adds the services it needs in its own
+# fragment. Services are selected with compose profiles: `make up PROFILE=core,media`.
+#
+# Conventions every fragment follows (checked by platform/test/integration/_harness):
+#   * images are pinned by tag AND digest (name:tag@sha256:...);
+#   * published ports bind 127.0.0.1 only;
+#   * credentials come from the generated state file (.tools/vsp-local/env, passed with --env-file),
+#     never from the repository;
+#   * every service carries io.vsp.emulates / io.vsp.not-emulated labels: the Layer-2 report labels
+#     each test with what was emulated and what the emulator does NOT prove;
+#   * stateful volumes carry io.vsp.data-class; `audit` volumes survive `make down PURGE=1` and are
+#     removed only with PURGE_AUDIT=1;
+#   * no service calls a billable or external endpoint (update checks and telemetry are disabled).
+#
+# Policy is not a service: the production OPA engine runs in-process inside the platform from the
+# built WASM bundle (ADR-0002, FO-16-15), so the composition has no policy container.
+name: vsp-local
+
+networks:
+  vsp:
+    name: vsp-local
+    labels:
+      io.vsp.purpose: "local Layer-2 emulator network (synthetic data only)"

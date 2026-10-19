@@ -1,0 +1,194 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/CapabilityEvidence.json",
+  "title": "CapabilityEvidence",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "capability-evidence.v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "capability-evidence.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evidenceId": {
+      "type": "string",
+      "pattern": "^cpe_[A-Za-z0-9_-]{16,64}$"
+    },
+    "profileId": {
+      "type": "string",
+      "pattern": "^cnp_[A-Za-z0-9_-]{16,64}$"
+    },
+    "profileConfigDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "capability": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$"
+    },
+    "level": {
+      "type": "string",
+      "enum": [
+        "CODE_PASS",
+        "EMULATOR_PASS",
+        "VENDOR_SANDBOX_PASS",
+        "VENDOR_PRODUCTION_PASS"
+      ]
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "NOT_RUN",
+        "FAIL",
+        "INCONCLUSIVE",
+        "PASS"
+      ]
+    },
+    "steps": {
+      "minItems": 1,
+      "maxItems": 7,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "string",
+            "enum": [
+              "VALIDATE_CONFIGURATION",
+              "AUTHENTICATE",
+              "INSPECT_METADATA",
+              "INSPECT_SYNTHETIC_RECORD",
+              "COMPARE_MAPPING",
+              "FRESHNESS_TEST",
+              "WRITE_RECONCILE_TEST"
+            ]
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "NOT_RUN",
+              "FAIL",
+              "INCONCLUSIVE",
+              "PASS"
+            ]
+          },
+          "detailCode": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+          }
+        },
+        "required": [
+          "step",
+          "result",
+          "detailCode"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "evidenceRef": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+    },
+    "evidenceDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "signature": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "signerRole": {
+              "type": "string",
+              "enum": [
+                "deployment_operator",
+                "security_admin",
+                "integration_owner"
+              ]
+            },
+            "keyRef": {
+              "type": "string",
+              "maxLength": 512,
+              "pattern": "^(arn:aws:(secretsmanager|kms|ssm):[A-Za-z0-9-]{1,32}:[A-Za-z0-9]{1,32}:[A-Za-z0-9/_+=.@:-]{1,256}|local-fixture:[a-z0-9][a-z0-9._/-]{0,127})$"
+            },
+            "algorithm": {
+              "type": "string",
+              "enum": [
+                "ECDSA_P256_SHA256",
+                "RSASSA_PSS_SHA256",
+                "ED25519"
+              ]
+            },
+            "value": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 1024,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "signedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "signerRole",
+            "keyRef",
+            "algorithm",
+            "value",
+            "signedAt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "occurredAt",
+    "expiresAt",
+    "causationId",
+    "evidenceId",
+    "profileId",
+    "profileConfigDigest",
+    "capability",
+    "level",
+    "result",
+    "steps",
+    "evidenceRef",
+    "evidenceDigest",
+    "signature"
+  ],
+  "additionalProperties": false
+}

@@ -2,9 +2,21 @@
   "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/EvaluationResult.json",
   "title": "EvaluationResult",
   "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "evaluation-result.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "occurredAt": "runAt",
+    "versions": "versions",
+    "provenance": "executionMode",
+    "outcome": "verdict"
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "evaluation-result.v1"
+    },
     "runId": {
       "type": "string",
       "pattern": "^run_[A-Za-z0-9_-]{8,64}$"
@@ -34,12 +46,13 @@
       ]
     },
     "scenarioId": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 96
     },
     "scenarioVersion": {
       "type": "integer",
-      "minimum": -9007199254740991,
-      "maximum": 9007199254740991
+      "minimum": 1,
+      "maximum": 1000000
     },
     "repetition": {
       "type": "integer",
@@ -50,7 +63,9 @@
       "type": "string",
       "enum": [
         "development",
-        "heldout_acceptance"
+        "heldout_acceptance",
+        "tuning",
+        "regression"
       ]
     },
     "audience": {
@@ -73,10 +88,12 @@
       ]
     },
     "language": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 16
     },
     "channel": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 32
     },
     "variant": {
       "type": "string",
@@ -95,7 +112,8 @@
       "maxItems": 32,
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 80
       }
     },
     "versions": {
@@ -258,14 +276,17 @@
     "committedState": {
       "type": "object",
       "propertyNames": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 64
       },
-      "additionalProperties": {}
+      "additionalProperties": {},
+      "maxProperties": 64
     },
     "qualityScores": {
       "type": "object",
       "propertyNames": {
-        "type": "string"
+        "type": "string",
+        "maxLength": 64
       },
       "additionalProperties": {
         "anyOf": [
@@ -278,27 +299,46 @@
             "type": "null"
           }
         ]
-      }
+      },
+      "maxProperties": 32
     },
     "latencyMs": {
       "type": "object",
       "properties": {
         "p50": {
-          "type": [
-            "number",
-            "null"
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 3600000
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "p95": {
-          "type": [
-            "number",
-            "null"
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 3600000
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "p99": {
-          "type": [
-            "number",
-            "null"
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 3600000
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       },
@@ -313,7 +353,8 @@
       "anyOf": [
         {
           "type": "number",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 1000000000
         },
         {
           "type": "null"
@@ -392,6 +433,138 @@
         "INCONCLUSIVE",
         "NOT_RUN",
         "BLOCKED"
+      ]
+    },
+    "seed": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "requestedFault": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reachedFault": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "faultId": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+            },
+            "evidenceRef": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+            },
+            "observedBy": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_.-]{2,63}$"
+            }
+          },
+          "required": [
+            "faultId",
+            "evidenceRef",
+            "observedBy"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rerunCommand": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 400,
+      "pattern": "^[A-Za-z0-9 _./:=@+,-]+$"
+    },
+    "judgeLabels": {
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "judgeRef": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]{1,63}@[A-Za-z0-9._-]{1,32}$"
+          },
+          "label": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+          },
+          "value": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,63}$"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "MINOR",
+              "MAJOR",
+              "CRITICAL"
+            ]
+          },
+          "humanReviewRef": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^rvw_[A-Za-z0-9_-]{16,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "humanAgrees": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "judgeRef",
+          "label",
+          "value",
+          "severity",
+          "humanReviewRef",
+          "humanAgrees"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "audioEvidenceRefs": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+      }
+    },
+    "qualificationRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+        },
+        {
+          "type": "null"
+        }
       ]
     }
   },

@@ -390,7 +390,7 @@ entries:
   - tenant inputs
   extraIds: []
 - id: AIN-12
-  title: 'Client and provider identity providers: OIDC test clients, account-linking source of truth, registered-channel verification, recovery process; companion IdP client and hosting'
+  title: 'Client and provider identity providers: OIDC test clients, account-linking source of truth, registered-channel verification, recovery process; companion IdP client (companion hosting is AIN-52)'
   kind: identity providers
   ownerRole: Identity owner
   prq:
@@ -1564,3 +1564,32 @@ entries:
   - VQ-TD-42
   extraIds:
   - FO-03-43
+- id: AIN-52
+  title: 'Caller-facing companion origin: registered domain and DNS name, TLS certificate with an expiry owner, public-exposure review of the companion (WAF rules, CSP, origin separation from gateway and console) and its hosting in the workload account'
+  kind: domain, certificate and exposure review (companion)
+  ownerRole: Cloud platform owner with security
+  prq: []
+  relatedPrq:
+  - PRQ-037
+  - PRQ-005
+  - PRQ-051
+  proposed: true
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: The secure web companion reachable outside local (FO-06-84 to FO-06-87) on its own origin.
+  workPackages:
+  - WP-27
+  - WP-39
+  steps:
+  - The platform owner registers the companion host name under an approved domain, issues its certificate (ACM) and records the expiry owner.
+  - Security reviews the companion's public exposure (WAF rule set, CSP, origin separation, the gateway calls it may make); the review is recorded with the AIN-41 review or separately.
+  - make infra-plan ENV=sandbox shows companion_service; make smoke ENV=sandbox checks the companion origin's TLS, CSP and that it reaches only the gateway API.
+  evidence: DNS and certificate inventory entry with expiry owner, the exposure review record and the smoke report; no prerequisite record exists yet (proposed).
+  patterns:
+  - hosting for the companion
+  - companion (origin|hosting|domain)
+  extraIds:
+  - FO-06-84
+  - FO-06-85
+  - FO-06-86
+  - FO-06-87

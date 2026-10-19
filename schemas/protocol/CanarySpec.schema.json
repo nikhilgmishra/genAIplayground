@@ -1,0 +1,223 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/CanarySpec.json",
+  "title": "CanarySpec",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "canary-spec.v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "canary-spec.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "canaryId": {
+      "type": "string",
+      "pattern": "^cny_[A-Za-z0-9_-]{16,64}$"
+    },
+    "proposalId": {
+      "type": "string",
+      "pattern": "^chp_[A-Za-z0-9_-]{16,64}$"
+    },
+    "cohort": {
+      "type": "object",
+      "properties": {
+        "cohortKey": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{2,40}$"
+        },
+        "intents": {
+          "minItems": 1,
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z_]{3,64}$"
+          }
+        },
+        "languages": {
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$"
+          }
+        },
+        "exposureBasisPoints": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "assignment": {
+          "type": "string",
+          "const": "STABLE_HASH"
+        }
+      },
+      "required": [
+        "cohortKey",
+        "intents",
+        "languages",
+        "exposureBasisPoints",
+        "assignment"
+      ],
+      "additionalProperties": false
+    },
+    "sampleTarget": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000000
+    },
+    "periodDays": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 90
+    },
+    "errorBudget": {
+      "type": "object",
+      "properties": {
+        "metric": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+        },
+        "maxRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "metric",
+        "maxRate"
+      ],
+      "additionalProperties": false
+    },
+    "rollbackThresholds": {
+      "minItems": 1,
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "metric": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+          },
+          "comparator": {
+            "type": "string",
+            "enum": [
+              "GT",
+              "GTE",
+              "LT",
+              "LTE"
+            ]
+          },
+          "threshold": {
+            "type": "number",
+            "minimum": -1000000000,
+            "maximum": 1000000000
+          }
+        },
+        "required": [
+          "metric",
+          "comparator",
+          "threshold"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "excludedBehaviours": {
+      "minItems": 3,
+      "maxItems": 3,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "CRISIS_INSTRUCTIONS",
+          "CONSENT_CONTROLS",
+          "AUTHORITY_CONTROLS"
+        ]
+      }
+    },
+    "rollbackOnCriticalFailure": {
+      "type": "boolean",
+      "const": true
+    },
+    "signature": {
+      "type": "object",
+      "properties": {
+        "signerRole": {
+          "type": "string",
+          "enum": [
+            "deployment_operator",
+            "policy_approver"
+          ]
+        },
+        "keyRef": {
+          "type": "string",
+          "pattern": "^(arn:aws:kms:[A-Za-z0-9-]{1,32}:[0-9]{12}:key\\/[A-Za-z0-9-]{1,128}|local-fixture:[a-z0-9][a-z0-9._/-]{0,127})$"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 1024,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "signedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "signerRole",
+        "keyRef",
+        "value",
+        "signedAt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "occurredAt",
+    "expiresAt",
+    "causationId",
+    "canaryId",
+    "proposalId",
+    "cohort",
+    "sampleTarget",
+    "periodDays",
+    "errorBudget",
+    "rollbackThresholds",
+    "excludedBehaviours",
+    "rollbackOnCriticalFailure",
+    "signature"
+  ],
+  "additionalProperties": false
+}

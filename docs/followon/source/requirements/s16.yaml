@@ -12,19 +12,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.workspace
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - (no compose file in repository)
-  - docs/followon/CONTINUATION.md (Docker feasible)
-  gap: No container composition; everything runs in-process (PGlite, fixtures).
+  - deploy/local/compose.yaml, deploy/local/services/core.compose.yaml (12 services pinned by digest, bound to 127.0.0.1, io.vsp.* labels, classified volumes)
+  - 'platform/test/integration/_harness/health.test.ts: ''[FO-16-01][FO-19-63] every core service is running, healthy, pinned by digest and bound to 127.0.0.1'' plus one protocol-level test per service'
+  - 'platform/test/integration/_harness/guards.test.ts: ''[FO-16-23][FO-16-01] every compose service is digest-pinned, loopback-bound, labelled with what it emulates, and takes credentials only from the generated state'''
+  - 'make up PROFILE=core: 12/12 healthy (run record in the scratchpad: waves/wp03-r3/evidence/local-up-*.json)'
+  gap: The acceptance also names the platform itself, the receiver client, the model and vendor emulators, and a platform smoke test. These belong to WP-07 (application images and app.compose.yaml), WP-28 (receiver), WP-08 (model emulator) and WP-29 (vendor emulators); until they exist, the composition provides only the dependencies.
   remediation: Add deploy/local/compose.yaml with pinned images and a compose-based integration test target.
   size: L
   environmentDependency: none (Docker available in this environment)
   workPackage: WP-03
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-03
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-16-02
   section: '16'
   kind: software
@@ -313,19 +320,29 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.workspace
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/local/oidc-fixture.ts (in-process fixture)
-  - platform/src/adapters/live/oidc-verifier.test.ts
-  gap: Only in-process JWKS fixture.
+  - deploy/local/services/core.compose.yaml (Keycloak 26.7.5 over HTTPS with the checkout's local CA)
+  - platform/test/integration/_harness/keycloak.ts (realm provisioning over the admin API; authorization-code login with PKCE, state and nonce; TOTP enrolment and OTP)
+  - 'platform/test/integration/_harness/oidc.test.ts: ''[FO-16-13][AUTH-03] client realm: an ID token from the authorization-code flow verifies with the live JWKS verifier over HTTPS'''
+  - 'oidc.test.ts: ''[FO-16-13][AUTH-01] provider realm tokens verify only where the provider issuer is trusted; nonce, audience and signature are enforced'''
+  - 'oidc.test.ts: ''[FO-16-13][AUTH-03] workforce realm: the live console verifier refuses a password-only session and accepts the TOTP-backed one'''
+  - 'oidc.test.ts: ''[FO-16-13][AUTH-03] integration client-credentials tokens map scope to channel in the live gateway authenticator'''
+  - 'make test-integration SUITE=_harness: 71/71 (two consecutive runs)'
+  gap: The realms are created per run through the admin API. The realm import with the journeys' synthetic users is WP-05 (deploy/local/keycloak). Real tenant IdP claims and amr/acr policy stay NOT_RUN.
   remediation: Add realm container with import JSON and Layer-2 tests.
   size: M
   environmentDependency: none
-  workPackage: WP-03
+  regressionPackage: WP-03
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-03
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-16-14
   section: '16'
   kind: software
@@ -336,19 +353,27 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.workspace
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/db/pg.ts:6-11 (PgPoolDb untested)
-  - docs/adr/ADR-0004-pglite-aurora-dynamodb.md
-  gap: PGlite serializes transactions; no real Postgres tests.
+  - platform/test/integration/_harness/clients.ts createIntegrationDb (fresh PostgreSQL 16 database, every production migration through PgPoolDb)
+  - 'platform/test/integration/_harness/postgres.test.ts: ''[FO-16-14] every production migration applies through PgPoolDb; a re-run is a no-op and a modified migration is refused'''
+  - 'postgres.test.ts: ''[FO-16-14] a row lock held by one connection blocks a second connection until commit, which then sees the committed update'' (distinct backend pids, pg_blocking_pids names the holder)'
+  - 'postgres.test.ts: NOWAIT 55P03, SKIP LOCKED partition, serializable 40001, deadlock 40P01, RLS per connection'
+  - 'platform/test/integration/_harness/queue.test.ts: ''[FO-16-16][ACT-02] two concurrent dispatchers publish every outbox message exactly once to a FIFO queue'' (production PgOutboxDispatcher claims forced to overlap across two connections; B never waits for A''s row locks and never re-claims them)'
+  gap: The existing PGlite unit suites are not re-run on Postgres; the createTestDb switch lives in platform/src/db/testing.ts (WP-04), and so do the per-repository contention suites (WP-04).
   remediation: Add Postgres container target and a test mode switch for createTestDb.
   size: M
   environmentDependency: none
-  workPackage: WP-03
+  regressionPackage: WP-03
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-03
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-16-15
   section: '16'
   kind: software
@@ -363,10 +388,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/policy/engine.ts
-  - docs/adr/ADR-0002-opa-wasm-in-process.md
-  - platform/src/policy/engine.test.ts
-  gap: Policy is in-process OPA WASM by design; no separate service (acceptable per ADR-0002).
+  - 'regression row: every platform/src/policy test passed inside make test-unit (3631/3631)'
+  - deploy/local/compose.yaml and deploy/local/README.md document that the OPA engine runs in-process from the WASM bundle (ADR-0002); there is no policy container
+  gap: Regression row, no software change.
   remediation: None beyond documenting the choice in the compose.
   size: S
   environmentDependency: none
@@ -375,6 +399,11 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    waveUpdates:
+    - wave: B1
+      package: WP-03
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-16-16
   section: '16'
   kind: software
@@ -386,20 +415,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.workspace
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/outbox/sqs-publisher.contract.test.ts (stub client)
-  - platform/src/workflows/engine.ts (in-process engine)
-  - infra/stepfunctions/*.asl.json
-  gap: No real queue or workflow service exercised.
+  - 'platform/test/integration/_harness/queue.test.ts: ''[FO-16-16][ACT-02] two concurrent dispatchers publish every outbox message exactly once to a FIFO queue'' (round 1 holds dispatcher A''s claim transaction open until B''s claim ran; asserts disjoint hand-offs of 4 and 4, no lock wait, every row handed to SqsPublisher exactly once, unique delivery, all rows DISPATCHED)'
+  - 'queue.test.ts: FIFO dedupe on re-publish, redelivery after a consumer crash (PgConsumerDedup), handler-failure rollback, DLQ after maxReceiveCount (ElasticMQ)'
+  - 'platform/test/integration/_harness/workflow.test.ts: ''[FO-16-16] callback_request runs ACCEPTED -> VALIDATING -> recheck ALLOW -> WAITING_FOR_HUMAN -> COMPLETED through task tokens'', redelivered-token and all-7-definitions tests'
+  - 'mutation N1 (for update skip locked removed from platform/src/outbox/dispatcher.ts) caught on 4 of 4 runs: ''rows A held were re-claimed and handed again by B: expected [ Array(4) ] to deeply equal []''; N1d (plain FOR UPDATE) caught by the no-lock-wait assertion'
+  gap: 'Step Functions Local accepts a callback for an execution that has already ended (AWS refuses it), so WP-26''s bridge must deduplicate. History limits, quotas, retry intervals and deadline timeouts are not exercised; the Step Functions bridge itself is WP-26. Step Functions Local 2.0.0 can also fail an execution with States.Runtime ''... is not valid JSON'' when a task-token callback arrives before it has recorded TaskSubmitted (seen once in Layer 2; deploy/local/README.md fidelity finding 1): workflow.test.ts waits for TaskSubmitted before signalling, and the WP-26 bridge must tolerate the gap (wait or retry).'
   remediation: Add ElasticMQ and Step Functions Local containers and tests.
   size: M
   environmentDependency: none
-  workPackage: WP-03
+  regressionPackage: WP-03
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-03
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-16-17
   section: '16'
   kind: software
@@ -507,23 +542,29 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.workspace
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/sinks/local-fs.ts (fixture)
-  - platform/src/audit/sinks/s3-object-lock.ts
-  gap: Local sink is a filesystem fixture; production sink never run against an S3 implementation.
+  - deploy/local/services/core.compose.yaml (MinIO with Object Lock and its built-in KMS key; volume io.vsp.data-class audit)
+  - 'platform/test/integration/_harness/audit-sink.test.ts: ''[FO-16-21][OPS-01] putBatch stores body and manifest under Object Lock with retain-until from the approved class, server-verified SHA-256 and SSE-KMS'''
+  - 'audit-sink.test.ts: ''[FO-16-21][ACT-02] a second write of the same batch gets 412 and is deferred to the verifier without overwriting (write-only identity)''; head_checksum, verifier read-back, locked-version delete refusal'
+  gap: The local profile still wires the local-fs sink (composition group, WP-07), and the shipper and verifier Layer-2 suites are WP-04. MinIO answers 400 where S3 answers 403 on a locked-version delete. IAM, bucket policy, ExpectedBucketOwner and AWS KMS key policy are not emulated.
   remediation: Add MinIO (pinned digest) with Object Lock enabled to the local compose. Compose S3ObjectLockAuditSink against it in the local profile instead of local-fs, and run the shipper and verifier tests against it, including 412 on overwrite and retention headers.
   size: S
   environmentDependency: none
-  workPackage: WP-03
+  regressionPackage: WP-03
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B1
+      package: WP-03
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-16-22
   section: '16'
   kind: software
@@ -557,19 +598,28 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.workspace
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/driver/labels.ts (LOCAL FIXTURE labels)
-  - platform/src/main/container.ts (fixtures composed in local)
-  gap: Labelling exists, but production adapters are not run against service emulators (except Salesforce).
+  - platform/test/integration/_harness/layer2.ts, setup.ts, emulation-reporter.ts, no-unit-fakes.ts, global-setup.ts
+  - 'guards.test.ts: ''[FO-16-23] a service test''s meta carries its compose service''s labels: what it stands in for, the protocol and what it does not prove'' (task.meta.emulated equals the io.vsp.* labels in core.compose.yaml word for word)'
+  - 'runner.test.ts: ''[FO-19-69][FO-16-23] a failing Layer-2 test makes test-integration exit with vitest''s own exit code; the report it writes records the failure and the emulation labels of the service used'' (vitest-integration.json assertionResults meta.emulated and the emulation summary carry the compose labels)'
+  - 'runner.test.ts: ''[FO-19-63][FO-16-23] up exits non-zero and records the exit code when a service never becomes healthy, and the Layer-2 harness refuses to run against it'' (global setup: ''services not healthy after 3000 ms: sick=unhealthy'', no test body runs)'
+  - 'guards.test.ts: unit-fake static import refused, unlabelled test fails, missing service fails with SERVICE_NOT_RUNNING (unavailableServices), leftover probe excluded, run-time PGlite import refused'
+  - 'mutation N12 (emulates and notEmulated emptied in layer2.ts) caught by both label tests; reports-full-2/vitest-integration.json: all 44 service tests fully labelled, the other 27 are process-level tests with noEmulatorReason'
+  gap: The guard does not catch a computed relative dynamic import, or fixtures reached through a production module (documented). Later suites must adopt layer2().
   remediation: Layer-2 compose suite.
   size: L
   environmentDependency: none
-  workPackage: WP-03
+  regressionPackage: WP-03
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-03
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-16-24
   section: '16'
   kind: software
@@ -1563,9 +1613,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/ops/budgets.ts:8-10
-  - platform/src/ops/budgets.test.ts
-  - infra/terraform/modules/budgets/main.tf
+  - platform/src/ops/budgets.test.ts:83 (projected spend includes metering delay times recent burn rate), :189 (more metering delay never un-exhausts a budget), :104 (safety overflow reported, never a cap)
+  - 'docs/capacity-cost-model.md:153 and infra/terraform/modules/budgets/main.tf:2 (documentation element: alerts and prepaid balances are not hard caps)'
   gap: None.
   remediation: Keep.
   size: S
@@ -1575,6 +1624,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-16-63
   section: '16'
   kind: software

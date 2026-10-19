@@ -3,7 +3,7 @@
  * Deny by default; the gateway treats any evaluation error as deny.
  */
 import { z } from "zod";
-import { Assurance, Classification, Environment, IsoDateTime, OpaqueId, Role, VersionLabel } from "./common.js";
+import { Assurance, Classification, Environment, IsoDateTime, Jurisdiction, OpaqueId, ProcessingPurpose, Role, VersionLabel } from "./common.js";
 import { RelationshipFact, RiskFlag } from "./auth.js";
 import { ReasonCode } from "./tools.js";
 
@@ -65,6 +65,15 @@ export const PolicyInput = z.strictObject({
     intents: z.array(z.string()),
     integrations: z.array(z.string()),
   }),
+  /**
+   * Follow-on inputs for the jurisdiction/processing-purpose matrix (prompt section 15). Optional
+   * until policy/input.ts sets them; the policy bundle must treat an absent or UNKNOWN jurisdiction
+   * as unknown, never as the least restrictive policy.
+   */
+  jurisdiction: Jurisdiction.optional(),
+  processingPurpose: ProcessingPurpose.optional(),
+  /** 42 CFR Part 2: whether the resource is a Part 2 program record and the written consent relied on. */
+  part2: z.strictObject({ programRecord: z.boolean(), consentRef: OpaqueId.nullable() }).optional(),
 });
 export type PolicyInput = z.infer<typeof PolicyInput>;
 

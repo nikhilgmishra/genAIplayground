@@ -1,0 +1,278 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/CarrierEvent.json",
+  "title": "CarrierEvent",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "carrier-event.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "interactionId": "interactionId",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "versions": "payloadSchemaRef",
+    "provenance": "authentication"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "carrier-event.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "interactionId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "eventId": {
+      "type": "string",
+      "pattern": "^cev_[A-Za-z0-9_-]{16,64}$"
+    },
+    "carrier": {
+      "type": "string",
+      "enum": [
+        "talkdesk",
+        "sip_reference",
+        "livekit_webrtc",
+        "local_softphone"
+      ]
+    },
+    "carrierInteractionRef": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "providerEventId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{3,128}$"
+    },
+    "providerSequence": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "CALL_STARTED",
+        "CALL_ANSWERED",
+        "CALL_ENDED",
+        "PARTICIPANT_JOINED",
+        "PARTICIPANT_LEFT",
+        "MEDIA_CONNECTED",
+        "MEDIA_DISCONNECTED",
+        "HOLD_STARTED",
+        "HOLD_ENDED",
+        "DTMF_RECEIVED",
+        "RECORDING_STARTED",
+        "RECORDING_STOPPED",
+        "RECORDING_REFUSED",
+        "TRANSFER_REQUESTED",
+        "TRANSFER_QUEUED",
+        "TRANSFER_RECEIVER_ACCEPTED",
+        "TRANSFER_RECEIVER_DECLINED",
+        "TRANSFER_RECEIVER_UNAVAILABLE",
+        "TRANSFER_BRIDGED",
+        "TRANSFER_CALLER_CONNECTED",
+        "TRANSFER_COMPLETED",
+        "TRANSFER_TIMED_OUT",
+        "TRANSFER_BRIDGE_DROPPED",
+        "TRANSFER_FAILED"
+      ]
+    },
+    "clockSource": {
+      "type": "string",
+      "enum": [
+        "carrier",
+        "platform_receipt"
+      ]
+    },
+    "receivedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "authentication": {
+      "type": "object",
+      "properties": {
+        "mechanism": {
+          "type": "string",
+          "enum": [
+            "vendor_signature_verified",
+            "mtls_client_verified",
+            "oauth_bearer_verified",
+            "trusted_server_lookup",
+            "local_fixture_hmac"
+          ]
+        },
+        "keyRef": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_:./-]{3,256}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "mechanism",
+        "keyRef"
+      ],
+      "additionalProperties": false
+    },
+    "payloadDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "payloadSchemaRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+    },
+    "participantRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "transfer": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "transferRef": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            "destinationId": {
+              "type": "string",
+              "pattern": "^dst_[a-z0-9_]{2,40}$"
+            },
+            "receiverRef": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "transferRef",
+            "destinationId",
+            "receiverRef"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "recording": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "recordingRef": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reasonCode": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "recordingRef",
+            "reasonCode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "occurredAt",
+    "interactionId",
+    "causationId",
+    "eventId",
+    "carrier",
+    "carrierInteractionRef",
+    "providerEventId",
+    "providerSequence",
+    "type",
+    "clockSource",
+    "receivedAt",
+    "authentication",
+    "payloadDigest",
+    "payloadSchemaRef",
+    "participantRef",
+    "transfer",
+    "recording"
+  ],
+  "additionalProperties": false
+}

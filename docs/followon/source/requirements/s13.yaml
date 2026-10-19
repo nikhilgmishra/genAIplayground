@@ -99,9 +99,9 @@ requirements:
   qualification: NOT_RUN
   evidence:
   - platform/src/safety/detector.ts:409 (administrative-object frustration)
-  - platform/src/safety/detector.test.ts:328
-  - platform/src/safety/detector.property.test.ts:74
-  - 'platform/src/safety/README.md (scenario-corpus precision 87.9%: 18 deliberate conservative FPs)'
+  - platform/src/safety/detector.test.ts:328, platform/src/safety/detector.property.test.ts:74 (administrative-object distress raises no signal)
+  - platform/src/safety/detector.test.ts:100,105 (every corpus case, including the routine precision probes, asserts its route; the confusion matrix is reported in test output)
+  - platform/src/safety/README.md:95-100 (documentation of the measured precision; not the evidence for it)
   gap: Conservative over-escalation is documented, not clinically decided.
   remediation: Clinical decision on borderline cases (PRQ-008).
   size: S
@@ -111,6 +111,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-13-05
   section: '13'
   kind: software

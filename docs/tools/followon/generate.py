@@ -9,6 +9,9 @@ Sources (edit these):
   docs/followon/source/capabilities.yaml      capability catalogue
   docs/followon/source/narrative.yaml         metadata and the prose of docs/GAP_CLOSURE.md
   plus docs/requirements/catalog.yaml, docs/prerequisites.yaml and scenarios/fixtures/failures/*.json (read only)
+  plus the working tree's file list (git ls-files --cached --others --exclude-standard; a directory walk when git is
+  unavailable) and the relative imports of its TypeScript/JavaScript sources, for the file-ownership checks only: they
+  validate, they never change an output
 
 Outputs (never edit by hand):
   docs/followon/requirements.yaml, gap-ledger.yaml, work-packages.yaml, activation-register.yaml, capabilities.yaml,
@@ -19,14 +22,27 @@ Usage:
   python3 -I docs/tools/followon/generate.py --check   validate and fail (exit 1) when an output differs from the sources
   python3 -I docs/tools/followon/generate.py --out D   write the outputs under directory D instead of the repository
 
-Exit codes: 0 ok, 1 drift (--check), 2 source validation failed.
-Requires Python 3.10+ and PyYAML; reads no network and no environment variables.
+Exit codes: 0 ok, 1 drift (--check), 2 source validation failed (both modes validate, so every check below is part of --check).
+Requires Python 3.10+ and PyYAML; reads no network and no environment variables; runs only `git ls-files`.
+
+File-ownership checks over the working tree's files (ownershipRules in packages.yaml):
+  * derived ownership: the owner of a source file D/Y.<ext> owns D/Y.test.<ext> and D/Y.<suffix>.test.<ext> (longest source
+    wins); the owner of a directory-level pattern D/*.<ext> owns D/README.md;
+  * no tracked file is owned by two packages that can run in parallel (file-level, after derived ownership);
+  * every file has an owner unless unownedByDesign lists it, and no unownedByDesign path has an owner;
+  * timely ownership: a source-tree file cited by a MISSING/IMPLEMENTED row of a phase B-F package (evidence, gap,
+    remediation, acceptance) or by such a package's deliverables, acceptance or notes, a file imported by a source whose
+    first owner is in phase B-F, and a file that imports such a source, has an owner before phase G (a first owner in phase
+    G would leave a defect found in it during phases B-F without an owner).
 """
 import argparse
 import collections
+import functools
+import itertools
 import json
 import os
 import re
+import subprocess
 import sys
 
 import yaml
@@ -38,12 +54,14 @@ OUTPUTS = ['docs/followon/requirements.yaml', 'docs/followon/gap-ledger.yaml', '
            'docs/ACTIVATION_REGISTER.md']
 GENERATOR = 'docs/tools/followon/generate.py'
 
-SOFTWARE = ['MISSING', 'IMPLEMENTED', 'VERIFIED_LOCAL', 'RELEASE_PACKAGE_VERIFIED', 'NOT_APPLICABLE']
+SOFTWARE = ['MISSING', 'IMPLEMENTED', 'VERIFIED_LOCAL', 'RELEASE_PACKAGE_VERIFIED']  # prompt section 0; no fifth value (ADR-0018 decision 7.1)
 ENVIRONMENT = ['NOT_CONFIGURED', 'CONFIGURED', 'VERIFIED_SANDBOX', 'APPROVED_PILOT', 'VERIFIED_PRODUCTION']
 QUALIFICATION = ['NOT_RUN', 'FAIL', 'INCONCLUSIVE', 'PASS']
 PHASES = 'BCDEFGH'
+# Status vocabulary of docs/prerequisites.yaml records, most severe first (a prerequisite state, not a software status).
 PRQ_SEVERITY = ['BLOCKED', 'EXPIRED', 'UNKNOWN', 'REQUESTED', 'IN_PROGRESS', 'EVIDENCED', 'APPROVED', 'NOT_APPLICABLE']
 ID_RE = re.compile(r'^FO-\d{2}-\d{2,3}(a|\.[A-Z][A-Z0-9_]+)?$')
+JOURNEY_TEXT = re.compile(r'^J\d{2}\b')  # a section 20 row whose text starts with its journey id is a journey row
 DERIVED_RE = re.compile(r'^(ADR-\d{4}|TB-\d{2}|FOLLOWON-\d+( \(.+\))?|ORIGINAL-SPEC-\d+( \(.+\))?)$')
 ERRORS = []
 
@@ -89,7 +107,26 @@ def load():
     return reqs, pk, acts, caps, narr, catalog, prereq, plans
 
 
+WALK_SKIP = {'.git', 'node_modules', 'dist', 'coverage', '__pycache__', '.turbo', '.vite', '.terraform'}
+
+
+def working_tree_files():
+    """Repository-relative paths of the working tree's files: tracked plus untracked files that are not ignored."""
+    try:
+        res = subprocess.run(['git', '-C', REPO, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+                             capture_output=True, check=True, timeout=60)
+        names = res.stdout.decode('utf-8').split('\0')
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
+        names = []
+        for root, dirs, fnames in os.walk(REPO):
+            dirs[:] = [d for d in dirs if d not in WALK_SKIP]
+            for n in fnames:
+                names.append(os.path.relpath(os.path.join(root, n), REPO).replace(os.sep, '/'))
+    return sorted({n for n in names if n and os.path.isfile(os.path.join(REPO, n))})
+
+
 # ====================================================================== globs and ownership
+@functools.lru_cache(maxsize=None)
 def glob_re(p):
     p = p.rstrip('/')
     out, i = '', 0
@@ -147,8 +184,82 @@ def covered(pattern, excludes):
     return any(pattern.rstrip('/') == e.rstrip('/') or glob_re(e).match(s) for e in excludes)
 
 
+# ====================================================================== file-level ownership (working tree)
+SRC_EXT = ('ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs')
+TEST_FILE = re.compile(r'^(?P<dir>(?:.*/)?)(?P<stem>[^/]+?)\.test\.(?:[cm]?[jt]sx?)$')
+DIR_PATTERN_BASES = tuple('*.' + e for e in SRC_EXT)
+# Trees whose files the timely-ownership check follows (citations and imports); docs, infra and scripts are cited as
+# context far more often than they are edited, and their owners are listed explicitly.
+CHECK_ROOTS = ('platform/src/', 'platform/test/', 'console/src/', 'console/e2e/', 'media/src/', 'media/test/', 'companion/src/', 'sidecars/')
+SERVICES_SRC = re.compile(r'^services/[^/]+/src/')
+PATH_TOKEN = re.compile(r'(?<![\w./-])((?:platform|console|media|companion|services|sidecars)/[A-Za-z0-9_./\-]+)')
+IMPORT_SPEC = re.compile(r'''(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)["'](\.{1,2}/[^"']+)["']''')
+
+
+def in_check_roots(f):
+    return f.startswith(CHECK_ROOTS) or bool(SERVICES_SRC.match(f))
+
+
+def resolve_owners(files, eff):
+    """Explicit owners per file (owns + ownsGroups minus excludes) plus the derived co-located test and README owners."""
+    def literal_prefix(a):
+        mm = WILD.search(a)
+        return a if not mm else a[:mm.start()]
+    compiled = {pid: [(literal_prefix(a.rstrip('/')), glob_re(a), [glob_re(e) for e in ex]) for a, ex in ents] for pid, ents in eff.items()}
+    explicit = {}
+    for f in files:
+        explicit[f] = {pid for pid, ents in compiled.items()
+                       if any(f.startswith(pre) and rx.match(f) and not any(e.match(f) for e in exs) for pre, rx, exs in ents)}
+    owners = {f: set(o) for f, o in explicit.items()}
+    fileset = set(files)
+    derived = collections.defaultdict(set)
+    for f in files:
+        mm = TEST_FILE.match(f)
+        if not mm:
+            continue
+        parts = mm['stem'].split('.')
+        for i in range(len(parts), 0, -1):
+            src = next((c for c in (mm['dir'] + '.'.join(parts[:i]) + '.' + e for e in SRC_EXT) if c in fileset and c != f), None)
+            if src:
+                derived[f] |= explicit[src] - owners[f]
+                owners[f] |= explicit[src]
+                break
+    for pid, ents in eff.items():
+        for a, ex in ents:
+            d, _, base = a.rstrip('/').rpartition('/')
+            readme = d + '/README.md'
+            if base in DIR_PATTERN_BASES and not WILD.search(d) and readme in fileset and not covered(readme, ex) and pid not in owners[readme]:
+                owners[readme].add(pid)
+                derived[readme].add(pid)
+    return explicit, owners, derived
+
+
+def relative_imports(path):
+    try:
+        with open(os.path.join(REPO, path), encoding='utf-8') as fh:
+            text = fh.read()
+    except (OSError, UnicodeDecodeError):
+        return []
+    out = []
+    for mm in IMPORT_SPEC.finditer(text):
+        base = os.path.normpath(os.path.join(os.path.dirname(path), mm.group(1))).replace(os.sep, '/')
+        stem = re.sub(r'\.(?:[cm]?js|jsx)$', '', base)
+        out.append([base] + [stem + '.' + e for e in SRC_EXT] + [base + '/index.' + e for e in ('ts', 'tsx', 'js')])
+    return out
+
+
+def cited_files(strings, fileset):
+    out = set()
+    for s in strings:
+        for mm in PATH_TOKEN.finditer(str(s)):
+            t = mm.group(1).rstrip('.,;-')
+            if t in fileset:
+                out.add(t)
+    return out
+
+
 # ====================================================================== validation + derivation
-def build(reqs, pk, acts, caps, narr, catalog, prereq, plans):
+def build(reqs, pk, acts, caps, narr, catalog, prereq, plans, files):
     meta = narr['meta']
     titles = narr['sectionTitles']
     RID = {}
@@ -196,15 +307,8 @@ def build(reqs, pk, acts, caps, narr, catalog, prereq, plans):
                 fail(f'{rid}: {st} needs an existing regressionPackage')
             if 'workPackage' in r:
                 fail(f'{rid}: {st} row must not carry workPackage')
-        elif st == 'NOT_APPLICABLE':
-            if r.get('kind') != 'constraint':
-                fail(f'{rid}: NOT_APPLICABLE is allowed only for constraints (kind is {r.get("kind")})')
-            if not r.get('notApplicableReason'):
-                fail(f'{rid}: NOT_APPLICABLE needs notApplicableReason')
-            if 'workPackage' in r or 'regressionPackage' in r:
-                fail(f'{rid}: NOT_APPLICABLE row must not carry a package')
-        if st != 'NOT_APPLICABLE' and r.get('notApplicableReason'):
-            fail(f'{rid}: notApplicableReason on a {st} row')
+        if 'notApplicableReason' in r:
+            fail(f'{rid}: notApplicableReason is retired; a constraint whose trigger has not occurred is IMPLEMENTED with a "not yet triggered" gap')
         if not isinstance(r.get('evidence'), list) or not all(isinstance(e, str) and e for e in r['evidence']):
             fail(f'{rid}: evidence must be a list of non-empty strings')
         elif not r['evidence'] and st != 'MISSING':
@@ -289,6 +393,46 @@ def build(reqs, pk, acts, caps, narr, catalog, prereq, plans):
 
     for p in pkgs:
         ancestors(p['id'])
+    # ---- fault matrix ownership: the owner of a FO-17-24.<FAULT_ID> row runs its Layer-2 [FAULT:] test, so it must be (or depend on) every package
+    # that builds the injection point and every package whose component the asserted postconditions observe (no dependency inversion).
+    for rid, r in RID.items():
+        is_fault = rid.startswith('FO-17-24.')
+        for k in ('injectionPointPackages', 'postconditionPackages'):
+            v = r.get(k)
+            if not is_fault:
+                if v is not None:
+                    fail(f'{rid}: {k} is only for FO-17-24.<FAULT_ID> rows')
+                continue
+            if not isinstance(v, list) or not v:
+                fail(f'{rid}: fault row needs a non-empty {k} list')
+                continue
+            owner = r.get('workPackage') or r.get('regressionPackage')
+            for x in v:
+                if x not in PKG:
+                    fail(f'{rid}: {k} names unknown package {x}')
+                elif owner in PKG and x != owner and x not in anc[owner]:
+                    fail(f'{rid}: {k} names {x}, but the owning package {owner} neither is nor depends on it (dependency inversion)')
+    # ---- journey ownership: the owner of a journey row (J01-J20 and their split legs) runs the journey, so it must be (or depend on)
+    # every package that builds a component the journey's acceptance exercises or asserts (componentPackages; no dependency inversion).
+    for rid, r in RID.items():
+        v = r.get('componentPackages')
+        journey = r['section'] == '20' and bool(JOURNEY_TEXT.match(r.get('text', '')))
+        if v is None:
+            if journey:
+                fail(f'{rid}: journey row needs a non-empty componentPackages list')
+            continue
+        if r['section'] != '20':
+            fail(f'{rid}: componentPackages is only for section 20 journey rows')
+            continue
+        if not isinstance(v, list) or not v:
+            fail(f'{rid}: componentPackages must be a non-empty list')
+            continue
+        owner = r.get('workPackage') or r.get('regressionPackage')
+        for x in v:
+            if x not in PKG:
+                fail(f'{rid}: componentPackages names unknown package {x}')
+            elif owner in PKG and x != owner and x not in anc[owner]:
+                fail(f'{rid}: componentPackages names {x}, but the owning package {owner} neither is nor depends on it (dependency inversion)')
     for p in pkgs:
         for d in p['dependsOn']:
             dp = PKG[d]
@@ -358,6 +502,67 @@ def build(reqs, pk, acts, caps, narr, catalog, prereq, plans):
                     if overlaps(a, b):
                         fail(f'ownership conflict between parallel packages: {p["id"]} {a} <-> {q["id"]} {b}')
 
+    # ---- file-level ownership over the working tree (derived co-located ownership, no parallel co-owners, no unowned file,
+    # no file needed before its first owner)
+    explicit, owners, derived = resolve_owners(files, eff)
+    fileset = set(files)
+    parallel = lambda a, b: a not in anc[b] and b not in anc[a]  # noqa: E731
+    for f in files:
+        if f.startswith(DERIVED):
+            continue
+        for a, b in itertools.combinations(sorted(owners[f], key=natkey), 2):
+            if parallel(a, b):
+                fail(f'ownership conflict between parallel packages on {f}: {a} and {b}' + (' (derived co-located ownership)' if f in derived else ''))
+    by_design = [(glob_re(u['path']), u) for u in pk.get('unownedByDesign', [])]
+    for u in pk.get('unownedByDesign', []):
+        if not u.get('reason'):
+            fail(f'unownedByDesign {u.get("path")!r} needs a reason')
+    for f in files:
+        listed = [u['path'] for rx, u in by_design if rx.match(f)]
+        if owners[f] and listed:
+            fail(f'{f} is listed in unownedByDesign ({listed[0]}) but owned by {", ".join(sorted(owners[f], key=natkey))}')
+        elif not owners[f] and not listed:
+            fail(f'{f} has no owner: add it to a package, a shared group or unownedByDesign (with a reason)')
+    first = {f: min(ph[x] for x in o) for f, o in owners.items() if o}
+    G_IDX = PHASES.index('G')
+
+    # A file a phase B-F package needs must not wait for phase G: a module owned from its feature phase onwards is the plan's
+    # phasing (earlier rows cite it as context), but a file whose first owner is a phase G package cannot be fixed by anyone
+    # before closure, so a defect found in it during phases B-F would have no owner.
+    def need(f, by_phase, who):
+        if not in_check_roots(f):
+            return
+        if f not in first or first[f] >= G_IDX:
+            got = f'first owned in phase {PHASES[first[f]]} by {", ".join(sorted((x for x in owners[f] if ph[x] == first[f]), key=natkey))}' if f in first else 'unowned'
+            fail(f'{who} needs {f} in phase {PHASES[by_phase]}, but it is {got}: give it an owner before phase G (timely ownership)')
+
+    for r in reqs:
+        if r['softwareStatus'] not in ('MISSING', 'IMPLEMENTED') or ph[r['workPackage']] >= G_IDX:
+            continue
+        for f in sorted(cited_files(list(r['evidence']) + [r['gap'], r['remediation'], r['acceptance']], fileset)):
+            need(f, ph[r['workPackage']], f'{r["id"]} ({r["workPackage"]})')
+    for p in pkgs:
+        if ph[p['id']] >= G_IDX:
+            continue
+        for f in sorted(cited_files(p['deliverables'] + p['acceptance'] + p.get('notes', []), fileset)):
+            need(f, ph[p['id']], f'{p["id"]} deliverables/acceptance')
+    for g in files:
+        if g.rsplit('.', 1)[-1] not in SRC_EXT or not in_check_roots(g):
+            continue
+        late = first.get(g, G_IDX) >= G_IDX
+        for cands in relative_imports(g):
+            hit = next((c for c in cands if c in fileset), None)
+            if not hit:
+                continue
+            if not late:
+                need(hit, first[g], f'{g} (imports it; first owned in phase {PHASES[first[g]]})')
+            elif hit in first and first[hit] < G_IDX:
+                # the reverse direction: a phase B-F change to the imported file can break this file (typecheck, default suites),
+                # and nobody could repair it before phase G
+                got = f'first owned in phase {PHASES[first[g]]} by {", ".join(sorted((x for x in owners[g] if ph[x] == first[g]), key=natkey))}' if g in first else 'unowned'
+                fail(f'{g} imports {hit} (first owned in phase {PHASES[first[hit]]}), so a change there can break it, but {g} is {got}: '
+                     'give it an owner before phase G (timely ownership)')
+
     # ---- membership
     member = {p['id']: {'requirementIds': [], 'regressionIds': []} for p in pkgs}
     for r in reqs:
@@ -370,9 +575,14 @@ def build(reqs, pk, acts, caps, narr, catalog, prereq, plans):
         for x in RID[rid]['secondaryPackages']:
             obligations[x].append(inv)
     fault_of = collections.defaultdict(list)
+    fault_inj = collections.defaultdict(list)
     for fid, r in fault_rows.items():
+        owner = r.get('workPackage') or r.get('regressionPackage')
         if r['softwareStatus'] in ('MISSING', 'IMPLEMENTED'):
             fault_of[r['workPackage']].append(fid)
+        for x in r['injectionPointPackages']:
+            if x != owner:
+                fault_inj[x].append((fid, owner))
 
     # ---- activation
     PRQ = {x['id']: x for x in prereq['records']}
@@ -441,7 +651,7 @@ def build(reqs, pk, acts, caps, narr, catalog, prereq, plans):
     if ERRORS:
         return None
     return dict(meta=meta, titles=titles, reqs=reqs, RID=RID, pk=pk, pkgs=pkgs, PKG=PKG, G=G, wave=wave, anc=anc,
-                member=member, obligations=obligations, fault_of=fault_of, act=act, blocking=blocking, act_by_req=act_by_req,
+                member=member, obligations=obligations, fault_of=fault_of, fault_inj=fault_inj, act=act, blocking=blocking, act_by_req=act_by_req,
                 PRQ=PRQ, covered_prq=covered_prq, caps=caps, CAP=CAP, narr=narr, plans=plans, fault_rows=fault_rows,
                 cat_ids=cat_ids, invariants=invariants)
 
@@ -472,10 +682,7 @@ def md_cell(s, limit=None):
 
 
 def rollup(statuses, order):
-    xs = [s for s in statuses if s != 'NOT_APPLICABLE']
-    if not xs:
-        return 'NOT_APPLICABLE'
-    return min(xs, key=order.index)
+    return min(statuses, key=order.index)
 
 
 # ====================================================================== render
@@ -522,8 +729,6 @@ def render(m):
         e = {'id': r['id'], 'softwareStatus': r['softwareStatus'], 'environmentStatus': r['environmentStatus'], 'qualification': r['qualification']}
         if r.get('qualificationEvidence'):
             e['qualificationEvidence'] = r['qualificationEvidence']
-        if r.get('notApplicableReason'):
-            e['notApplicableReason'] = r['notApplicableReason']
         e['capabilityIds'] = r['capabilityIds']
         e['evidence'] = r['evidence']
         e['gap'] = r['gap']
@@ -538,6 +743,11 @@ def render(m):
             e['secondaryPackages'] = r['secondaryPackages']
         if r.get('faultSource'):
             e['faultSource'] = r['faultSource']
+        if r.get('injectionPointPackages'):
+            e['injectionPointPackages'] = r['injectionPointPackages']
+            e['postconditionPackages'] = r['postconditionPackages']
+        if r.get('componentPackages'):
+            e['componentPackages'] = r['componentPackages']
         e['provenance'] = r['provenance']
         entries.append(e)
     ledger_doc = {
@@ -547,14 +757,14 @@ def render(m):
         'statusRules': {
             'softwareStatus': {
                 'MISSING': 'No real code for the production path. An interface plus a mock, a fixture-only adapter, a NotImplemented/refusal in non-local composition, canned success, TEST ids, an empty history or a log line is MISSING (prompt sections 6 and 21). A constraint whose trigger has occurred but which nothing enforces is MISSING.',
-                'IMPLEMENTED': 'Real code for the production path exists but is not exercised by passing local tests against real protocols or emulators, misses a named element of its own acceptance, or holds only because nothing it governs exists yet (the gap then says "not yet triggered" and names the package that introduces the trigger).',
-                'VERIFIED_LOCAL': 'Every named element of the acceptance is exercised in its production form by a passing local test on the real protocol or an emulator (PGlite single connection, OPA WASM, loopback HTTP, in-process production code, Docker emulators). PGlite single-connection tests never verify multi-connection concurrency (ADR-0018 decision 7.2). Fixture-only, mock, canned or refusing paths are MISSING for production capabilities. The blanket non-local refusal is a cross-cutting blocker, not a per-item downgrade.',
+                'IMPLEMENTED': 'Real code for the production path exists but is not exercised by passing local tests against real protocols or emulators, misses a named element of its own acceptance, or holds only because nothing it governs exists yet (the gap then says "not yet triggered" and names the package that introduces the trigger or, where no package does, the package whose check fails when the trigger appears without its decision record).',
+                'VERIFIED_LOCAL': 'Every named element of the acceptance is exercised in its production form by a passing local test on the real protocol or an emulator (PGlite single connection, OPA WASM, loopback HTTP, in-process production code, Docker emulators). PGlite single-connection tests never verify multi-connection concurrency (ADR-0018 decision 7.2). A fixture SDK client is not the real protocol. A README, header comment or ADR evidences only a documentation element of the acceptance; every behaviour element cites the test that exercises it. An acceptance element that needs a sandbox, tenant or human step is split into its own qualification row. Fixture-only, mock, canned or refusing paths are MISSING for production capabilities. The blanket non-local refusal is a cross-cutting blocker, not a per-item downgrade.',
                 'RELEASE_PACKAGE_VERIFIED': 'Verified inside a reproducible release bundle; no requirement has reached this state.',
-                'NOT_APPLICABLE': 'Allowed only for a constraint whose trigger has not occurred and that no work package introduces; the row carries notApplicableReason and no work package.',
             },
+            'vocabulary': 'These four values are the only software statuses (prompt section 0, ADR-0018 decision 7.1). There is no NOT_APPLICABLE: a constraint whose trigger has not occurred is IMPLEMENTED with a not-yet-triggered gap and a package that enforces or watches the trigger.',
             'environmentStatus': 'NOT_CONFIGURED for every requirement: no sandbox, staging or production environment, tenant or vendor configuration exists.',
             'qualification': "NOT_RUN unless a committed file under evidence/ (or docs/TEST_EVIDENCE.md) records a result for the requirement's own acceptance check; unit-test pass counts are software evidence, not qualification, except for requirements that are themselves the test command and whose command exists.",
-            'workPackage': 'Every MISSING and IMPLEMENTED requirement belongs to exactly one work package; VERIFIED_LOCAL items name the package that re-runs them on real protocols (regressionPackage). secondaryPackages on the FO-02 invariant rows name the packages that add positive, adversarial and failure-injection tests at their own boundary.',
+            'workPackage': 'Every MISSING and IMPLEMENTED requirement belongs to exactly one work package; VERIFIED_LOCAL items name the package that re-runs them on real protocols (regressionPackage). secondaryPackages on the FO-02 invariant rows name the packages that add positive, adversarial and failure-injection tests at their own boundary. A FO-17-24.<FAULT_ID> row belongs to the package that runs its Layer-2 [FAULT:] test; injectionPointPackages build the injection point and postconditionPackages own the components the asserted postconditions observe, and the owner is each of them or depends on each of them (generator-checked). A journey row (FO-20, J01-J20 and their split legs) names componentPackages, the packages that build the components its acceptance exercises or asserts, under the same rule (generator-checked).',
             'capabilityIds': 'Every entry names at least one capability of docs/followon/capabilities.yaml; both status axes and qualification are reported per capability there.',
         },
         'summary': {
@@ -573,7 +783,7 @@ def render(m):
                                             f'# GENERATED by {GENERATOR} from docs/followon/source/; do not edit by hand.\n') + dump(ledger_doc)
 
     # ---------------- work-packages.yaml
-    wave, member, obligations, fault_of = m['wave'], m['member'], m['obligations'], m['fault_of']
+    wave, member, obligations, fault_of, fault_inj = m['wave'], m['member'], m['obligations'], m['fault_of'], m['fault_inj']
     pk_rows = []
     for p in pkgs:
         pid = p['id']
@@ -590,6 +800,10 @@ def render(m):
         if flts:
             acc.append('Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged ' + ' '.join(f'[FAULT:{x}]' for x in flts)
                        + ' reach the fault at its injection point and assert its postconditions.')
+        seams = sorted(fault_inj.get(pid, []))
+        if seams:
+            acc.append('Fault injection points built here for Layer-2 runs owned by later packages: ' + ', '.join(f'[FAULT:{f}] (run by {o})' for f, o in seams)
+                       + '; each seam has a local test proving it produces the fault, and the owning package\'s [FAULT:<id>] test drives it.')
         row = {'id': pid, 'phase': p['phase'], 'title': p['title'], 'goal': p['goal'], 'size': p['size'], 'dependsOn': p['dependsOn']}
         if p.get('earlyStart'):
             row['earlyStart'] = p['earlyStart']
@@ -597,6 +811,7 @@ def render(m):
             'earliestWave': wave[pid], 'requirementIds': ids, 'regressionIds': reg,
             'counts': {'MISSING': cnt.get('MISSING', 0), 'IMPLEMENTED': cnt.get('IMPLEMENTED', 0), 'regression': len(reg)},
             'capabilityIds': capset, 'invariantObligations': inv, 'faultObligations': flts,
+            'faultInjectionPoints': [{'fault': f, 'runBy': o} for f, o in seams],
             'owns': p['owns'], 'ownsGroups': p.get('ownsGroups', []), 'excludes': p.get('excludes', []),
             'deliverables': p['deliverables'], 'acceptance': acc, 'externalActivation': p['externalActivation'], 'notes': p.get('notes', []),
         })
@@ -611,7 +826,7 @@ def render(m):
     wp_doc = {
         'schemaVersion': 'vsp.followon.work-packages.v2', 'asOf': as_of, 'baseCommit': head, 'generator': GENERATOR,
         'phases': m['pk']['phases'], 'ownershipRules': m['pk']['ownershipRules'], 'sharedFiles': shared,
-        'generatedArtifacts': m['pk']['generatedArtifacts'],
+        'unownedByDesign': m['pk'].get('unownedByDesign', []), 'generatedArtifacts': m['pk']['generatedArtifacts'],
         'summary': {
             'packages': len(pkgs), 'byPhase': dict(collections.Counter(p['phase'] for p in pkgs)),
             'requirementsAssigned': sum(len(member[p['id']]['requirementIds']) for p in pkgs),
@@ -653,7 +868,7 @@ def render(m):
         'schemaVersion': 'vsp.followon.capabilities.v1', 'asOf': as_of, 'baseCommit': head, 'generator': GENERATOR,
         'rules': [
             'A capability groups the requirements that must all hold before the capability can be activated; a requirement may belong to more than one capability.',
-            'softwareRollup is the least advanced software status among the members (NOT_APPLICABLE members are ignored); environmentRollup likewise for the environment axis. A capability is never reported ahead of its weakest member.',
+            'softwareRollup is the least advanced software status among the members; environmentRollup likewise for the environment axis. A capability is never reported ahead of its weakest member.',
             'activationIds are the activation register entries that block at least one member; owningPackages are the packages that own or re-run the members.',
             'Readiness (WP-32), the activation map (WP-07, WP-31), ActivationRecords (WP-45) and IMPLEMENTATION_STATUS (WP-44) use these ids.',
         ],
@@ -701,8 +916,9 @@ def render(m):
              'Qualification `NOT_RUN` / `FAIL` / `INCONCLUSIVE` / `PASS`. `VERIFIED_LOCAL` needs a passing local test on the real protocol or an emulator that '
              'covers every named element of the acceptance; single-connection PGlite never verifies multi-connection concurrency; a fixture-only adapter, an interface '
              'plus a mock, a refusal in non-local composition, canned success, TEST ids, an empty history or a log line counts as `MISSING` for a production capability; '
-             'a row that holds only because nothing it governs exists yet is `IMPLEMENTED` with a not-yet-triggered note. `NOT_APPLICABLE` is used only for constraints '
-             'whose trigger has not occurred, each with its reason. None of this is a compliance determination or a readiness statement; nothing here is approved for patient use.')
+             'a row that holds only because nothing it governs exists yet is `IMPLEMENTED` with a not-yet-triggered note and a package that enforces or watches the trigger. '
+             'There is no fifth software status. A README, header comment or ADR evidences only a documentation element; behaviour elements cite tests. '
+             'None of this is a compliance determination or a readiness statement; nothing here is approved for patient use.')
     L.append('')
     L.append('## Summary')
     L.append('')
@@ -728,8 +944,8 @@ def render(m):
     L.append('')
     L.append('By prompt section:')
     L.append('')
-    L.append('| Section | Total | MISSING | IMPLEMENTED | VERIFIED_LOCAL | N/A | Work packages |')
-    L.append('|---|---|---|---|---|---|---|')
+    L.append('| Section | Total | MISSING | IMPLEMENTED | VERIFIED_LOCAL | Work packages |')
+    L.append('|---|---|---|---|---|---|')
     by_sec = collections.OrderedDict()
     for r in reqs:
         by_sec.setdefault(r['section'], []).append(r)
@@ -738,26 +954,47 @@ def render(m):
         c = collections.Counter(r['softwareStatus'] for r in rs)
         wps = sorted({r['workPackage'] for r in rs if r.get('workPackage')}, key=natkey)
         L.append(f'| {sec}. {titles[sec]} | {len(rs)} | {c.get("MISSING", 0)} | {c.get("IMPLEMENTED", 0)} | {c.get("VERIFIED_LOCAL", 0)} | '
-                 f'{c.get("NOT_APPLICABLE", 0)} | {", ".join(wps)} |')
+                 f'{", ".join(wps)} |')
+    wave_moves = collections.Counter((u['wave'], u['package'], u['from'], u['to']) for r in reqs for u in r['provenance'].get('waveUpdates') or [])
+    if wave_moves:
+        L.append('')
+        L.append('## Implementation waves')
+        L.append('')
+        L.append('Status changes applied after each wave from the independent verifier\'s verified status (`provenance.waveUpdates` on each row; '
+                 'docs/followon/CONTINUATION.md records the runs):')
+        L.append('')
+        for w in sorted({k[0] for k in wave_moves}, key=natkey):
+            L.append(f'* {w}: ' + ', '.join(f'{p} {a} -> {b}: {n}' for (ww, p, a, b), n in sorted(wave_moves.items(), key=lambda kv: (natkey(kv[0][1]), kv[0][2], kv[0][3])) if ww == w) + '.')
     L.append('')
     L.append('## Phase A repair')
     L.append('')
-    L.append('The completeness critic re-checked the planner output. This repair applied its findings to the ledger, plan and registers:')
+    L.append('The completeness critic re-checked the planner output, and further critic passes re-checked the repaired ledger. The repair rounds applied '
+             'their findings to the ledger, plan and registers:')
     L.append('')
-    L.append('* Status changes: ' + (', '.join(f'{a} -> {b}: {n}' for (a, b), n in sorted(repair_moves.items())) or 'none') + '. Every `VERIFIED_LOCAL` row was '
+    L.append('* Status changes (both rounds): ' + (', '.join(f'{a} -> {b}: {n}' for (a, b), n in sorted(repair_moves.items())) or 'none') + '. Every `VERIFIED_LOCAL` row was '
              're-opened against its cited tests under the strict rule; rows that missed a named acceptance element, rested on single-connection PGlite for '
              'concurrency, on a mock, or held only because nothing they govern exists yet moved to `IMPLEMENTED` and into the `requirementIds` of the package '
              'whose deliverable covers them. FO-00-07 and FO-15-40 are `MISSING`.')
     L.append(f'* Fault matrix: FO-17-24 is the gate and {len(m["fault_rows"])} rows `FO-17-24.<FAULT_ID>` hold one fault each (the {len(m["plans"])} plans in '
-             '`scenarios/fixtures/failures` plus every prompt section 17 item), each assigned to the package that builds its injection point.')
-    L.append('* Splits: FO-16-44a (application region fence, WP-42), FO-03-49a (console access path in Terraform, WP-39), FO-01-15a (PSTN qualification, WP-45) '
-             'and FO-20-11a (J11 failed-transfer leg, WP-28).')
+             '`scenarios/fixtures/failures` plus every prompt section 17 item). Each row belongs to the package that runs its Layer-2 test; that package builds '
+             'the injection point or depends on the packages that do (`injectionPointPackages`), and depends on every package whose component the asserted '
+             'postconditions observe (`postconditionPackages`). The generator rejects any other assignment.')
+    splits = [r for r in reqs if r['provenance'].get('splitFrom') and not r['id'].startswith('FO-17-24.')]
+    L.append('* Splits: ' + ', '.join(f'{r["id"]} (from {r["provenance"]["splitFrom"]}, {r.get("workPackage") or r.get("regressionPackage")})' for r in splits) + '.')
     L.append('* Section 23 constraints are rows FO-23-01..' + f'{sum(1 for r in reqs if r["section"] == "23"):02d}' + '; original ids resolve to '
              f'`docs/requirements/catalog.yaml` and all {len(m["cat_ids"])} catalog ids are mapped; ADR, TB and follow-on prompt references moved to `derivedFrom`.')
     L.append(f'* Capability axis: {len(m["caps"])} capabilities in [`followon/capabilities.yaml`](followon/capabilities.yaml); every row names its capabilities.')
     L.append('* Activation ids are `AIN-NN` (no collision with the invariant ids ACT-01..ACT-05); entries without a PRQ record are marked proposed.')
     L.append('* The 27 invariant rows name the packages that add boundary tests (`secondaryPackages`); those obligations are part of each package\'s acceptance.')
     L.append('')
+    for key, label in (('recheckRepair', 'Second critic pass (round 2):'), ('recheckRepair3', 'Third critic pass (round 3):'),
+                       ('recheckRepair4', 'Fourth critic pass (round 4, applied with wave B1):')):
+        if m['narr'].get(key):
+            L.append(label)
+            L.append('')
+            for b in m['narr'][key]:
+                L.append('* ' + b)
+            L.append('')
     L.append('## By capability')
     L.append('')
     L.append('Both status axes per capability (prompt section 0). The rollup is the least advanced status among the members. Full membership: '
@@ -791,13 +1028,28 @@ def render(m):
     L.append('## Fault matrix')
     L.append('')
     L.append('The fixed denominator of FO-17-24: one row per fault. "Plan" means a fault plan exists in `scenarios/fixtures/failures`; no fault has a run over its '
-             'real injection point yet, so none is `VERIFIED_LOCAL`.')
+             'real injection point yet, so none is `VERIFIED_LOCAL`. "Package" runs the Layer-2 `[FAULT:<id>]` test; it is, or depends on, every package in the '
+             'two columns before it.')
     L.append('')
-    L.append('| Fault | Source | Plan | Software | Package |')
-    L.append('|---|---|---|---|---|')
+    L.append('| Fault | Source | Plan | Software | Injection point built by | Postconditions observe | Package |')
+    L.append('|---|---|---|---|---|---|---|')
     for fid in sorted(m['fault_rows']):
         r = m['fault_rows'][fid]
-        L.append(f'| `{fid}` | {r["faultSource"]} | {"yes" if fid in m["plans"] else "no"} | `{r["softwareStatus"]}` | {r.get("workPackage") or "-"} |')
+        L.append(f'| `{fid}` | {r["faultSource"]} | {"yes" if fid in m["plans"] else "no"} | `{r["softwareStatus"]}` | '
+                 f'{", ".join(r["injectionPointPackages"])} | {", ".join(r["postconditionPackages"])} | {r.get("workPackage") or r.get("regressionPackage") or "-"} |')
+    L.append('')
+    L.append('## Journeys')
+    L.append('')
+    L.append('One row per mandatory journey (prompt section 20) and per split leg. "Components" are the packages that build what the journey\'s acceptance '
+             'exercises or asserts (`componentPackages`); "Package" runs the journey and is, or depends on, every one of them (generator-checked).')
+    L.append('')
+    L.append('| Row | Journey | Software | Components | Package |')
+    L.append('|---|---|---|---|---|')
+    for r in reqs:
+        if r['section'] != '20' or not r.get('componentPackages'):
+            continue
+        L.append(f'| {r["id"]} | {md_cell(r["text"], 110)} | `{r["softwareStatus"]}` | {", ".join(r["componentPackages"])} | '
+                 f'{r.get("workPackage") or r.get("regressionPackage")} |')
     L.append('')
     L.append('## Section 1 baseline observations reconciled with current truth')
     L.append('')
@@ -828,7 +1080,6 @@ def render(m):
     L.append('Columns: requirement (shortened; full text in requirements.yaml), Software status, Environment status, first evidence citation, gap (shortened), '
              'work package (for `VERIFIED_LOCAL` the package that re-runs it on real protocols, in parentheses). Qualification is `NOT_RUN` unless the summary '
              'table above names the requirement.')
-    abbr = {'NOT_APPLICABLE': 'N/A'}
     for sec in sorted(by_sec, key=int):
         L.append('')
         L.append(f'### {sec}. {titles[sec]}')
@@ -840,9 +1091,8 @@ def render(m):
                 wp = f'({r["regressionPackage"]})'
             else:
                 wp = r.get('workPackage') or '-'
-            gap = r['gap'] if r['softwareStatus'] != 'NOT_APPLICABLE' else 'N/A: ' + r['notApplicableReason']
-            L.append(f'| {r["id"]} | {md_cell(r["text"], 140)} | `{abbr.get(r["softwareStatus"], r["softwareStatus"])}` | `{r["environmentStatus"]}` | '
-                     f'{md_cell(r["evidence"][0] if r["evidence"] else "-", 110)} | {md_cell(gap, 160)} | {wp} |')
+            L.append(f'| {r["id"]} | {md_cell(r["text"], 140)} | `{r["softwareStatus"]}` | `{r["environmentStatus"]}` | '
+                     f'{md_cell(r["evidence"][0] if r["evidence"] else "-", 110)} | {md_cell(r["gap"], 160)} | {wp} |')
     out['docs/GAP_CLOSURE.md'] = '\n'.join(L) + '\n'
 
     # ---------------- ACTIVATION_REGISTER.md
@@ -942,7 +1192,7 @@ def main():
     ap.add_argument('--quiet', action='store_true')
     args = ap.parse_args()
     reqs, pk, acts, caps, narr, catalog, prereq, plans = load()
-    m = build(reqs, pk, acts, caps, narr, catalog, prereq, plans)
+    m = build(reqs, pk, acts, caps, narr, catalog, prereq, plans, working_tree_files())
     out = None
     if m is not None:
         m['acts_rules'] = acts['rules']

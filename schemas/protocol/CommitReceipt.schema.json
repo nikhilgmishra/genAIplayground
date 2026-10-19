@@ -2,9 +2,31 @@
   "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/CommitReceipt.json",
   "title": "CommitReceipt",
   "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "commit-receipt.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "causationId": "causationId",
+    "occurredAt": "recordedAt",
+    "versions": "afterVersion",
+    "provenance": "providerSystem",
+    "outcome": "outcome"
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "commit-receipt.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "causationId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
     "receiptId": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
@@ -99,6 +121,17 @@
     },
     "reconciled": {
       "type": "boolean"
+    },
+    "effectVerificationRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^efv_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [

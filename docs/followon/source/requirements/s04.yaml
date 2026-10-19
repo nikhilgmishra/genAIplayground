@@ -16,16 +16,23 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/generate-schemas.ts (27 schemas; --check passed 2026-10-19)
-  - platform/src/gateway/generate-openapi.ts (openapi.check ok 2026-10-19)
-  - platform/src/console-api/contract.ts (hand-written TS interfaces mirrored by console/src/api/contract.test.ts drift checks)
-  gap: Console API and workflow/human-task types are not generated from the zod source; 17 required contracts absent.
+  - platform/src/protocol/generate-schemas.ts (one zod source -> schemas/protocol, approvals copy, schemas/openapi/console.openapi.json; --check fails on drift/missing/stale)
+  - 'platform/src/protocol/registry.test.ts: [FO-04-48][FO-04-01] every follow-on schema exists in schemas/protocol ... and the generator --check passes'
+  - 'platform/src/protocol/registry.test.ts: [FO-04-01] the drift check can fail: a differing, a missing and a stale schema file are each reported (and only *.schema.json files count as stale)'
+  - 'platform/src/protocol/registry.test.ts: [FO-04-01] one zod source ...; [FO-04-01] a producing component marked IN_USE validates that exact contract'
+  - 'platform/src/protocol/console-openapi.test.ts: [FO-04-01] the committed console.openapi.json equals the generated document'
+  gap: The console's TypeScript interfaces (platform/src/console-api/contract.ts) are still hand-written and mirrored, not generated (console group owner, WP-05 in phase B). The gateway client generator is WP-07's.
   remediation: Move console API and new contracts into the zod registry; generate OpenAPI for console.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-02
   section: '4'
   kind: constraint
@@ -66,16 +73,22 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/*.ts (bounded strings/arrays)
-  - platform/src/protocol/tools.ts:53 (maxInputBytes)
-  - platform/src/console-api/schemas.ts:771,803 (limit only)
-  gap: No cursor pagination contract; no time-range type; ToolResult.data is an unbounded record.
+  - platform/src/protocol/common.ts (PageRequest, PageInfo, paged(), MAX_PAGE_SIZE, opaque fail-closed cursors, timeRange()/TimeRange, MinorUnits)
+  - platform/src/protocol/registry-check.ts boundednessViolations over all 34 contracts
+  - 'platform/src/protocol/common.test.ts: [FO-04-03] page requests and pages are bounded ...; cursors are opaque ...; time ranges are increasing and bounded in span'
+  - 'platform/src/protocol/registry.test.ts: [FO-04-42][FO-04-03] the common-field shape check can fail for identifiers ...'
+  gap: Console and gateway list endpoints do not use cursor pagination yet (console-api, gateway owners). The wire ToolRequest.arguments and ToolResult.data stay unbounded until WP-07 adopts ToolRequestV2/ToolResultV2.
   remediation: Add Pagination and TimeRange primitives; bound data records.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-04
   section: '4'
   kind: constraint
@@ -117,10 +130,12 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/auth.ts:66-91
-  - platform/src/identity/session-store.ts (toAuthContext)
-  - platform/src/identity/session-service.test.ts:112
-  gap: Lacks schema_version, processing basis/purpose and data classification fields.
+  - platform/src/protocol/auth.ts (AuthContext + optional schemaVersion, processingBasis, consentProfile, dataClassification as DisclosureClassification; ProcessingBasis approval/jurisdiction rules)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-05][AUTH-03] P1: a processing basis that relies on the approved matrix names its approval ...'
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-05][AUTH-06] P9: the session''s disclosure ceiling can never be VERIFICATION_SECRET'
+  - 'platform/src/protocol/rules.test.ts: adversarial auth.ts PROCESSING_BASIS_WITHOUT_APPROVAL / UNKNOWN_BASIS_WITH_APPROVAL / BASIS_FOR_UNKNOWN_JURISDICTION'
+  - schemas/protocol/AuthContext.schema.json (regenerated)
+  gap: The session service and store (WP-05) do not populate schemaVersion, processingBasis, consentProfile or dataClassification yet; the fields stay optional until they do.
   remediation: Add common fields.
   size: S
   environmentDependency: none
@@ -130,6 +145,11 @@ requirements:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-06
   section: '4'
   kind: software
@@ -140,19 +160,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - implicit in platform/src/identity/session-store.ts (SessionRecord callId) and platform/src/gateway/session-binding.ts:1-60
-  - live InteractionLookup BLOCKED
-  gap: No contract binding carrier interaction, session generation and conversation owner.
+  - platform/src/protocol/call-binding.ts (CallBinding, CarrierInteractionRef refusing phone-shaped values, BindingSource, checkBinding)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-06] a trusted binding parses and the currency check fails closed on every mismatch; [FO-04-06][AUTH-01] caller ANI can never become the carrier interaction reference'
+  gap: 'No producer yet: the binding store and issuance belong to WP-11, the gateway check to WP-14.'
   remediation: Define CallBinding, produced by the media runtime/carrier adapter.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-07
   section: '4'
   kind: software
@@ -162,19 +187,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/tools.ts:74 (turnId string only)
-  - platform/src/voice/turns.ts
-  gap: No turn record (speaker, timing, ASR confidence, generation).
+  - platform/src/protocol/media.ts (TurnEnvelope)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-07][AUTH-06] a minimized turn parses; DTMF never reaches a transcript or ASR ...'
+  gap: No producer or store persists turn envelopes yet (WP-11/WP-14).
   remediation: Define and persist TurnEnvelope.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-08
   section: '4'
   kind: software
@@ -184,18 +214,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no definition in platform/src
-  gap: Absent.
+  - platform/src/protocol/context-snapshot.ts (tenant/subject/ceiling/purpose/completeness rules; now also refuses retracted facts and facts expired at assembly)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-08][AUTH-05] a snapshot holds only the authorized subject''s facts ...; [FO-04-08][FO-04-12][FO-04-24][FO-04-28] snapshots hold only usable facts ...'
+  - 'platform/src/protocol/rules.test.ts: context-snapshot.ts RETRACTED_FACT_IN_SNAPSHOT / EXPIRED_FACT_IN_SNAPSHOT'
+  gap: No producer yet; the context assembler is WP-24.
   remediation: Define with fact list, watermarks, ACL filters.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-09
   section: '4'
   kind: software
@@ -205,18 +242,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no definition in platform/src
-  gap: Absent.
+  - platform/src/protocol/context-facts.ts (ContextFact, factIsCurrent)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-09][DATA-04] facts keep provenance ...; [FO-04-09] business-effective time is separate from ingestion time ...'
+  gap: No producer yet; the timeline and fact store are WP-18.
   remediation: Define with provenance, freshness, classification.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-10
   section: '4'
   kind: software
@@ -226,18 +269,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/support-record-cache.ts:27-30 (fetchedAt only)
-  gap: Absent.
+  - platform/src/protocol/context-facts.ts (SourceWatermark rule WATERMARK_EVIDENCE_AFTER_RECORD; watermarkAgeMs returns null for evidence beyond MAX_CLOCK_SKEW_MS in the future)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-10] a watermark is fresh only with known age within budget and no gap ...'
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-10][FO-04-18] P7: a heartbeat or source update stamped in the future is never evidence of freshness'
+  gap: No producer yet; watermark tracking is WP-18. The 5 s clock-skew tolerance is an engineering default pending operations review.
   remediation: Define per source with event offset/time.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-11
   section: '4'
   kind: software
@@ -248,18 +298,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/verification-service.ts ((iss, sub) -> actor mapping internal)
-  gap: No link record between IdP subject, directory account and person.
+  - platform/src/protocol/identity-link.ts (IdentityLink; ELIGIBLE_LINK_FROM_ANALYTICS for CDP profiles and analytics verification; activeAssignments filtered by tenant)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-11] only an authoritative, active, verified link authorizes ...; [FO-04-11][FO-04-45] a CDP profile or analytics verification never authorizes; role assignments are filtered by tenant'
+  gap: No producer or store yet; entity resolution is WP-19.
   remediation: Define IdentityLink with source and verification time.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-12
   section: '4'
   kind: software
@@ -270,19 +326,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/knowledge/schema.ts:92 (citationId string kb_<source>@v<version>)
-  - platform/src/knowledge/search.ts:267
-  gap: Only a string id; no schema with snapshot digest, span and freshness.
+  - platform/src/protocol/knowledge.ts (KnowledgeCitation; CITATION_VERSION_MISMATCH binds the citation id to articleVersion)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-12] a citation pins version, snapshot, span and freshness ...'
+  - 'platform/src/protocol/rules.test.ts: knowledge.ts CITATION_VERSION_MISMATCH'
+  gap: knowledge/search.ts still returns only the citation id string; emitting KnowledgeCitation records is WP-20.
   remediation: Define KnowledgeCitation.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-13
   section: '4'
   kind: software
@@ -293,18 +355,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no model invocation code
-  gap: Absent.
+  - platform/src/protocol/models.ts (ModelInvocation)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-13][OPS-06] an invocation pins the registry entry ...'
+  gap: No model invocation code exists yet (WP-10 harness, WP-09 model registry).
   remediation: Define with model/version pins, input digest, scope.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-14
   section: '4'
   kind: software
@@ -314,18 +382,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no model code
-  gap: Absent.
+  - platform/src/protocol/models.ts (ModelDecision, ProposedArguments using the concept-based AUTH-03 scan in common.ts)
+  - 'platform/src/protocol/auth03.test.ts: [AUTH-03] adversarial (verifier probe P4): a key that names an identity, authority or consent concept without the exact field name is refused'
+  - 'platform/src/protocol/auth03.test.ts: [AUTH-03] every concept word is refused alone, inside a longer key and glued in lower case ...'
+  - 'platform/src/protocol/auth03.test.ts: [AUTH-03] the forbidden set is tied to the contracts ...; [AUTH-03][SAFE-02] positive: every argument name of the tool catalogue passes the scan ...'
+  gap: No producer yet; the harness that parses model output with ModelDecision is WP-10.
   remediation: Define typed decision output (proposals only).
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-15
   section: '4'
   kind: software
@@ -340,9 +416,10 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/tools.ts:69-79
-  - platform/src/gateway/pipeline.ts
-  gap: 'No causation_id/schema_version. IMPLEMENTED, not VERIFIED_LOCAL: ToolRequest (platform/src/protocol/tools.ts:69-79) has no schema_version, tenant_id, causation_id or session_generation, and `arguments` is an unbounded z.record (prompt section 4 common fields and bounds).'
+  - platform/src/protocol/tool-envelope.ts (ToolRequestV2 with envelope fields and BoundedToolArguments using the concept-based scan)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-15] ToolRequestV2 carries the envelope and bounded arguments'
+  - platform/src/protocol/auth03.test.ts AUTH-03 tests (ToolRequestV2 refusals)
+  gap: The gateway still builds and validates the original ToolRequest; WP-07 switches gateway/pipeline.ts to ToolRequestV2.
   remediation: Add common fields.
   size: S
   environmentDependency: none
@@ -351,6 +428,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: ToolRequest (platform/src/protocol/tools.ts:69-79) has no schema_version, tenant_id, causation_id or session_generation, and `arguments` is an unbounded z.record (prompt section 4 common fields and bounds).'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-02
 - id: FO-04-16
   section: '4'
@@ -393,15 +475,20 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/tools.ts:129-139 (policyDecisionId, auditEventId, speech.sourceRefs, reasonCode)
-  - platform/src/gateway/mask.ts; per-tool outputSchema in schemas/tools/catalog.json
-  gap: Protocol types SUCCESS.data as record<string, unknown>; typing lives only in per-tool outputSchema.
+  - platform/src/protocol/tool-envelope.ts (ToolResultV2, toolResultV2(outputSchema), SpeechDirectiveV2, toolResultV2From)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-17][FO-04-18] every V2 result branch carries receipts and an explanation code ...'
+  gap: The gateway still serves the original ToolResult; registering typed V2 results in the catalogue and the gateway OpenAPI is WP-07's.
   remediation: Generate typed per-tool result schemas into the registry.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-18
   section: '4'
   kind: software
@@ -411,18 +498,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/tools.ts:129-166 (no freshness field)
-  gap: Absent.
+  - 'platform/src/protocol/tool-envelope.ts (ToolResultFreshness: required watermark, unknown age is stale, SOURCE_UPDATE_AFTER_OBSERVATION)'
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-17][FO-04-18] ...; [FO-04-10][FO-04-18] P7 ...'
+  - 'platform/src/protocol/rules.test.ts: tool-envelope.ts SOURCE_UPDATE_AFTER_OBSERVATION'
+  gap: The gateway does not produce V2 results with freshness yet (WP-07, WP-14); watermark sources arrive with WP-18/WP-24.
   remediation: Add freshness/watermark refs.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-19
   section: '4'
   kind: constraint
@@ -465,9 +559,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/actions.ts:57-84
-  - platform/src/actions/digest.test.ts
-  gap: 'ActionKind closed to six kinds; MoneyAmount USD only. IMPLEMENTED, not VERIFIED_LOCAL: PreparedAction has no schema_version or causation_id, schema files under schemas/protocol are not versioned, and money is a USD-only literal (prompt section 4 common fields).'
+  - platform/src/protocol/actions.ts (PreparedAction with ISO 4217 Money and a bounded change map; PreparedActionV2)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-20][FO-04-44] PreparedAction fees use ISO 4217 money and the bounded change map'
+  gap: The action service still emits PreparedAction without schemaVersion/causationId; adopting V2 needs WP-25 to extend DIGEST_FIELDS and the ledger row. ActionKind is still a closed enum.
   remediation: Extend kinds via connector contracts.
   size: S
   environmentDependency: none
@@ -476,6 +570,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: PreparedAction has no schema_version or causation_id, schema files under schemas/protocol are not versioned, and money is a USD-only literal (prompt section 4 common fields).'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-02
 - id: FO-04-21
   section: '4'
@@ -491,14 +590,21 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/actions.ts:87-97 (ActionConfirmation)
-  gap: Exists under another name without receipt id or audit ref.
+  - platform/src/protocol/actions.ts (ConfirmationReceipt, confirmationReceiptFrom, checkConfirmationReceipt/receiptConfirms checking tenant, action, digest, session reference and generation, actor, capture after preparation, not in the future, receipt and action expiry)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-21][ACT-01] a confirmation receipt is built from the trusted confirmation and confirms only the same tenant, action, digest, session, generation, actor and fresh window'
+  - 'platform/src/protocol/registry.test.ts: [FO-04-21] ConfirmationReceipt is the ActionConfirmation alias plus ...'
+  gap: actions/action-service.ts still validates ActionConfirmation and issues no receipts (WP-25).
   remediation: Rename/extend to ConfirmationReceipt.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-22
   section: '4'
   kind: software
@@ -513,15 +619,21 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/workflows/grants.ts; platform/migrations/0402_durable_action_grants.sql
-  - platform/src/protocol/auth.ts:133-151 (durable_action_grant assertion purpose)
-  gap: Not a registered protocol schema.
+  - platform/src/protocol/actions.ts (ActionGrant with DUPLICATE_PARAMETER_BOUND; checkActionGrant checking tenant, subject, actor, purpose, validity window, revocation, uses, action, digest and every parameter bound)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-22][ACT-01] an action grant is narrow: subject, actor, purpose, window, uses, permitted actions, digest and parameter bounds all fail closed'
+  - 'platform/src/protocol/rules.test.ts: actions.ts DUPLICATE_PARAMETER_BOUND'
+  gap: workflows/grants.ts keeps its own record and check and does not validate ActionGrant yet (WP-25).
   remediation: Register ActionGrant.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-23
   section: '4'
   kind: software
@@ -537,9 +649,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/actions.ts:99-116
-  - platform/src/actions/action-service.test.ts
-  gap: 'No link to EffectVerification. IMPLEMENTED, not VERIFIED_LOCAL: CommitReceipt has no schema_version, causation_id or link to EffectVerification.'
+  - platform/src/protocol/actions.ts (CommitReceipt + optional schemaVersion, tenantId, causationId, effectVerificationRef)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-23] a commit receipt can link its independent effect verification'
+  gap: The action service does not set the envelope fields or link an EffectVerification yet (WP-25).
   remediation: Add verification ref.
   size: S
   environmentDependency: none
@@ -548,6 +660,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: CommitReceipt has no schema_version, causation_id or link to EffectVerification.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-02
 - id: FO-04-24
   section: '4'
@@ -558,18 +675,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/migrations/0101_action_reconciliations.sql (reconciliation, not independent verification)
-  gap: Absent.
+  - platform/src/protocol/effects.ts (EffectVerification; VERIFIED_WITHOUT_SOURCE_EVENT for event/lookup methods)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-24][ACT-03][ACT-04] VERIFIED needs a matching independent observation ...'
+  - 'platform/src/protocol/rules.test.ts: effects.ts VERIFIED_WITHOUT_SOURCE_EVENT'
+  gap: No independent read-back verifier exists yet (WP-25).
   remediation: Define and implement an independent read-back verification.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-25
   section: '4'
   kind: software
@@ -584,9 +708,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/support.ts:36-67
-  - platform/src/business/support-requests.test.ts
-  gap: Embeds salesforceCaseId (should be a CaseLink).
+  - platform/src/protocol/support.ts (SupportRequest + caseLinks bound to the same tenant/case/calls, issueOutcome, caseLinksOf)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-25] SupportRequest exposes its CRM link as a CaseLink ...; [FO-04-25][FO-04-26][AUTH-05] a support request accepts only its own case links'
+  gap: salesforceCaseId is still what the service and outbox write; moving persistence to caseLinks is WP-29.
   remediation: Move CRM ids to CaseLink.
   size: S
   environmentDependency: none
@@ -596,6 +720,11 @@ requirements:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-26
   section: '4'
   kind: software
@@ -605,18 +734,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'platform/migrations/0300_support_requests.sql:92-100 (support_request_links: action/workflow/interaction only)'
-  gap: No external-case link contract.
+  - platform/src/protocol/effects.ts (CaseLink, CaseSyncState)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-26] a case link never invents an external id ...'
+  - 'platform/src/protocol/registry.test.ts: [FO-04-26] locally duplicated enumerations stay identical'
+  gap: No case-link store or producer yet (WP-29).
   remediation: Define CaseLink for any CRM/case system.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-27
   section: '4'
   kind: software
@@ -631,9 +767,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/workflow.ts:32-51
-  - platform/src/workflows/engine.test.ts
-  gap: 'WorkflowType is a closed seven-value enum. IMPLEMENTED, not VERIFIED_LOCAL: WorkflowEvent has no schema_version or causation_id, and WorkflowType is a closed seven-value enum.'
+  - platform/src/protocol/workflow.ts (WorkflowEvent + optional schemaVersion, tenantId, causationId; WorkflowStateNameV2)
+  - 'platform/src/protocol/enums.test.ts: [WP-02] WorkflowStateNameV2 adds INVESTIGATING, VERIFYING_EFFECT and EXPIRED'
+  gap: workflows/engine.ts does not set the new fields; WorkflowType is still a closed enum (WP-26/WP-30).
   remediation: Make workflow types configurable.
   size: S
   environmentDependency: none
@@ -642,6 +778,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: WorkflowEvent has no schema_version or causation_id, and WorkflowType is a closed seven-value enum.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-02
 - id: FO-04-28
   section: '4'
@@ -656,15 +797,21 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/workflows/ports.ts:47 (TS interface)
-  - platform/migrations/0401_workflows.sql (workflow_tasks)
-  gap: Not a registered protocol schema.
+  - platform/src/protocol/workflow.ts (HumanTask; DECISION_BEFORE_TASK and DECISION_AFTER_EXPIRY)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-28] a human task never carries a task token ...'
+  - 'platform/src/protocol/rules.test.ts: workflow.ts DECISION_BEFORE_TASK / DECISION_AFTER_EXPIRY'
+  gap: The workflow engine still returns its own HumanTask interface (workflows/ports.ts); adopting the contract is WP-26.
   remediation: Register HumanTask.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-29
   section: '4'
   kind: software
@@ -679,9 +826,10 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/support.ts:102-128
-  - platform/src/business/handoff.test.ts
-  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: HandoffPackage has no schema_version or causation_id, and schema files under schemas/protocol are not versioned.'
+  - platform/src/protocol/support.ts (HandoffPackage + optional schemaVersion, causationId, contextSnapshotRef, watermarkRefs)
+  - schemas/protocol/HandoffPackage.schema.json
+  - platform/src/protocol/registry.test.ts IN_USE producer check (src/business/handoff.ts)
+  gap: business/handoff.ts does not populate the new fields yet (WP-28).
   remediation: Add context-freshness refs.
   size: S
   environmentDependency: none
@@ -690,6 +838,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: HandoffPackage has no schema_version or causation_id, and schema files under schemas/protocol are not versioned.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-02
 - id: FO-04-30
   section: '4'
@@ -701,18 +854,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/gateway/http/webhook-routes.ts:41-47 (fixture TransferEventBody)
-  gap: Absent.
+  - platform/src/protocol/media.ts (CarrierEvent, CARRIER_EVENT_TRANSFER_STATE)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-30][SAFE-04] carrier transfer events carry transfer detail ...'
+  gap: Webhook and ingress still use the fixture TransferEventBody; the CarrierEvent producer is WP-04 (with WP-12 for SIP).
   remediation: Define CarrierEvent for SIP/LiveKit/Talkdesk events.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-31
   section: '4'
   kind: software
@@ -723,18 +882,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'platform/src/protocol/tools.ts:102-114 (SpeechDirective: one templated utterance)'
-  gap: No plan covering segments, render path and response class routing.
+  - 'platform/src/protocol/media.ts (SpeechPlan: TEMPLATE_PLACEHOLDER_MISMATCH, PROTECTED_VALUE_OUTSIDE_SLOT, UNUSED_PROTECTED_SLOT, SPOKEN_SEGMENT_WITHOUT_SPEECH_RENDERER, CLIP_SEGMENT_WITHOUT_CLIP_RENDERER; templatePlaceholders, literalStatesValue), digests.ts (sealSpeechPlan)'
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-31][ACT-05] P5: a protected-fact plan states no value in its wording ... (includes every protected-class en-US/es-US catalogue template)'
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-31][ACT-05] / [SAFE-02] / output-decision digest tests'
+  - platform/src/protocol/rules.test.ts media.ts SpeechPlan cases
+  gap: The gateway does not issue SpeechPlans and no release guard checks them yet (WP-14). Spelled-number detection covers the en and es template locales only.
   remediation: Define SpeechPlan.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-32
   section: '4'
   kind: software
@@ -746,18 +913,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no definition in platform/src
-  gap: Absent.
+  - 'platform/src/protocol/media.ts (AudioReleaseReceipt: clip source with planId, PLAN_RENDERED_AS_CLIP; receiptPlanIssues cross-check)'
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-32][ACT-05] a receipt can never record emitted audio that failed a release check ...'
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-31][FO-04-32] P6: clip audio is never attributed to a plan, and a receipt must be consistent with the plan it names'
+  - schemas/protocol/AudioReleaseReceipt.schema.json (regenerated)
+  gap: No release guard exists yet; WP-14 must write receipts and call receiptPlanIssues.
   remediation: Define with approved content/audio digest and emitted/playback status.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-33
   section: '4'
   kind: software
@@ -773,9 +948,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/audit.ts:41-80
-  - platform/src/audit/chain.test.ts
-  gap: 'No causation_id distinct from parentId. IMPLEMENTED, not VERIFIED_LOCAL: AuditEvent has schemaVersion but no causation_id distinct from parentId.'
+  - platform/src/protocol/audit.ts (AuditEvent + optional causationId; schemaVersion audit.v1)
+  - platform/src/protocol/registry.test.ts IN_USE producer check (src/audit/chain.ts)
+  gap: Audit writers do not set causationId yet (WP-04); it stays optional so existing hash chains are unchanged.
   remediation: Add common fields.
   size: S
   environmentDependency: none
@@ -784,6 +959,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: AuditEvent has schemaVersion but no causation_id distinct from parentId.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-02
 - id: FO-04-34
   section: '4'
@@ -794,19 +974,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/config/schema.ts:36 (AdapterConfigSchema)
-  - platform/src/adapters/integration-inventory.ts (static inventory)
-  gap: Absent.
+  - platform/src/protocol/connector.ts (ConnectorProfile, CapabilityEvidence with VENDOR_EVIDENCE_FIXTURE_KEY), digests.ts computeConnectorProfileDigest
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-34] a connector profile holds only a secret reference ...; [FO-04-34] capability evidence distinguishes code, emulator and vendor passes ...'
+  - 'platform/src/protocol/rules.test.ts: connector.ts VENDOR_EVIDENCE_FIXTURE_KEY'
+  gap: No connector runtime or test wizard produces these yet (WP-06 then WP-32).
   remediation: Define transport/auth/mapping/limits profile.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-35
   section: '4'
   kind: software
@@ -821,14 +1007,21 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/config/schema.ts:123 (PlatformConfigSchema, one tenant per deployment)
-  gap: Not exported to schemas/; single-tenant shape.
+  - platform/src/protocol/tenant.ts (TenantConfig; CONTRACT_ALIASES TenantConfig->PlatformConfig)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-35][FO-04-43] tenant configuration carries the explicit business timezone ...'
+  - schemas/protocol/TenantConfig.schema.json
+  gap: No tenant-config store or publisher yet (WP-31).
   remediation: Register TenantConfig.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-36
   section: '4'
   kind: software
@@ -843,9 +1036,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/evaluation.ts:36-71
-  - platform/src/evaluation/corpus.test.ts
-  gap: 'Channel lacks SIP/WebRTC audio modes. IMPLEMENTED, not VERIFIED_LOCAL: ScenarioDefinition has no schema_version and its channel lacks SIP/WebRTC audio modes.'
+  - platform/src/protocol/evaluation.ts (ScenarioDefinition + optional schemaVersion, extended channels)
+  - 'platform/src/protocol/registry.test.ts: [FO-04-36][FO-04-37][FO-04-01] what the IN_USE corpus generator and scorer committed still parses under the current contracts'
+  gap: The generator (WP-01) does not set schemaVersion yet; SIP/WebRTC audio scenarios are produced by later evaluation packages.
   remediation: Extend channels.
   size: S
   environmentDependency: none
@@ -854,6 +1047,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: ScenarioDefinition has no schema_version and its channel lacks SIP/WebRTC audio modes.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-02
 - id: FO-04-37
   section: '4'
@@ -869,8 +1067,10 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/evaluation.ts:84-119
-  gap: executionMode lacks emulator/real-protocol modes; no qualification link.
+  - platform/src/protocol/evaluation.ts (EvaluationResult + seed, requestedFault, reachedFault, rerunCommand, judgeLabels, audioEvidenceRefs; ExecutionMode with local_emulator, model_text, audio)
+  - 'platform/src/protocol/enums.test.ts: [FO-04-37] EvaluationResult gains seed ...'
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-37] review records are human and signed ...; a fault result needs independent reached-fault evidence'
+  gap: The scorer and runner (WP-01) do not populate the new fields; EvaluationResult.executionMode keeps the original four; WP-01 adapts evaluation/types.ts and aggregate.ts to the full ExecutionMode, and WP-34 then widens the field.
   remediation: Extend modes.
   size: S
   environmentDependency: none
@@ -880,6 +1080,11 @@ requirements:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-38
   section: '4'
   kind: software
@@ -890,18 +1095,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/migrations/0900_console.sql (console_release_submissions for policy/knowledge only)
-  gap: Absent.
+  - platform/src/protocol/improvement.ts (ChangeProposal, CanarySpec)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-38] no self-promotion: promotion needs human review and passing required tests ...'
+  - platform/src/protocol/rules.test.ts improvement.ts cases
+  gap: No improvement pipeline produces proposals yet (WP-36).
   remediation: Define for configuration/prompt/policy changes.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-39
   section: '4'
   kind: software
@@ -917,9 +1129,10 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/release.ts:64-86
-  - platform/src/config/approvals.test.ts
-  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: ApprovalRecord has no schema_version or causation_id, and schema files under schemas/protocol are not versioned.'
+  - platform/src/protocol/release.ts (ApprovalRecord + optional schemaVersion, causationId)
+  - approvals/schema/ApprovalRecord.schema.json (generated copy, drift-checked)
+  - platform/src/protocol/registry.test.ts IN_USE producer check (src/config/approvals.ts)
+  gap: The approval loader does not set the new fields yet (registry group owner).
   remediation: Keep.
   size: S
   environmentDependency: none
@@ -928,6 +1141,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: ApprovalRecord has no schema_version or causation_id, and schema files under schemas/protocol are not versioned.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-02
 - id: FO-04-40
   section: '4'
@@ -943,9 +1161,10 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/release.ts:125-151
-  - platform/src/evaluation/manifest.test.ts
-  gap: status uses the single-axis ReleaseStatus.
+  - platform/src/protocol/release.ts (ReleaseManifest + statusAxes, capabilities; StatusAxes; statusAxesFromLegacy)
+  - 'platform/src/protocol/enums.test.ts: [WP-02][OPS-03] two-axis status types replace ReleaseStatus ...'
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-40] ReleaseManifest can carry the two-axis status ...'
+  gap: The manifest builder and deploy gate stay on the legacy ReleaseStatus until WP-40.
   remediation: Two-axis capability statuses.
   size: S
   environmentDependency: none
@@ -955,6 +1174,11 @@ requirements:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-41
   section: '4'
   kind: software
@@ -964,18 +1188,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no definition in platform/src
-  gap: Absent.
+  - platform/src/protocol/activation.ts (ActivationRecord, ActivationReport, permittedActivationState)
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-41][OPS-03][OPS-04] activation claims no more than its evidence ...'
+  - platform/src/protocol/rules.test.ts activation.ts cases
+  gap: No activation service produces records yet (WP-31).
   remediation: Define per-workflow activation status with evidence.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-04-42
   section: '4'
   kind: software
@@ -986,19 +1217,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'present in part: tenantId/callId/sessionGeneration/turnId/requestId on AuthContext, ToolRequest/ToolResult, AuditEvent'
-  - 'absent: causation_id everywhere; schema_version only on AuditEvent/ReleaseManifest; source provenance/classification on few'
-  gap: No systematic common-field model.
+  - platform/src/protocol/common.ts envelope(), platform/src/protocol/common-fields.ts (17-field common-field model with independent trait relevance), platform/src/protocol/registry-check.ts envelopeViolations/commonFieldShapeProblem
+  - 'platform/src/protocol/registry.test.ts: [FO-04-42] the common-field model covers every field of the prompt''s list ...; each contract maps exactly the common fields its traits make relevant ...; the common-field check can fail ...; [FO-04-42][FO-04-03] the common-field shape check can fail for identifiers ...'
+  - 'platform/src/protocol/common.test.ts: [FO-04-42] envelope() pins the contract version ...'
+  - 'Mutation sweep: the 30 verifier mutations plus 59 new ones, all killed; the common-field ones are N1, N2, N3, N11, N19, N24 (results in the scratch dir listed in docNotes)'
+  gap: None for the contract model itself. Producers that carry fields optional until adoption set them in their own packages.
   remediation: Common envelope mixin plus registry test.
   size: M
   environmentDependency: none
-  workPackage: WP-02
+  regressionPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-04-43
   section: '4'
   kind: constraint
@@ -1012,15 +1250,20 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/common.ts:21 (IsoDateTime offset:false)
-  - platform/src/business/contracts/appointments.ts:16 (timeZone field)
-  gap: No tenant-level business timezone.
+  - platform/src/protocol/common.ts (BusinessTimeZone, LocalDate, toBusinessDate), tenant.ts tenantBusinessDate
+  - 'platform/src/protocol/common.test.ts: [FO-04-43] instants are Z-suffixed UTC ...; business dates are computed in the explicit timezone, across DST and the date line'
+  gap: No tenant-config store yet (WP-31); business code still uses deployment-level timezone settings until it reads TenantConfig.
   remediation: Add to TenantConfig.
   size: S
   environmentDependency: tenant timezone
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-44
   section: '4'
   kind: constraint
@@ -1035,14 +1278,20 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/actions.ts:51-55 (MoneyAmount; currency literal USD)
-  gap: Currency fixed to USD.
+  - platform/src/protocol/common.ts (CurrencyCode ISO 4217 list, minorUnitExponent, Money, moneyToDecimalString); actions.ts MoneyAmount = Money; MAX_MONEY grant bounds check currency
+  - 'platform/src/protocol/common.test.ts: [FO-04-44] money is integer minor units plus an ISO 4217 code with the right exponent'
+  gap: The billing tool output (gateway/tools/billing.ts, registry group) still reports a literal USD until its owner adopts Money.
   remediation: ISO 4217 enum.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-45
   section: '4'
   kind: software
@@ -1056,15 +1305,21 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'sessions: platform/src/identity/kv; actions: platform/migrations/0100_action_ledger.sql; cases: 0300_support_requests.sql; tasks: 0401_workflows.sql'
-  - persons/organizations only in external directories (platform/src/adapters/ports.ts:39-70)
-  gap: No persisted conversation-turn record; no IdentityLink for person/actor.
+  - platform/src/protocol/media.ts TurnEnvelope, identity-link.ts IdentityLink and PersonRoleAssignment
+  - 'platform/src/protocol/cardinality.test.ts: [FO-04-45] person, actor, organization/delegation, call session, turn, case, action and durable task are separate contracts with separate identifiers'
+  - 'platform/src/protocol/contracts.test.ts: [FO-04-45] long-horizon plans stay within their grant ceiling ...'
+  gap: No persisted turn or identity-link store yet (WP-11/WP-14, WP-19).
   remediation: Add turn and identity-link records.
   size: M
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-46
   section: '4'
   kind: software
@@ -1079,16 +1334,20 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/session-service.ts:198 (one selected role, switch drops privileges)
-  - platform/src/protocol/support.ts:54 (sourceCallIds 1..32)
-  - platform/migrations/0300_support_requests.sql:30-31
-  gap: No explicit cardinality tests found for multi-case calls.
+  - 'platform/src/protocol/cardinality.test.ts: [FO-04-46] one person can hold several roles ... (activeAssignments now tenant-scoped); many calls can share one case; one call can carry several cases'
+  - 'platform/src/protocol/cardinality.test.ts: [FO-04-46] two issues in one call create two separate support requests, both attributed to the same call (real SupportRequestService on PGlite, single connection)'
+  gap: The real-service case covers one connection only; concurrent multi-connection behaviour is not verified here.
   remediation: Add cardinality tests.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-04-47
   section: '4'
   kind: constraint
@@ -1126,16 +1385,21 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.contracts
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/registry.test.ts:13-26 (MINIMUM_ARTIFACTS = 12 original-spec names)
-  - platform/src/protocol/registry.ts:16-44 (27 registered schemas; 17 required contracts absent, ActionGrant/HumanTask/TenantConfig unregistered)
-  gap: Nothing stops a required contract from silently staying absent or living outside the registry; c1's per-contract items have no enforcing test.
+  - 'platform/src/protocol/followon.ts (FOLLOWON_CONTRACTS: 34 descriptors, CONTRACT_ALIASES, FOLLOWON_SCHEMAS)'
+  - 'platform/src/protocol/registry.test.ts: [FO-04-48] FOLLOWON_CONTRACTS lists exactly the 34 contracts of follow-on prompt section 4, in order; every follow-on contract is registered, strict ...; the registry check can fail ...'
+  gap: The original MINIMUM_ARTIFACTS test is kept alongside rather than replaced, so no existing test is removed. Merging FOLLOWON_SCHEMAS into registry.ts/index.ts is the registry group's integration step.
   remediation: Replace MINIMUM_ARTIFACTS with FOLLOWON_CONTRACTS (34 names) plus an alias map for renamed contracts (ConfirmationReceipt, TenantConfig). Register ActionGrant, HumanTask and TenantConfig, and mark the test it.fails for each name not yet implemented, so progress is visible and regressions fail.
   size: S
   environmentDependency: none
   workPackage: WP-02
   provenance:
     origin: challenge-missed
+    waveUpdates:
+    - wave: B1
+      package: WP-02
+      from: MISSING
+      to: IMPLEMENTED

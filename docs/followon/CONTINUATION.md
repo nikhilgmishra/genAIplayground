@@ -52,7 +52,7 @@ scoped authority exists. No billable endpoint is invoked by a safe local default
 | Phase | Scope | State |
 |---|---|---|
 | A | Inventory, requirement extraction, gap ledger, architecture/threat/data-flow diagrams, decision record, implementation and activation registers | DONE (commit bf25655; last minor/one material ledger fix runs with wave B1) |
-| B | Scorer truth, invariant regressions, production composition, storage/session/workforce identity/audit, real transport adapter boundaries | IN_PROGRESS: wave B1 (WP-02, WP-03) running; then B2 (WP-01, WP-04, WP-06), B3 (WP-05), B4 (WP-07) |
+| B | Scorer truth, invariant regressions, production composition, storage/session/workforce identity/audit, real transport adapter boundaries | IN_PROGRESS: wave B1 (WP-02, WP-03) DONE; next B2 (WP-01, WP-04, WP-06), B3 (WP-05), B4 (WP-07) |
 | C | Live model adapters, controllable media (LiveKit/SIP), protected output, fallback audio, turn/session fencing, real local audio-to-action journey | NOT_STARTED |
 | D | Historical/event/live context, entity linking, knowledge ingestion, deletions, model registry, specialist loops, canonical domain adapters | NOT_STARTED |
 | E | Every workflow family, CRM/outbox sync, long-horizon work, secure companion, notifications, accepted human transfer | NOT_STARTED |
@@ -90,10 +90,13 @@ Each wave runs the reusable workflow script
 `/root/.claude/projects/-home-user-genAIplayground/f299c1b0-44d2-5934-b2f9-0f6e3fe0b812/workflows/scripts/followon-wave-wf_5abdf51f-ed0.js`
 with `args = {wave, packages: [WP ids], extra: [optional extra jobs]}`: one implementer per package, an
 independent adversarial verifier, up to two refix rounds. Between waves the coordinator runs the full
-gates, applies the implementers' `statusUpdates` to `docs/followon/source/` and regenerates the ledger
-(`python3 -I docs/tools/followon/generate.py`), commits and pushes. Waves follow the dependency order in
-`docs/followon/work-packages.yaml`.
+gates, fixes what the final verifier left (PARTIAL residuals), applies the statuses to
+`docs/followon/source/` and regenerates the ledger (`python3 -I docs/tools/followon/generate.py`), then
+commits and pushes. The applied software status is the verifier's `verifiedStatus`, never the
+implementer's claim alone; evidence and gap come from the implementer's final report, and each row
+records the move in `provenance.waveUpdates` (rendered in GAP_CLOSURE.md, "Implementation waves").
+Waves follow the dependency order in `docs/followon/work-packages.yaml`.
 
 | Wave | Packages | Run id | State |
 |---|---|---|---|
-| B1 | WP-02, WP-03 (+ ledger fix job) | wf_5abdf51f-ed0 | RUNNING |
+| B1 | WP-02, WP-03 (+ ledger fix job) | wf_5abdf51f-ed0 | DONE: both PARTIAL after 3 rounds; the coordinator fixed the residuals (WP-02 snapshot watermark rules, party-URI refs, byte-size args, hand-over notes; WP-03 Step Functions Local TaskSubmitted race, missing-emulation-summary exit, digest pointer). Ledger: 56 rows moved (MISSING 613, IMPLEMENTED 450, VERIFIED_LOCAL 107). Layer-2 `_harness` 72/72 three times; workflow file 20/20 |

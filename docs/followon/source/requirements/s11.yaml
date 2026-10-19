@@ -248,9 +248,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/actions/README.md commit protocol steps 7-8
   - platform/src/actions/action-service.ts:760-781
-  - platform/src/actions/action-service.test.ts:661-708
+  - platform/src/actions/action-service.test.ts:661 (audit outage blocks commit before any provider call), :681 (failed commit.started append rolls back tx1, no provider call), :689, :708
+  - platform/src/actions/README.md commit protocol steps 7-8 (documentation)
   gap: Verified on PGlite only.
   remediation: Keep.
   size: S
@@ -260,6 +260,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-11-11
   section: '11'
   kind: software

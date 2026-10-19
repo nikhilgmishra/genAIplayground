@@ -332,23 +332,31 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.workspace
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - .nvmrc (22.22.0)
-  - platform/package.json (fastify 5.12.7, typescript 6.0.3)
-  - console/package.json
-  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: The pin is a configuration fact (.nvmrc 22.22.0, package.json engines >=22.12 <23, CI node-version-file) but no check asserts that the pinned runtime is a supported LTS line, a named element (WP-03 doctor/CI check).'
+  - scripts/vsp/runner.mts check-runtime (.nvmrc exact, recorded Node.js release schedule, engines range, @types/node major, platform/Dockerfile base, every setup-node step reads .nvmrc, running version) and check-deps (exact, locked, installed, licensed; LiveKit lockstep)
+  - 'platform/test/integration/_harness/runner.test.ts: ''[FO-03-14] the repository pins a supported LTS runtime consistently (.nvmrc, engines, @types/node, image, CI) and runs on it'''
+  - 'runner.test.ts: ''[FO-03-14] a non-LTS line, an end-of-life date or an engines range admitting another major fails the check'''
+  - 'runner.test.ts: ''[FO-03-14] every setup-node step must read node-version-file: .nvmrc and set no node-version of its own'''
+  - 'runner.test.ts: ''[FO-03-14] check-deps passes on the workspace and fails on a range specifier or a missing planned dependency'''
+  - 'node scripts/vsp/runner.mts check-runtime --require-running: PASS (13 checks); check-deps: PASS (21 checks)'
+  gap: Node.js 22 reaches end of life on 2027-04-30, and check-runtime starts warning about 10 days from now. The move to Node.js 24 LTS needs planning (the deps owner of the phase, plus WP-40 for the image), and the recorded release schedule must be refreshed. The CI step has not run on GitHub yet.
   remediation: Keep.
   size: S
   environmentDependency: none
+  regressionPackage: WP-03
   provenance:
     origin: extraction
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the pin is a configuration fact (.nvmrc 22.22.0, package.json engines >=22.12 <23, CI node-version-file) but no check asserts that the pinned runtime is a supported LTS line, a named element (WP-03 doctor/CI check).'
     repairStatusFrom: VERIFIED_LOCAL
-  workPackage: WP-03
+    waveUpdates:
+    - wave: B1
+      package: WP-03
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-03-15
   section: '3'
   kind: constraint
@@ -432,18 +440,22 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - voice.media_runtime
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no ADR for runtime SDK choice
-  gap: Absent.
-  remediation: ADR plus implementation.
+  - 'docs/adr/ADR-0018-followon-product-architecture.md:67-72 (decision 1.1: LiveKit Agents worker on the supported Node SDK; a Python worker only for a function whose plugin does not exist for Node at the pinned version)'
+  - 'docs/adr/ADR-0018-followon-product-architecture.md:409-417 (open item 2: plugin availability for VAD and turn detection unverified)'
+  gap: The SDK choice is recorded; the plugin list (VAD, turn detection) and its verification at the pinned version are not.
+  remediation: WP-03 pins the LiveKit Agents Node framework and its VAD and turn-detection plugins; WP-11 records the verified plugin list in docs/adr/proposed/WP-11-* and adds a Python worker only for a missing plugin.
   size: S
   environmentDependency: none
   workPackage: WP-11
   provenance:
     origin: extraction
+    repairStatusFrom: MISSING
+    repair:
+    - 'Phase A repair round 2 (critic re-check): MISSING -> IMPLEMENTED: ADR-0018 decision 1.1 (architect step, after the ledger was first written) records the SDK choice; the plugin list is still open'
 - id: FO-03-19
   section: '3'
   kind: software
@@ -601,20 +613,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.substrate
-  softwareStatus: NOT_APPLICABLE
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no EventBridge usage
-  gap: Not needed yet.
-  remediation: Decide with event ingestion design.
+  - no @aws-sdk/client-eventbridge dependency in any package.json and no EventBridge resource in infra/terraform (searched 2026-10-19 at 8c0f5a0)
+  - docs/adr/ADR-0018-followon-product-architecture.md decision 4 (SQS/SNS for delivery; no EventBridge fan-out planned)
+  gap: 'Not yet triggered: nothing uses EventBridge and no work package plans fan-out. Nothing fails if EventBridge is added without a decision record.'
+  remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when an EventBridge client, rule or bus appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it.'
   size: S
   environmentDependency: none
+  workPackage: WP-06
   provenance:
     origin: extraction
     repair:
     - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
-  notApplicableReason: 'No component uses EventBridge and no work package introduces it: ADR-0018 decision 4 keeps SQS/SNS for delivery. Revisit if a package proposes EventBridge fan-out.'
+    - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when EventBridge appears without a decision record'
+    repairStatusFrom: NOT_APPLICABLE
 - id: FO-03-26
   section: '3'
   kind: software

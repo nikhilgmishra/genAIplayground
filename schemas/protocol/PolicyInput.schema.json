@@ -439,6 +439,60 @@
         "integrations"
       ],
       "additionalProperties": false
+    },
+    "jurisdiction": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Z]{2}(-[A-Z0-9]{1,3})?$"
+        },
+        {
+          "type": "string",
+          "const": "UNKNOWN"
+        }
+      ]
+    },
+    "processingPurpose": {
+      "type": "string",
+      "enum": [
+        "support_administration",
+        "identity_verification",
+        "safety_routing",
+        "human_handoff",
+        "case_follow_up",
+        "notification_delivery",
+        "quality_assurance",
+        "evaluation",
+        "model_improvement",
+        "security_audit",
+        "legal_obligation",
+        "analytics_aggregate",
+        "marketing"
+      ]
+    },
+    "part2": {
+      "type": "object",
+      "properties": {
+        "programRecord": {
+          "type": "boolean"
+        },
+        "consentRef": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "programRecord",
+        "consentRef"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

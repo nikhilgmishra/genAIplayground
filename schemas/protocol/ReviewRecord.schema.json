@@ -1,0 +1,258 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ReviewRecord.json",
+  "title": "ReviewRecord",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "review-record.v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "review-record.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "caseId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "interactionId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reviewId": {
+      "type": "string",
+      "pattern": "^rvw_[A-Za-z0-9_-]{16,64}$"
+    },
+    "subject": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "SCENARIO",
+            "EVALUATION_RESULT",
+            "JUDGE_LABEL",
+            "MONITOR_FLAG",
+            "CHANGE_PROPOSAL",
+            "CONVERSATION_SAMPLE",
+            "SAFETY_TRANSFER"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:@-]{3,128}$"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "ref",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "reviewer": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "human"
+        },
+        "staffId": {
+          "type": "string",
+          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "support_agent",
+            "supervisor",
+            "safety_responder",
+            "auditor",
+            "knowledge_editor",
+            "policy_approver",
+            "deployment_operator",
+            "security_admin"
+          ]
+        },
+        "qualification": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z_]{2,40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "staffId",
+        "role",
+        "qualification"
+      ],
+      "additionalProperties": false
+    },
+    "labels": {
+      "minItems": 1,
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+          },
+          "value": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{1,63}$"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "MINOR",
+              "MAJOR",
+              "CRITICAL"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "value",
+          "severity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "FAIL",
+        "INCONCLUSIVE"
+      ]
+    },
+    "disagreesWith": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "JUDGE",
+              "SYNTHETIC_EXPECTATION",
+              "REVIEWER"
+            ]
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:@-]{3,128}$"
+          }
+        },
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "rubricRef": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+    },
+    "signedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "signature": {
+      "type": "object",
+      "properties": {
+        "keyRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_:./-]{3,256}$"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 1024,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "required": [
+        "keyRef",
+        "value"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "occurredAt",
+    "causationId",
+    "caseId",
+    "interactionId",
+    "reviewId",
+    "subject",
+    "reviewer",
+    "labels",
+    "verdict",
+    "disagreesWith",
+    "rubricRef",
+    "signedAt",
+    "signature"
+  ],
+  "additionalProperties": false
+}

@@ -417,21 +417,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - knowledge.retrieval
-  softwareStatus: VERIFIED_LOCAL
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/knowledge/ingest.test.ts:82 (personal data patterns quarantined)
-  - platform/src/knowledge/search.ts header (sensitive facts from structured tools only)
-  gap: '-'
-  remediation: '-'
+  - platform/src/knowledge/ingest.ts:83-85 (KNOWLEDGE_PERSONAL_DATA_PATTERN raised only for EMAIL, SSN and CARD spans)
+  - platform/src/knowledge/ingest.test.ts:82 (adv-personal-data-paste quarantined)
+  - 'platform/src/knowledge/search.ts header comment (sensitive facts come from structured tools only: a comment, not a test)'
+  gap: 'Two named elements have no test. (1) Transaction data: ingestion quarantines only EMAIL, SSN and CARD spans; no detector or test rejects balances, amounts tied to an account, invoice, claim, account or member identifiers. (2) "Transaction facts come only from tools" rests on a header comment in search.ts; no test shows that a financial or protected answer can never be grounded on a knowledge item.'
+  remediation: 'WP-20: transaction-data detection at ingestion (amount-with-account context, invoice, claim, account and member id shapes) with its own quarantine reason and adversarial corpus cases; a GroundingVerifier test that refuses a FINANCIAL_FACT or PROTECTED_FACT slot whose source is a KnowledgeCitation instead of a tool result.'
   size: S
   environmentDependency: none
-  regressionPackage: WP-20
+  workPackage: WP-20
   provenance:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL -> IMPLEMENTED: transaction-data rejection is not implemented (ingest.ts:83-85 covers EMAIL, SSN and CARD only) and the tool-only rule is evidenced by a header comment, not a test'
+    repairStatusFrom: VERIFIED_LOCAL
 - id: FO-08-17
   section: '8'
   subsection: Hybrid retrieval, reranking and retrieval evaluation
@@ -443,20 +446,22 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - knowledge.retrieval
-  softwareStatus: NOT_APPLICABLE
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no graph retrieval implemented
-  gap: Nothing to do unless evaluation justifies it.
-  remediation: '-'
+  - no graph store or graph retriever dependency or module in platform/, console/ or scripts/ (searched 2026-10-19 at 8c0f5a0)
+  gap: 'Not yet triggered: no graph retrieval exists and no work package plans it. Nothing fails if one is added without a retrieval evaluation showing gains (WP-20 writes the retrieval evaluation reports under evidence/evaluation/retrieval/).'
+  remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when a graph database client or graph retriever module appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it. The ADR must cite a WP-20 retrieval evaluation report showing the gain.'
   size: S
   environmentDependency: none
+  workPackage: WP-06
   provenance:
     origin: extraction
     repair:
     - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
-  notApplicableReason: No graph retrieval is planned; WP-20 retrieval evaluation decides whether measured gains justify it.
+    - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when graph retrieval appears without a decision record'
+    repairStatusFrom: NOT_APPLICABLE
 - id: FO-08-18
   section: '8'
   subsection: Hybrid retrieval, reranking and retrieval evaluation
@@ -861,22 +866,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - privacy.operations
-  softwareStatus: VERIFIED_LOCAL
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/migrations/0700_support_memory.sql (RLS tenant AND subject)
-  - platform/src/knowledge/README.md (transcripts never stored or embedded)
-  - platform/src/memory/support-memory.test.ts:74
-  gap: '-'
-  remediation: Keep an architecture test asserting no transcript table exists.
+  - platform/migrations/0700_support_memory.sql:62-65 (runtime RLS requires tenant AND subject)
+  - 'platform/src/memory/support-memory.test.ts:133-143 (RLS as app_runtime: no read or write for another subject), :74 (no recap for another tenant or subject)'
+  - 'platform/src/knowledge/README.md and migration header comments 0300, 0500, 0610, 0900 ("no transcript" statements: comments, not tests)'
+  gap: 'The memory RLS half is tested. "No table or index holds transcripts across customers" holds only because no transcript store exists at 8c0f5a0 (not yet triggered): no schema test fails when a migration adds a transcript, utterance or embedding table or index that is not scoped by tenant and subject. The trigger comes with WP-13 (transcripts), WP-22 (audio quarantine) and WP-34 to WP-36 (evaluation observations, failure clusters).'
+  remediation: 'WP-22: schema check over all migrations (dataset registry test) that fails when a table, index or vector store holding transcript or caller-utterance text is not tenant- and subject-scoped under forced RLS, or is shared across customers.'
   size: S
   environmentDependency: none
-  regressionPackage: WP-22
+  workPackage: WP-22
   provenance:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL -> IMPLEMENTED: the cross-customer transcript element was evidenced by README and migration comments only; it holds because nothing it governs exists yet'
+    repairStatusFrom: VERIFIED_LOCAL
 - id: FO-08-34
   section: '8'
   subsection: Persistent memory
@@ -893,13 +900,16 @@ requirements:
   qualification: NOT_RUN
   evidence:
   - 'platform/src/memory/README.md (''Not implemented, by design: nightly dreaming, self-editing'')'
-  gap: '-'
-  remediation: '-'
+  - platform/src/memory/support-memory.ts (memory changes only through explicit service calls; no scheduled or background writer exists in platform/src/memory)
+  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: not yet triggered. No job rewrites memory because none exists; nothing enforces that memory changes only through a reviewed correction. WP-22 introduces memory versions with correction history and the check that fails when a trigger appears.'
+  remediation: 'WP-22: memory entries change only through the reviewed correction path (versioned, with history); a test fails when a scheduled or background job, or any writer other than that path, changes a memory entry.'
   size: S
   environmentDependency: none
   workPackage: WP-22
   provenance:
     origin: extraction
+    repair:
+    - 'Phase A repair round 4 (wave B1 ledger job): not-yet-triggered gap and enforcing package (WP-22) added as the status rules require; status unchanged'
 - id: FO-08-35
   section: '8'
   subsection: Persistent memory
@@ -912,20 +922,22 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - knowledge.retrieval
-  softwareStatus: NOT_APPLICABLE
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no semantic cache exists in platform/src
-  gap: Rule applies once a semantic cache is added.
-  remediation: Require the context cache key and re-check for any future semantic cache.
+  - no semantic cache in platform/src (searched 2026-10-19 at 8c0f5a0); the planned WP-24 context caches are exact-key caches (FO-07-42), not similarity caches
+  gap: 'Not yet triggered: no semantic cache exists and none is planned. Nothing fails if a similarity-keyed cache is added without the FO-07-42 key and the disclosure re-check on return.'
+  remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when a cache module declared with kind semantic appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it. Every cache module must declare its kind in modules.yaml; a semantic cache additionally needs the FO-07-42 key and a re-check-on-return test.'
   size: S
   environmentDependency: none
+  workPackage: WP-06
   provenance:
     origin: extraction
     repair:
     - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
-  notApplicableReason: No semantic cache exists or is planned (WP-24 context caches are keyed caches, not semantic caches). The rule applies when one is proposed.
+    - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when semantic caches appears without a decision record'
+    repairStatusFrom: NOT_APPLICABLE
 - id: FO-08-36
   section: '8'
   subsection: Knowledge ingestion and management

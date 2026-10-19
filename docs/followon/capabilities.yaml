@@ -6,26 +6,25 @@ baseCommit: 8c0f5a0
 generator: docs/tools/followon/generate.py
 rules:
 - A capability groups the requirements that must all hold before the capability can be activated; a requirement may belong to more than one capability.
-- softwareRollup is the least advanced software status among the members (NOT_APPLICABLE members are ignored); environmentRollup likewise for the environment axis. A capability is never reported ahead of its weakest member.
+- softwareRollup is the least advanced software status among the members; environmentRollup likewise for the environment axis. A capability is never reported ahead of its weakest member.
 - activationIds are the activation register entries that block at least one member; owningPackages are the packages that own or re-run the members.
 - Readiness (WP-32), the activation map (WP-07, WP-31), ActivationRecords (WP-45) and IMPLEMENTATION_STATUS (WP-44) use these ids.
 summary:
   capabilities: 56
   softwareRollup:
-    MISSING: 55
-    IMPLEMENTED: 1
+    IMPLEMENTED: 2
+    MISSING: 54
   environmentRollup:
     NOT_CONFIGURED: 56
 capabilities:
 - id: platform.contracts
   title: Strict contract registry
   description: Versioned zod contracts, generated JSON Schemas and OpenAPI, the common envelope and the two-axis status types.
-  softwareRollup: MISSING
+  softwareRollup: IMPLEMENTED
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 20
-    IMPLEMENTED: 23
-    VERIFIED_LOCAL: 3
+    IMPLEMENTED: 42
+    VERIFIED_LOCAL: 4
   environmentStatus:
     NOT_CONFIGURED: 46
   qualification:
@@ -85,12 +84,11 @@ capabilities:
 - id: platform.workspace
   title: Workspace and Layer-2 emulator stack
   description: Pinned dependency set, workspace packages, local emulator composition, runner skeleton and integration harness.
-  softwareRollup: MISSING
+  softwareRollup: IMPLEMENTED
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 9
     IMPLEMENTED: 3
-    VERIFIED_LOCAL: 1
+    VERIFIED_LOCAL: 10
   environmentStatus:
     NOT_CONFIGURED: 13
   qualification:
@@ -120,15 +118,16 @@ capabilities:
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
     MISSING: 5
-    IMPLEMENTED: 5
+    IMPLEMENTED: 6
     VERIFIED_LOCAL: 2
-    NOT_APPLICABLE: 1
   environmentStatus:
     NOT_CONFIGURED: 13
   qualification:
     NOT_RUN: 13
   owningPackages:
   - WP-04
+  - WP-06
+  - WP-15
   activationIds:
   - AIN-01
   - AIN-03
@@ -230,14 +229,15 @@ capabilities:
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
     MISSING: 6
-    IMPLEMENTED: 13
-    VERIFIED_LOCAL: 18
+    IMPLEMENTED: 14
+    VERIFIED_LOCAL: 17
   environmentStatus:
     NOT_CONFIGURED: 37
   qualification:
     NOT_RUN: 37
   owningPackages:
   - WP-05
+  - WP-07
   - WP-19
   activationIds:
   - AIN-08
@@ -324,21 +324,23 @@ capabilities:
   softwareRollup: MISSING
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 13
+    MISSING: 14
     IMPLEMENTED: 7
     VERIFIED_LOCAL: 4
   environmentStatus:
-    NOT_CONFIGURED: 24
+    NOT_CONFIGURED: 25
   qualification:
-    NOT_RUN: 24
+    NOT_RUN: 25
   owningPackages:
   - WP-19
+  - WP-24
+  - WP-30
   activationIds:
   - AIN-10
   - AIN-12
   - AIN-14
   - AIN-24
-  requirementCount: 24
+  requirementCount: 25
   memberRequirementIds:
   - FO-05-23
   - FO-05-32
@@ -362,6 +364,7 @@ capabilities:
   - FO-19-24
   - FO-20-08
   - FO-20-09
+  - FO-20-09a
   - FO-22-03
   - FO-22-04
 - id: connectors.runtime
@@ -380,6 +383,8 @@ capabilities:
   owningPackages:
   - WP-04
   - WP-06
+  - WP-07
+  - WP-32
   - WP-40
   activationIds:
   - AIN-01
@@ -479,6 +484,8 @@ capabilities:
     NOT_RUN: 14
   owningPackages:
   - WP-08
+  - WP-15
+  - WP-17
   activationIds:
   - AIN-01
   - AIN-02
@@ -508,14 +515,15 @@ capabilities:
   softwareRollup: MISSING
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 28
+    MISSING: 29
     IMPLEMENTED: 1
   environmentStatus:
-    NOT_CONFIGURED: 29
+    NOT_CONFIGURED: 30
   qualification:
-    NOT_RUN: 29
+    NOT_RUN: 30
   owningPackages:
   - WP-09
+  - WP-17
   activationIds:
   - AIN-02
   - AIN-10
@@ -528,7 +536,7 @@ capabilities:
   - AIN-31
   - AIN-48
   - AIN-49
-  requirementCount: 29
+  requirementCount: 30
   memberRequirementIds:
   - FO-03-34
   - FO-09-02
@@ -553,6 +561,7 @@ capabilities:
   - FO-09-51
   - FO-09-52
   - FO-09-53
+  - FO-14-41a
   - FO-19-19
   - FO-19-73
   - FO-23-01
@@ -625,8 +634,8 @@ capabilities:
   softwareRollup: MISSING
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 13
-    IMPLEMENTED: 2
+    MISSING: 12
+    IMPLEMENTED: 3
   environmentStatus:
     NOT_CONFIGURED: 15
   qualification:
@@ -725,6 +734,7 @@ capabilities:
     NOT_RUN: 14
   owningPackages:
   - WP-13
+  - WP-15
   activationIds:
   - AIN-02
   - AIN-26
@@ -808,13 +818,14 @@ capabilities:
   softwareRollup: MISSING
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 7
+    MISSING: 8
   environmentStatus:
-    NOT_CONFIGURED: 7
+    NOT_CONFIGURED: 8
   qualification:
-    NOT_RUN: 7
+    NOT_RUN: 8
   owningPackages:
   - WP-16
+  - WP-17
   activationIds:
   - AIN-01
   - AIN-02
@@ -824,7 +835,7 @@ capabilities:
   - AIN-28
   - AIN-36
   - AIN-49
-  requirementCount: 7
+  requirementCount: 8
   memberRequirementIds:
   - FO-03-33
   - FO-03-36
@@ -833,18 +844,19 @@ capabilities:
   - FO-09-31
   - FO-09-32
   - FO-10-35
+  - FO-14-41a
 - id: voice.cascade
   title: Controlled cascade and audio-to-action journey
   description: Voice mode A wiring, audio journeys, test-audio and latency instrumentation.
   softwareRollup: MISSING
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 16
+    MISSING: 17
     IMPLEMENTED: 4
   environmentStatus:
-    NOT_CONFIGURED: 20
+    NOT_CONFIGURED: 21
   qualification:
-    NOT_RUN: 20
+    NOT_RUN: 21
   owningPackages:
   - WP-17
   activationIds:
@@ -854,7 +866,7 @@ capabilities:
   - AIN-26
   - AIN-31
   - AIN-32
-  requirementCount: 20
+  requirementCount: 21
   memberRequirementIds:
   - FO-00-02
   - FO-02-30
@@ -867,6 +879,7 @@ capabilities:
   - FO-10-54
   - FO-13-31
   - FO-13-32
+  - FO-14-41a
   - FO-17-32
   - FO-17-33
   - FO-17-34
@@ -882,16 +895,17 @@ capabilities:
   softwareRollup: MISSING
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 15
+    MISSING: 16
     IMPLEMENTED: 8
     VERIFIED_LOCAL: 6
   environmentStatus:
-    NOT_CONFIGURED: 29
+    NOT_CONFIGURED: 30
   qualification:
-    NOT_RUN: 29
+    NOT_RUN: 30
   owningPackages:
   - WP-10
   - WP-15
+  - WP-45
   activationIds:
   - AIN-01
   - AIN-06
@@ -904,7 +918,7 @@ capabilities:
   - AIN-29
   - AIN-31
   - AIN-40
-  requirementCount: 29
+  requirementCount: 30
   memberRequirementIds:
   - FO-00-32
   - FO-01-28
@@ -935,6 +949,7 @@ capabilities:
   - FO-19-12
   - FO-20-11
   - FO-20-13
+  - FO-20-13a
 - id: continuity.ai_off
   title: Independent continuity route
   description: An AI-off route to human queues that does not depend on the AI service.
@@ -967,24 +982,26 @@ capabilities:
   softwareRollup: MISSING
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 15
+    MISSING: 16
     IMPLEMENTED: 12
     VERIFIED_LOCAL: 6
   environmentStatus:
-    NOT_CONFIGURED: 33
+    NOT_CONFIGURED: 34
   qualification:
-    NOT_RUN: 33
+    NOT_RUN: 34
   owningPackages:
   - WP-28
+  - WP-30
   activationIds:
   - AIN-06
   - AIN-07
+  - AIN-14
   - AIN-18
   - AIN-19
   - AIN-20
   - AIN-21
   - AIN-22
-  requirementCount: 33
+  requirementCount: 34
   memberRequirementIds:
   - FO-01-10
   - FO-01-12
@@ -1016,6 +1033,7 @@ capabilities:
   - FO-17-24.BRIDGE_DROPPED
   - FO-17-37
   - FO-19-27
+  - FO-20-09a
   - FO-20-10
   - FO-20-11a
   - FO-22-09
@@ -1115,14 +1133,14 @@ capabilities:
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
     MISSING: 17
-    IMPLEMENTED: 14
-    VERIFIED_LOCAL: 4
-    NOT_APPLICABLE: 2
+    IMPLEMENTED: 17
+    VERIFIED_LOCAL: 3
   environmentStatus:
     NOT_CONFIGURED: 37
   qualification:
     NOT_RUN: 37
   owningPackages:
+  - WP-06
   - WP-20
   activationIds:
   - AIN-01
@@ -1234,8 +1252,8 @@ capabilities:
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
     MISSING: 22
-    IMPLEMENTED: 8
-    VERIFIED_LOCAL: 7
+    IMPLEMENTED: 10
+    VERIFIED_LOCAL: 5
   environmentStatus:
     NOT_CONFIGURED: 37
   qualification:
@@ -1243,6 +1261,10 @@ capabilities:
   owningPackages:
   - WP-06
   - WP-22
+  - WP-24
+  - WP-25
+  - WP-35
+  - WP-39
   - WP-40
   activationIds:
   - AIN-05
@@ -1573,6 +1595,7 @@ capabilities:
   activationIds:
   - AIN-12
   - AIN-16
+  - AIN-52
   requirementCount: 6
   memberRequirementIds:
   - FO-06-84
@@ -1625,24 +1648,27 @@ capabilities:
 - id: conversation.talkdesk_native
   title: Talkdesk-native conversation path (optional)
   description: The optional Talkdesk AI Agent Platform adapter and Auth Gate path, held to the same invariants.
-  softwareRollup: IMPLEMENTED
+  softwareRollup: MISSING
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
+    MISSING: 1
     IMPLEMENTED: 2
     VERIFIED_LOCAL: 1
   environmentStatus:
-    NOT_CONFIGURED: 3
+    NOT_CONFIGURED: 4
   qualification:
-    NOT_RUN: 3
+    NOT_RUN: 4
   owningPackages:
   - WP-29
+  - WP-45
   activationIds:
   - AIN-06
   - AIN-08
-  requirementCount: 3
+  requirementCount: 4
   memberRequirementIds:
   - FO-03-41
   - FO-06-37
+  - FO-06-37a
   - FO-22-17
 - id: crm.salesforce
   title: Salesforce Service Cloud connector
@@ -1860,6 +1886,10 @@ capabilities:
     FAIL: 2
   owningPackages:
   - WP-01
+  - WP-07
+  - WP-19
+  - WP-25
+  - WP-30
   activationIds:
   - AIN-31
   requirementCount: 31
@@ -2030,6 +2060,7 @@ capabilities:
     NOT_RUN: 14
   owningPackages:
   - WP-37
+  - WP-40
   activationIds:
   - AIN-21
   - AIN-27
@@ -2359,17 +2390,16 @@ capabilities:
   softwareRollup: MISSING
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 22
+    MISSING: 24
     IMPLEMENTED: 2
   environmentStatus:
-    NOT_CONFIGURED: 24
+    NOT_CONFIGURED: 26
   qualification:
-    NOT_RUN: 24
+    NOT_RUN: 26
   owningPackages:
   - WP-15
   - WP-17
   - WP-19
-  - WP-22
   - WP-24
   - WP-25
   - WP-28
@@ -2393,7 +2423,7 @@ capabilities:
   - AIN-30
   - AIN-31
   - AIN-32
-  requirementCount: 24
+  requirementCount: 26
   memberRequirementIds:
   - FO-20-01
   - FO-20-02
@@ -2404,11 +2434,13 @@ capabilities:
   - FO-20-07
   - FO-20-08
   - FO-20-09
+  - FO-20-09a
   - FO-20-10
   - FO-20-11
   - FO-20-11a
   - FO-20-12
   - FO-20-13
+  - FO-20-13a
   - FO-20-14
   - FO-20-15
   - FO-20-16
@@ -2426,13 +2458,13 @@ capabilities:
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
     MISSING: 22
-    IMPLEMENTED: 32
-    NOT_APPLICABLE: 1
+    IMPLEMENTED: 33
   environmentStatus:
     NOT_CONFIGURED: 55
   qualification:
     NOT_RUN: 55
   owningPackages:
+  - WP-06
   - WP-44
   activationIds:
   - AIN-01

@@ -1,0 +1,311 @@
+# Core Layer-2 services (WP-03; FO-16-01, FO-16-13, FO-16-14, FO-16-16, FO-16-21, FO-17-03).
+#
+# Production adapters run over the real protocols against these emulators (`make up PROFILE=core`,
+# `make test-integration SUITE=_harness`). Every image is pinned by tag and digest (resolved from
+# Docker Hub on 2026-10-19). This file is the only record of the digests; deploy/local/README.md lists
+# the tags and licences and points here.
+# Ports bind 127.0.0.1 only. Credentials come from the generated state file (see compose.yaml).
+#
+# io.vsp.emulates      the production system the service stands in for
+# io.vsp.protocol      the protocol the production adapter speaks to it
+# io.vsp.not-emulated  what a passing Layer-2 test against it does NOT prove (stays NOT_RUN until a
+#                      sandbox qualification, docs/ARCHITECTURE.md section 6.3.2)
+
+volumes:
+  postgres-data:
+    labels:
+      io.vsp.data-class: audit # holds the SQL audit journal (audit_events) next to operational rows
+  minio-data:
+    labels:
+      io.vsp.data-class: audit # Object Lock audit bucket and restricted QA media
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg16-trixie@sha256:40d828eda66737aaacb934387a337babf1455ebd56e9bdd13fc08e211257c972
+    profiles: [core]
+    networks: [vsp]
+    environment:
+      POSTGRES_USER: vsp
+      POSTGRES_PASSWORD: ${VSP_POSTGRES_PASSWORD:?run make up (generates .tools/vsp-local/env)}
+      POSTGRES_DB: vsp
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=trust
+    command: ["postgres", "-c", "max_connections=200", "-c", "log_min_messages=warning", "-c", "deadlock_timeout=200ms"]
+    ports: ["127.0.0.1:${VSP_PORT_POSTGRES:-55432}:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vsp -d vsp -h 127.0.0.1"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    labels:
+      io.vsp.emulates: "Amazon Aurora PostgreSQL 16 with pgvector"
+      io.vsp.protocol: "PostgreSQL wire protocol v3 (node-postgres pool, PgPoolDb)"
+      io.vsp.not-emulated: "Aurora failover and replication lag, IAM database authentication, storage durability, parameter groups"
+      io.vsp.licence: "PostgreSQL License; pgvector PostgreSQL License"
+
+  dynamodb:
+    image: amazon/dynamodb-local:3.3.1@sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab
+    profiles: [core]
+    networks: [vsp]
+    command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb", "-disableTelemetry"]
+    ports: ["127.0.0.1:${VSP_PORT_DYNAMODB:-58000}:8000"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8000"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    labels:
+      io.vsp.emulates: "Amazon DynamoDB (sessions, CallBinding, revocation, leases, quota counters)"
+      io.vsp.protocol: "DynamoDB JSON 1.0 over HTTP (AWS SDK v3)"
+      io.vsp.not-emulated: "throttling and capacity limits, IAM conditions, point-in-time recovery, global tables, TTL deletion timing"
+      io.vsp.licence: "Amazon DynamoDB Local licence (local development and testing only)"
+
+  elasticmq:
+    image: softwaremill/elasticmq-native:1.7.1@sha256:e4580ab9ad1bd5cd37b4ba04911bc5ccc8cd2d9ab4de56ece65acee71c24e05c
+    profiles: [core]
+    networks: [vsp]
+    ports: ["127.0.0.1:${VSP_PORT_ELASTICMQ:-59324}:9324"]
+    tmpfs: ["/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null 'http://127.0.0.1:9324/?Action=ListQueues'"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    labels:
+      io.vsp.emulates: "Amazon SQS standard and FIFO queues with redrive (outbox transport, Step Functions task queues)"
+      io.vsp.protocol: "SQS JSON and query protocols (AWS SDK v3)"
+      io.vsp.not-emulated: "IAM and queue policies, SSE-KMS, account isolation (the queue URL host and account id are ignored), quotas and throughput limits"
+      io.vsp.licence: "Apache-2.0"
+
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    profiles: [core]
+    networks: [vsp]
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${VSP_MINIO_ROOT_USER:?run make up}
+      MINIO_ROOT_PASSWORD: ${VSP_MINIO_ROOT_PASSWORD:?run make up}
+      # Built-in single-key KMS so the production sink's SSE-KMS requests are honoured (key "vsp-audit-local").
+      MINIO_KMS_SECRET_KEY: ${VSP_MINIO_KMS_SECRET_KEY:?run make up}
+      MINIO_BROWSER: "off"
+      MINIO_UPDATE: "off"
+    ports: ["127.0.0.1:${VSP_PORT_MINIO:-59000}:9000"]
+    volumes: ["minio-data:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9000/minio/health/live"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    labels:
+      io.vsp.emulates: "Amazon S3 with Object Lock (audit-account evidence bucket, restricted QA media)"
+      io.vsp.protocol: "S3 REST API with SigV4, path-style (AWS SDK v3)"
+      io.vsp.not-emulated: "cross-account IAM and bucket policies, ExpectedBucketOwner (ignored), AWS KMS key policy (MinIO built-in single key), locked-version delete answers 400 InvalidRequest where S3 answers 403 AccessDenied"
+      io.vsp.licence: "AGPL-3.0 (MinIO server, community build of the upstream source; upstream stopped publishing images in 2025)"
+
+  localstack:
+    image: localstack/localstack:4.14.0@sha256:3ebc37595918b8accb852f8048fef2aff047d465167edd655528065b07bc364a
+    profiles: [core]
+    networks: [vsp]
+    environment:
+      SERVICES: kms,secretsmanager,sns,ses
+      EAGER_SERVICE_LOADING: "1"
+      PERSISTENCE: "0"
+      DISABLE_EVENTS: "1" # no analytics events to the vendor
+      SKIP_SSL_CERT_DOWNLOAD: "1"
+      DNS_ADDRESS: "0"
+    ports: ["127.0.0.1:${VSP_PORT_LOCALSTACK:-54566}:4566"]
+    tmpfs: ["/var/lib/localstack"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:4566/_localstack/health | grep -q '\"kms\": \"\\(available\\|running\\)\"'"]
+      interval: 3s
+      timeout: 5s
+      retries: 60
+      start_period: 10s
+    labels:
+      io.vsp.emulates: "AWS KMS (approval and audit signing keys), Secrets Manager (connector secrets), SNS, SES"
+      io.vsp.protocol: "AWS JSON and query protocols (AWS SDK v3)"
+      io.vsp.not-emulated: "IAM and key policies, key custody (keys live in emulator memory), rotation schedules, real email/SMS delivery, sending quotas and reputation"
+      io.vsp.licence: "Apache-2.0 (LocalStack Community 4.14.0, the last community image that runs without an account token)"
+
+  keycloak:
+    image: keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85
+    profiles: [core]
+    networks: [vsp]
+    command:
+      - start-dev
+      - --https-port=8443
+      - --http-enabled=false
+      - --https-certificate-file=/opt/keycloak/conf/tls/server.pem
+      - --https-certificate-key-file=/opt/keycloak/conf/tls/server.key
+      - --hostname=https://localhost:${VSP_PORT_KEYCLOAK:-58443}
+      - --hostname-backchannel-dynamic=true
+      - --health-enabled=true
+      - --http-management-scheme=http
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${VSP_KEYCLOAK_ADMIN_USER:?run make up}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${VSP_KEYCLOAK_ADMIN_PASSWORD:?run make up}
+    ports: ["127.0.0.1:${VSP_PORT_KEYCLOAK:-58443}:8443"]
+    volumes: ["${VSP_LOCAL_STATE_DIR:?run make up}/tls:/opt/keycloak/conf/tls:ro"]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 3s
+      timeout: 5s
+      retries: 80
+      start_period: 20s
+    labels:
+      io.vsp.emulates: "client, provider and workforce OpenID Connect identity providers"
+      io.vsp.protocol: "OpenID Connect 1.0 / OAuth 2.0 over HTTPS (certificate from the checkout's local CA)"
+      io.vsp.not-emulated: "the tenant IdPs' real claims, amr/acr values, MFA and conditional-access policies, key rotation cadence, federation"
+      io.vsp.licence: "Apache-2.0"
+
+  stepfunctions:
+    image: amazon/aws-stepfunctions-local:2.0.0@sha256:ea8de9d3c489f889582e8d84aab67031e613e055ff4b94ccc41aa3af681efce2
+    profiles: [core]
+    networks: [vsp]
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCOUNT_ID: "123456789012" # synthetic account id used in state machine ARNs
+      AWS_ACCESS_KEY_ID: ${VSP_AWS_ACCESS_KEY_ID:?run make up}
+      AWS_SECRET_ACCESS_KEY: ${VSP_AWS_SECRET_ACCESS_KEY:?run make up}
+      SQS_ENDPOINT: http://elasticmq:9324
+      SNS_ENDPOINT: http://localstack:4566
+    depends_on:
+      elasticmq: { condition: service_healthy }
+    ports: ["127.0.0.1:${VSP_PORT_STEPFUNCTIONS:-58083}:8083"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://127.0.0.1:8083"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    labels:
+      io.vsp.emulates: "AWS Step Functions STANDARD state machines (infra/stepfunctions/*.asl.json)"
+      io.vsp.protocol: "Step Functions JSON API; SQS service integration with .waitForTaskToken through ElasticMQ"
+      io.vsp.not-emulated: "IAM execution role, execution-history limits and quotas, CloudWatch logging configuration, published versions and aliases, Express workflows"
+      io.vsp.licence: "AWS Step Functions Local licence (local testing only)"
+
+  mailpit:
+    image: axllent/mailpit:v1.31.4@sha256:b68349e3a014b90c5610bfb26b2ae36f3892d7b8cf25ee140c6c71c98d2fcf48
+    profiles: [core]
+    networks: [vsp]
+    environment:
+      MP_DISABLE_VERSION_CHECK: "true"
+      MP_MAX_MESSAGES: "500"
+    ports:
+      - "127.0.0.1:${VSP_PORT_MAILPIT_SMTP:-51025}:1025"
+      - "127.0.0.1:${VSP_PORT_MAILPIT_HTTP:-58025}:8025"
+    labels:
+      io.vsp.emulates: "outbound email delivery endpoint (SES or SMTP relay), capture only"
+      io.vsp.protocol: "SMTP; Mailpit HTTP API for assertions"
+      io.vsp.not-emulated: "delivery, bounces and complaints, SPF/DKIM/DMARC, recipient consent records"
+      io.vsp.licence: "MIT"
+
+  clamav:
+    image: clamav/clamav:1.5.4@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e
+    profiles: [core]
+    networks: [vsp]
+    environment:
+      CLAMAV_NO_FRESHCLAMD: "true" # signature database pinned by the image digest; no update traffic
+      CLAMAV_NO_MILTERD: "true"
+    ports: ["127.0.0.1:${VSP_PORT_CLAMAV:-53310}:3310"]
+    healthcheck:
+      test: ["CMD-SHELL", "clamdcheck.sh"]
+      interval: 5s
+      timeout: 10s
+      retries: 60
+      start_period: 300s
+    labels:
+      io.vsp.emulates: "malware scanning of uploaded documents (knowledge ingestion, companion uploads)"
+      io.vsp.protocol: "clamd TCP protocol (PING, VERSION, INSTREAM)"
+      io.vsp.not-emulated: "signature freshness (database frozen at the image digest), scanning throughput, archive bomb limits of the production scanner"
+      io.vsp.licence: "GPL-2.0 (ClamAV)"
+
+  valkey:
+    image: valkey/valkey:8.1.10-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507
+    profiles: [core, media, sip]
+    networks: [vsp]
+    command: ["valkey-server", "--requirepass", "${VSP_VALKEY_PASSWORD:?run make up}", "--save", "", "--appendonly", "no"]
+    environment:
+      REDISCLI_AUTH: ${VSP_VALKEY_PASSWORD:?run make up} # read by valkey-cli in the health check
+    ports: ["127.0.0.1:${VSP_PORT_VALKEY:-56379}:6379"]
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping | grep -q PONG"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    labels:
+      io.vsp.emulates: "LiveKit's internal message bus (ElastiCache Redis in AWS); never business state (ADR-0018)"
+      io.vsp.protocol: "RESP"
+      io.vsp.not-emulated: "ElastiCache failover, TLS in transit, auth token rotation"
+      io.vsp.licence: "BSD-3-Clause"
+
+  livekit:
+    image: livekit/livekit-server:v1.13.9@sha256:d0c04791bf63ca8dcea123571827d56ba9504bd57c8d5de60ee03b5408cc3154
+    profiles: [core, media, sip]
+    networks: [vsp]
+    environment:
+      LIVEKIT_KEYS: "${VSP_LIVEKIT_API_KEY:?run make up}: ${VSP_LIVEKIT_API_SECRET:?run make up}"
+      # Media for host-side test participants: ICE candidates advertise 127.0.0.1 and the ports below are
+      # published with the same numbers. Container participants use the configuration of deploy/local/livekit (WP-11).
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 57881
+          udp_port: 57882
+          use_external_ip: false
+          node_ip: 127.0.0.1
+        redis:
+          address: valkey:6379
+          password: ${VSP_VALKEY_PASSWORD}
+        logging:
+          level: info
+    depends_on:
+      valkey: { condition: service_healthy }
+    ports:
+      - "127.0.0.1:${VSP_PORT_LIVEKIT:-57880}:7880"
+      - "127.0.0.1:57881:57881/tcp"
+      - "127.0.0.1:57882:57882/udp"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:7880/ | grep -q OK"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    labels:
+      io.vsp.emulates: "self-hosted livekit-server media plane (ECS on EC2 media hosts in AWS)"
+      io.vsp.protocol: "LiveKit server API (Twirp over HTTP), signalling WebSocket, WebRTC over UDP 57882 / TCP 57881"
+      io.vsp.not-emulated: "carrier and PSTN paths, TURN relays, multi-node routing, real network loss, jitter and latency"
+      io.vsp.licence: "Apache-2.0"
+
+  livekit-sip:
+    image: livekit/sip:v1.18.0@sha256:6a5e2080fffa3da798bc035aa1587590963655e4c889535cc1cf7a181a6334d3
+    profiles: [core, sip]
+    networks: [vsp]
+    entrypoint: ["livekit-sip"]
+    environment:
+      SIP_CONFIG_BODY: |
+        api_key: ${VSP_LIVEKIT_API_KEY}
+        api_secret: ${VSP_LIVEKIT_API_SECRET}
+        ws_url: ws://livekit:7880
+        redis:
+          address: valkey:6379
+          password: ${VSP_VALKEY_PASSWORD}
+        sip_port: 5060
+        rtp_port: 10000-10099
+        use_external_ip: false
+        health_port: 8080
+        logging:
+          level: info
+    depends_on:
+      livekit: { condition: service_healthy }
+    ports:
+      - "127.0.0.1:${VSP_PORT_SIP:-55060}:5060/udp"
+      - "127.0.0.1:${VSP_PORT_SIP:-55060}:5060/tcp"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET / HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    labels:
+      io.vsp.emulates: "livekit-sip gateway terminating the carrier SIP trunk"
+      io.vsp.protocol: "SIP over UDP/TCP (published 55060 -> 5060); RTP 10000-10099 inside the compose network"
+      io.vsp.not-emulated: "carrier trunks and source allowlists, SIP TLS and SRTP, carrier DTMF behaviour and recordings, PSTN codecs"
+      io.vsp.licence: "Apache-2.0"

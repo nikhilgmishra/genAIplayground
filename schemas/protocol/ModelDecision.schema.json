@@ -1,0 +1,360 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ModelDecision.json",
+  "title": "ModelDecision",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "model-decision.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "interactionId": "interactionId",
+    "turnId": "turnId",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "provenance": "invocationId"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "model-decision.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "causationId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "interactionId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "turnId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^turn_[A-Za-z0-9_-]{4,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decisionId": {
+      "type": "string",
+      "pattern": "^mdec_[A-Za-z0-9_-]{16,64}$"
+    },
+    "invocationId": {
+      "type": "string",
+      "pattern": "^minv_[A-Za-z0-9_-]{16,64}$"
+    },
+    "authority": {
+      "type": "string",
+      "const": "PROPOSAL_ONLY"
+    },
+    "modelConfidence": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decisions": {
+      "minItems": 1,
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "TOOL_PROPOSAL"
+              },
+              "tool": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]{2,63}$"
+                  },
+                  "version": {
+                    "type": "string",
+                    "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                  }
+                },
+                "required": [
+                  "name",
+                  "version"
+                ],
+                "additionalProperties": false
+              },
+              "arguments": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z][a-zA-Z0-9_]{0,63}$"
+                },
+                "additionalProperties": {},
+                "maxProperties": 32,
+                "x-max-serialized-bytes": 8192
+              }
+            },
+            "required": [
+              "kind",
+              "tool",
+              "arguments"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "SPEECH_REQUEST"
+              },
+              "utteranceClass": {
+                "type": "string",
+                "enum": [
+                  "IDENTITY",
+                  "FINANCIAL_FACT",
+                  "COMMITMENT",
+                  "CLINICAL_BOUNDARY",
+                  "RECORDING_DISCLOSURE",
+                  "SAFETY",
+                  "PROTECTED_FACT",
+                  "LOW_RISK_GROUNDED",
+                  "GENERIC_STATUS"
+                ]
+              },
+              "templateId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sourceRefs": {
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^kb_[A-Za-z0-9][A-Za-z0-9_.-]{2,63}@v[1-9][0-9]{0,8}$"
+                    }
+                  ]
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "utteranceClass",
+              "templateId",
+              "sourceRefs"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "CLARIFY"
+              },
+              "questionTemplateId": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+              }
+            },
+            "required": [
+              "kind",
+              "questionTemplateId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "HANDOFF_PROPOSAL"
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "CALLER_REQUESTED_HUMAN",
+                  "SAFETY_PRIORITY",
+                  "CLINICAL_QUESTION",
+                  "POLICY_REQUIRES_HUMAN",
+                  "VERIFICATION_RECOVERY",
+                  "UNSUPPORTED_LANGUAGE",
+                  "ACCESSIBILITY",
+                  "DEPENDENCY_FAILURE",
+                  "AI_UNAVAILABLE",
+                  "CONSENT_DECLINED_ALTERNATIVE"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "SAFETY_SIGNAL"
+              },
+              "signal": {
+                "type": "string",
+                "enum": [
+                  "EXPLICIT_CONCERN",
+                  "INDIRECT_CONCERN",
+                  "THIRD_PARTY_CONCERN",
+                  "UNCERTAIN"
+                ]
+              },
+              "uncertainty": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "reasonCodes": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "signal",
+              "uncertainty",
+              "reasonCodes"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "INTENT_CANDIDATES"
+              },
+              "candidates": {
+                "minItems": 1,
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "intent": {
+                      "type": "string",
+                      "pattern": "^[a-z_]{3,64}$"
+                    },
+                    "score": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "intent",
+                    "score"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "candidates"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "REFUSAL"
+              },
+              "reasonCode": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+              }
+            },
+            "required": [
+              "kind",
+              "reasonCode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "END_TURN"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "causationId",
+    "occurredAt",
+    "interactionId",
+    "turnId",
+    "decisionId",
+    "invocationId",
+    "authority",
+    "modelConfidence",
+    "decisions"
+  ],
+  "additionalProperties": false
+}

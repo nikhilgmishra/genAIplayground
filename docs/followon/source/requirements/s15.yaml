@@ -766,23 +766,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - privacy.operations
-  softwareStatus: VERIFIED_LOCAL
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/schema.ts
-  - platform/src/audit/schema.test.ts
-  - platform/src/retention/policies.ts (scoped LegalHoldStorePg)
+  - platform/src/audit/schema.ts and platform/src/audit/schema.test.ts (audit events carry metadata only)
+  - platform/src/retention/retention.test.ts:174 (holds scoped by class, dataset and tenant)
+  - infra/terraform/modules/audit/tests/audit.tftest.hcl:33-46 (the audit bucket is Object Locked)
+  - infra/terraform/modules/audit/main.tf:324 and modules/ingress/main.tf:108 (the only other buckets are access-log buckets, without Object Lock)
   - docs/privacy/retention-matrix.md (RM-04)
-  gap: None for current stores.
-  remediation: Keep schema rules for new audit event kinds.
+  gap: '"Object Lock only on the audit bucket" holds because no other content bucket exists yet (not yet triggered): no tftest or policy check fails when another bucket enables Object Lock. WP-22 (raw-audio quarantine store) and WP-39 (new buckets) introduce the trigger.'
+  remediation: 'WP-39: terraform test or policy check that fails when any bucket other than the audit bucket enables Object Lock or default retention.'
   size: S
   environmentDependency: none
-  regressionPackage: WP-22
+  workPackage: WP-39
   provenance:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL -> IMPLEMENTED: the "only on the audit bucket" element has no test and holds only because no other content bucket exists'
+    repairStatusFrom: VERIFIED_LOCAL
 - id: FO-15-32
   section: '15'
   kind: software
@@ -902,11 +905,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/migrations/0201_audit_evidence.sql
-  - platform/migrations/0100_action_ledger.sql
-  - platform/migrations/0110_outbox.sql
-  - platform/src/audit/migration.test.ts
-  - platform/src/actions/ledger-schema.test.ts
+  - platform/migrations/0201_audit_evidence.sql, 0100_action_ledger.sql, 0110_outbox.sql
+  - platform/src/audit/migration.test.ts:27,32,39,99 (app_runtime, owner and app_worker cannot UPDATE, DELETE or TRUNCATE)
+  - platform/src/actions/ledger-schema.test.ts:88 (no runtime or worker role can DELETE ledger, outbox or dedupe evidence), :108 (console and auditor roles have no access)
   gap: PGlite only.
   remediation: Re-run on Postgres container.
   size: S
@@ -916,6 +917,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-15-37
   section: '15'
   kind: software
@@ -983,9 +985,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/monitor.ts
-  - platform/src/audit/monitor.test.ts
-  - infra/terraform/modules/observability/main.tf (vsp_audit_ingestion_gaps_total alarm)
+  - platform/src/audit/monitor.ts; platform/src/worker/loops.ts:405 (audit.verify runs in the worker loop)
+  - 'platform/src/audit/monitor.test.ts:59 (worker composes audit.verify), :96 (deleted evidence detected: sequence gap and alarm metric)'
+  - infra/terraform/modules/observability/tests/observability.tftest.hcl:62 (audit-ingestion-gap alarm treats missing data as breaching)
   gap: Uses writer chain heads as source counts, not independent per-source counters (README).
   remediation: Add independent per-source counters (e.g., gateway request counts) to detectIngestionGaps.
   size: S
@@ -995,6 +997,7 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
 - id: FO-15-40
   section: '15'
   kind: software
