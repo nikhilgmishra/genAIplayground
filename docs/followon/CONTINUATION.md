@@ -101,3 +101,21 @@ Waves follow the dependency order in `docs/followon/work-packages.yaml`.
 |---|---|---|---|
 | B1 | WP-02, WP-03 (+ ledger fix job) | wf_5abdf51f-ed0 | DONE: both PARTIAL after 3 rounds; the coordinator fixed the residuals (WP-02 snapshot watermark rules, party-URI refs, byte-size args, hand-over notes; WP-03 Step Functions Local TaskSubmitted race, missing-emulation-summary exit, digest pointer). Ledger: 56 rows moved (MISSING 613, IMPLEMENTED 450, VERIFIED_LOCAL 107). Layer-2 `_harness` 72/72 three times; workflow file 20/20 |
 | B2 | WP-01, WP-04, WP-06 | wf_786b1518-a8e | RUNNING (launched 2026-10-19 16:05 UTC; resume with resumeFromRunId after a restart) |
+
+B1 close-out gates (2026-10-19, local, all PASS): check-runtime, check-deps, lint, typecheck, make test-unit
+(platform 3531/3531, console 107/107), contract/docs/journey projects, OPA policy tests, policy golden
+gate, schema/catalogue/OpenAPI/resolution-contract/ASL/scenario drift checks, CI tooling tests, metric
+names, workflow lint, Talkdesk package, prerequisite render, capacity model, follow-on generator --check,
+Terraform check, Terraform policy test, offline-plan policy gate, gitleaks over git history (38 commits,
+no leaks) and pnpm audit at the CI threshold (critical). Layer-2 `make test-integration SUITE=_harness`
+72/72 three times. A gitleaks scan of the working tree flags the generated emulator credentials in
+`.tools/vsp-local/` (gitignored, mode 0700, created by `make up`); that is expected and not committed.
+
+Pending coordinator items (between waves, as owner of the workspace dependency set while WP-03's phase B
+ownership is finished and no package holds it):
+
+* `pnpm audit` reports 9 high and 6 moderate advisories, all transitive in the `media` workspace (adm-zip
+  under onnxruntime-node, sharp under @livekit/agents and @huggingface/transformers) plus uuid and
+  sprintf-js. Apply pnpm overrides to patched versions (sharp >= 0.35.5, adm-zip >= 0.6.1) between B2 and
+  B3, re-run check-deps and the media smoke import, and record the result; if an override breaks the
+  media dependency set, hand it to WP-10/WP-17 with the failing evidence.
