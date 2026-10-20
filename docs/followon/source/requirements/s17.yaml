@@ -47,8 +47,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/actions/action-service.property.test.ts | platform/src/policy/engine.property.test.ts | platform/src/adapters/local/faults.property.test.ts | platform/src/safety/conversation-guard.property.test.ts | platform/src/workflows/transfer.out-of-order.test.ts | platform/src/workflows/grants.test.ts | platform/src/voice/speech-queue.test.ts | scripts/ci/check-release-manifest.test.ts | evidence/test-reports/vitest-platform.json (3350/3350 after fix wave 5)
-  gap: 'Deletion has no property tests; stale-speech/session-generation coverage limited to the text speech queue. IMPLEMENTED, not VERIFIED_LOCAL: Deletion has no property tests and stale-speech coverage is limited to the text speech queue.'
+  - test/invariants/property.test.ts
+  - test/invariants/evaluation-boundary.test.ts
+  gap: Concurrency is covered on single-connection PGlite only.
   remediation: Add deletion and session-generation property suites.
   size: S
   environmentDependency: none
@@ -59,6 +60,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: deletion has no property tests and stale-speech coverage is limited to the text speech queue.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-01
 - id: FO-17-03
   section: '17'
@@ -253,10 +259,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - evidence/evaluation/corpus-local-20261018w4.root-causes.md
-  - evidence/evaluation/corpus-local-20261018w4.root-causes.json
-  - evidence/evaluation/tools
-  gap: Attribution is by owner/root cause, not the four required categories; 305 FAIL/20 INCONCLUSIVE/7 critical remain in w4; no rerun after fix wave 5 (8c0f5a0) is committed.
+  - historical-classification.test.ts
+  - corpus-local-20261019w5.historical-classification.json
+  gap: Category judgements are recorded analysis, and 283 runs remain non-PASS awaiting product decisions.
   remediation: Map root causes to the four categories, fix product defects, rerun and keep both records.
   size: M
   environmentDependency: none
@@ -265,6 +270,11 @@ requirements:
     origin: extraction
     repair:
     - stale "fix wave 5 in progress" text refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-11
   section: '17'
   kind: evaluation
@@ -281,11 +291,10 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/scorer.ts:197-198
-  - platform/src/evaluation/generate-risk.ts (faultReachabilityProblems)
-  - platform/src/evaluation/driver/local-driver.ts (PARTIAL_WRITE counted only if effect exists)
-  - platform/src/evaluation/scorer.test.ts
-  gap: 'Reached is driver self-reported (faultsInjected), not cross-checked against independent evidence for every fault kind. IMPLEMENTED, not VERIFIED_LOCAL: Reach is cross-checked against fixture state for 10 of 25 fault kinds only; the others are counted when armed or when the targeted tool is called (see the FO-17-24.* rows).'
+  - fault-reach.test.ts driver_self_report
+  - test/invariants/fault-reach-driver.test.ts [FO-17-44]
+  - scorer.test.ts verifier probe p1
+  gap: Four WP-34 local-driver tests still assert PASS on the outbox self-report and fail until the handed-off patch is applied.
   remediation: Require fault-point evidence (e.g., ledger commit row before crash) per fault plan.
   size: S
   environmentDependency: none
@@ -294,6 +303,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: reach is cross-checked against fixture state for 10 of 25 fault kinds only; the others are counted when armed or when the targeted tool is called (see the FO-17-24.* rows).'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-01
 - id: FO-17-12
   section: '17'
@@ -305,20 +319,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/results.ts (exclusive create)
-  - evidence/evaluation/corpus-local-20261018w3.summary.json
-  - evidence/evaluation/corpus-local-20261018w4.summary.json
-  gap: No explicit link from rerun to the original failing result.
+  - corpus-run.test.ts
+  - reach-erratum.test.ts [FO-17-12]
+  gap: Run directories are gitignored; the committed record is the summaries, errata and addenda.
   remediation: Add supersedes/rerunOf fields to results.
   size: S
   environmentDependency: none
-  workPackage: WP-01
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-13
   section: '17'
   kind: constraint
@@ -329,19 +347,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/README.md (corpus expectation decisions table)
-  - platform/src/evaluation/corpus.test.ts
-  gap: Several expectation changes (e.g., outcome relabels) were made by engineering without independent review; no automated guard against gate weakening.
+  - corpus-guard.test.ts disclosure (g40) and backend_record collection (g24) tests
+  - corpus-guard.test.ts expectation-relabel and gate-registration tests
+  - 'r3mut/results.txt: 79/82 KILLED, 0 survivors'
+  gap: Relaxations need a human ReviewRecord whose signature is not yet cryptographically verified (AIN-31), and the lock baseline was set by engineering.
   remediation: Add a corpus diff check requiring review records for expectation changes.
   size: S
   environmentDependency: Independent reviewer
-  workPackage: WP-01
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-14
   section: '17'
   kind: evaluation
@@ -352,19 +376,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/aggregate.ts:212-219 (INCONCLUSIVE blocks)
-  - platform/src/evaluation/aggregate.ts:335 (task completion excludes INCONCLUSIVE)
-  gap: No required-scenario set check (unrun scenarios do not affect the gate) and taskCompletionRate excludes INCONCLUSIVE from the denominator.
+  - aggregate.test.ts [FO-17-14]
+  - scenarios/manifests/required-scenarios.json (scenarios:check)
+  gap: None locally.
   remediation: Add required scenario manifest per gate and compute rates over the fixed denominator.
   size: S
   environmentDependency: none
-  workPackage: WP-01
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-15
   section: '17'
   kind: evaluation
@@ -375,19 +404,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/corpus.ts:106 (coverage summary)
-  - platform/src/evaluation/driver/local-driver.ts (UNINJECTABLE_FAULTS)
-  gap: No explicit coverage-hole/unsupported-intent section in reports.
+  - aggregate.test.ts coverage-hole fields
+  gap: None locally.
   remediation: Add coverage-hole section to aggregate report.
   size: S
   environmentDependency: none
-  workPackage: WP-01
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-16
   section: '17'
   kind: evaluation
@@ -398,19 +431,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/evaluation.ts:23 (development | heldout_acceptance only)
-  - platform/src/evaluation/split.ts
-  gap: No tuning or regression split; lineage limited to versions.
+  - corpus.test.ts [FO-17-16] buildLineage parent
+  - lineage-erratum.test.ts
+  gap: No committed held-out scenario is independent (0 of 225); a human-reviewed held-out set is needed.
   remediation: Extend CorpusSplit and add lineage fields.
   size: S
   environmentDependency: none
-  workPackage: WP-01
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-17
   section: '17'
   kind: evaluation
@@ -421,18 +459,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/split.ts:13-16 (hash of scenarioId)
-  gap: Split by individual scenario id, so variant families of one intent straddle dev and held-out.
+  - split.ts family-split.v2
+  - scenarios:check leakage 0
+  gap: Synthetic accounts appear in several splits through different intents (6); this is reported, not prevented.
   remediation: Split by family key (intent skeleton/account) with a leakage check; version the change.
   size: S
   environmentDependency: none
   workPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-17-18
   section: '17'
   kind: constraint
@@ -638,7 +682,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-05
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-04
   - WP-05
@@ -672,7 +716,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-14
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-14
   postconditionPackages:
@@ -741,7 +785,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-19
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-19
   postconditionPackages:
@@ -776,7 +820,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-30
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-19
   - WP-22
@@ -849,7 +893,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-25
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-23
   postconditionPackages:
@@ -915,7 +959,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-24
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-21
   - WP-24
@@ -949,7 +993,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-24
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-18
   - WP-24
@@ -1009,9 +1053,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - scenarios/fixtures/failures/DUPLICATE_WEBHOOK.json (fault plan v1)
-  - platform/src/evaluation/driver/local-driver.ts inject() case DUPLICATE_WEBHOOK (in-process fixture stack; counted only when the fixture state shows the fault manifested)
-  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:DUPLICATE_WEBHOOK] test.
+  - 'ingress/http.test.ts [FAULT:DUPLICATE_WEBHOOK] two-replica race and redeliveries: one row, one effect'
+  gap: The EvaluationResult requestedFault/reachedFault element is WP-34's.
   remediation: WP-04 builds the injection point (inbound inbox redelivery with the same (tenant, source, event_id) and outbox redelivery) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:DUPLICATE_WEBHOOK]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
@@ -1026,6 +1069,11 @@ requirements:
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-24.MISSING_WEBHOOK
   section: '17'
   subsection: Fault matrix
@@ -1047,7 +1095,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-29
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-29
   postconditionPackages:
@@ -1149,7 +1197,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-25
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-23
   - WP-25
@@ -1182,7 +1230,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-25
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-23
   - WP-25
@@ -1248,7 +1296,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-32
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-06
   postconditionPackages:
@@ -1281,7 +1329,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-07
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-04
   postconditionPackages:
@@ -1315,7 +1363,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-17
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-08
   postconditionPackages:
@@ -1351,7 +1399,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-15
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-08
   postconditionPackages:
@@ -1385,7 +1433,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-17
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-08
   postconditionPackages:
@@ -1420,7 +1468,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-15
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-13
   postconditionPackages:
@@ -1453,7 +1501,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-15
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-13
   postconditionPackages:
@@ -1486,7 +1534,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-35
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-35
   postconditionPackages:
@@ -1554,7 +1602,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-28
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-28
   postconditionPackages:
@@ -1654,7 +1702,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-25
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-11
   postconditionPackages:
@@ -1682,9 +1730,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - scenarios/fixtures/failures/AUDIT_OUTAGE.json (fault plan v1)
-  - platform/src/evaluation/driver/local-driver.ts inject() case AUDIT_OUTAGE (in-process fixture stack; counted as injected when it is armed, not when it manifests)
-  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:AUDIT_OUTAGE] test.
+  - substrate/faults.test.ts [FAULT:AUDIT_OUTAGE] fail closed before any provider call; routes journaled
+  gap: The EvaluationResult requestedFault/reachedFault element is WP-34's.
   remediation: WP-04 builds the injection point (the central sink and local audit outbox cannot be written (MinIO Object Lock and Postgres in Layer 2)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:AUDIT_OUTAGE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
@@ -1699,6 +1746,11 @@ requirements:
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-24.LOCAL_PERSISTENCE_FAILURE
   section: '17'
   subsection: Fault matrix
@@ -1722,7 +1774,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-15
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-04
   postconditionPackages:
@@ -1792,7 +1844,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-24
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-22
   postconditionPackages:
@@ -1827,7 +1879,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-24
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-19
   postconditionPackages:
@@ -1860,7 +1912,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-24
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-19
   postconditionPackages:
@@ -1962,7 +2014,7 @@ requirements:
   size: M
   environmentDependency: none
   workPackage: WP-42
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-42
   postconditionPackages:
@@ -2245,27 +2297,31 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - scenarios/fixtures/failures/POLICY_ENGINE_ERROR.json (fault plan v1)
-  - platform/src/evaluation/driver/local-driver.ts inject() case POLICY_ENGINE_ERROR (in-process fixture stack; counted as injected when it is armed, not when it manifests)
-  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:POLICY_ENGINE_ERROR] test.
+  - test/invariants/policy-engine-error.fault.test.ts [FAULT:POLICY_ENGINE_ERROR]
+  gap: The engine is decorated through a private-field seam; a public seam is requested from WP-05.
   remediation: WP-01 builds the injection point (the in-process OPA evaluation throws or is undefined) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:POLICY_ENGINE_ERROR]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
-  workPackage: WP-01
   faultSource: registry
   injectionPointPackages:
   - WP-01
   postconditionPackages:
   - WP-01
+  regressionPackage: WP-01
   provenance:
     origin: repair-split
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-24.GUARDRAIL_LIMIT
   section: '17'
   subsection: Fault matrix
@@ -2568,10 +2624,8 @@ requirements:
   qualification: FAIL
   qualificationEvidence: 'evidence/evaluation/corpus-local-20261018w4.summary.json: 7 critical failures (crash-after-commit and partial-write reconciliation assertions, safety required handoff), local_fixture'
   evidence:
-  - platform/src/observability/slo.ts:136-189
-  - platform/src/evaluation/scorer.ts (hard gates)
-  - evidence/evaluation/corpus-local-20261018w4.summary.json (7 critical failures)
-  gap: Local corpus still shows 7 critical failures (crash-after-commit reconciliation gates). vsp_duplicate_effects_total (platform/src/observability/metrics.ts:486) is never emitted, so the zero-duplicate objective has no production signal.
+  - corpus-local-20261019w5.reach-erratum.md
+  gap: vsp_duplicate_effects_total is not emitted, and the w5 local gate FAILs.
   remediation: Re-run the corpus after fix wave 5 and keep the w4 results. Fix the risk-draft generator so that the crash_after_commit slot-conflict scripts reach commit before the injected crash (root cause AFTER_COMMIT_FAULT_NOT_REACHED_SLOT_CONFLICT, 6 of the 7 critical runs in evidence/evaluation/corpus-local-20261018w4.root-causes.md), without relabelling expectations. Emit vsp_duplicate_effects_total wherever reconciliation finds more than one provider effect for one idempotency key.
   size: S
   environmentDependency: none
@@ -2581,6 +2635,11 @@ requirements:
     challengeCorrected:
     - gap
     - remediation
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-36
   section: '17'
   kind: evaluation
@@ -2694,11 +2753,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/aggregate.ts:212-219
-  - platform/src/evaluation/manifest.ts
-  - platform/src/evaluation/manifest.test.ts
-  - scripts/ci/check-release-manifest.test.ts
-  gap: None.
+  - platform/src/evaluation/aggregate.test.ts (a rare critical failure fails the gate whatever the average)
+  - targeted run green
+  gap: none locally
   remediation: Keep.
   size: S
   environmentDependency: none
@@ -2707,6 +2764,11 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-17-41
   section: '17'
   kind: evaluation
@@ -2718,20 +2780,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/evaluation.ts:110
-  - platform/src/evaluation/aggregate.ts (slices)
-  - platform/src/evaluation/stats.ts
-  gap: No model/voice/load/region slices or latency intervals; latencies from simulated clock.
+  - stats.test.ts [FO-17-41] value tests (N14 killed)
+  - aggregate.test.ts w5 latency addendum
+  - corpus-local-20261019w5.latency-addendum.md
+  gap: Latencies come from the local driver's simulated clock, not measured audio latency.
   remediation: Extend slices and intervals.
   size: S
   environmentDependency: none
-  workPackage: WP-01
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-42
   section: '17'
   kind: evaluation
@@ -2771,10 +2838,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/stats.ts
-  - platform/src/evaluation/aggregate.test.ts
-  - evidence/evaluation/corpus-local-20261018w4.summary.json (criticalBoundPerRun/PerScenario)
-  gap: None.
+  - platform/src/evaluation/aggregate.test.ts 'uncertainty bounds' and per-run / per-scenario bounds tests
+  - targeted run green
+  gap: none locally
   remediation: Keep.
   size: S
   environmentDependency: none
@@ -2783,6 +2849,11 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-17-44
   section: '17'
   kind: software
@@ -2799,8 +2870,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/evaluation.ts:84-119
-  gap: Missing seed, initial-world digest, requested vs reached fault, observed tool list, audio evidence, judge/human labels and disagreements, errors.
+  - test/invariants/fault-reach-driver.test.ts
+  - result-context.ts
+  gap: The EvaluationResult contract lacks world digest, observed tools, errors, audio and judge fields (WP-02/WP-34).
   remediation: Extend schema (version bump) and populate from drivers.
   size: S
   environmentDependency: none
@@ -2809,6 +2881,11 @@ requirements:
     origin: extraction
     repair:
     - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-2.version-proof'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-45
   section: '17'
   kind: software
@@ -2823,15 +2900,19 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/results.ts
-  - platform/src/evaluation/driver/run-corpus.ts
-  gap: Rerun command not recorded per result.
+  - corpus-run.test.ts rerun
+  gap: Reruns are reproducible on the local driver only.
   remediation: Record command and versions.
   size: S
   environmentDependency: none
   workPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-46
   section: '17'
   kind: constraint
@@ -2843,20 +2924,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/observability/slo.ts:66-84 (targetStatus PROPOSED, measured false)
-  - platform/src/observability/slo.test.ts:46-50,95-138
-  - platform/src/evaluation/aggregate.ts:264,312 (PROPOSED_GOAL_COMPLETION)
-  gap: 'Labelling is enforced for the SLO definitions. The report''s goal-completion check (aggregate.ts:312) uses the same proposed target over a denominator that excludes INCONCLUSIVE runs (FO-17-14), so ''meets proposed target'' is inflated there. IMPLEMENTED, not VERIFIED_LOCAL: The report goal-completion check (platform/src/evaluation/aggregate.ts:312) uses a denominator that excludes INCONCLUSIVE runs (FO-17-14), so "meets proposed target" is inflated there.'
+  - aggregate.test.ts goal line
+  - observability/slo.test.ts
+  gap: The target stays PROPOSED until it is approved and measured.
   remediation: Keep the slo.test.ts rule. When FO-17-14 fixes the denominator, add a test that the report's goal-completion line names the target as PROPOSED and states the execution mode and sample size.
   size: S
   environmentDependency: none
+  regressionPackage: WP-01
   provenance:
     origin: challenge-missed
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the report goal-completion check (platform/src/evaluation/aggregate.ts:312) uses a denominator that excludes INCONCLUSIVE runs (FO-17-14), so "meets proposed target" is inflated there.'
     repairStatusFrom: VERIFIED_LOCAL
-  workPackage: WP-01
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL

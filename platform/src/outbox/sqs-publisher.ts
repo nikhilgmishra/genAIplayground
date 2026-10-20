@@ -5,9 +5,17 @@
  * MessageGroupId (per-aggregate ordering) and MessageDeduplicationId (stable per logical
  * message) so a re-published message inside the SQS deduplication window is dropped by SQS.
  *
- * BLOCKED for real execution: no AWS account, queue, IAM role or approval exists for this
- * repository. It is verified only by a contract test with an injected stub client. Delivery is
- * still at least once (standard queues, redrive, visibility timeouts), so consumers deduplicate.
+ * Verification: a unit contract test with an injected client (`sqs-publisher.contract.test.ts`: batch limits,
+ * FIFO group and deduplication ids, per-entry failures), and Layer 2 over the real SQS protocol on ElasticMQ
+ * (`test/integration/substrate/sqs.test.ts`: publish to a queue with a redrive policy, dead-lettering after
+ * maxReceiveCount and audited redrive; `substrate/contention.test.ts`: two dispatchers on two pools, each
+ * message published exactly once; `_harness/queue.test.ts`: FIFO deduplication of a re-publish and redelivery).
+ * ElasticMQ is not SQS: it ignores a per-queue MaximumMessageSize, and IAM, KMS encryption and the AWS queue
+ * itself are not exercised.
+ *
+ * BLOCKED for real execution: no AWS account, queue, IAM role or approval exists for this repository
+ * (environment NOT_CONFIGURED; the queues and IAM are WP-39's). Delivery is at least once (standard
+ * queues, redrive, visibility timeouts), so consumers deduplicate.
  */
 import { SendMessageBatchCommand } from "@aws-sdk/client-sqs";
 import type { SendMessageBatchCommandOutput, SendMessageBatchRequestEntry } from "@aws-sdk/client-sqs";

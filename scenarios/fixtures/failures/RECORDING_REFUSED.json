@@ -1,0 +1,76 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "RECORDING_REFUSED",
+  "version": 1,
+  "title": "The caller declines recording on the media path",
+  "description": "The caller declines recording at the consent step of the media path; no recording or recording-dependent processing starts and the approved alternative is offered.",
+  "category": "privacy",
+  "target": {
+    "components": [
+      "media/src/worker",
+      "platform/src/privacy"
+    ],
+    "dependency": "media_runtime"
+  },
+  "trigger": {
+    "kind": "AT_CALL_START",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "RECORDING_REFUSED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "tokens_absent",
+      "gate": "privacy",
+      "tokens": [
+        "recording:started_after_decline"
+      ]
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller hears the approved alternative (a person or a non-recorded route).",
+  "backendEvidence": [
+    "Consent DECLINED recorded before any recorder start",
+    "No recording artifact for the call"
+  ],
+  "requirementIds": [
+    "DATA-03",
+    "SPEC-6.consent-before-recording"
+  ],
+  "appliesToIntents": [
+    "recording_declined"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:RECORDING_REFUSED] owned by WP-25 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.RECORDING_REFUSED",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the caller declines recording on the media path",
+    "injectionPointPackages": [
+      "WP-11"
+    ],
+    "postconditionPackages": [
+      "WP-11",
+      "WP-17",
+      "WP-25"
+    ],
+    "layer2Owner": "WP-25",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "No recording starts after the decline",
+    "The approved alternative route is offered",
+    "The decision is audited"
+  ]
+}

@@ -200,6 +200,23 @@ const CAUSES: Cause[] = [
     test: (_r, _e, c) => c.failed.length === 1 && c.failed[0]?.assertionId === "task.tool_sequence" && c.actual === c.expected,
   },
   {
+    id: "FAULT_NOT_REACHED_BY_EXPECTED_FLOW",
+    title: "Fault paired with a flow that never reaches its injection point (fault-plan.v2 reach check, FO-17-11): SALESFORCE_OUTAGE on a case-read dependency variant (get_authorized_case_status reads the platform's own support-request records and never writes to the CRM), so no support record shows the outage; the run is INCONCLUSIVE, never PASS. Pinned in platform/src/evaluation/corpus.test.ts UNREACHABLE_BY_EXPECTED_FLOW",
+    owner: "skeleton generator / corpus owners (fault-plan pairing of the dependency_failure variant)",
+    test: (r, e) =>
+      r.verdict === "INCONCLUSIVE" &&
+      (e?.faultsInjected ?? []).includes("SALESFORCE_OUTAGE") &&
+      r.assertions.some((a) => a.assertionId === "evidence.fault_reached.salesforce_outage" && a.verdict === "INCONCLUSIVE"),
+  },
+  {
+    id: "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+    title: "The fault is applied but the flow only uses routes that are exempt from it by design (AUDIT_OUTAGE: route audit is deferred, not refused; QUOTA_EXHAUSTED: safety and human routes are never budget-limited, SAFE-03), so no tool response shows it and the call evidence holds no deferred-audit or budget record: the fault point is not independently observable and the run is INCONCLUSIVE (fault-plan.v2 reach check, FO-17-11); before v2 the driver's self-report counted it as reached",
+    owner: "evaluation driver evidence (deferred-audit journal and budget ledger in CallEvidence, WP-34) and the plans' reach rules (WP-01)",
+    test: (r) =>
+      r.verdict === "INCONCLUSIVE" &&
+      r.assertions.some((a) => (a.assertionId === "evidence.fault_reached.audit_outage" || a.assertionId === "evidence.fault_reached.quota_exhausted") && a.verdict === "INCONCLUSIVE"),
+  },
+  {
     id: "COORDINATOR_REPEATS_FLOW_ON_FOLLOW_UP",
     title: "LOCAL SIMULATED COORDINATOR treats a follow-up turn as a new request (re-prepares the billing review, refused INVOICE_NOT_REVIEWABLE) and routes to a person after the review was accepted. Fixed 2026-10-18 (after a submitted review a follow-up is answered by the backend-authorized get_authorized_case_status; nothing is re-prepared); kept as a regression detector",
     owner: "evaluation driver (simulated coordinator); not a backend defect",

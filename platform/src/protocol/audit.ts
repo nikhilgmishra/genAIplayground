@@ -78,6 +78,34 @@ export const AuditEvent = z.strictObject({
   outcome: AuditOutcome,
   reasonCode: ReasonCode.nullable(),
   dataClass: DataClass,
+  /**
+   * Follow-on evidence fields (prompt section 15 audit model, FO-15-34). Optional and additive: absent on
+   * events written before they existed, so those hash chains are unchanged (no schema version bump);
+   * covered by the hash when present.
+   *  - sourceSequence: position of the record in its EXTERNAL source (vendor event sequence, stream
+   *    position), distinct from this chain's own `sequence`;
+   *  - contextSnapshotId: the ContextSnapshot the decision was made on;
+   *  - configDigest: digest of the signed configuration in force;
+   *  - receiptRefs: authoritative receipts (commit receipts, delivery receipts) this event evidences;
+   *  - ingress: for an ingested event, its payload digest, explicit schema contract and the
+   *    authentication mechanism and credential version that verified it (FO-07-19).
+   */
+  sourceSequence: z
+    .strictObject({ sourceId: z.string().regex(/^[a-z][a-z0-9_.-]{2,63}$/), position: z.string().regex(/^[0-9]{1,39}$/) })
+    .optional(),
+  contextSnapshotId: OpaqueId.optional(),
+  configDigest: Sha256Hex.optional(),
+  receiptRefs: z.array(OpaqueId).min(1).max(8).optional(),
+  ingress: z
+    .strictObject({
+      sourceId: z.string().regex(/^[a-z][a-z0-9_.-]{2,63}$/),
+      payloadDigest: Sha256Hex,
+      schemaId: z.string().regex(/^[a-z][a-z0-9_.-]{2,63}$/).nullable(),
+      schemaVersion: z.string().regex(/^[A-Za-z0-9._-]{1,32}$/).nullable(),
+      authMechanism: z.enum(["HMAC_SHA256_HEADER", "HMAC_SHA1_HEADER", "JWT_BEARER", "MTLS", "RECONCILE_BY_LOOKUP", "STREAM_IAM"]),
+      credentialVersion: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/).nullable(),
+    })
+    .optional(),
   /** Monotonic per-source sequence for gap detection, plus hash chain for tamper evidence. */
   sourceStream: z.string().regex(/^[a-z0-9_.-]{3,64}$/),
   sequence: z.number().int().min(1),
@@ -119,9 +147,11 @@ export const AuditManifest = z.strictObject({
   createdAt: IsoDateTime,
   objectKey: z.string().max(256),
   /**
-   * Detached signature over the canonical manifest without the three signature fields, by the
-   * audit exporter's KMS key (follow-on prompt section 15). Optional until the exporter (WP-04)
-   * signs; a verifier treats an unsigned manifest as unsigned, never as verified.
+   * Detached signature by the audit exporter's KMS key (follow-on prompt section 15) over
+   * "vsp.audit.manifest.sig.v1\n" + the canonical manifest without `signature` (so signedAt and
+   * signerRole are covered; platform/src/audit/exporter/signer.ts). The exporter (WP-04) signs every
+   * manifest it ships; a verifier treats an unsigned or partially signed manifest as a finding,
+   * never as verified.
    */
   signature: AuditManifestSignature.optional(),
   signedAt: IsoDateTime.optional(),

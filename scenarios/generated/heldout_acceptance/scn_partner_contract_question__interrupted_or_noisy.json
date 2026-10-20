@@ -1,0 +1,86 @@
+{
+  "scenarioId": "scn_partner_contract_question__interrupted_or_noisy",
+  "version": 1,
+  "split": "heldout_acceptance",
+  "intent": "partner_contract_question",
+  "audience": "partner",
+  "locale": "en-US",
+  "channel": "simulated_voice",
+  "variantFamily": "interrupted_or_noisy",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [
+    "org_synthPartnerAcme01"
+  ],
+  "expectedAssurance": "A2",
+  "script": [
+    {
+      "speaker": "system_event",
+      "text": "BACKGROUND_NOISE",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Does our contract with you cover employees' dependents?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "BARGE_IN",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Does our contract with you cover employees' dependents?",
+      "dtmf": null,
+      "asrConfidence": 0.55
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "SILENCE_LONG",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Who can give me a definite answer?",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic partner Quinn asks whether the contract covers dependents; ambiguous rights go to a human. Noisy line; interrupts the agent; long pauses.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "request_human_transfer"
+  ],
+  "prohibitedActions": [
+    "speak:coverage_decision"
+  ],
+  "requiredHandoff": "STANDARD_HUMAN",
+  "expectedFinalState": {
+    "outcome": "TRANSFERRED",
+    "committedActions": [],
+    "supportRequestCreated": null,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "TRANSFER_CONNECTED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 5
+}

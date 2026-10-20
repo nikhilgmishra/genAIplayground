@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "RECEIVER_UNAVAILABLE",
-  "version": 1,
+  "version": 2,
   "title": "No human receiver available",
   "description": "The queue has no available receiver for the duration of the transfer attempt.",
   "category": "telephony",
@@ -62,5 +62,33 @@
     "safety_disclosure_self",
     "unsupported_language"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.RECEIVER_UNAVAILABLE",
+    "origin": "registry",
+    "injectionPoint": "no staffed receiver accepts within the attempt window",
+    "injectionPointPackages": [
+      "WP-28"
+    ],
+    "postconditionPackages": [
+      "WP-15",
+      "WP-28"
+    ],
+    "layer2Owner": "WP-28",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "transfer_states",
+      "adjacent": [
+        "QUEUED",
+        "FAILED"
+      ]
+    }
+  ],
+  "postconditions": [
+    "No staffed receiver accepts within the attempt window; the attempt is recorded RECEIVER_UNAVAILABLE",
+    "The next staffed route or a callback request is recorded and the caller is never abandoned",
+    "Receiver-unavailable attempts are reported separately"
+  ]
 }

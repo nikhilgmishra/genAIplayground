@@ -1,0 +1,81 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "RECEIPT_LOST",
+  "version": 1,
+  "title": "The commit receipt never arrives",
+  "description": "The provider applied the change but the commit receipt or completion event never arrives; the action stays UNKNOWN until reconciliation and is never reported RESOLVED without a receipt.",
+  "category": "delivery",
+  "target": {
+    "components": [
+      "platform/src/actions",
+      "platform/src/domain"
+    ],
+    "dependency": "scheduling"
+  },
+  "trigger": {
+    "kind": "AFTER_TOOL_RESULT",
+    "tool": "commit_appointment_change",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "RECEIPT_NOT_DELIVERED",
+    "afterExternalCommit": true,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "reconciliation_recorded",
+      "gate": "transaction"
+    },
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    }
+  ],
+  "callerVisible": "The caller hears the change is being confirmed; success is spoken only after a reconciled receipt.",
+  "backendEvidence": [
+    "Ledger UNKNOWN until reconciled",
+    "Exactly one external effect",
+    "No RESOLVED outcome without a receipt"
+  ],
+  "requirementIds": [
+    "ACT-04",
+    "ACT-03"
+  ],
+  "appliesToIntents": [
+    "appointment_reschedule",
+    "appointment_create"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:RECEIPT_LOST] owned by WP-25 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.RECEIPT_LOST",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the commit receipt or completion event never arrives",
+    "injectionPointPackages": [
+      "WP-23",
+      "WP-25"
+    ],
+    "postconditionPackages": [
+      "WP-25"
+    ],
+    "layer2Owner": "WP-25",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [
+    {
+      "source": "ambiguous_commit_with_effect",
+      "tools": [
+        "commit_appointment_change"
+      ]
+    }
+  ],
+  "postconditions": [
+    "The action stays UNKNOWN until an authoritative receipt is reconciled",
+    "RESOLVED is never recorded from case creation or workflow acceptance (ACT-04)",
+    "Exactly one external effect"
+  ]
+}

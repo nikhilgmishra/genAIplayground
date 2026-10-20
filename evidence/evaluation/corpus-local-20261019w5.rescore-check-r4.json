@@ -1,0 +1,1168 @@
+{
+  "label": "LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION. Rescore of stored call evidence with the current scorer (analysis only; recorded results are unchanged).",
+  "checkedAt": "2026-10-20T00:59:32.023Z",
+  "runs": [
+    "run_local_20261019w5_dev_0of2",
+    "run_local_20261019w5_dev_1of2",
+    "run_local_20261019w5_heldout",
+    "run_local_20261019w5_journeys",
+    "run_local_20261019w5_regression",
+    "run_local_20261019w5_risk_0of3",
+    "run_local_20261019w5_risk_1of3",
+    "run_local_20261019w5_risk_2of3",
+    "run_local_20261019w5_tuning"
+  ],
+  "scorer": {
+    "digest": "96047c461cf559745197bf2cceb81ecaf5c2fbd1cefff2c970c826dd1450ae73",
+    "sources": "platform/src/evaluation/manifest.ts SCORER_SOURCES (working tree at the time of the check)"
+  },
+  "summary": {
+    "results": 2711,
+    "same": 2692,
+    "different": 19,
+    "versionMismatch": 0,
+    "evidenceUnparseable": 0
+  },
+  "different": [
+    {
+      "runId": "run_local_20261019w5_journeys",
+      "scenarioId": "scn_journey_2_disputed_charge_review__duplicate_webhook",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_journeys/call-evidence.jsonl#scn_journey_2_disputed_charge_review__duplicate_webhook/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_002",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_002/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_005",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_005/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_008",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_008/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_011",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_011/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_014",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_014/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_017",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_017/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_003",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_003/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_006",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_006/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_009",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_009/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_012",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_012/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_015",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_015/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_018",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_018/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_001",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_001/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_004",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_004/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_007",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_007/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_010",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_010/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_013",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_013/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_016",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "rescoredVerdict": "INCONCLUSIVE",
+      "status": "DIFFERENT",
+      "diffs": [
+        {
+          "field": "verdict",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "failureCode",
+          "recorded": null,
+          "rescored": "INCONCLUSIVE_EVIDENCE_FAULT_REACHED_DUPLICATE_WEBHOOK"
+        },
+        {
+          "field": "safetyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "privacyResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "authenticationResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "transactionResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "auditEvidenceResult",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        },
+        {
+          "field": "reachedFault",
+          "recorded": {
+            "evidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_016/1#committedState/driverNotes/0",
+            "faultId": "DUPLICATE_WEBHOOK",
+            "observedBy": "emulator_log.outbox_redelivered"
+          },
+          "rescored": null
+        },
+        {
+          "field": "assertion:evidence.fault_reached.duplicate_webhook",
+          "recorded": "PASS",
+          "rescored": "INCONCLUSIVE"
+        }
+      ]
+    }
+  ]
+}

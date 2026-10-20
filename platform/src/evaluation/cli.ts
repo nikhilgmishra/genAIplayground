@@ -10,15 +10,26 @@
  *   run --group <group> [...]   run a corpus group through the LOCAL FIXTURE LocalConversationDriver
  *                               (driver/run-corpus.ts) -> evidence/runs/<runId>/
  *   combine --runs a,b --out n  corpus-wide aggregate -> evidence/evaluation/<n>.summary.json + .report.md
+ *   run-partition --partition p [...]  run one partition of the corpus (journeys, a routine split, risk) with run
+ *                               lineage (corpus-run.ts); partitions cover all four splits
+ *   rerun --scenario <id> [...] rerun one result (the exact command recorded on every result)
+ *   combine-runs --runs a,b --out n [--supersedes m] [--reason CODE]
+ *                               corpus-wide aggregate over the fixed required denominator, coverage holes,
+ *                               fault coverage, latency slices and lineage (corpus-run.ts)
+ *   corpus-lock [--write]       corpus guard state; --write moves scenarios/locks/corpus-lock.json forward
+ *                               when every difference is recorded and every relaxation reviewed (corpus-guard.ts)
  *
  * Vendor sandbox and PSTN drivers are BLOCKED (PRQ-004, PRQ-034, PRQ-043); local
  * fixture results never satisfy sandbox, staging or production gates.
  */
 import { pathToFileURL } from "node:url";
 import { corpusDigest, corpusStats, loadCorpus } from "./corpus.js";
+import { CORPUS_RUN_USAGE, corpusRunCommand } from "./corpus-run.js";
+import { runCorpusLock } from "./corpus-step.js";
 import { RUN_USAGE, runCorpusCommand } from "./driver/run-corpus.js";
 import { main as generateMain } from "./generate.js";
-import { main as riskMain } from "./generate-risk.js";
+import { buildRiskBundles, main as riskMain } from "./generate-risk.js";
+import { REPO_ROOT } from "./paths.js";
 import { main as manifestMain } from "./manifest.js";
 import { main as traceMain } from "./traceability.js";
 import { RISK_DRAFT_LABEL } from "./vocabulary.js";
@@ -40,6 +51,15 @@ export async function main(argv: readonly string[]): Promise<number> {
       for (const l of out.lines) (out.code === 0 ? console.log : console.error)(l);
       return out.code;
     }
+    case "run-partition":
+    case "rerun":
+    case "combine-runs": {
+      const out = await corpusRunCommand(command, rest);
+      for (const l of out.lines) (out.code === 0 ? console.log : console.error)(l);
+      return out.code;
+    }
+    case "corpus-lock":
+      return runCorpusLock(REPO_ROOT, buildRiskBundles(), rest.includes("--write"));
     case "corpus": {
       const corpus = loadCorpus();
       const stats = corpusStats(corpus);
@@ -47,8 +67,9 @@ export async function main(argv: readonly string[]): Promise<number> {
       return 0;
     }
     default:
-      console.error("usage: cli.ts <generate|generate-risk|corpus|traceability|manifest|run|combine> [options]");
+      console.error("usage: cli.ts <generate|generate-risk|corpus|corpus-lock|traceability|manifest|run|combine|run-partition|rerun|combine-runs> [options]");
       console.error(RUN_USAGE);
+      console.error(CORPUS_RUN_USAGE);
       return 2;
   }
 }

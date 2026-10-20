@@ -8,11 +8,13 @@ import { idealEvidenceFixture } from "./evidence.fixture.js";
 import { RiskBundle } from "./generate-risk.js";
 import { checkDrift, planCorpusFiles, scenarioIdFor, VARIANT_FAMILIES } from "./generate.js";
 import { DUPLICATE_DELIVERY_TRANSFER_TOOLS, FOREIGN_SESSION_GATE_VALUE, checkRiskDrift, faultReachabilityProblems, planRiskFiles } from "./generate-risk.js";
-import { FAULTED_JOURNEYS, JOURNEYS, REQUIRED_JOURNEY_FAULTS } from "./journeys.js";
+import { FAULTED_JOURNEYS, JOURNEYS, JOURNEY_INTENTS, REQUIRED_JOURNEY_FAULTS } from "./journeys.js";
 import { REPO_ROOT, repoPaths, walkFiles } from "./paths.js";
 import { scoreScenario } from "./scorer.js";
 import { loadSkeletons } from "./skeleton.js";
-import { HELDOUT_PERMILLE, stableSplit } from "./split.js";
+import { INDEPENDENCE_BLOCKERS, buildLineage, loadLineage, loadRequiredManifests, parseRequiredRef } from "./corpus-manifests.js";
+import type { CorpusMember } from "./corpus-manifests.js";
+import { HELDOUT_PERMILLE, familyKeyOf, familySplit, hasLeakage, leakageReport, stableSplitV1 } from "./split.js";
 import { RISK_DRAFT_LABEL } from "./vocabulary.js";
 
 const corpus = loadCorpus();
@@ -96,20 +98,151 @@ describe("scenario corpus (synthetic, UNREVIEWED)", () => {
     }
   });
 
-  it("[SPEC-16.scenario-definition] held-out split is a stable hash of the scenario id (~20%), independent of order, and matches the directory", () => {
-    for (const e of corpus.entries.filter((x) => x.kind === "routine")) {
-      expect(e.scenario.split).toBe(stableSplit(e.scenario.scenarioId));
-      expect(e.file.includes(`/${e.scenario.split}/`)).toBe(true);
+  it("[SPEC-14.intent-corpus] [OPS-03] splits are assigned per family (intent skeleton plus account): every variant, journey and risk draft of an intent shares one split, four splits exist, the split matches the directory and the leakage check reports zero shared families", () => {
+    const all = corpus.entries.map((e) => e.scenario);
+    for (const e of corpus.entries) {
+      expect(e.scenario.split, e.scenario.scenarioId).toBe(familySplit(e.scenario.intent, JOURNEY_INTENTS));
+      if (e.kind === "routine") expect(e.file.includes(`/${e.scenario.split}/`), e.file).toBe(true);
     }
-    const heldout = routine.filter((s) => s.split === "heldout_acceptance").length / routine.length;
-    expect(heldout).toBeGreaterThan(0.12);
-    expect(heldout).toBeLessThan(0.28);
+    const leak = leakageReport(all, JOURNEY_INTENTS);
+    expect(leak.leakedFamilies).toEqual([]);
+    expect(leak.leakedIntents).toEqual([]);
+    expect(leak.misassigned).toEqual([]);
+    for (const split of ["development", "tuning", "heldout_acceptance", "regression"] as const) expect(leak.scenariosPerSplit[split], split).toBeGreaterThan(0);
+    // Journeys and every scenario of a journey intent are the regression split (never acceptance evidence).
+    expect(JOURNEYS.every((j) => j.split === "regression")).toBe(true);
+    for (const s of all.filter((x) => JOURNEY_INTENTS.has(x.intent))) expect(s.split, s.scenarioId).toBe("regression");
+    // Held-out share of the non-regression intent families is near the target; order never matters.
+    const intents = [...new Set(routine.map((s) => s.intent))].filter((i) => !JOURNEY_INTENTS.has(i));
+    const heldout = intents.filter((i) => familySplit(i, JOURNEY_INTENTS) === "heldout_acceptance").length / intents.length;
+    expect(heldout).toBeGreaterThan(0.08);
+    expect(heldout).toBeLessThan(0.4);
     expect(HELDOUT_PERMILLE).toBe(200);
-    const ids = routine.map((s) => s.scenarioId);
-    const shuffled = [...ids].reverse();
-    expect(shuffled.map(stableSplit)).toEqual(ids.map(stableSplit).reverse());
-    expect(stableSplit("scn_example__baseline")).toBe(stableSplit("scn_example__baseline"));
-    expect(JOURNEYS.every((j) => j.split === "development")).toBe(true);
+    expect([...intents].reverse().map((i) => familySplit(i, JOURNEY_INTENTS))).toEqual(intents.map((i) => familySplit(i, JOURNEY_INTENTS)).reverse());
+    // A mutation that splits one family across two splits is reported as leakage.
+    const victim = routine.find((s) => s.split === "development") as ScenarioDefinition;
+    const leaky = leakageReport([...all.filter((s) => s.scenarioId !== victim.scenarioId), { ...victim, split: "heldout_acceptance" }], JOURNEY_INTENTS);
+    expect(leaky.leakedFamilies.map((f) => f.familyKey)).toContain(familyKeyOf(victim));
+    expect(leaky.leakedIntents.map((f) => f.intent)).toContain(victim.intent);
+    expect(hasLeakage(leaky)).toBe(true);
+    // Moving a WHOLE intent family into another split straddles nothing, but it is still a leak: the family is
+    // not where its key assigns it (a development family relabelled as held-out acceptance evidence).
+    const moved = all.map((s) => (s.intent === victim.intent ? { ...s, split: "heldout_acceptance" as const } : s));
+    const relabelled = leakageReport(moved, JOURNEY_INTENTS);
+    expect(relabelled.leakedFamilies).toEqual([]);
+    expect(relabelled.leakedIntents).toEqual([]);
+    expect(relabelled.misassigned.length).toBe(all.filter((s) => s.intent === victim.intent).length);
+    expect(relabelled.misassigned.every((m) => m.split === "heldout_acceptance" && m.expected === "development")).toBe(true);
+    expect(hasLeakage(relabelled)).toBe(true);
+    expect(hasLeakage(leak)).toBe(false);
+  });
+
+  it("[SPEC-14.intent-corpus] lineage records source, generator version, parent and the previous split for every scenario; moved held-out scenarios are not independent acceptance evidence", () => {
+    const lineage = loadLineage(REPO_ROOT);
+    expect(lineage.scenarios.map((x) => x.scenarioId).sort()).toEqual([...corpus.byId.keys()].sort());
+    expect(lineage.leakage).toMatchObject({ leakedFamilies: 0, leakedIntents: 0, misassigned: 0 });
+    for (const l of lineage.scenarios) {
+      const s = corpus.byId.get(l.scenarioId) as ScenarioDefinition;
+      expect(l.split).toBe(s.split);
+      expect(l.version).toBe(s.version);
+      expect(l.familyKey).toBe(familyKeyOf(s));
+      if (l.source === "journey_faulted") expect(l.parent, l.scenarioId).not.toBeNull();
+      if (l.acceptanceIndependent) expect([l.split, l.previousSplit, l.version]).toEqual(["heldout_acceptance", "heldout_acceptance", 1]);
+      if (l.split === "heldout_acceptance" && l.previousSplit !== "heldout_acceptance") expect(l.acceptanceIndependent).toBe(false);
+      expect(l.acceptanceIndependent).toBe(l.independenceBlockers.length === 0);
+    }
+    for (const sp of ["development", "tuning", "heldout_acceptance", "regression"] as const) expect(lineage.splits[sp]?.scenarios, sp).toBeGreaterThan(0);
+  });
+
+  it("[FO-17-16] buildLineage derives each faulted journey's parent from its base journey (and no other scenario has one), independently of the committed manifest", () => {
+    const members: CorpusMember[] = [
+      ...JOURNEYS.map((j): CorpusMember => ({ scenario: j, source: "journey", sourceRef: `platform/src/evaluation/journeys.ts#${j.scenarioId}` })),
+      ...FAULTED_JOURNEYS.map((j): CorpusMember => ({ scenario: j, source: "journey_faulted", sourceRef: `platform/src/evaluation/journeys.ts#${j.scenarioId}` })),
+      ...routine.slice(0, 3).map((s): CorpusMember => ({ scenario: s, source: "skeleton", sourceRef: `scenarios/skeletons/${s.intent}.yaml@v${s.version}` })),
+    ];
+    const { lineage } = buildLineage(members);
+    const byId = new Map(lineage.scenarios.map((l) => [l.scenarioId, l] as const));
+    const journeyIds = new Set(JOURNEYS.map((j) => j.scenarioId));
+    expect(FAULTED_JOURNEYS.length).toBeGreaterThan(0);
+    for (const f of FAULTED_JOURNEYS) {
+      // The base journey is the id before the last `__<fault>` suffix (recomputed here, not by the generator).
+      const base = f.scenarioId.slice(0, f.scenarioId.lastIndexOf("__"));
+      expect(journeyIds.has(base), f.scenarioId).toBe(true);
+      expect(byId.get(f.scenarioId)?.parent, f.scenarioId).toBe(base);
+    }
+    for (const j of JOURNEYS) expect(byId.get(j.scenarioId)?.parent, j.scenarioId).toBeNull();
+    for (const s of routine.slice(0, 3)) expect(byId.get(s.scenarioId)?.parent, s.scenarioId).toBeNull();
+    // The committed manifest agrees for every faulted journey.
+    const committed = new Map(loadLineage(REPO_ROOT).scenarios.map((l) => [l.scenarioId, l.parent] as const));
+    for (const f of FAULTED_JOURNEYS) expect(committed.get(f.scenarioId), f.scenarioId).toBe(byId.get(f.scenarioId)?.parent);
+  });
+
+  it("[FO-17-16][FO-17-17][OPS-03] no committed held-out scenario is independent acceptance evidence: every held-out intent family had development members under the previous scenario-level split", () => {
+    const lineage = loadLineage(REPO_ROOT);
+    const held = lineage.scenarios.filter((l) => l.split === "heldout_acceptance");
+    // Recomputed from the lineage itself (not from the generator under test).
+    const exposed = new Set(lineage.scenarios.filter((l) => l.previousSplit !== "heldout_acceptance").map((l) => l.intent));
+    expect(held.length).toBeGreaterThan(0);
+    for (const l of held) {
+      expect(l.independenceBlockers.includes("INTENT_FAMILY_EXPOSED"), l.scenarioId).toBe(exposed.has(l.intent));
+      expect(l.independenceBlockers.includes("MOVED_INTO_HELDOUT"), l.scenarioId).toBe(l.previousSplit !== "heldout_acceptance");
+      expect(l.independenceBlockers.includes("REVISED_AFTER_RUNS"), l.scenarioId).toBe(l.version > 1);
+      expect(l.independenceBlockers.includes("NOT_HELDOUT")).toBe(false);
+    }
+    expect(lineage.heldoutIndependence).toEqual({
+      heldout: held.length,
+      acceptanceIndependent: 0,
+      blockers: {
+        MOVED_INTO_HELDOUT: held.filter((l) => l.previousSplit !== "heldout_acceptance").length,
+        INTENT_FAMILY_EXPOSED: held.length,
+        REVISED_AFTER_RUNS: held.filter((l) => l.version > 1).length,
+      },
+    });
+    for (const l of lineage.scenarios.filter((x) => x.split !== "heldout_acceptance")) expect(l.independenceBlockers[0], l.scenarioId).toBe("NOT_HELDOUT");
+  });
+
+  it("[FO-17-16][FO-17-17] a held-out scenario is independent only when it was held out before, no scenario of its intent was development evidence and its expectation was never revised", () => {
+    const base = routine.find((x) => x.split === "heldout_acceptance") as ScenarioDefinition;
+    const idsWhere = (split: string, n: number): string[] => {
+      const out: string[] = [];
+      for (let i = 0; out.length < n && i < 10_000; i++) if (stableSplitV1(`scn_synth_lineage_${i}`) === split) out.push(`scn_synth_lineage_${i}`);
+      return out;
+    };
+    const [h1, h2, h3, h4] = idsWhere("heldout_acceptance", 4) as [string, string, string, string];
+    const [d1, d2] = idsWhere("development", 2) as [string, string];
+    const m = (scenarioId: string, intent: string, split: ScenarioDefinition["split"], version = 1): CorpusMember => ({ scenario: { ...base, scenarioId, intent, split, version }, source: "skeleton", sourceRef: `scenarios/skeletons/${intent}.yaml` });
+    const { lineage } = buildLineage([
+      m(h1, "synth_clean_intent", "heldout_acceptance"),
+      m(h2, "synth_clean_intent", "heldout_acceptance"),
+      m(h3, "synth_clean_intent", "heldout_acceptance", 2),
+      m(h4, "synth_exposed_intent", "heldout_acceptance"),
+      m(d1, "synth_exposed_intent", "heldout_acceptance"),
+      m(d2, "synth_dev_intent", "development"),
+    ]);
+    const by = new Map(lineage.scenarios.map((l) => [l.scenarioId, l] as const));
+    expect(by.get(h1)).toMatchObject({ previousSplit: "heldout_acceptance", independenceBlockers: [], acceptanceIndependent: true });
+    expect(by.get(h2)).toMatchObject({ independenceBlockers: [], acceptanceIndependent: true });
+    expect(by.get(h3)).toMatchObject({ independenceBlockers: ["REVISED_AFTER_RUNS"], acceptanceIndependent: false });
+    // Held out itself, but a sibling of its intent was development evidence under the previous split.
+    expect(by.get(h4)).toMatchObject({ previousSplit: "heldout_acceptance", independenceBlockers: ["INTENT_FAMILY_EXPOSED"], acceptanceIndependent: false });
+    expect(by.get(d1)).toMatchObject({ previousSplit: "development", independenceBlockers: ["MOVED_INTO_HELDOUT", "INTENT_FAMILY_EXPOSED"], acceptanceIndependent: false });
+    expect(by.get(d2)).toMatchObject({ independenceBlockers: ["NOT_HELDOUT", "MOVED_INTO_HELDOUT", "INTENT_FAMILY_EXPOSED"], acceptanceIndependent: false });
+    expect(lineage.heldoutIndependence).toEqual({ heldout: 5, acceptanceIndependent: 2, blockers: { MOVED_INTO_HELDOUT: 1, INTENT_FAMILY_EXPOSED: 2, REVISED_AFTER_RUNS: 1 } });
+    // Journeys were always development evidence: a held-out member of a journey's intent is exposed.
+    const journey = JOURNEYS[0] as ScenarioDefinition;
+    const withJourney = buildLineage([{ scenario: journey, source: "journey", sourceRef: journey.scenarioId }, m(h1, journey.intent, "heldout_acceptance")]).lineage;
+    expect(withJourney.scenarios.find((l) => l.scenarioId === h1)?.independenceBlockers).toEqual(["INTENT_FAMILY_EXPOSED"]);
+    expect(INDEPENDENCE_BLOCKERS).toEqual(["NOT_HELDOUT", "MOVED_INTO_HELDOUT", "INTENT_FAMILY_EXPOSED", "REVISED_AFTER_RUNS"]);
+  });
+
+  it("[OPS-03] [SPEC-14.aggregation] every gate has a fixed required-scenario manifest built from the corpus (ids, versions, repetitions)", () => {
+    const req = loadRequiredManifests(REPO_ROOT);
+    const all = [...corpus.byId.values()];
+    expect(req.gates.local.scenarios).toBe(all.length);
+    expect(req.gates.local.requiredRuns).toBe(all.reduce((n, s) => n + s.repetitions, 0));
+    expect(req.gates.ci.required.map(parseRequiredRef).every((r) => corpus.byId.get(r.scenarioId)?.split === "regression")).toBe(true);
+    for (const env of ["sandbox", "staging", "production"] as const) expect(req.gates[env].scenarios).toBe(all.length);
+    for (const r of req.gates.local.required.map(parseRequiredRef)) expect(corpus.byId.get(r.scenarioId)).toMatchObject({ version: r.version, repetitions: r.repetitions });
   });
 
   it("[SPEC-16.scenario-definition] generation is deterministic and the committed corpus has no drift (--check)", () => {
@@ -211,10 +344,27 @@ describe("scenario corpus (synthetic, UNREVIEWED)", () => {
     }
   });
 
-  it("[SPEC-16.scenario-definition] every scenario is internally consistent: evidence matching its own expectations scores PASS", () => {
+  /**
+   * Fault scenarios whose own expected final state cannot reach their fault point (FO-17-11): the
+   * SALESFORCE_OUTAGE dependency-failure variants of the case-read intents read the internal support record
+   * (contract case_follow_up@1) and expect no support request, so the Salesforce write path the outage
+   * targets is never exercised. They are kept (hard cases are never removed or relabelled, FO-17-13) and
+   * stay INCONCLUSIVE until the corpus owner chooses a reachable fault through a reviewed change record.
+   */
+  const UNREACHABLE_BY_EXPECTED_FLOW = new Set([
+    "scn_case_follow_up__dependency_failure",
+    "scn_partner_case_follow_up__dependency_failure",
+    "scn_practice_staff_case_status__dependency_failure",
+    "scn_relay_service_caller__dependency_failure",
+    "scn_repeat_caller_resume_issue__dependency_failure",
+    "scn_shared_device_recap__dependency_failure",
+  ]);
+
+  it("[SPEC-16.scenario-definition] [OPS-03] every scenario is internally consistent: evidence matching its own expectations (and showing its fault point reached) scores PASS; a fault its expected flow cannot reach stays INCONCLUSIVE", () => {
     const failures: string[] = [];
+    const unreachable: string[] = [];
     for (const e of corpus.entries) {
-      const r = scoreScenario(e.scenario, idealEvidenceFixture(e.scenario), {
+      const r = scoreScenario(e.scenario, idealEvidenceFixture(e.scenario, corpus.faultPlans), {
         runId: "run_consistency01",
         runAt: "2026-10-17T15:00:00.000Z",
         repetition: 1,
@@ -225,9 +375,16 @@ describe("scenario corpus (synthetic, UNREVIEWED)", () => {
         driverError: null,
         faultPlans: corpus.faultPlans,
       });
-      if (r.verdict !== "PASS") failures.push(`${e.scenario.scenarioId}: ${r.failureCode}`);
+      const nonPass = r.assertions.filter((a) => a.verdict !== "PASS");
+      if (r.verdict === "INCONCLUSIVE" && nonPass.every((a) => a.assertionId.startsWith("evidence.fault_reached."))) unreachable.push(e.scenario.scenarioId);
+      else if (r.verdict !== "PASS") failures.push(`${e.scenario.scenarioId}: ${r.failureCode}`);
+      if (r.verdict === "PASS" && e.scenario.initialState.faults.length > 0) {
+        expect(r.requestedFault).toBe(e.scenario.initialState.faults[0]);
+        expect(r.reachedFault?.faultId, e.scenario.scenarioId).toBe(e.scenario.initialState.faults[0]);
+      }
     }
     expect(failures).toEqual([]);
+    expect(unreachable.sort()).toEqual([...UNREACHABLE_BY_EXPECTED_FLOW].sort());
   });
 
   it("[SPEC-16.offline-first] corpus text uses only fictional 555-01xx numbers and synthetic identifiers", () => {

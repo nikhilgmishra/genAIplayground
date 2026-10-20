@@ -1,0 +1,75 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "SOURCE_DELETED",
+  "version": 1,
+  "title": "A subject or source record is deleted while work is pending",
+  "description": "A subject or source record is deleted (privacy deletion or source-side removal) while a case or workflow still references it; derived context and pending work must stop using it.",
+  "category": "privacy",
+  "target": {
+    "components": [
+      "platform/src/retention",
+      "platform/src/context",
+      "platform/src/knowledge"
+    ],
+    "dependency": "context_source"
+  },
+  "trigger": {
+    "kind": "WHILE_WORK_PENDING",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "SOURCE_DELETED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_consequential_success",
+      "gate": "transaction"
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "A follow-up never repeats deleted information; the caller is told a person will review the request.",
+  "backendEvidence": [
+    "Deletion tombstone propagated to derived stores",
+    "Pending work held for a person"
+  ],
+  "requirementIds": [
+    "DATA-03"
+  ],
+  "appliesToIntents": [
+    "case_follow_up",
+    "billing_dispute"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:SOURCE_DELETED] owned by WP-24 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.SOURCE_DELETED",
+    "origin": "prompt_section_17",
+    "injectionPoint": "a subject or source record is deleted while work is pending",
+    "injectionPointPackages": [
+      "WP-22"
+    ],
+    "postconditionPackages": [
+      "WP-18",
+      "WP-20",
+      "WP-22",
+      "WP-24"
+    ],
+    "layer2Owner": "WP-24",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "Deleted data is not served from derived context, memory or knowledge",
+    "Pending work referencing it is held for a person",
+    "The deletion is verifiable"
+  ]
+}

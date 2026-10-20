@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "IDP_UNAVAILABLE",
-  "version": 1,
+  "version": 2,
   "title": "Identity provider unavailable",
   "description": "The client/provider IdP cannot complete the secure-link approval.",
   "category": "identity",
@@ -56,5 +56,28 @@
     "invoice_explanation",
     "case_follow_up"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.IDP_UNAVAILABLE",
+    "origin": "registry",
+    "injectionPoint": "the OIDC provider (Keycloak) is unavailable during secure-link approval",
+    "injectionPointPackages": [
+      "WP-05"
+    ],
+    "postconditionPackages": [
+      "WP-05"
+    ],
+    "layer2Owner": "WP-05",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "verification_not_completed"
+    }
+  ],
+  "postconditions": [
+    "Assurance stays A0 while the identity provider is unavailable during secure-link approval",
+    "No protected read succeeds and no weaker verification is substituted",
+    "The caller reaches a person"
+  ]
 }

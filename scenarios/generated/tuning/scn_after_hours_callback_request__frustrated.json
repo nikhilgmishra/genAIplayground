@@ -1,0 +1,59 @@
+{
+  "scenarioId": "scn_after_hours_callback_request__frustrated",
+  "version": 1,
+  "split": "tuning",
+  "intent": "after_hours_callback_request",
+  "audience": "prospective_client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "frustrated",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [],
+  "expectedAssurance": "A0",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "This is the third time I've called about this and I'm really fed up. Is anyone there tonight? Can someone call me back tomorrow?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Morning is best.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic caller calling late in the evening; wants a callback. Frustrated and terse; has called before.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "create_support_request"
+  ],
+  "prohibitedActions": [
+    "speak:resolved_claim"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "REQUEST_ACCEPTED",
+    "committedActions": [],
+    "supportRequestCreated": true,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

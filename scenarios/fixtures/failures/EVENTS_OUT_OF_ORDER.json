@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "EVENTS_OUT_OF_ORDER",
-  "version": 1,
+  "version": 2,
   "title": "Transfer events arrive out of order",
   "description": "BRIDGED arrives before RECEIVER_ACCEPTED for the same transfer.",
   "category": "delivery",
@@ -49,5 +49,31 @@
     "human_request",
     "safety_disclosure_self"
   ],
-  "notes": "Real event export format is UNKNOWN (TB-07)."
+  "notes": "Real event export format is UNKNOWN (TB-07).",
+  "registry": {
+    "requirementId": "FO-17-24.EVENTS_OUT_OF_ORDER",
+    "origin": "registry",
+    "injectionPoint": "carrier transfer events delivered out of order to the carrier_event_inbox",
+    "injectionPointPackages": [
+      "WP-28"
+    ],
+    "postconditionPackages": [
+      "WP-28"
+    ],
+    "layer2Owner": "WP-28",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "transfer_states",
+      "adjacent": [
+        "REQUESTED",
+        "RECEIVER_ACCEPTED"
+      ]
+    }
+  ],
+  "postconditions": [
+    "An out-of-order carrier event is held or ignored by the transfer state machine without skipping receiver acceptance",
+    "Transfer completion still requires a verified connection"
+  ]
 }

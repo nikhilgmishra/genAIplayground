@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "INTERRUPTED_CONFIRMATION",
-  "version": 1,
+  "version": 2,
   "title": "Caller barges in during the confirmation prompt",
   "description": "The caller interrupts the confirmation read-back and changes the request (different day). The original prepared action must be invalidated; a generic earlier yes is not consent for the new action.",
   "category": "conversation",
@@ -53,5 +53,38 @@
     "appointment_create",
     "billing_dispute"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.INTERRUPTED_CONFIRMATION",
+    "origin": "registry",
+    "injectionPoint": "barge-in during the confirmation read-back at the audio boundary",
+    "injectionPointPackages": [
+      "WP-13",
+      "WP-14"
+    ],
+    "postconditionPackages": [
+      "WP-14"
+    ],
+    "layer2Owner": "WP-14",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "backend_record",
+      "collection": "ledger",
+      "where": {
+        "state": [
+          "INVALIDATED"
+        ],
+        "confirmed": [
+          false
+        ]
+      }
+    }
+  ],
+  "postconditions": [
+    "The prepared action read back during the barge-in is INVALIDATED before it is confirmed",
+    "Any commit is bound to the digest of a newly prepared and freshly confirmed action",
+    "Stale speech segments are cancelled by turn id"
+  ]
 }

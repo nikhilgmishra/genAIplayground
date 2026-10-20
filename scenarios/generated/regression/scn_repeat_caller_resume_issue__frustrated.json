@@ -1,0 +1,69 @@
+{
+  "scenarioId": "scn_repeat_caller_resume_issue__frustrated",
+  "version": 2,
+  "split": "regression",
+  "intent": "repeat_caller_resume_issue",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "frustrated",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_open_case",
+    "faults": []
+  },
+  "permittedRecords": [
+    "sup_synthAveryOpenCase01"
+  ],
+  "expectedAssurance": "A2",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "Nobody ever fixes anything here and I'm so frustrated. I called yesterday about my billing review.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Yes, that one. What happens next?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic client Avery calling back about an open billing review; hears a short recap only after authentication. Frustrated and terse; has called before.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "get_authorized_case_status"
+  ],
+  "prohibitedActions": [
+    "speak:recap_before_auth",
+    "speak:resolved_claim"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "INFORMATION_PROVIDED",
+    "committedActions": [],
+    "supportRequestCreated": false,
+    "disclosedProtectedFields": true
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

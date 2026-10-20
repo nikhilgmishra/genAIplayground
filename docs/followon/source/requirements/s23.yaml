@@ -200,8 +200,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no package manifest, lockfile or module references the Personal Agent Protocol (searched 2026-10-19 at 8c0f5a0)
-  gap: 'Not yet triggered: nothing integrates the Personal Agent Protocol and no work package plans to. Nothing fails if a dependency on it is added without a decision record that qualifies it.'
+  - decision-gates.test.ts [FO-23-08]
+  gap: 'Not triggered yet: no Personal Agent Protocol dependency exists.'
   remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when a Personal Agent Protocol client or schema appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it.'
   size: S
   environmentDependency: none
@@ -212,6 +212,11 @@ requirements:
     - 'Phase A repair (critic gap 11): section 23 constraint row'
     - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when the Personal Agent Protocol appears without a decision record'
     repairStatusFrom: NOT_APPLICABLE
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-23-09
   section: '23'
   kind: constraint

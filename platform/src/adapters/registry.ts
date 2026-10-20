@@ -19,7 +19,8 @@
  */
 import { SYNTHETIC_BADGE } from "../fixtures/synthetic-world.js";
 import { PlatformError, ValidationError } from "../shared/errors.js";
-import { isBlockedCapability } from "./errors.js";
+import { REFUSAL_REASONS, UNSUPPORTED_UNDOCUMENTED, isBlockedCapability } from "./errors.js";
+import type { RefusalReason } from "./errors.js";
 import type { Adapter, AdapterHealth, AdapterKind } from "./ports.js";
 
 const COMPONENT_KEY = /^[a-z][a-z0-9-]{2,63}$/;
@@ -34,6 +35,19 @@ export interface AdapterRegistration {
   prerequisites: string[];
   /** Fixture label (e.g. "LOCAL FIXTURE — SYNTHETIC DATA ONLY") when the adapter declares one. */
   label: string | null;
+  /**
+   * Operations the adapter refuses, with the typed reason (FO-06-25). A BLOCKED stub that declares none is
+   * recorded as refusing every operation UNSUPPORTED_UNDOCUMENTED (`*`).
+   */
+  refusals: Record<string, RefusalReason>;
+}
+
+/** One refused operation of a live adapter (input of the live-composition scan). */
+export interface LiveRefusal {
+  component: string;
+  integrationId: string;
+  operation: string;
+  refusal: RefusalReason;
 }
 
 export interface AdapterSummary {
@@ -82,6 +96,7 @@ export class AdapterRegistry {
         capabilityStatus: isBlockedCapability(adapter) ? "BLOCKED" : typeof declared === "string" ? declared : "AVAILABLE",
         prerequisites: Array.isArray(prerequisites) ? prerequisites.filter((p): p is string => typeof p === "string") : [],
         label: typeof label === "string" ? label : null,
+        refusals: declaredRefusals(adapter),
       },
     });
     return adapter;
@@ -116,7 +131,7 @@ export class AdapterRegistry {
 
   summary(): AdapterSummary {
     const components = [...this.entries.values()]
-      .map((e) => ({ ...e.registration, prerequisites: [...e.registration.prerequisites] }))
+      .map((e) => ({ ...e.registration, prerequisites: [...e.registration.prerequisites], refusals: { ...e.registration.refusals } }))
       .sort((a, b) => a.component.localeCompare(b.component));
     const localFixtureComponents = components.filter((c) => c.kind === "local_fixture").map((c) => c.component);
     return {
@@ -129,6 +144,25 @@ export class AdapterRegistry {
       badge: localFixtureComponents.length > 0 ? SYNTHETIC_BADGE : null,
       frozen: this.frozenFlag,
     };
+  }
+
+  /**
+   * Refused operations of the LIVE adapters, typed (FO-06-25). The live composition root refuses to start
+   * when any is NOT_IMPLEMENTED (documented behaviour that is not built); UNSUPPORTED_UNDOCUMENTED rows are
+   * reported as unavailable capabilities, never as success.
+   */
+  liveCompositionRefusals(): LiveRefusal[] {
+    const out: LiveRefusal[] = [];
+    for (const { registration: r } of this.entries.values()) {
+      if (r.kind !== "live") continue;
+      for (const [operation, refusal] of Object.entries(r.refusals)) out.push({ component: r.component, integrationId: r.integrationId, operation, refusal });
+    }
+    return out.sort((a, b) => a.component.localeCompare(b.component) || a.operation.localeCompare(b.operation));
+  }
+
+  /** Live components with a NOT_IMPLEMENTED operation: each one makes a live composition fail closed. */
+  notImplementedLiveOperations(): LiveRefusal[] {
+    return this.liveCompositionRefusals().filter((r) => r.refusal === "NOT_IMPLEMENTED");
   }
 
   /** Health of every adapter; a throwing or slow health check reports unhealthy (fail closed). */
@@ -156,4 +190,18 @@ async function checkHealth(adapter: Adapter, timeoutMs: number): Promise<Adapter
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }
+}
+
+function declaredRefusals(adapter: Adapter): Record<string, RefusalReason> {
+  const raw = (adapter as { refusals?: unknown }).refusals;
+  const out: Record<string, RefusalReason> = {};
+  if (raw !== undefined) {
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new ValidationError("ADAPTER_REFUSALS_INVALID");
+    for (const [op, reason] of Object.entries(raw as Record<string, unknown>)) {
+      if (!/^([a-z][a-zA-Z0-9_.]{1,63}|\*)$/.test(op) || !REFUSAL_REASONS.includes(reason as RefusalReason)) throw new ValidationError("ADAPTER_REFUSALS_INVALID");
+      out[op] = reason as RefusalReason;
+    }
+  }
+  if (isBlockedCapability(adapter) && Object.keys(out).length === 0) out["*"] = UNSUPPORTED_UNDOCUMENTED;
+  return out;
 }

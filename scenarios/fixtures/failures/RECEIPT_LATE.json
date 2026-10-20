@@ -1,0 +1,80 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "RECEIPT_LATE",
+  "version": 1,
+  "title": "The receipt arrives after the reconcile budget or a newer turn",
+  "description": "The commit receipt arrives after the reconcile budget expired or after the caller moved to a newer turn; the late receipt must reconcile the ledger without speaking stale success into the newer turn.",
+  "category": "delivery",
+  "target": {
+    "components": [
+      "platform/src/actions",
+      "media/src/egress"
+    ],
+    "dependency": "scheduling"
+  },
+  "trigger": {
+    "kind": "AFTER_TOOL_RESULT",
+    "tool": "commit_appointment_change",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "RECEIPT_DELAYED",
+    "afterExternalCommit": true,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "reconciliation_recorded",
+      "gate": "transaction"
+    },
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    }
+  ],
+  "callerVisible": "A late confirmation is not spoken into an unrelated newer turn; the caller hears it at the next appropriate point or in a follow-up.",
+  "backendEvidence": [
+    "Late receipt applied to the ledger by idempotency key",
+    "Stale speech dropped by turn id / session generation"
+  ],
+  "requirementIds": [
+    "ACT-04",
+    "ACT-05"
+  ],
+  "appliesToIntents": [
+    "appointment_reschedule",
+    "billing_dispute"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:RECEIPT_LATE] owned by WP-25 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.RECEIPT_LATE",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the receipt arrives after the reconcile budget or after a newer turn",
+    "injectionPointPackages": [
+      "WP-23",
+      "WP-25"
+    ],
+    "postconditionPackages": [
+      "WP-14",
+      "WP-25"
+    ],
+    "layer2Owner": "WP-25",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [
+    {
+      "source": "ambiguous_commit_with_effect",
+      "tools": [
+        "commit_appointment_change"
+      ]
+    }
+  ],
+  "postconditions": [
+    "The late receipt reconciles the ledger exactly once",
+    "No stale success utterance is released into a newer turn (ACT-05)"
+  ]
+}

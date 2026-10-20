@@ -64,24 +64,27 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.substrate
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/migrations/*.sql
-  - platform/src/db/migrate.ts
-  - platform/src/db/db.test.ts
-  gap: Tested only on PGlite; PgPoolDb path untested.
+  - substrate/pg-pool.test.ts every migration in order as non-superuser owner, checksums, re-run no-op
+  gap: Not Aurora.
   remediation: Add a postgres:16 service (with pgvector) and run the migrations through PgPoolDb as a non-superuser owner role, as on Aurora, in CI. Assert checksums, role grants and RLS policies through catalog queries.
   size: S
   environmentDependency: none
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-16-04
   section: '16'
   kind: software
@@ -809,10 +812,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - infra/terraform/modules/kms
-  - infra/terraform/modules/secrets
-  - platform/src/config/approvals.ts (KmsTrustedKeyResolver)
-  gap: Runtime secret resolution for adapters is not composed (live composition refused).
+  - runtime.test.ts [FO-16-31]
+  gap: Runtime secret resolution is not composed in the live container (WP-07).
   remediation: Implement a runtime secret resolver (Secrets Manager GetSecretValue with caching and rotation-aware refresh) used by the live composition (FO-16-11), and test it against LocalStack Secrets Manager in the local compose. Test KmsTrustedKeyResolver against LocalStack KMS GetPublicKey.
   size: S
   environmentDependency: AWS accounts
@@ -823,6 +824,11 @@ requirements:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-16-32
   section: '16'
   kind: software
@@ -1007,10 +1013,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/resilience/circuit-breaker.ts
-  - platform/src/resilience/bulkhead.ts
-  - platform/src/resilience/resilience.test.ts
-  gap: Production thresholds unmeasured.
+  - connector.test.ts [FO-16-39] connector-wide cap (P02 killed)
+  - connector.test.ts [FO-16-39] circuit opens
+  gap: Provider ports, Salesforce and notifications are not wrapped yet (WP-07), and the safety-route exemption is not tested here.
   remediation: Wrap each outbound dependency call (provider ports, Salesforce REST, notifications) in executeWithPolicy with a per-dependency Bulkhead from configuration, and keep safety and human routes outside it. Test that a saturated bulkhead rejects with BULKHEAD_FULL while safety routing proceeds. Calibrate limits from load tests.
   size: S
   environmentDependency: none
@@ -1021,6 +1026,11 @@ requirements:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-16-40
   section: '16'
   kind: software
@@ -1064,11 +1074,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/outbox/dispatcher.ts:177-199
-  - platform/src/outbox/outbox.test.ts:201
-  - platform/src/main/server.ts:15-200
-  - platform/src/main/server.test.ts
-  gap: 'Workflow engine leases and media session draining are not covered. Concurrent claims (FOR UPDATE SKIP LOCKED, platform/src/outbox/dispatcher.ts:185-197) were never contended: PGlite serializes on one connection, so two dispatchers racing for one row is untested. IMPLEMENTED, not VERIFIED_LOCAL: Two dispatchers racing for one row (FOR UPDATE SKIP LOCKED, platform/src/outbox/dispatcher.ts:185-197) were never contended because PGlite serializes on one connection; workflow and media leases are not covered.'
+  - substrate/contention.test.ts lease claiming and claim-token fencing on two pools
+  - ingress/processing.test.ts stalled lease takeover fenced; route-audit-crash SIGTERM seal
+  gap: SIGTERM draining of in-flight work belongs to the worker loop (WP-07); workflow and media leases are not covered.
   remediation: Run a two-dispatcher contention test on postgres:16 through PgPoolDb (each row claimed exactly once, redelivery after lease expiry), add lease and drain handling to PgWorkflowEngine ticks, and extend draining to media sessions once they exist.
   size: S
   environmentDependency: none
@@ -1080,6 +1088,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: two dispatchers racing for one row (FOR UPDATE SKIP LOCKED, platform/src/outbox/dispatcher.ts:185-197) were never contended because PGlite serializes on one connection; workflow and media leases are not covered.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-04
 - id: FO-16-42
   section: '16'

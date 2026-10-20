@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "AUTH_EXPIRY_MID_CALL",
-  "version": 1,
+  "version": 2,
   "title": "Session expires between prepare and commit",
   "description": "The trusted call session reaches its expiry (clock advanced past expiresAt) after the action is prepared and before commit. TTL cleanup has NOT run, so the session row still exists.",
   "category": "identity",
@@ -64,5 +64,42 @@
     "appointment_cancel",
     "billing_dispute"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.AUTH_EXPIRY_MID_CALL",
+    "origin": "registry",
+    "injectionPoint": "session expiry between prepare and commit (injected clock)",
+    "injectionPointPackages": [
+      "WP-04",
+      "WP-05"
+    ],
+    "postconditionPackages": [
+      "WP-04",
+      "WP-07"
+    ],
+    "layer2Owner": "WP-07",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "tool_response",
+      "tools": [
+        "commit_appointment_change"
+      ],
+      "statuses": [
+        "POLICY_DENIED"
+      ],
+      "reasonCodes": [
+        "SESSION_EXPIRED"
+      ],
+      "sessionStates": [
+        "expired"
+      ]
+    }
+  ],
+  "postconditions": [
+    "The commit after the hard expiry is refused SESSION_EXPIRED while the session record still exists (TTL cleanup not run)",
+    "No provider call and no external effect for the expired session",
+    "The caller is offered re-verification by a person; the outcome is never RESOLVED"
+  ]
 }

@@ -6,9 +6,10 @@
  * audit outage, ...) to a journey. Everything is SYNTHETIC and UNREVIEWED.
  *
  * The generator (generate.ts) writes these to scenarios/journeys/ and
- * scenarios/journeys/faulted/. Journeys belong to the development split: they
- * are demonstrated during development and therefore cannot serve as held-out
- * acceptance evidence.
+ * scenarios/journeys/faulted/. Journeys and their intents belong to the
+ * regression split (split.ts, family-split.v2): they are demonstrated and
+ * inspected on every change, so neither they nor any variant of their intents
+ * can serve as held-out acceptance or tuning evidence.
  */
 import type { ScenarioDefinition, ScenarioTurn } from "../protocol/index.js";
 
@@ -24,7 +25,7 @@ type JourneyInput = Omit<ScenarioDefinition, "version" | "split" | "review" | "c
 const journey = (j: JourneyInput): ScenarioDefinition => ({
   scenarioId: j.scenarioId,
   version: 1,
-  split: "development",
+  split: "regression",
   intent: j.intent,
   audience: j.audience,
   locale: j.locale,
@@ -381,3 +382,6 @@ export const REQUIRED_JOURNEY_FAULTS = [
   "TRANSFER_FAILED",
   "AUDIT_OUTAGE",
 ] as const;
+
+/** Intents with a demonstration journey: their whole family is the regression split (split.ts familySplit). */
+export const JOURNEY_INTENTS: ReadonlySet<string> = new Set(JOURNEYS.map((j) => j.intent));

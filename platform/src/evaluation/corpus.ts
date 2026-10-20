@@ -2,7 +2,7 @@
  * Scenario corpus loader and digest.
  *
  * Corpus layout (see scenarios/README.md):
- *   scenarios/generated/{development,heldout_acceptance}/*.json  routine quality corpus (one ScenarioDefinition per file)
+ *   scenarios/generated/{development,tuning,heldout_acceptance,regression}/*.json  routine quality corpus (one ScenarioDefinition per file)
  *   scenarios/journeys/*.json, scenarios/journeys/faulted/*.json  demonstration journeys (+ fault-injected)
  *   scenarios/risk/<family>.json                                 risk-scenario DRAFT bundles (separate from routine tests)
  *   scenarios/fixtures/failures/<FAULT_ID>.json                  deterministic fault plans
@@ -66,7 +66,9 @@ export function loadCorpus(root = REPO_ROOT): LoadedCorpus {
   const p = repoPaths(root);
   const entries: CorpusEntry[] = [
     ...loadScenarioFiles(root, join(p.generated, "development"), "routine", false),
+    ...loadScenarioFiles(root, join(p.generated, "tuning"), "routine", false),
     ...loadScenarioFiles(root, join(p.generated, "heldout_acceptance"), "routine", false),
+    ...loadScenarioFiles(root, join(p.generated, "regression"), "routine", false),
     ...loadScenarioFiles(root, p.journeys, "journey", false),
     ...loadScenarioFiles(root, join(p.journeys, "faulted"), "journey_faulted", false),
   ];

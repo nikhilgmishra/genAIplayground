@@ -42,20 +42,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/live/salesforce-emulator.fixture.ts + salesforce-rest.contract.test.ts (node:http emulator; passing 2026-10-19) - the only instance
-  - platform/src/adapters/live/oidc-verifier.test.ts (live OIDC verifier against a local node:http IdP)
-  - platform/src/adapters/local/*-fixture.ts are in-process objects, not protocol emulators
-  gap: No protocol emulator exists for Talkdesk, SIP, Segment, Snowflake SQL API, Iceberg/Athena, the business-system reference service, email/SMS vendors or KB sources.
+  - test/integration/connectors/emulator.ts
+  - runtime.test.ts
+  gap: Protocol emulators for each connector family come with their packages (WP-12, WP-19..23, WP-27, WP-29).
   remediation: Build one emulator per family (node:http for REST/webhooks; Docker SIP UA such as sipp/pjsua with LiveKit SIP or Asterisk; MinIO + Iceberg REST catalog + Trino/DuckDB for lakehouse; Snowflake SQL API stub; SMTP sink such as MailHog) and run the production adapters against them in CI.
   size: L
   environmentDependency: none
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-03
   section: '6'
   subsection: Configurable connectors (general)
@@ -73,10 +77,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/live/salesforce-rest-support-records.ts (client-credentials token cache, tokenMaxAgeSeconds, single in-flight request, credentials() callback read per token request)
-  - platform/src/adapters/live/salesforce-rest.contract.test.ts:157-218 ([AUTH-02]/[AUTH-04] caching, expiry, one refresh, no loop)
-  - platform/src/gateway/auth.ts (JwtAccessTokenAuthenticator with JWKS rotation; gateway/auth.test.ts passing)
-  gap: Verified only for Salesforce outbound and gateway inbound; no shared token manager for Talkdesk OAuth, Snowflake key-pair JWT, CDP, notification or KB connectors.
+  - connector.test.ts [FO-06-03] token in flight when invalidated
+  - runtime.test.ts [FO-06-03]
+  gap: Emulator runs per adapter family (Talkdesk OAuth, Snowflake JWT, CDP) come with each family.
   remediation: Extract a reusable OAuth2/JWT token manager into the connector runtime with rotation, clock-skew and revocation tests; require every live adapter to use it.
   size: M
   environmentDependency: Vendor OAuth clients / connected apps per tenant for sandbox qualification
@@ -86,6 +89,11 @@ requirements:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-06-04
   section: '6'
   subsection: Configurable connectors (general)
@@ -98,20 +106,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/config/schema.ts:14-17 (SecretRef pattern refuses inline secrets); platform/src/config/loader.test.ts:70,126 [AUTH-06]
-  - platform/package.json:35 depends on @aws-sdk/client-secrets-manager but no resolver uses it (grep platform/src)
-  - SalesforceRestDeps.credentials is injected by the caller (salesforce-rest-support-records.ts:191-200)
-  gap: Reference validation exists; resolution does not, so no live adapter can obtain credentials in a deployed composition.
+  - resolver.test.ts [FO-06-04] read in flight when refresh()
+  - runtime.test.ts [FO-06-04]
+  gap: Not yet the only credential source of live adapters (WP-07); SSM references are refused.
   remediation: 'Implement SecretResolver (Secrets Manager, version stages, bounded cache, refresh on auth failure; local-fixture: resolver for tests) and bind it in the live composition.'
   size: M
   environmentDependency: AWS account with Secrets Manager for sandbox qualification
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-05
   section: '6'
   subsection: Configurable connectors (general)
@@ -124,19 +136,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'platform/src/adapters/live/salesforce-rest-support-records.ts:68-140 (fixed-key SalesforceFieldMappingSchema: every key required, API-name regex only; PLACEHOLDER mapping refused when schema PROVIDED)'
-  - platform/src/adapters/support-records-schema.ts (strict outbound value schemas)
-  gap: No generic mapping model, no prohibited class, no validation against vendor metadata (describe types, picklists, lengths).
+  - connector.test.ts [FAULT:SCHEMA_DRIFT seam]
+  - runtime.test.ts [FO-06-05]
+  gap: Drift tests per connector come with each family; the readiness run is WP-32.
   remediation: Add MappingSpec to ConnectorProfile (per-field class, expected type, enum/unit semantics, data classification) and validate it against fetched metadata at startup and in the test wizard.
   size: M
   environmentDependency: none
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-06
   section: '6'
   subsection: Configurable connectors (general)
@@ -148,18 +165,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'No paginated read in platform/src/adapters (Salesforce adapter reads one record by external id: salesforce-rest-support-records.ts:375)'
-  gap: No cursor/page iteration exists for any source.
+  - connector.test.ts [FO-06-06] OFFSET last page / page bound + resume
+  - runtime.test.ts [FO-06-06] OFFSET over TLS
+  - mutants N15, D2-next-null, D2-start-ignored killed
+  gap: None for the acceptance; pagination per vendor is proven by each family's emulator.
   remediation: Implement bounded cursor iterators per adapter (Salesforce nextRecordsUrl, Snowflake result partitions, Athena NextToken, Talkdesk page links) driven by ConnectorProfile.pagination.
   size: M
   environmentDependency: none
-  workPackage: WP-06
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-07
   section: '6'
   subsection: Configurable connectors (general)
@@ -173,24 +197,28 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/resilience/bulkhead.ts, circuit-breaker.ts, retry.ts, timeout.ts + resilience.test.ts (passing)
-  - platform/src/gateway/pipeline.ts:65-68,135 (breaker/retry/timeout around tool calls)
-  - platform/src/gateway/http/tool-rate-limit.ts (inbound per-integration limit)
-  - platform/src/adapters/live/salesforce-rest.contract.test.ts:220-252,321 (429/503 Retry-After, 403 REQUEST_LIMIT_EXCEEDED, Sforce-Limit-Info recorded)
-  gap: Primitives exist but budgets are not declared per connector profile or applied at the connector layer; background sync has no vendor-budget awareness; Salesforce API usage is only held in memory.
+  - rate-limiter.test.ts [FO-06-07] pause re-spaces queued callers
+  - connector.test.ts [FO-06-07] queued callers restart spaced; connector-wide cap
+  - 'runtime.test.ts [FO-06-07] Retry-After: 2 restart spaced'
+  gap: None for the acceptance; production budget values need vendor quotas.
   remediation: Bind a per-connector token bucket + bulkhead from ConnectorProfile.rateBudget in the connector runtime; export vendor usage as metrics; test throttling against emulators.
   size: S
   environmentDependency: none
-  workPackage: WP-06
+  regressionPackage: WP-06
   provenance:
     origin: extraction
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-08
   section: '6'
   subsection: Configurable connectors (general)
@@ -204,23 +232,28 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/resilience/README.md + resilience.test.ts (withTimeout UNKNOWN default, retry never retries UNKNOWN, NESTED_RETRY_REFUSED)
-  - platform/src/adapters/live/salesforce-rest.contract.test.ts:220-300 ([ACT-03] over HTTP)
-  - platform/src/adapters/errors.ts (AdapterDependencyError reason codes)
-  gap: 'Verified for the gateway pipeline and the Salesforce adapter; future connectors must route through the same primitives. IMPLEMENTED, not VERIFIED_LOCAL: Contract tests exist only for the Salesforce REST adapter; the shared connector runtime that applies timeout and retry classification to every connector does not exist (WP-06).'
+  - connector.test.ts [FO-06-08] 503 on a write that needs reconciliation
+  - transport.test.ts [FO-06-08]
+  - runtime.test.ts [FO-06-08]
+  gap: None for the acceptance.
   remediation: Make the connector runtime the only call path to a vendor so classification is uniform; add the classification table to each ConnectorProfile.
   size: S
   environmentDependency: none
+  regressionPackage: WP-06
   provenance:
     origin: extraction
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: contract tests exist only for the Salesforce REST adapter; the shared connector runtime that applies timeout and retry classification to every connector does not exist (WP-06).'
     repairStatusFrom: VERIFIED_LOCAL
-  workPackage: WP-06
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-06-09
   section: '6'
   subsection: Configurable connectors (general)
@@ -232,18 +265,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - No checkpoint/cursor table in platform/migrations (0001..0910)
-  gap: No incremental reader exists, so no checkpoint store exists.
+  - test/integration/connectors/checkpoints.test.ts [FO-06-09]
+  gap: None for the acceptance.
   remediation: Add connector_checkpoints (tenant, connector, stream, position, watermark, digest, updated_at) with RLS; commit checkpoint in the same transaction as inbox acceptance.
   size: M
   environmentDependency: none
-  workPackage: WP-06
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-10
   section: '6'
   subsection: Configurable connectors (general)
@@ -258,19 +296,17 @@ requirements:
   capabilityIds:
   - connectors.runtime
   - platform.substrate
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/outbox/dispatcher.ts:8,261,295 (dead-letter after maxAttempts; listDead/requeueDead)
-  - platform/src/outbox/outbox.test.ts:118,138,159
-  - platform/src/business/support-requests.test.ts:101 (DEAD_LETTER + repair)
-  - platform/src/console-api/support-repair.test.ts
-  - platform/src/outbox/sqs-publisher.ts + sqs-publisher.contract.test.ts
-  gap: 'Covers outbound support-record sync only, and failures are produced by fixture faults (platform/src/business/support-requests.test.ts:101-120). The SQS evidence is a mock: sqs-publisher.contract.test.ts uses a StubSqsClient (''stub client, no AWS access'', lines 1-4, 22-38), not ElasticMQ or LocalStack, so it must not be cited as protocol verification. Inbound connector records have no DLQ (new FO-06-97). Not composed outside local. IMPLEMENTED, not VERIFIED_LOCAL: The SQS evidence is a mock (StubSqsClient in platform/src/outbox/sqs-publisher.contract.test.ts:1-4,22-38), not ElasticMQ or LocalStack; only the Postgres outbox DLQ is verified.'
+  - substrate/sqs.test.ts [FO-06-10] redrive refused without the audit write; failed move audited
+  - src/outbox/outbox.test.ts requeue fails closed without an operator
+  gap: The console endpoint for SQS redrive is WP-38's; AWS is not configured.
   remediation: Reuse the dispatcher DLQ pattern for inbound inbox processing and every new outbound connector; compose with SQS in the live composition.
   size: S
   environmentDependency: SQS queues + DLQ in AWS for sandbox
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
@@ -278,7 +314,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the SQS evidence is a mock (StubSqsClient in platform/src/outbox/sqs-publisher.contract.test.ts:1-4,22-38), not ElasticMQ or LocalStack; only the Postgres outbox DLQ is verified.'
     repairStatusFrom: VERIFIED_LOCAL
-  workPackage: WP-04
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-06-11
   section: '6'
   subsection: Configurable connectors (general)
@@ -295,10 +335,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/registry.ts healthReport (fails closed for throwing/slow/malformed checks)
-  - platform/src/adapters/registry.test.ts:79
-  - 'platform/src/adapters/live/salesforce-rest-support-records.ts health() (passive: last failure only)'
-  gap: Health is passive for Salesforce and absent for non-existent connectors; no active synthetic probe; no per-capability readiness surface.
+  - connector.test.ts [FO-06-11] sandbox write must name a WRITE op
+  - connector.test.ts [FO-06-11] metadata on the standard call path
+  gap: Per-capability readiness is not on an operator surface yet (WP-32), and probes per family come with each family.
   remediation: Define active probes in ConnectorProfile, run them from the worker, record results as capability evidence and expose readiness in onboarding.
   size: S
   environmentDependency: none
@@ -308,6 +347,11 @@ requirements:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-06-12
   section: '6'
   subsection: ConnectorProfile
@@ -320,20 +364,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/config/schema.ts:36-44 AdapterConfigSchema (kind, endpoint, credentialRef, authMethod, exceptionApprovalId, timeoutMs, integrationApprovalId only)
-  - platform/src/adapters/integration-inventory.ts:30-58 (descriptive inventory incl. version/sourceDoc - documentation, not runtime configuration)
-  - no ConnectorProfile in platform/src/protocol (grep)
-  gap: The section-4 ConnectorProfile contract does not exist; the inventory is static documentation.
+  - src/connectors/profile/profile.test.ts
+  gap: None for the acceptance.
   remediation: Add ConnectorProfile to platform/src/protocol with generate-schemas output and loader validation; derive the inventory from profiles.
   size: M
   environmentDependency: none
-  workPackage: WP-06
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-13
   section: '6'
   subsection: ConnectorProfile
@@ -346,20 +393,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/config/schema.ts:21-25 (EndpointUrl without query/userinfo)
-  - platform/src/privacy/egress.ts (exact-host allowlist per classification), egress-startup.ts
-  - platform/src/adapters/live/salesforce-rest-support-records.ts:291 (host must end .my.salesforce.com) and instance_url equality
-  gap: Only a single endpoint and a global egress allowlist exist; no per-profile allowedHosts, region or account binding (e.g. Salesforce org id, Snowflake account locator).
+  - connector.test.ts [FO-06-13]
+  - runtime.test.ts [FO-06-13]
+  gap: None for the acceptance; metadata responses now get the header binding check too.
   remediation: Add baseUrl/allowedHosts/region/accountBinding fields; enforce in the connector HTTP client and verify the bound account id from the first authenticated response.
   size: S
   environmentDependency: none
-  workPackage: WP-06
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-14
   section: '6'
   subsection: ConnectorProfile
@@ -371,19 +422,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/config/schema.ts:39-40 (credentialRef + authMethod only)
-  - salesforce-rest-support-records.ts:204-209 TokenResponse ignores scope
-  gap: No scopes field and no granted-scope verification.
+  - connector.test.ts [FO-06-14]
+  gap: None for the acceptance.
   remediation: Add scopes[] to the profile; verify token scope claims in the shared token manager; least-privilege test per connector.
   size: S
   environmentDependency: none
-  workPackage: WP-06
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-15
   section: '6'
   subsection: ConnectorProfile
@@ -396,19 +451,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - SalesforceRestSupportRecords exposes upsertInteraction/upsertCase/getCaseByExternalId unconditionally once schema is not BLOCKED (salesforce-rest-support-records.ts)
-  - no per-adapter operation allowlist in platform/src/adapters/registry.ts
-  gap: No capability allowlist or authoritative-field declaration.
+  - connector.test.ts [FO-06-15]
+  gap: Authoritative fields do not drive context precedence yet (WP-18).
   remediation: Add reads/writes/authoritativeFields/eventSchemas to the profile; the connector runtime checks every operation against it.
   size: M
   environmentDependency: none
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-16
   section: '6'
   subsection: ConnectorProfile
@@ -422,18 +481,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/config/schema.ts:42 timeoutMs is the only operational field
-  gap: Operational semantics are hard-coded per adapter.
+  - src/connectors/profile/profile.test.ts [FO-06-16]
+  gap: None for the acceptance.
   remediation: Add operation-level pagination/rateBudget/timeoutMs/idempotency {key, lookupByKey, reconcile} fields and enforce them in the runtime.
   size: S
   environmentDependency: none
-  workPackage: WP-06
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-17
   section: '6'
   subsection: ConnectorProfile
@@ -446,20 +510,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/retention/datasets.ts (vendor deletion declared for salesforce only)
-  - platform/src/adapters/integration-inventory.ts (retention 'UNKNOWN' text)
-  - platform/src/privacy/egress.ts DestinationKind (not linked to adapter profiles)
-  gap: Deletion/retention/egress classes are not tied to connector configuration.
+  - profile.test.ts [FO-06-17]
+  gap: The retention registry (WP-22) and the composed egress policy (WP-07) do not consume the derivations yet.
   remediation: Add deletion {supportsDelete, tombstones, vendorDeletionPath}, retentionClass and egressClass to the profile and feed retention registry and EgressGuard from it.
   size: S
   environmentDependency: Privacy counsel retention matrix (PRQ-025)
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-18
   section: '6'
   subsection: ConnectorProfile
@@ -473,19 +540,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - salesforce-rest-support-records.ts SalesforceSchemaEvidence {status, evidenceRef, approvalId} (adapter-specific)
-  - platform/src/protocol/release.ts:125-150 ReleaseManifest has no connector configuration digest
-  gap: No generic evidence/digest on connector configuration.
+  - runtime.test.ts [FO-06-18]
+  - evidence.test.ts
+  gap: Profile digests are not pinned in the release manifest (WP-40 / WP-01), and the registry checks the format of approval ids only.
   remediation: Compute a canonical digest per profile, add connectorProfileDigests to ReleaseManifest, store capability evidence records (see FO-06-95).
   size: M
   environmentDependency: none
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-19
   section: '6'
   subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
@@ -535,11 +607,10 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/live/salesforce-rest.contract.test.ts:328 (instance_url must equal configured origin)
-  - 'platform/src/adapters/live/salesforce-rest-support-records.ts:526 (redirect: manual, bounded body)'
-  - platform/src/privacy/egress.test.ts, egress-startup.test.ts (startup fails closed for non-allowlisted live endpoints)
-  - platform/src/knowledge/search.ts (retrieval reads the database only)
-  gap: Enforced per adapter; fetchImpl is injectable and no shared allowlisted HTTP client or lint rule prevents a future connector from calling arbitrary hosts.
+  - test/integration/connectors/pinning.test.ts [FO-06-20] (N17 killed)
+  - transport.test.ts [FO-06-20]
+  - lint-rules.test.ts
+  gap: The Salesforce adapter keeps its reviewed fetch lint exception until WP-07 moves it onto the transport.
   remediation: Add ConnectorHttpClient (profile allowlist, no redirects, size/time bounds, egress classification) and an ESLint no-restricted-globals/imports rule for fetch/http/https outside it.
   size: S
   environmentDependency: none
@@ -549,6 +620,11 @@ requirements:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-06-21
   section: '6'
   subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
@@ -565,8 +641,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'All caller- and model-supplied values reach SQL only as $n parameters. SQL text is sometimes assembled from internal constant fragments: platform/src/actions/action-service.ts:1667 (`where ${where}`), platform/src/retention/job.ts:230-241 (`${table}`, `${expiredWhere}`), platform/src/retention/verifiers.ts:25 and column-list constants in support-request-service.ts and read-models.ts.'
-  gap: Satisfied by construction only; no automated guard and no warehouse template mechanism yet.
+  - lint-rules.test.ts [FO-06-21]
+  gap: Warehouse templates (WP-21) do not exist, and SQL sinks are recognised by name (query/exec).
   remediation: Add a lint/CI check for SQL string interpolation and adversarial tests with the Snowflake/Athena template engine (FO-06-61).
   size: S
   environmentDependency: none
@@ -575,6 +651,11 @@ requirements:
     origin: extraction
     challengeCorrected:
     - evidence
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-06-22
   section: '6'
   subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
@@ -587,19 +668,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'grep: no eval/new Function in platform/src; child_process only execFileSync with fixed arguments in platform/src/evaluation/manifest.ts:29 and platform/src/policy/ensure-bundle.ts:17'
-  - platform/src/gateway/catalog.test.ts:74 (frozen catalogue, no runtime registration)
-  gap: Holds by construction; platform/eslint.config.js does not enable no-eval/no-new-func/no-implied-eval or restrict dynamic import.
+  - lint-rules.test.ts [FO-06-22] incl. WebAssembly probes
+  gap: None for the acceptance; lint is a first gate, not a sandbox.
   remediation: Enable those lint rules and a restricted-imports rule for child_process/vm/worker_threads outside an allowlist.
   size: S
   environmentDependency: none
-  workPackage: WP-06
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-06-23
   section: '6'
   subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
@@ -612,18 +697,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - No DSL or declarative adapter; every adapter is hand-written TypeScript (platform/src/adapters/live/*)
-  gap: Operators cannot connect an unknown internal API without code changes.
+  - dsl.test.ts [FO-06-23] step limit / output-size limit
+  - dsl.property.test.ts [FO-06-23]
+  - mutants D01, D02 killed
+  gap: None for the acceptance.
   remediation: Implement a JSON-pointer based mapping DSL (rename, cast, enum map, date/zone parse, unit conversion) over reviewed operation templates (method, path template with typed params, request/response JSON Schema) and use it for the business-system reference integration.
   size: L
   environmentDependency: none
-  workPackage: WP-06
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-24
   section: '6'
   subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
@@ -667,10 +759,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/live/blocked-base.ts (BLOCKED_CAPABILITY_UNVERIFIED)
-  - platform/src/adapters/live/blocked.test.ts:91-114
-  - platform/src/gateway/http/webhook-routes.ts:6-14 (WEBHOOK_AUTH_UNVERIFIED outside local/ci)
-  gap: 'None for the acceptance: every refused operation throws a typed BLOCKED error, reports unhealthy and names no invented endpoint (blocked.test.ts:91-114). Follow-up outside the acceptance, with owners: WP-06 adds typed refusal reasons UNSUPPORTED_UNDOCUMENTED versus NOT_IMPLEMENTED; WP-07 removes the BLOCKED stubs and its live-registry scan refuses any not-implemented operation in a live composition.'
+  - src/adapters/refusals.test.ts [FO-06-25]
+  gap: 'Regression only: WP-07 removes the BLOCKED stubs from the live composition.'
   remediation: Keep the pattern for genuinely undocumented behaviour only (WP-06); WP-07 live-registry scan.
   size: S
   environmentDependency: none
@@ -682,6 +772,11 @@ requirements:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
     - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it; the reason-code follow-up is now a WP-06 deliverable instead of an unowned gap'
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-06-26
   section: '6'
   subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
@@ -2537,20 +2632,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/outbox/dispatcher.ts:261-310 (DEAD state, listDead/requeueDead exist for OUTBOUND outbox messages only)
-  - 'no inbound inbox table or consumer exists (grep inbound_events/inbox in platform/migrations and platform/src: none)'
-  - c2 FO-06-10 limits the DLQ requirement to outbound deliveries; section 6 lists DLQ among the transport properties of every connector
-  gap: The only DLQ is the outbound outbox. Nothing captures inbound processing failures, so a poison CDC or webhook event would either block its stream or be dropped.
+  - ingress/processing.test.ts [FO-06-97] poison -> INBOUND_DEAD with alarm; replay needs audit + MFA
+  - src/ingress/ingress.test.ts [FO-06-97] future MFA refused; replay limit
+  gap: Stream watermark gaps are shown only with an in-test StreamSource, and the CloudWatch alarm is WP-39's.
   remediation: Add an INBOUND_DEAD state with attempts/last_error columns to the inbound inbox proposed in FO-07-17. Reuse PgOutboxDispatcher's bounded backoff and its audited requeueDead pattern for inbox consumers. Record the dead-lettered position as a gap in source_watermarks (FO-07-23), and expose list and replay in the console DLQ work queue (section 14).
   size: M
   environmentDependency: none for software; SQS DLQ in AWS for VERIFIED_SANDBOX
   workPackage: WP-04
   provenance:
     origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-98
   section: '6'
   subsection: Configurable connectors (general)
@@ -2563,20 +2662,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - ingress.events
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/gateway/http/webhook-routes.ts:6-14 (single synthetic LOCAL FIXTURE HMAC key; WEBHOOK_AUTH_UNVERIFIED outside local/ci)
-  - platform/src/gateway/auth.ts:192 (JWKS key rotation exists for inbound JWTs only)
-  - 'no secret resolver exists (FO-06-04 MISSING; grep GetSecretValue/SecretResolver: documentation only)'
-  gap: Section 6 requires token rotation for connectors, but rotation is modelled only for outbound OAuth (FO-06-03) and inbound JWKS. Inbound feeds that use shared secrets or certificates have no rotation model.
+  - ingress/http.test.ts [FO-06-98][FO-15-50] Secrets Manager rotation inside the overlap only (17/17 x3)
+  - ingress/http.test.ts [FO-06-98] AWSPENDING staged before promotion
+  gap: LocalStack Secrets Manager only; the rotation function and per-source secrets belong to WP-39 and activation.
   remediation: Add a credential-version list (current, next, notAfter) to the ingress verifier registry, resolved through SecretResolver (FO-06-04) with a bounded refresh. Verify against every active version in constant time, persist credentialVersion with the inbox record, and test rotation against each emulator.
   size: S
   environmentDependency: Secrets Manager rotation configuration per tenant/source
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-99
   section: '6'
   subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)

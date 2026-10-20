@@ -1044,24 +1044,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - actions.effects
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/migrations/0100_action_ledger.sql (action_ledger_one_in_doubt_per_record)
-  - platform/src/actions/action-service.ts:760-781,1379-1431 (commit_attempt_id fencing)
-  - platform/src/actions/action-service.test.ts:764,784
-  - platform/src/actions/action-service.property.test.ts
-  gap: 'PGlite is single-connection: true multi-connection races are exercised only through optimistic predicates. IMPLEMENTED, not VERIFIED_LOCAL: PGlite is single-connection, so concurrent commits were never contended; ADR-0018 decision 7.2 rules PGlite out as evidence for multi-connection concurrency (WP-04 postgres:16 contention suite).'
+  - 'substrate/contention.test.ts two replicas commit one action: one provider commit, one effect'
+  gap: Each real vendor's idempotency handling must be verified per connector.
   remediation: Add a Docker Postgres multi-connection concurrency test (Layer 2).
   size: S
   environmentDependency: none
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: PGlite is single-connection, so concurrent commits were never contended; ADR-0018 decision 7.2 rules PGlite out as evidence for multi-connection concurrency (WP-04 postgres:16 contention suite).'
     repairStatusFrom: VERIFIED_LOCAL
-  workPackage: WP-04
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-10-44
   section: '10'
   kind: evaluation

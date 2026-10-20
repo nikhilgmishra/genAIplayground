@@ -6,7 +6,7 @@
   "countsTowardHumanReviewedRequirement": false,
   "riskClass": "transaction",
   "description": "Process crash, ambiguous timeout or partial write after the external system committed; exactly one effect and reconciliation before success.",
-  "generator": "platform/src/evaluation/generate-risk.ts@1",
+  "generator": "platform/src/evaluation/generate-risk.ts@2",
   "requiredReviewers": [
     "security_leadership",
     "sre_lead"
@@ -23,7 +23,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_001",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "appointment_reschedule",
         "audience": "client",
         "locale": "en-US",
@@ -125,7 +125,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_002",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "regression",
         "intent": "appointment_reschedule",
         "audience": "client",
         "locale": "en-US",
@@ -221,7 +221,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_003",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "appointment_reschedule",
         "audience": "client",
         "locale": "en-US",
@@ -323,7 +323,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_004",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "appointment_reschedule",
         "audience": "client",
         "locale": "en-US",
@@ -419,7 +419,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_005",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "regression",
         "intent": "appointment_reschedule",
         "audience": "client",
         "locale": "en-US",
@@ -521,7 +521,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_006",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "regression",
         "intent": "appointment_reschedule",
         "audience": "client",
         "locale": "en-US",
@@ -718,7 +718,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_008",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "appointment_create",
         "audience": "client",
         "locale": "en-US",
@@ -1205,7 +1205,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_013",
         "version": 2,
-        "split": "development",
+        "split": "tuning",
         "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",
@@ -1323,7 +1323,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_014",
         "version": 2,
-        "split": "development",
+        "split": "tuning",
         "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",
@@ -1435,7 +1435,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_015",
         "version": 2,
-        "split": "development",
+        "split": "tuning",
         "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",
@@ -1553,7 +1553,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_016",
         "version": 2,
-        "split": "development",
+        "split": "tuning",
         "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",
@@ -1665,7 +1665,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_017",
         "version": 2,
-        "split": "heldout_acceptance",
+        "split": "tuning",
         "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",
@@ -1783,7 +1783,7 @@
       "scenario": {
         "scenarioId": "scn_risk_crash_after_commit_018",
         "version": 2,
-        "split": "development",
+        "split": "tuning",
         "intent": "appointment_slot_conflict",
         "audience": "client",
         "locale": "en-US",

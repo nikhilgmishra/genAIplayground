@@ -108,6 +108,27 @@ registers them under the config adapter keys (`createLocalFixtureSet`).
   retention duration is invented. Statuses: `IMPLEMENTED_OFFLINE` (Salesforce only),
   `BLOCKED`, `UNKNOWN`.
 
+### Typed refusal reasons (WP-06, FO-06-25 follow-up)
+
+`errors.ts` separates two refusals that used to share one error:
+
+| Reason | Meaning | Error |
+|---|---|---|
+| `UNSUPPORTED_UNDOCUMENTED` | The vendor behaviour is not documented (or there is no tenant evidence): the operation stays refused until a documented API exists. Every `BLOCKED_CAPABILITY_UNVERIFIED` stub carries it by default. | `UnsupportedOperationError`, `BlockedCapabilityError` |
+| `NOT_IMPLEMENTED` | The behaviour is documented but not built yet. | `NotImplementedOperationError` |
+
+`refusalOf(err)` reads the reason from any of them. A registration may declare `refusals`
+(operation, or `*`, to reason); a BLOCKED stub that declares none gets `{ "*": UNSUPPORTED_UNDOCUMENTED }`,
+and an unknown reason is refused at registration (`ADAPTER_REFUSALS_INVALID`).
+`AdapterRegistry.liveCompositionRefusals()` lists the refusals of live adapters and
+`notImplementedLiveOperations()` the NOT_IMPLEMENTED ones, which the live composition (WP-07) refuses to start
+with. The blocked live set of a deployed process today is entirely UNSUPPORTED_UNDOCUMENTED
+(`refusals.test.ts`).
+
+New connectors are built on the connector runtime (`platform/src/connectors`), not as hand-written
+adapters: the runtime enforces the `ConnectorProfile` (declared operations, scopes, budgets, pagination,
+mapping) for every family.
+
 ## What is BLOCKED and why
 
 | Capability | Status | Prerequisite (owner) | Smallest next action |

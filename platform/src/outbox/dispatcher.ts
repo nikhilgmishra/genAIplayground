@@ -20,7 +20,7 @@ import { auditStreamName } from "../audit/schema.js";
 import { AuditEventInput } from "../protocol/index.js";
 import type { Clock } from "../shared/clock.js";
 import { addMs, iso } from "../shared/clock.js";
-import { ValidationError } from "../shared/errors.js";
+import { AuditUnavailableError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
 import type { MessagePublisher, OutboxDispatcher, OutboxMessage, OutboxMessageInput } from "./ports.js";
 
@@ -83,7 +83,7 @@ export interface PgOutboxDispatcherOptions {
   /** Injectable jitter source in [0, 1). */
   random?: () => number;
   logger?: Logger;
-  /** When provided, operator repair actions are audited in the same transaction (fail closed). */
+  /** Audits operator repair actions in the same transaction; without it requeueDead is refused (fail closed, FO-06-10). */
   audit?: AuditWriter;
   /**
    * Dispatcher instance id (e.g. the ECS task id). Audit events go to the per-instance stream
@@ -292,11 +292,15 @@ export class PgOutboxDispatcher implements OutboxDispatcher {
   }
 
   /**
-   * Operator repair: return a dead-lettered message to PENDING with a fresh attempt budget.
-   * Audited in the same transaction when an audit writer is configured (fails closed).
+   * Operator repair: return a dead-lettered message to PENDING with a fresh attempt budget (FO-06-10).
+   * Always audited in the same transaction: without a composed audit writer, or without the operator
+   * (actor and reason code), the requeue is refused before anything changes; an audit write that fails
+   * rolls the requeue back (fails closed, OPS-01). Returns false when the message is not dead-lettered.
    */
   async requeueDead(messageId: string, operator?: { actorRef: string; reasonCode: string; correlationId?: string }): Promise<boolean> {
     if (!MESSAGE_ID.test(messageId)) throw new ValidationError("OUTBOX_MESSAGE_ID_INVALID");
+    const audit = this.opts.audit;
+    if (!audit) throw new AuditUnavailableError("OUTBOX_REQUEUE_AUDIT_NOT_CONFIGURED");
     const now = this.opts.clock.now();
     for (const tenantId of await this.tenants()) {
       const done = await this.opts.db.tx(
@@ -309,13 +313,15 @@ export class PgOutboxDispatcher implements OutboxDispatcher {
             [messageId, iso(now), tenantId],
           );
           if (r.rowCount === 0) return false;
-          if (this.opts.audit) {
+          // A repair without an accountable operator is refused (rolled back with the transaction).
+          if (!operator) throw new ValidationError("OUTBOX_REQUEUE_OPERATOR_REQUIRED");
+          {
             const input = AuditEventInput.parse({
               occurredAt: iso(now),
-              correlationId: operator?.correlationId ?? messageId,
+              correlationId: operator.correlationId ?? messageId,
               parentId: null,
               tenantId,
-              actorRef: operator?.actorRef ?? null,
+              actorRef: operator.actorRef,
               subjectRef: null,
               role: null,
               sourceComponent: "worker",
@@ -332,10 +338,10 @@ export class PgOutboxDispatcher implements OutboxDispatcher {
               afterHash: null,
               idempotencyKey: null,
               outcome: "SUCCEEDED",
-              reasonCode: operator?.reasonCode ?? "OPERATOR_REQUEUE",
+              reasonCode: operator.reasonCode,
               dataClass: "SECURITY_AUDIT",
             });
-            await this.opts.audit.append(tx, input, this.auditStream);
+            await audit.append(tx, input, this.auditStream);
           }
           return true;
         },

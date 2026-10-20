@@ -6,11 +6,17 @@
 # slice is externally BLOCKED (owner prerequisite in docs/prerequisites.yaml).
 # `aliases` maps tags that tests already use to the canonical id.
 #
+# Every invariant carries an invariant `register` (FO-02-28, work package WP-01): the follow-on row, the
+# threat-model rows it mitigates, positive / direct adversarial / failure-injection tests (file plus a
+# distinctive part of the test title), the evidence artifact, the owner role and package, the activation
+# register dependencies, the secondary packages that add tests at their own boundary and open register gaps.
+# platform/test/invariants/register.test.ts fails when any attribute is missing or stale.
+#
 # The traceability generator (platform/src/evaluation/traceability.ts) reads this
 # file, scans test titles for [TAG]s and renders docs/REQUIREMENTS_TRACEABILITY.md.
 # Release status is never inferred from this file alone: IMPLEMENTED_OFFLINE needs
 # at least one tagged test and every tagged test passing in a recorded run.
-catalogVersion: "2026-10-18.1"
+catalogVersion: "2026-10-19.1"
 source: docs/spec/voice-support-specification.txt
 verificationTypes: [unit, property, contract, adversarial, workflow, audio, load, manual, operational]
 requirements:
@@ -22,6 +28,21 @@ requirements:
     enforcement: [platform/src/identity, policy/]
     verification: [unit, adversarial]
     externalBlock: { reason: "Real IdP account linking and registered-channel data", prerequisites: [PRQ-005, PRQ-030] }
+    register:
+      followOnId: FO-02-01
+      threatIds: [T-01, T-02, T-03, T-29]
+      positiveTests:
+        - { file: platform/src/adapters/local/identity-directory.test.ts, title: "name + DOB match exactly after normalisation and only locate a candidate" }
+      adversarialTests:
+        - { file: platform/src/identity/verification-service.test.ts, title: "name + DOB, caller ID and NPI-like claims never raise assurance" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "the secure-link notification channel and the identity directory fail" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/AUTH-01"
+      ownerRole: "Identity and access owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-12, AIN-15]
+      secondaryPackages: [WP-05, WP-10, WP-12, WP-13, WP-16, WP-19]
+      openGaps: []
   - id: AUTH-02
     kind: invariant
     section: "Acceptance invariants; 7, 14"
@@ -29,6 +50,22 @@ requirements:
     enforcement: [platform/src/gateway, platform/src/policy, policy/]
     verification: [unit, adversarial]
     externalBlock: null
+    register:
+      followOnId: FO-02-02
+      threatIds: [T-07, T-30]
+      positiveTests:
+        - { file: platform/test/journeys/j3-j4-authorization.test.ts, title: "Riley reads North's remittance (delegated) and is denied South's" }
+      adversarialTests:
+        - { file: platform/src/actions/action-service.test.ts, title: "a different session (even same tenant) cannot commit another session's action" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/policy-engine-error.fault.test.ts, title: "protected reads and actions fail closed with POLICY_ENGINE_ERROR" }
+        - { file: platform/src/console-api/rbac.test.ts, title: "deny by default: with no loadable policy bundle every authenticated endpoint is refused" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/AUTH-02"
+      ownerRole: "Identity and access owner"
+      ownerPackage: WP-43
+      activationDependency: []
+      secondaryPackages: [WP-07, WP-10, WP-16, WP-23, WP-38]
+      openGaps: []
   - id: AUTH-03
     kind: invariant
     section: "Acceptance invariants; 7"
@@ -36,6 +73,24 @@ requirements:
     enforcement: [platform/src/identity, platform/src/gateway, platform/src/protocol/common.ts]
     verification: [unit, adversarial]
     externalBlock: { reason: "Vendor session binding outside model-controlled arguments (TB-01)", prerequisites: [PRQ-013] }
+    register:
+      followOnId: FO-02-03
+      threatIds: [T-01, T-04, T-07, T-08, T-21]
+      positiveTests:
+        - { file: platform/src/identity/session-service.test.ts, title: "AuthContext is rebuilt from server state only" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "server-established assurance within the scenario's tier passes" }
+      adversarialTests:
+        - { file: platform/src/gateway/catalog.test.ts, title: "a tool input may never declare a server-established identity field" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "assurance above the tier the server could establish" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "the trusted session store fails or holds a torn record" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "assurance not collected from the backend is INCONCLUSIVE" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/AUTH-03"
+      ownerRole: "Identity and access owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-08, AIN-18]
+      secondaryPackages: [WP-01, WP-02, WP-10, WP-11, WP-16]
+      openGaps: []
   - id: AUTH-04
     kind: invariant
     section: "Acceptance invariants; 7"
@@ -43,6 +98,21 @@ requirements:
     enforcement: [platform/src/identity]
     verification: [unit]
     externalBlock: null
+    register:
+      followOnId: FO-02-04
+      threatIds: [T-04, T-05]
+      positiveTests:
+        - { file: platform/src/identity/session-service.test.ts, title: "expired session fails closed although the KV item still exists" }
+      adversarialTests:
+        - { file: platform/src/actions/action-service.test.ts, title: "an expired session context cannot commit even though no TTL cleanup ran" }
+      failureInjectionTests:
+        - { file: platform/test/journeys/faults.test.ts, title: "authentication expiry mid-call: protected tools fail closed before TTL cleanup" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/AUTH-04"
+      ownerRole: "Identity and access owner"
+      ownerPackage: WP-43
+      activationDependency: []
+      secondaryPackages: [WP-04, WP-05, WP-14, WP-27]
+      openGaps: []
   - id: AUTH-05
     kind: invariant
     section: "Acceptance invariants; 4, 7"
@@ -50,6 +120,24 @@ requirements:
     enforcement: [policy/, platform/src/identity, platform/migrations]
     verification: [unit, adversarial]
     externalBlock: { reason: "Authoritative enrollment and delegation registries", prerequisites: [PRQ-005, PRQ-007] }
+    register:
+      followOnId: FO-02-05
+      threatIds: [T-06, T-07, T-27]
+      positiveTests:
+        - { file: platform/test/journeys/j3-j4-authorization.test.ts, title: "Riley reads North's remittance (delegated) and is denied South's" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "a caller without a relationship to the record gets no protected disclosure" }
+      adversarialTests:
+        - { file: platform/test/journeys/j3-j4-authorization.test.ts, title: "Quinn gets no individual record" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "a protected disclosure to a caller the scenario permits none" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "the relationship directory fails: a practice user's delegated read fails closed" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "disclosure evidence not collected is INCONCLUSIVE" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/AUTH-05"
+      ownerRole: "Identity and access owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-10, AIN-12, AIN-14]
+      secondaryPackages: [WP-01, WP-19, WP-20, WP-21, WP-23, WP-24]
+      openGaps: []
   - id: AUTH-06
     kind: invariant
     section: "Acceptance invariants; 7"
@@ -57,6 +145,21 @@ requirements:
     enforcement: [platform/src/identity, platform/src/observability, platform/src/audit]
     verification: [unit, audio]
     externalBlock: { reason: "Isolated DTMF capture must be proven on the vendor path (TB-03)", prerequisites: [PRQ-015] }
+    register:
+      followOnId: FO-02-06
+      threatIds: [T-10, T-17, T-24]
+      positiveTests:
+        - { file: platform/src/audit/schema.test.ts, title: "pseudonymizes bearer session references before they become evidence" }
+      adversarialTests:
+        - { file: platform/src/audit/schema.test.ts, title: "rejects verification-secret shaped fields (otp, code) as unknown keys" }
+      failureInjectionTests:
+        - { file: platform/src/identity/session-service.test.ts, title: "session errors are reason codes only and logs never contain bearer session refs" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/AUTH-06"
+      ownerRole: "Identity and access owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-08]
+      secondaryPackages: [WP-10, WP-12, WP-13, WP-17]
+      openGaps: [AUDIO_RELEASE_BOUNDARY_NOT_BUILT]
   - id: AUTH-07
     kind: invariant
     section: "Acceptance invariants; 2"
@@ -64,6 +167,21 @@ requirements:
     enforcement: [platform/src/identity, talkdesk/auth-gate.md]
     verification: [unit, contract]
     externalBlock: { reason: "Auth Gate behaviour in a tenant sandbox (TB-06)", prerequisites: [PRQ-018] }
+    register:
+      followOnId: FO-02-07
+      threatIds: [T-20, T-21]
+      positiveTests:
+        - { file: platform/src/identity/session-service.test.ts, title: "initial session is A0, generation 1, and its Auth Gate value is literally false" }
+      adversarialTests:
+        - { file: platform/src/gateway/http/routes.test.ts, title: "auth-gate matrix over HTTP" }
+      failureInjectionTests:
+        - { file: platform/src/identity/session-service.test.ts, title: "gate fails closed (does not throw) when the session store is unavailable" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/AUTH-07"
+      ownerRole: "Identity and access owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-08]
+      secondaryPackages: [WP-29]
+      openGaps: []
   - id: DATA-01
     kind: invariant
     section: "Acceptance invariants; 6"
@@ -71,6 +189,24 @@ requirements:
     enforcement: [platform/src/privacy, platform/src/observability, platform/src/config]
     verification: [unit, operational]
     externalBlock: { reason: "BAA coverage and approved observability export", prerequisites: [PRQ-002, PRQ-047] }
+    register:
+      followOnId: FO-02-08
+      threatIds: [T-06, T-09, T-10, T-11, T-12]
+      positiveTests:
+        - { file: platform/src/audit/query.test.ts, title: "results carry security metadata only" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "only approved egress passes the privacy egress gate" }
+      adversarialTests:
+        - { file: platform/src/actions/action-service.test.ts, title: "the session bearer value never reaches the ledger, locator, audit or outbox" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "PHI sent to an unapproved destination fails the privacy egress gate" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "a dependency error that carries PHI text never reaches the tool result" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "egress observations not collected are INCONCLUSIVE" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/DATA-01"
+      ownerRole: "Privacy engineering owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-02, AIN-37]
+      secondaryPackages: [WP-01, WP-06, WP-07, WP-08, WP-13, WP-21, WP-27]
+      openGaps: []
   - id: DATA-02
     kind: invariant
     section: "Acceptance invariants; 6"
@@ -78,6 +214,21 @@ requirements:
     enforcement: [platform/src/privacy, platform/src/retention, docs/privacy]
     verification: [unit, manual]
     externalBlock: { reason: "Reviewed data-flow inventory covering vendor audio paths", prerequisites: [PRQ-003] }
+    register:
+      followOnId: FO-02-09
+      threatIds: [T-34]
+      positiveTests:
+        - { file: platform/src/privacy/classification.test.ts, title: "raw audio is PHI_RESTRICTED / RESTRICTED_QA_MEDIA regardless of any redaction status" }
+      adversarialTests:
+        - { file: platform/src/privacy/classification.test.ts, title: "derivation never lowers sensitivity" }
+      failureInjectionTests:
+        - { file: platform/src/privacy/redaction.test.ts, title: "redaction failure quarantines: invalid input, oversized input, invalid context" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/DATA-02"
+      ownerRole: "Privacy engineering owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-05]
+      secondaryPackages: [WP-13, WP-14, WP-17, WP-22, WP-34, WP-35]
+      openGaps: [AUDIO_RELEASE_BOUNDARY_NOT_BUILT]
   - id: DATA-03
     kind: invariant
     section: "Acceptance invariants; 6"
@@ -85,6 +236,22 @@ requirements:
     enforcement: [platform/src/privacy, platform/src/retention, talkdesk/studio-flow-spec.md]
     verification: [unit, audio]
     externalBlock: { reason: "Approved consent wording and retention schedule", prerequisites: [PRQ-025, PRQ-026] }
+    register:
+      followOnId: FO-02-10
+      threatIds: [T-35]
+      positiveTests:
+        - { file: platform/src/policy/engine.test.ts, title: "consent declined leaves only safety, human, public and intake" }
+      adversarialTests:
+        - { file: platform/src/policy/engine.test.ts, title: "consent UNKNOWN is never consent for protected work" }
+      failureInjectionTests:
+        - { file: platform/src/retention/retention.test.ts, title: "a subject-scoped hold on a dataset without a subject column blocks the whole dataset" }
+        - { file: platform/test/invariants/property.test.ts, title: "the retention job deletes exactly the expired, unheld rows of its tenant" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/DATA-03"
+      ownerRole: "Privacy engineering owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-23, AIN-25]
+      secondaryPackages: [WP-11, WP-22, WP-25, WP-37]
+      openGaps: []
   - id: DATA-04
     kind: invariant
     section: "Acceptance invariants; 9"
@@ -92,6 +259,24 @@ requirements:
     enforcement: [platform/src/memory]
     verification: [unit]
     externalBlock: null
+    register:
+      followOnId: FO-02-11
+      threatIds: [T-31]
+      positiveTests:
+        - { file: platform/src/business/cases.test.ts, title: "a verified repeat caller hears a short recap of the open request from support memory" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "no memory recap before authentication" }
+      adversarialTests:
+        - { file: platform/src/identity/session-service.test.ts, title: "memory- or summary-derived identity, assurance and consent fields are rejected by every session mutation" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "a recap from support memory before authentication fails the privacy gate" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "support memory fails or returns a forged recap" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "spoken actions not observed are INCONCLUSIVE" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/DATA-04"
+      ownerRole: "Privacy engineering owner"
+      ownerPackage: WP-43
+      activationDependency: []
+      secondaryPackages: [WP-01, WP-10, WP-18, WP-22, WP-24]
+      openGaps: []
   - id: ACT-01
     kind: invariant
     section: "Acceptance invariants; 8"
@@ -99,6 +284,21 @@ requirements:
     enforcement: [platform/src/actions, platform/src/voice]
     verification: [unit, property, workflow]
     externalBlock: { reason: "Deterministic confirmation capture on the vendor path (TB-02)", prerequisites: [PRQ-014] }
+    register:
+      followOnId: FO-02-12
+      threatIds: [T-05, T-08, T-15]
+      positiveTests:
+        - { file: platform/src/gateway/http/routes.test.ts, title: "TC-07 returns the server-side prepared action with a gateway-rendered prompt and a fresh turn" }
+      adversarialTests:
+        - { file: platform/src/actions/action-service.invalidation.test.ts, title: "changed request while the first action is in doubt" }
+      failureInjectionTests:
+        - { file: platform/src/actions/action-service.invalidation.test.ts, title: "a port that cannot re-establish the caller's current authority is refused" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/ACT-01"
+      ownerRole: "Transactions (action ledger) owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-08]
+      secondaryPackages: [WP-14, WP-16, WP-25, WP-27]
+      openGaps: []
   - id: ACT-02
     kind: invariant
     section: "Acceptance invariants; 8"
@@ -106,6 +306,22 @@ requirements:
     enforcement: [platform/src/actions, platform/src/outbox]
     verification: [unit, property, workflow]
     externalBlock: { reason: "Provider idempotency semantics for real business systems", prerequisites: [PRQ-007] }
+    register:
+      followOnId: FO-02-13
+      threatIds: [T-05, T-13, T-28]
+      positiveTests:
+        - { file: platform/src/actions/action-service.reconciliation.test.ts, title: "commits with the SAME provider idempotency key, exactly one effect" }
+      adversarialTests:
+        - { file: platform/src/actions/tool-idempotency.test.ts, title: "the same key with a different request hash is rejected (IDEMPOTENCY_KEY_REUSED)" }
+      failureInjectionTests:
+        - { file: platform/src/actions/action-service.test.ts, title: "crash after the provider commit (process dies before tx2) then reconcile" }
+        - { file: platform/src/actions/action-service.property.test.ts, title: "random retry/redelivery/crash interleavings" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/ACT-02"
+      ownerRole: "Transactions (action ledger) owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-10]
+      secondaryPackages: [WP-04, WP-23, WP-25, WP-26, WP-29, WP-42]
+      openGaps: []
   - id: ACT-03
     kind: invariant
     section: "Acceptance invariants; 8"
@@ -113,6 +329,21 @@ requirements:
     enforcement: [platform/src/actions]
     verification: [unit, workflow]
     externalBlock: { reason: "Authoritative lookup-by-key in real business systems", prerequisites: [PRQ-007] }
+    register:
+      followOnId: FO-02-14
+      threatIds: [T-28]
+      positiveTests:
+        - { file: platform/src/actions/action-service.invalidation.test.ts, title: "barge-in after an UNKNOWN commit is recorded durably" }
+      adversarialTests:
+        - { file: platform/src/actions/action-service.reconciliation.test.ts, title: "never retries after a COMMITTED or UNKNOWN reconciliation" }
+      failureInjectionTests:
+        - { file: platform/src/actions/action-service.test.ts, title: "an ambiguous timeout after send yields UNKNOWN (never success)" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/ACT-03"
+      ownerRole: "Transactions (action ledger) owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-10]
+      secondaryPackages: [WP-06, WP-23, WP-25, WP-29]
+      openGaps: []
   - id: ACT-04
     kind: invariant
     section: "Acceptance invariants; 4"
@@ -120,6 +351,24 @@ requirements:
     enforcement: [platform/src/workflows, platform/src/business, platform/src/evaluation/scorer.ts]
     verification: [unit, workflow]
     externalBlock: null
+    register:
+      followOnId: FO-02-15
+      threatIds: [T-36]
+      positiveTests:
+        - { file: platform/src/business/outcomes.test.ts, title: "only RESOLVED with this call's verified receipt is a verified resolution" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "RESOLVED backed by the commit receipt passes the outcome-evidence gate" }
+      adversarialTests:
+        - { file: platform/src/business/billing.test.ts, title: "review commit marks IN_REVIEW, starts billing_dispute_review and creates a support request in the same commit" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "RESOLVED without a receipt (case created or workflow accepted only)" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "the CRM is down when a support request is created" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "committed state not read from the authoritative backend is INCONCLUSIVE" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/ACT-04"
+      ownerRole: "Transactions (action ledger) owner"
+      ownerPackage: WP-43
+      activationDependency: []
+      secondaryPackages: [WP-01, WP-25, WP-29, WP-30, WP-34]
+      openGaps: []
   - id: ACT-05
     kind: invariant
     section: "Acceptance invariants; 11"
@@ -127,6 +376,22 @@ requirements:
     enforcement: [platform/src/voice]
     verification: [unit, audio]
     externalBlock: { reason: "Before-speech validation on the vendor path (TB-04)", prerequisites: [PRQ-016] }
+    register:
+      followOnId: FO-02-16
+      threatIds: [T-09, T-25, T-26]
+      positiveTests:
+        - { file: platform/src/business/wiring.test.ts, title: "reschedule: from/to date, time, time zone and visit type from the authoritative prepared change" }
+      adversarialTests:
+        - { file: platform/src/voice/gate.test.ts, title: "a protected template without authorization fails closed to the safe fallback + human route" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "the template store loses the protected template" }
+        - { file: platform/test/invariants/property.test.ts, title: "speech from any earlier generation is dropped" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/ACT-05"
+      ownerRole: "Voice release boundary owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-08]
+      secondaryPackages: [WP-14, WP-15, WP-16, WP-17]
+      openGaps: [AUDIO_RELEASE_BOUNDARY_NOT_BUILT]
   - id: SAFE-01
     kind: invariant
     section: "Acceptance invariants; 10"
@@ -134,6 +399,24 @@ requirements:
     enforcement: [platform/src/safety, platform/src/voice]
     verification: [unit, adversarial, manual]
     externalBlock: { reason: "Clinician-approved boundary scripts and human-reviewed clinical corpus", prerequisites: [PRQ-008, PRQ-028, PRQ-012] }
+    register:
+      followOnId: FO-02-17
+      threatIds: [T-37]
+      positiveTests:
+        - { file: platform/src/safety/clinical-boundary.test.ts, title: "clinical, medication and diagnosis questions route to the boundary template + clinician route" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "no diagnosis, therapy, screening or medication advice" }
+      adversarialTests:
+        - { file: platform/src/voice/registry.test.ts, title: "a template with medication or diagnostic advice is rejected at load" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "a spoken diagnosis fails the safety gate" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "the clinical route cannot be reached (telephony down)" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "speech not observed is INCONCLUSIVE" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/SAFE-01"
+      ownerRole: "Clinical safety engineering owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-21, AIN-22, AIN-31]
+      secondaryPackages: [WP-01, WP-10, WP-16, WP-20, WP-35]
+      openGaps: []
   - id: SAFE-02
     kind: invariant
     section: "Acceptance invariants; 10"
@@ -141,6 +424,22 @@ requirements:
     enforcement: [platform/src/safety, platform/src/ops, platform/src/gateway]
     verification: [unit, workflow, audio]
     externalBlock: { reason: "Early safety signal and deterministic handoff on the vendor path (TB-05)", prerequisites: [PRQ-017] }
+    register:
+      followOnId: FO-02-18
+      threatIds: [T-22]
+      positiveTests:
+        - { file: platform/src/business/handoff.test.ts, title: "an unverified (A0) caller reaches a person" }
+      adversarialTests:
+        - { file: platform/src/gateway/http/routes.test.ts, title: "human request works with an invalid or missing session; a caller-supplied destination is rejected" }
+      failureInjectionTests:
+        - { file: platform/src/gateway/pipeline.db-outage.test.ts, title: "the human route still answers during the outage" }
+        - { file: platform/test/invariants/policy-engine-error.fault.test.ts, title: "safety and human routes stay available" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/SAFE-02"
+      ownerRole: "Clinical safety engineering owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-08]
+      secondaryPackages: [WP-11, WP-12, WP-15, WP-16]
+      openGaps: []
   - id: SAFE-03
     kind: invariant
     section: "Acceptance invariants; 2, 12"
@@ -148,6 +447,21 @@ requirements:
     enforcement: [platform/src/ops, platform/src/safety, talkdesk/ai-agent-config.yaml]
     verification: [unit, audio]
     externalBlock: { reason: "Guardrail exit behaviour in a tenant sandbox (TB-05)", prerequisites: [PRQ-017] }
+    register:
+      followOnId: FO-02-19
+      threatIds: [T-19, T-22, T-33]
+      positiveTests:
+        - { file: platform/src/business/handoff.test.ts, title: "the safety route needs no session" }
+      adversarialTests:
+        - { file: platform/src/safety/conversation-guard.property.test.ts, title: "no sequence of events in safety mode ever yields a non-safety action" }
+      failureInjectionTests:
+        - { file: platform/src/workflows/transfer.test.ts, title: "when telephony control is down a safety journey awaits retry" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/SAFE-03"
+      ownerRole: "Clinical safety engineering owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-08]
+      secondaryPackages: [WP-10, WP-15, WP-42]
+      openGaps: []
   - id: SAFE-04
     kind: invariant
     section: "Acceptance invariants; 10"
@@ -155,6 +469,21 @@ requirements:
     enforcement: [platform/src/workflows/transfer.ts]
     verification: [unit, workflow, audio]
     externalBlock: { reason: "Transfer event export from the vendor (TB-07)", prerequisites: [PRQ-019] }
+    register:
+      followOnId: FO-02-20
+      threatIds: [T-23, T-33]
+      positiveTests:
+        - { file: platform/src/adapters/local/telephony-fixture.transfer-contract.test.ts, title: "in-order delivery drives the state machine to CALLER_CONFIRMED_CONNECTED" }
+      adversarialTests:
+        - { file: platform/src/business/handoff.test.ts, title: "after a bridge drop the safety tool reports TRANSFER_REQUESTED, never a stale CONNECTED" }
+      failureInjectionTests:
+        - { file: platform/test/journeys/faults.test.ts, title: "every staffed route fails: approved updates, the outage-continuity destination" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/SAFE-04"
+      ownerRole: "Clinical safety engineering owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-07]
+      secondaryPackages: [WP-28, WP-29]
+      openGaps: []
   - id: SAFE-05
     kind: invariant
     section: "Acceptance invariants; 10"
@@ -162,6 +491,24 @@ requirements:
     enforcement: [platform/src/config, platform/src/workflows/transfer.ts]
     verification: [unit, adversarial]
     externalBlock: null
+    register:
+      followOnId: FO-02-21
+      threatIds: [T-23]
+      positiveTests:
+        - { file: platform/src/business/business-gaps.test.ts, title: "a staff-selected allowlisted destination is honoured" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "transfers only to allowlisted destination ids pass" }
+      adversarialTests:
+        - { file: platform/src/adapters/local/telephony-fixture.test.ts, title: "only allowlisted destination ids are accepted" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "a transfer to a caller-supplied target fails the safety gate" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "the standard destination is unavailable: the transfer fails over only to allowlisted destinations" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "transfer evidence not collected is INCONCLUSIVE" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/SAFE-05"
+      ownerRole: "Clinical safety engineering owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-06, AIN-18]
+      secondaryPackages: [WP-01, WP-12, WP-20, WP-27, WP-28]
+      openGaps: []
   - id: OPS-01
     kind: invariant
     section: "Acceptance invariants; 13"
@@ -169,6 +516,21 @@ requirements:
     enforcement: [platform/src/audit, platform/src/actions]
     verification: [unit, workflow, operational]
     externalBlock: { reason: "Separately administered audit account with Object Lock", prerequisites: [PRQ-037, PRQ-040] }
+    register:
+      followOnId: FO-02-22
+      threatIds: [T-16, T-32]
+      positiveTests:
+        - { file: platform/src/actions/action-service.reconciliation.test.ts, title: "reconcileWithResult COMMITTED returns the authoritative receipt and a durable record" }
+      adversarialTests:
+        - { file: platform/src/audit/deferred.test.ts, title: "the queue is bounded: beyond maxEntries a new event is dropped loudly" }
+      failureInjectionTests:
+        - { file: platform/src/actions/action-service.test.ts, title: "audit outage blocks commit before any provider call (zero effects)" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/OPS-01"
+      ownerRole: "Audit owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-01, AIN-03]
+      secondaryPackages: [WP-04, WP-07, WP-26]
+      openGaps: []
   - id: OPS-02
     kind: invariant
     section: "Acceptance invariants; 3, 12"
@@ -176,6 +538,21 @@ requirements:
     enforcement: [talkdesk/studio-flow-spec.md, platform/src/ops]
     verification: [operational, audio]
     externalBlock: { reason: "Staffed capacity, quotas and continuity arrangement", prerequisites: [PRQ-009, PRQ-022, PRQ-049] }
+    register:
+      followOnId: FO-02-23
+      threatIds: [T-19]
+      positiveTests:
+        - { file: platform/src/ops/admission.test.ts, title: "budget exhaustion yields continuity route not a drop" }
+      adversarialTests:
+        - { file: platform/src/ops/admission.test.ts, title: "property: every refusal of caller-facing work names an approved continuity route" }
+      failureInjectionTests:
+        - { file: platform/src/workflows/transfer.test.ts, title: "exhausted fallbacks route to OUTAGE_CONTINUITY and keep the caller connected" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/OPS-02"
+      ownerRole: "Telephony continuity owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-08, AIN-19, AIN-20]
+      secondaryPackages: [WP-12, WP-15, WP-39, WP-42]
+      openGaps: []
   - id: OPS-03
     kind: invariant
     section: "Acceptance invariants; 14"
@@ -185,6 +562,25 @@ requirements:
     externalBlock: null
     # Review finding id used by the release-manifest evidence-bound regression tests.
     aliases: [OPS-REL-01]
+    register:
+      followOnId: FO-02-24
+      threatIds: [T-38]
+      positiveTests:
+        - { file: platform/src/adapters/integration-inventory.test.ts, title: "no entry claims sandbox or production verification" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "a recorded PASS of every required run passes the gate over the fixed denominator" }
+      adversarialTests:
+        - { file: platform/src/adapters/live/blocked.test.ts, title: "BLOCKED stubs report themselves unhealthy so they can never count as an available route" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "a required scenario that was never executed fails the gate (REQUIRED_NOT_RUN)" }
+      failureInjectionTests:
+        - { file: platform/src/evaluation/runner.test.ts, title: "driver errors, invalid evidence, rejected faults and missing fault plans are INCONCLUSIVE, never PASS" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "the driver crashed (no evidence) or no test report exists" }
+        - { file: platform/test/invariants/policy-engine-error.fault.test.ts, title: "a run whose fault never reached the engine is INCONCLUSIVE" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/OPS-03"
+      ownerRole: "Evaluation and test-truth owner"
+      ownerPackage: WP-43
+      activationDependency: []
+      secondaryPackages: [WP-01, WP-32, WP-34, WP-45]
+      openGaps: []
   - id: OPS-04
     kind: invariant
     section: "Acceptance invariants; 16"
@@ -192,6 +588,24 @@ requirements:
     enforcement: [platform/src/config/guard.ts]
     verification: [unit]
     externalBlock: { reason: "Trusted approval signing key", prerequisites: [PRQ-023] }
+    register:
+      followOnId: FO-02-25
+      threatIds: [T-15, T-17]
+      positiveTests:
+        - { file: platform/src/main/container.test.ts, title: "buildContainer for committed production config throws ConfigurationRejectedError before binding any port" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "labelled local-fixture evidence is eligible for the local gate" }
+      adversarialTests:
+        - { file: platform/src/config/approvals.test.ts, title: "a tampered record, a foreign key or an algorithm mismatch fails verification" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "fixture evidence relabelled as a vendor-sandbox run fails the labelling gate" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "the approval trust key cannot be resolved" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "fixture evidence presented to the production gate is INCONCLUSIVE" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/OPS-04"
+      ownerRole: "Release and configuration owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-34]
+      secondaryPackages: [WP-01, WP-07, WP-09, WP-31, WP-40]
+      openGaps: []
   - id: OPS-05
     kind: invariant
     section: "Acceptance invariants; 12, 16"
@@ -199,6 +613,21 @@ requirements:
     enforcement: [platform/src/config/guard.ts, approvals/, platform/src/ops/budgets.ts]
     verification: [unit, operational]
     externalBlock: { reason: "Approved budgets and signed approval records", prerequisites: [PRQ-010, PRQ-024] }
+    register:
+      followOnId: FO-02-26
+      threatIds: [T-39]
+      positiveTests:
+        - { file: platform/src/config/guard.test.ts, title: "a live sandbox adapter with its own signed VENDOR_SANDBOX_INTEGRATION approval passes" }
+      adversarialTests:
+        - { file: platform/src/config/guard.test.ts, title: "PHI is impossible in sandbox: PHI_PROCESSING scopes and PHI endpoints are rejected" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "the approval trust key cannot be resolved" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/OPS-05"
+      ownerRole: "Release and configuration owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-30, AIN-34]
+      secondaryPackages: [WP-08, WP-27, WP-41, WP-45]
+      openGaps: []
   - id: OPS-06
     kind: invariant
     section: "Acceptance invariants; 15, 16"
@@ -209,6 +638,24 @@ requirements:
     # Review finding id used by the release.yml manifest-command regression tests.
     aliases: [OPS-REL-02]
 
+    register:
+      followOnId: FO-02-27
+      threatIds: [T-15, T-18, T-30]
+      positiveTests:
+        - { file: platform/src/evaluation/manifest.test.ts, title: "production manifest is schema-valid, BLOCKED, unsigned and lists every missing approval" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "pinned versions bound to the result pass the audit gate" }
+      adversarialTests:
+        - { file: platform/src/config/guard.test.ts, title: "an unreviewed model listed with the approval id of a record for another model is rejected" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "an unpinned model or policy version never passes the audit gate" }
+      failureInjectionTests:
+        - { file: platform/test/invariants/failure-injection.test.ts, title: "git and the policy bundle digest are unreadable" }
+        - { file: platform/test/invariants/evaluation-boundary.test.ts, title: "versions not collected are INCONCLUSIVE" }
+      evidenceArtifact: "evidence/test-reports/traceability.json#invariants/OPS-06"
+      ownerRole: "Release and configuration owner"
+      ownerPackage: WP-43
+      activationDependency: [AIN-08, AIN-33, AIN-35]
+      secondaryPackages: [WP-01, WP-09, WP-20, WP-31, WP-40]
+      openGaps: []
   # ---------------------------------------------------------------- section 2
   - id: SPEC-2.auth-gate-values
     kind: spec

@@ -1,0 +1,82 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "CONSENT_REVOKED",
+  "version": 1,
+  "title": "Consent revoked during a call or while work is pending",
+  "description": "The consent registry records a revocation (recording, transcription/AI processing or notification subscription) during the call or after work was accepted; recording, AI processing and notifications must stop for the revoked dimension.",
+  "category": "privacy",
+  "target": {
+    "components": [
+      "platform/src/privacy",
+      "media/src/worker",
+      "platform/src/notifications"
+    ],
+    "dependency": "consent_registry"
+  },
+  "trigger": {
+    "kind": "AT_TURN",
+    "tool": null,
+    "turnIndex": 1,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "CONSENT_REVOKED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "tokens_absent",
+      "gate": "privacy",
+      "tokens": [
+        "recording:started_after_decline"
+      ]
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller is told recording or automated processing has stopped and is offered a person.",
+  "backendEvidence": [
+    "Consent state EXPIRED/DECLINED recorded with time",
+    "Recorder stopped and no further AI processing for the call",
+    "Pending notifications for the revoked subscription cancelled"
+  ],
+  "requirementIds": [
+    "DATA-03",
+    "SPEC-7.privilege-expiry"
+  ],
+  "appliesToIntents": [
+    "recording_declined",
+    "notification_opt_out",
+    "billing_dispute"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:CONSENT_REVOKED] owned by WP-30 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.CONSENT_REVOKED",
+    "origin": "prompt_section_17",
+    "injectionPoint": "consent-registry revocation during a call and while work is pending",
+    "injectionPointPackages": [
+      "WP-19",
+      "WP-22"
+    ],
+    "postconditionPackages": [
+      "WP-11",
+      "WP-17",
+      "WP-22",
+      "WP-27"
+    ],
+    "layer2Owner": "WP-30",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "Recording and AI processing stop for the revoked dimension within the same turn",
+    "No notification is sent on a revoked subscription",
+    "The revocation and its effects are audited"
+  ]
+}

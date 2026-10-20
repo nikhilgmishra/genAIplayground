@@ -321,17 +321,16 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - actions.effects
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/actions/action-service.ts:1526-1548 (row_version predicate)
-  - platform/migrations/0100_action_ledger.sql
-  - platform/src/actions/action-service.test.ts:643,751,764,784
-  gap: 'PGlite single connection; real concurrent-connection behaviour unverified (documented in business/README ''Once per call under concurrency''). IMPLEMENTED, not VERIFIED_LOCAL: PGlite single connection: leases, fencing and optimistic concurrency were never contended by concurrent connections (ADR-0018 decision 7.2; WP-04 postgres:16 contention suite).'
+  - substrate/contention.test.ts two-connection race on the partial unique index; row_version race
+  gap: Emulators only.
   remediation: 'Add a Layer-2 suite that runs postgres:16 in Docker with PgPoolDb (platform/src/db/pg.ts, which currently has no test). Parameterize action-service.test.ts and action-service.property.test.ts over the db engine, and add a two-pool race test: two LedgerActionService instances commit the same action and the same record concurrently, and the test asserts one in-doubt row, commit_attempt_id fencing, a single provider call and correct row_version conflicts.'
   size: S
   environmentDependency: none
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
@@ -339,7 +338,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: PGlite single connection: leases, fencing and optimistic concurrency were never contended by concurrent connections (ADR-0018 decision 7.2; WP-04 postgres:16 contention suite).'
     repairStatusFrom: VERIFIED_LOCAL
-  workPackage: WP-04
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-11-14
   section: '11'
   kind: software

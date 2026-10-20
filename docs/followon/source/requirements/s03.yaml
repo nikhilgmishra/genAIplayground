@@ -238,10 +238,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit
-  - console/src/pages
-  - platform/src/console-api/plugin.ts
-  gap: Fixture-backed; independent export unverified. The console composition is refused outside local/ci and 'the deployed console access path is not in the infrastructure plan' (platform/src/main/console.ts:1-8), so there is no deployable operations console at all.
+  - substrate/audit-export.test.ts independent export + separate verifier
+  - substrate/audit-reconciliation.test.ts keyed reconciliation
+  gap: The operations console fed by the durable case owner is WP-38's.
   remediation: Compose live; MinIO tests.
   size: M
   environmentDependency: audit account
@@ -250,6 +249,11 @@ requirements:
     origin: extraction
     challengeCorrected:
     - gap
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-03-11
   section: '3'
   kind: constraint
@@ -259,22 +263,28 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - docs/ARCHITECTURE.md:39-70 (module layout)
-  - platform/src (single package, module directories)
-  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: No test enforces module boundaries; the documented layout is not checked (WP-06 module-boundary allowlist and dependency test).'
+  - test/architecture/register.test.ts
+  - test/architecture/lint-rules.test.ts [FO-03-11]
+  - test/architecture/import-graph.test.ts
+  gap: None for the acceptance; the register moves with the registry group after phase B.
   remediation: Keep as runtime is added.
   size: S
   environmentDependency: none
+  regressionPackage: WP-06
   provenance:
     origin: extraction
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: no test enforces module boundaries; the documented layout is not checked (WP-06 module-boundary allowlist and dependency test).'
     repairStatusFrom: VERIFIED_LOCAL
-  workPackage: WP-06
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-03-12
   section: '3'
   kind: software
@@ -520,15 +530,20 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/db/pg.ts (PgPoolDb, never run against a real server)
-  - platform/migrations (ledger, outbox, support links, knowledge FTS; pgvector optional at 0500_knowledge.sql:150)
-  gap: No event inbox or timeline tables; PostgreSQL never exercised (PGlite only).
+  - substrate/pg-pool.test.ts migrations as non-superuser owner on postgres:16
+  - ingress/processing.test.ts inbox on postgres:16
+  gap: Full-text search, pgvector and timelines are not exercised on postgres:16, and nothing has run on Aurora.
   remediation: Run migrations/suites on PostgreSQL+pgvector container; add inbox/timeline tables.
   size: M
   environmentDependency: Aurora cluster for live
   workPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-03-22
   section: '3'
   kind: software
@@ -539,20 +554,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.substrate
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/kv/dynamo-kv-store.ts
-  - platform/src/identity/kv/kv-store.test.ts:5-7 (expression stub; DynamoDB Local NOT RUN)
-  - infra/terraform/modules/dynamodb_sessions
-  gap: No ownership-lease records; not run on DynamoDB Local.
+  - substrate/dynamo.test.ts [FO-03-22][FO-19-07a] conditional create, CAS, versioned delete
+  - substrate/dynamo.test.ts [FO-03-22][ACT-02] ownership lease with fence
+  gap: DynamoDB Local only; the AWS table is WP-39's.
   remediation: DynamoDB Local tests; lease records.
   size: M
   environmentDependency: DynamoDB table for live
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-03-23
   section: '3'
   kind: constraint
@@ -590,20 +609,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.substrate
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/outbox/sqs-publisher.ts:53
-  - platform/src/outbox/sqs-publisher.contract.test.ts:1-5 (stub client)
-  - infra/terraform/modules/sqs
-  gap: Stub-tested only.
+  - substrate/sqs.test.ts [FO-03-24][FO-06-10] poison message dead-letters; audited redrive
+  - substrate/contention.test.ts two dispatchers publish exactly once
+  gap: ElasticMQ only (it ignores per-queue MaximumMessageSize); the real queue, DLQ and IAM are WP-39's.
   remediation: Emulator tests.
   size: S
   environmentDependency: SQS queues for live
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-03-25
   section: '3'
   kind: constraint
@@ -617,9 +640,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no @aws-sdk/client-eventbridge dependency in any package.json and no EventBridge resource in infra/terraform (searched 2026-10-19 at 8c0f5a0)
-  - docs/adr/ADR-0018-followon-product-architecture.md decision 4 (SQS/SNS for delivery; no EventBridge fan-out planned)
-  gap: 'Not yet triggered: nothing uses EventBridge and no work package plans fan-out. Nothing fails if EventBridge is added without a decision record.'
+  - test/architecture/decision-gates.test.ts [FO-03-25]
+  gap: 'Not triggered yet: nothing uses EventBridge, and the gate matches listed package names only.'
   remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when an EventBridge client, rule or bus appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it.'
   size: S
   environmentDependency: none
@@ -630,6 +652,11 @@ requirements:
     - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
     - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when EventBridge appears without a decision record'
     repairStatusFrom: NOT_APPLICABLE
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-03-26
   section: '3'
   kind: software
@@ -639,18 +666,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - ingress.events
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no stream consumer in platform/src
-  gap: Absent.
+  - src/ingress/ingress.test.ts [FO-03-26][FO-06-97] persisted before the checkpoint moves
+  - src/ingress/streams.ts StreamIngestor, KinesisStreamSource
+  gap: Kinesis/Kafka emulator runs need @aws-sdk/client-kinesis and kafkajs pinned, plus compose services.
   remediation: Stream ingestion adapters (section 6/7).
   size: M
   environmentDependency: tenant stream access
   workPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-03-27
   section: '3'
   kind: software
@@ -718,16 +751,19 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - infra/terraform/modules/secrets, kms, audit
-  - platform/src/identity/assertions/signers.ts:68 (KmsAssertionSigner)
-  - '@aws-sdk/client-secrets-manager in platform/package.json but no usage in platform/src'
-  gap: No runtime secret retrieval code; none composed.
+  - test/integration/connectors/runtime.test.ts [FO-03-29]
+  gap: The resolver and the KMS signer are not composed in the live runtime (WP-07).
   remediation: Secret resolver over Secrets Manager; LocalStack tests.
   size: M
   environmentDependency: AWS accounts
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-03-30
   section: '3'
   kind: software

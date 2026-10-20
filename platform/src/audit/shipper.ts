@@ -28,6 +28,7 @@ import { PlatformError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
 import { batchDigestOf, buildManifest, toNdjson, verifyChain } from "./chain.js";
 import { guardStorage, toSafeInt } from "./internal.js";
+import type { ManifestSigner } from "./exporter/signer.js";
 import type { AuditSink } from "./ports.js";
 import { STREAM_NAME_RE } from "./schema.js";
 
@@ -44,6 +45,11 @@ export interface AuditShipperOptions {
   sinkId?: string;
   /** Role for shipper transactions (default app_worker, the only role allowed to mark rows shipped). */
   role?: Extract<DbRole, "app_worker" | "owner">;
+  /**
+   * Signs every manifest when it is planned (exporter/signer.ts; FO-15-38), so the PLANNED record, every
+   * re-put after a crash and the sink copy carry the same signed manifest. Required for a live sink.
+   */
+  signer?: ManifestSigner | null;
 }
 
 export interface StreamShipResult {
@@ -93,6 +99,9 @@ export class AuditShipper {
     if (!Number.isSafeInteger(this.batchSize) || this.batchSize < 1 || this.batchSize > 10_000) throw new ValidationError("AUDIT_BATCH_SIZE_INVALID");
     if (!Number.isSafeInteger(this.maxBatches) || this.maxBatches < 1) throw new ValidationError("AUDIT_BATCH_LIMIT_INVALID");
     if (!STREAM_NAME_RE.test(this.sinkId)) throw new ValidationError("AUDIT_SINK_ID_INVALID");
+    // A live (independent) sink receives signed manifests only; an unsigned export is refused at composition.
+    if (opts.sink.kind === "live" && !opts.signer) throw new ValidationError("AUDIT_MANIFEST_SIGNER_REQUIRED");
+    if (opts.sink.kind === "live" && opts.signer?.kind !== "live") throw new ValidationError("AUDIT_MANIFEST_SIGNER_NOT_LIVE");
     this.logger = (opts.logger ?? silentLogger).child({ component: "audit_shipper" });
   }
 
@@ -222,7 +231,9 @@ export class AuditShipper {
         throw new AuditShipBlockedError(check.findings.some((f) => f.code === "SEQUENCE_GAP") ? "AUDIT_CHAIN_GAP" : "AUDIT_CHAIN_BROKEN");
       }
       const batchEvents = events.slice(0, usable);
-      const { manifest, ndjson } = buildManifest(batchEvents, { manifestId: newId("amf"), createdAt: iso(this.opts.clock.now()) });
+      const built = buildManifest(batchEvents, { manifestId: newId("amf"), createdAt: iso(this.opts.clock.now()) });
+      const ndjson = built.ndjson;
+      const manifest = this.opts.signer ? await this.opts.signer.sign(built.manifest) : built.manifest;
       await tx.query(
         `insert into audit_manifests
            (manifest_id, source_stream, first_sequence, last_sequence, event_count, first_prev_hash, last_hash,

@@ -22,9 +22,9 @@ statusRules:
 summary:
   requirements: 1170
   softwareStatus:
-    MISSING: 613
-    IMPLEMENTED: 450
-    VERIFIED_LOCAL: 107
+    MISSING: 577
+    IMPLEMENTED: 440
+    VERIFIED_LOCAL: 153
     RELEASE_PACKAGE_VERIFIED: 0
   environmentStatus:
     NOT_CONFIGURED: 1170
@@ -39,12 +39,13 @@ summary:
     repair-added: 15
     repair-split: 58
   phaseARepairStatusChanges:
-    IMPLEMENTED -> MISSING: 2
+    IMPLEMENTED -> MISSING: 1
+    IMPLEMENTED -> VERIFIED_LOCAL: 1
     MISSING -> IMPLEMENTED: 2
     NOT_APPLICABLE -> IMPLEMENTED: 6
     NOT_APPLICABLE -> MISSING: 3
-    VERIFIED_LOCAL -> IMPLEMENTED: 54
-    VERIFIED_LOCAL -> VERIFIED_LOCAL: 2
+    VERIFIED_LOCAL -> IMPLEMENTED: 47
+    VERIFIED_LOCAL -> VERIFIED_LOCAL: 9
 overlaps:
 - ids:
   - FO-10-49
@@ -267,11 +268,9 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/gateway/http/routes.test.ts:358
-  - platform/src/gateway/call-state.test.ts:11
-  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
-  - platform/src/evaluation/scorer.test.ts:189 ([SPEC-14.hard-gates] RESOLVED without commit receipts fails; a case or accepted workflow is not resolution)
-  gap: 'None at 8c0f5a0: fix wave 5 merged the scorer repair; scorer.test.ts:189 fails RESOLVED without commit receipts and the call-state tracker never records RESOLVED from case creation. A fresh corpus run is still pending (FO-01-07).'
+  - platform/src/evaluation/scorer.test.ts and aggregate.test.ts (RESOLVED without reconciled commit receipts fails; an accepted request is not resolution)
+  - 'targeted run: 40 files / 472 tests passed'
+  gap: none locally
   remediation: Re-run scorer mutation checks after fix wave 5.
   size: S
   environmentDependency: none
@@ -282,6 +281,11 @@ entries:
     origin: extraction
     repair:
     - VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1); evidence lines added
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-00-09
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -653,16 +657,15 @@ entries:
     repair:
     - 'evidence refreshed: activation ids renamed AIN-NN and keyed to capabilities (critic gaps 7 and 9)'
 - id: FO-00-29
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/protocol/release.ts:115 (single-axis ReleaseStatus IMPLEMENTED_OFFLINE..BLOCKED)
-  - docs/REQUIREMENTS_TRACEABILITY.md:24 (IMPLEMENTED_OFFLINE/BLOCKED columns)
-  - platform/src/protocol/evaluation.ts:73 (Verdict incl. NOT_RUN, BLOCKED)
-  gap: Repository uses the old single-axis vocabulary everywhere.
+  - platform/src/evaluation/traceability.ts
+  - traceability.test.ts [FO-00-29]
+  gap: ReleaseManifest and ActivationReport still carry one status axis (WP-40/WP-44/WP-45).
   remediation: Migrate protocol enums, traceability generator and docs to the two axes plus qualification.
   size: M
   environmentDependency: none
@@ -670,6 +673,11 @@ entries:
   workPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-00-30
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -812,21 +820,21 @@ entries:
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
 - id: FO-00-37
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - docs/requirements/catalog.yaml:17-211 (27 invariants with exact text)
-  - 'skeptic check 2026-10-19: all 27 invariant texts in docs/spec/voice-support-followon-specification.txt:126-152 are character-identical to the `text` of the same ids in docs/requirements/catalog.yaml'
-  - docs/followon/requirements.yaml originalIds (every id resolves to docs/requirements/catalog.yaml and all 168 catalog ids are covered; checked by python3 -I docs/tools/followon/generate.py --check)
-  gap: The mapping exists (docs/followon/requirements.yaml originalIds; derivedFrom holds ADR, TB and follow-on-prompt references); it is checked by the committed generator, not yet by a test in the suite.
+  - traceability.test.ts [FO-00-37]
+  - test/docs suites pass (main and fresh copy)
+  gap: The committed traceability report must be regenerated from committed CI reports by the coordinator.
   remediation: Write the FO-to-original mapping.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-01
+  workPackage: null
+  regressionPackage: WP-01
   provenance:
     origin: extraction
     challengeCorrected:
@@ -835,6 +843,11 @@ entries:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the FO-to-original mapping now exists and docs/tools/followon/generate.py --check resolves every originalId and covers all 168 catalog ids, but no test in the suite enforces it (WP-01 traceability generator check).'
     - 'gap refreshed: requirements.yaml now exists (critic gap 3)'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-00-38
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -1003,9 +1016,9 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - evidence/evaluation/corpus-local-20261018w4.summary.json (runs 2711, pass 2386, fail 305, inconclusive 20, criticalFailures 7)
-  - platform/src/protocol/evaluation.ts:89 (executionMode local_fixture)
-  gap: Still the latest committed aggregate. It predates fix wave 5 (8c0f5a0), which changed the coordinator and corpus expectations; no post-fix-wave corpus run is committed; 7 critical failures stay open.
+  - corpus-local-20261019w5.provenance.md
+  - corpus-local-20261019w5.rescore-check-r4.json
+  gap: w5 used a snapshot plus overlay (sourceCommit null), and the local gate FAILs.
   remediation: Re-run the corpus after fix wave 5 and record it as a new historical run.
   size: M
   environmentDependency: none
@@ -1015,6 +1028,11 @@ entries:
     origin: extraction
     repair:
     - gap and qualification evidence refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-01-08
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -1111,25 +1129,30 @@ entries:
   provenance:
     origin: extraction
 - id: FO-01-13
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/audit/sinks/s3-object-lock.ts:109
-  - platform/src/audit/sinks/s3-object-lock.test.ts:1-5 (stub client contract test)
-  - infra/terraform/modules/audit
-  gap: Never exercised against an S3 API; not composed outside local.
+  - substrate/audit-export.test.ts [FO-01-13] Object-Lock export, separate verifier PASS (60/60 x3)
+  - substrate/faults.test.ts [FAULT:AUDIT_OUTAGE] export + verifier PASS after recovery
+  gap: Not run against the AWS audit account (AIN-01, AIN-03); the exporter entry point and task identity belong to WP-07/WP-39.
   remediation: Test against MinIO with Object Lock; compose live.
   size: M
   environmentDependency: independent audit account (PRQ-037, PRQ-040)
   activation:
   - AIN-01
   - AIN-03
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-01-14
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -1253,17 +1276,15 @@ entries:
     - evidence
     - remediation
 - id: FO-01-19
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - 'platform/src/audit/deferred.ts:39-44 (CRASH-LOSS LIMIT at 8c0f5a0: the queue is in process memory; a durable deferral store is "not implemented")'
-  - 'platform/src/audit/deferred.ts:29-37 (LIMIT: a route-tool execution detached by its tool timeout loses its event with no log if the process exits first)'
-  - 'platform/src/main/server.ts (fix wave 5, 8c0f5a0: the gateway drains its own deferred queue in a bounded shutdown; a crash still loses it)'
-  - platform/migrations/0610_safety_events.sql (safety_events row stays durable)
-  gap: 'Still process-local at 8c0f5a0: fix wave 5 added draining at shutdown, not durability; a crash loses queued route evidence.'
+  - src/audit/journal.test.ts [FO-01-19] order, bounded-flush, same-instant and clock-skew tests
+  - substrate/route-audit-crash.test.ts [FO-01-19] SIGKILL, cross-journal order, forged-time quarantine
+  gap: container.ts (WP-07) still builds the process-local DeferredAuditQueue, and the WP-25 handoff does not call appendOrDeferIn.
   remediation: Durable deferral journal (DynamoDB/SQS or fsynced local journal) with crash-restart test.
   size: M
   environmentDependency: none
@@ -1275,6 +1296,11 @@ entries:
     - evidence
     repair:
     - evidence and gap refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-01-20
   softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
@@ -1342,24 +1368,30 @@ entries:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
 - id: FO-01-23
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/evaluation/scorer.ts; aggregate.ts
-  - 'fix wave 5 (8c0f5a0): coordinator rule gaps with negative guards and fault-reachable crash-after-commit drafts (platform/src/evaluation/driver/coordinator.ts, local-driver.test.ts)'
-  gap: Repairs are merged at 8c0f5a0 but not re-verified by a fresh corpus run; INCONCLUSIVE still leaves the goal-completion denominator (FO-17-46); not every gate has a mutation test.
+  - scorer.mutation.test.ts MUTATION evidence.fault_plans_present
+  - scorer.test.ts [FO-17-11] verifier probe p1
+  gap: None locally.
   remediation: Verify after fix wave 5; add scorer mutation suite.
   size: M
   environmentDependency: none
   activation: []
-  workPackage: WP-01
+  workPackage: null
+  regressionPackage: WP-01
   provenance:
     origin: extraction
     repair:
     - evidence and gap refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-01-24
   softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
@@ -1559,15 +1591,15 @@ entries:
   provenance:
     origin: extraction
 - id: FO-01-34
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - 'platform/src/audit/deferred.ts:29-37 (LIMIT: a route-tool execution detached by its tool timeout loses its event with no log if the process exits first)'
-  - platform/src/main/server.ts (bounded shutdown waits for request handlers, not for detached executions; fix wave 5, 8c0f5a0)
-  gap: Fix wave 5 documents this loss path instead of closing it, and c1's FO-01-19 covers only the crash-loss of queued events.
+  - src/audit/route-reconciler.test.ts [FO-01-34] decoys close no intent
+  - substrate/route-audit-crash.test.ts [FO-01-34] detached safety route -> one not_recorded marker
+  gap: The request_safety_route timeout and SIGTERM path needs gateway intents (WP-14) and the handoff wiring (WP-25).
   remediation: 'Write an intent row (route_audit_intents: routeId, safety_event_id, started_at) in the same transaction that starts the handoff, mark it on audit append, and add a worker sweep that turns unmatched intents older than the timeout into audit.route.not_recorded events. Share the durable journal with FO-01-19.'
   size: M
   environmentDependency: none
@@ -1575,6 +1607,11 @@ entries:
   workPackage: WP-04
   provenance:
     origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-02-01
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -2405,23 +2442,27 @@ entries:
     repair:
     - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for OPS-06 at its boundary; WP-43 keeps the cross-adapter closure run'
 - id: FO-02-28
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - docs/requirements/catalog.yaml (enforcement, verification, externalBlock only)
-  - docs/security/threat-model.md (T-rows map 21 of 27 invariants; none for DATA-02, DATA-03, ACT-04, SAFE-01, OPS-03, OPS-05)
-  - docs/REQUIREMENTS_TRACEABILITY.md:30-58
-  gap: Owner and failure-injection attributes absent; six invariants have no threat row.
+  - test/invariants/register.test.ts
+  gap: None locally.
   remediation: Extend catalog.yaml schema and the traceability generator; add threat rows.
   size: M
   environmentDependency: none
   activation: []
-  workPackage: WP-01
+  workPackage: null
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-02-29
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -2657,10 +2698,9 @@ entries:
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/audit
-  - console/src/pages
-  - platform/src/console-api/plugin.ts
-  gap: Fixture-backed; independent export unverified. The console composition is refused outside local/ci and 'the deployed console access path is not in the infrastructure plan' (platform/src/main/console.ts:1-8), so there is no deployable operations console at all.
+  - substrate/audit-export.test.ts independent export + separate verifier
+  - substrate/audit-reconciliation.test.ts keyed reconciliation
+  gap: The operations console fed by the durable case owner is WP-38's.
   remediation: Compose live; MinIO tests.
   size: M
   environmentDependency: audit account
@@ -2671,26 +2711,38 @@ entries:
     origin: extraction
     challengeCorrected:
     - gap
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-03-11
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - docs/ARCHITECTURE.md:39-70 (module layout)
-  - platform/src (single package, module directories)
-  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: No test enforces module boundaries; the documented layout is not checked (WP-06 module-boundary allowlist and dependency test).'
+  - test/architecture/register.test.ts
+  - test/architecture/lint-rules.test.ts [FO-03-11]
+  - test/architecture/import-graph.test.ts
+  gap: None for the acceptance; the register moves with the registry group after phase B.
   remediation: Keep as runtime is added.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-06
+  workPackage: null
+  regressionPackage: WP-06
   provenance:
     origin: extraction
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: no test enforces module boundaries; the documented layout is not checked (WP-06 module-boundary allowlist and dependency test).'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-03-12
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -2878,9 +2930,9 @@ entries:
   capabilityIds:
   - ingress.events
   evidence:
-  - platform/src/db/pg.ts (PgPoolDb, never run against a real server)
-  - platform/migrations (ledger, outbox, support links, knowledge FTS; pgvector optional at 0500_knowledge.sql:150)
-  gap: No event inbox or timeline tables; PostgreSQL never exercised (PGlite only).
+  - substrate/pg-pool.test.ts migrations as non-superuser owner on postgres:16
+  - ingress/processing.test.ts inbox on postgres:16
+  gap: Full-text search, pgvector and timelines are not exercised on postgres:16, and nothing has run on Aurora.
   remediation: Run migrations/suites on PostgreSQL+pgvector container; add inbox/timeline tables.
   size: M
   environmentDependency: Aurora cluster for live
@@ -2889,25 +2941,35 @@ entries:
   workPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-03-22
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.substrate
   evidence:
-  - platform/src/identity/kv/dynamo-kv-store.ts
-  - platform/src/identity/kv/kv-store.test.ts:5-7 (expression stub; DynamoDB Local NOT RUN)
-  - infra/terraform/modules/dynamodb_sessions
-  gap: No ownership-lease records; not run on DynamoDB Local.
+  - substrate/dynamo.test.ts [FO-03-22][FO-19-07a] conditional create, CAS, versioned delete
+  - substrate/dynamo.test.ts [FO-03-22][ACT-02] ownership lease with fence
+  gap: DynamoDB Local only; the AWS table is WP-39's.
   remediation: DynamoDB Local tests; lease records.
   size: M
   environmentDependency: DynamoDB table for live
   activation:
   - AIN-01
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-03-23
   softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
@@ -2931,24 +2993,29 @@ entries:
     repair:
     - VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1); evidence lines added
 - id: FO-03-24
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.substrate
   evidence:
-  - platform/src/outbox/sqs-publisher.ts:53
-  - platform/src/outbox/sqs-publisher.contract.test.ts:1-5 (stub client)
-  - infra/terraform/modules/sqs
-  gap: Stub-tested only.
+  - substrate/sqs.test.ts [FO-03-24][FO-06-10] poison message dead-letters; audited redrive
+  - substrate/contention.test.ts two dispatchers publish exactly once
+  gap: ElasticMQ only (it ignores per-queue MaximumMessageSize); the real queue, DLQ and IAM are WP-39's.
   remediation: Emulator tests.
   size: S
   environmentDependency: SQS queues for live
   activation:
   - AIN-01
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-03-25
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -2956,9 +3023,8 @@ entries:
   capabilityIds:
   - platform.substrate
   evidence:
-  - no @aws-sdk/client-eventbridge dependency in any package.json and no EventBridge resource in infra/terraform (searched 2026-10-19 at 8c0f5a0)
-  - docs/adr/ADR-0018-followon-product-architecture.md decision 4 (SQS/SNS for delivery; no EventBridge fan-out planned)
-  gap: 'Not yet triggered: nothing uses EventBridge and no work package plans fan-out. Nothing fails if EventBridge is added without a decision record.'
+  - test/architecture/decision-gates.test.ts [FO-03-25]
+  gap: 'Not triggered yet: nothing uses EventBridge, and the gate matches listed package names only.'
   remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when an EventBridge client, rule or bus appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it.'
   size: S
   environmentDependency: none
@@ -2970,15 +3036,21 @@ entries:
     - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
     - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when EventBridge appears without a decision record'
     repairStatusFrom: NOT_APPLICABLE
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-03-26
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - ingress.events
   evidence:
-  - no stream consumer in platform/src
-  gap: Absent.
+  - src/ingress/ingress.test.ts [FO-03-26][FO-06-97] persisted before the checkpoint moves
+  - src/ingress/streams.ts StreamIngestor, KinesisStreamSource
+  gap: Kinesis/Kafka emulator runs need @aws-sdk/client-kinesis and kafkajs pinned, plus compose services.
   remediation: Stream ingestion adapters (section 6/7).
   size: M
   environmentDependency: tenant stream access
@@ -2987,6 +3059,11 @@ entries:
   workPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-03-27
   softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
@@ -3037,10 +3114,8 @@ entries:
   capabilityIds:
   - connectors.runtime
   evidence:
-  - infra/terraform/modules/secrets, kms, audit
-  - platform/src/identity/assertions/signers.ts:68 (KmsAssertionSigner)
-  - '@aws-sdk/client-secrets-manager in platform/package.json but no usage in platform/src'
-  gap: No runtime secret retrieval code; none composed.
+  - test/integration/connectors/runtime.test.ts [FO-03-29]
+  gap: The resolver and the KMS signer are not composed in the live runtime (WP-07).
   remediation: Secret resolver over Secrets Manager; LocalStack tests.
   size: M
   environmentDependency: AWS accounts
@@ -3049,6 +3124,11 @@ entries:
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-03-30
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -5347,9 +5427,8 @@ entries:
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/gateway/auth.ts:173 (JwtAccessTokenAuthenticator)
-  - platform/src/gateway/auth.test.ts:90-117
-  gap: Not composed outside local.
+  - src/connectors/profile/profile.test.ts [FO-05-39]
+  gap: Not wired into platform/src/config/guard.ts (WP-07).
   remediation: Live composition.
   size: S
   environmentDependency: IdP client credentials per environment
@@ -5362,6 +5441,11 @@ entries:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-05-40
   softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
@@ -5665,16 +5749,15 @@ entries:
     challengeCorrected:
     - remediation
 - id: FO-05-56
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - 'platform/src/config/schema.ts:36-44 (AdapterConfigSchema: one credentialRef per adapter)'
-  - platform/src/config/guard.ts:411 (refRule checks credentialRef format only; no reuse rule)
-  - platform/src/adapters/live/blocked-set.ts:33-45 (Salesforce adapter takes one credentials() callback for read and upsert)
-  gap: c1 FO-05-39 covers inbound channel identities only. Outbound, one credential per adapter covers both read and write, and nothing prevents reuse across environments.
+  - src/connectors/runtime/connector.test.ts [FO-05-56]
+  - runtime.test.ts [FO-05-56]
+  gap: The guard rule is not called from config/guard.ts and the Salesforce credentials are not split (WP-07).
   remediation: Model capability-scoped credentials in ConnectorProfile (FO-04-34). Add guard rules CREDENTIAL_REUSED_ACROSS_CAPABILITIES and CREDENTIAL_REUSED_ACROSS_ENVIRONMENTS, the latter by comparing committed platform/config/*.json. Split SalesforceRestSupportRecords credentials into read and upsert clients and add an emulator test that a read-scoped token is refused on upsert.
   size: M
   environmentDependency: per-capability integration users or clients from each system owner (activation register)
@@ -5683,6 +5766,11 @@ entries:
   workPackage: WP-06
   provenance:
     origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-01
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -5705,16 +5793,15 @@ entries:
   provenance:
     origin: extraction
 - id: FO-06-02
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/adapters/live/salesforce-emulator.fixture.ts + salesforce-rest.contract.test.ts (node:http emulator; passing 2026-10-19) - the only instance
-  - platform/src/adapters/live/oidc-verifier.test.ts (live OIDC verifier against a local node:http IdP)
-  - platform/src/adapters/local/*-fixture.ts are in-process objects, not protocol emulators
-  gap: No protocol emulator exists for Talkdesk, SIP, Segment, Snowflake SQL API, Iceberg/Athena, the business-system reference service, email/SMS vendors or KB sources.
+  - test/integration/connectors/emulator.ts
+  - runtime.test.ts
+  gap: Protocol emulators for each connector family come with their packages (WP-12, WP-19..23, WP-27, WP-29).
   remediation: Build one emulator per family (node:http for REST/webhooks; Docker SIP UA such as sipp/pjsua with LiveKit SIP or Asterisk; MinIO + Iceberg REST catalog + Trino/DuckDB for lakehouse; Snowflake SQL API stub; SMTP sink such as MailHog) and run the production adapters against them in CI.
   size: L
   environmentDependency: none
@@ -5722,6 +5809,11 @@ entries:
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-03
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -5729,10 +5821,9 @@ entries:
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/adapters/live/salesforce-rest-support-records.ts (client-credentials token cache, tokenMaxAgeSeconds, single in-flight request, credentials() callback read per token request)
-  - platform/src/adapters/live/salesforce-rest.contract.test.ts:157-218 ([AUTH-02]/[AUTH-04] caching, expiry, one refresh, no loop)
-  - platform/src/gateway/auth.ts (JwtAccessTokenAuthenticator with JWKS rotation; gateway/auth.test.ts passing)
-  gap: Verified only for Salesforce outbound and gateway inbound; no shared token manager for Talkdesk OAuth, Snowflake key-pair JWT, CDP, notification or KB connectors.
+  - connector.test.ts [FO-06-03] token in flight when invalidated
+  - runtime.test.ts [FO-06-03]
+  gap: Emulator runs per adapter family (Talkdesk OAuth, Snowflake JWT, CDP) come with each family.
   remediation: Extract a reusable OAuth2/JWT token manager into the connector runtime with rotation, clock-skew and revocation tests; require every live adapter to use it.
   size: M
   environmentDependency: Vendor OAuth clients / connected apps per tenant for sandbox qualification
@@ -5744,17 +5835,21 @@ entries:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-06-04
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/config/schema.ts:14-17 (SecretRef pattern refuses inline secrets); platform/src/config/loader.test.ts:70,126 [AUTH-06]
-  - platform/package.json:35 depends on @aws-sdk/client-secrets-manager but no resolver uses it (grep platform/src)
-  - SalesforceRestDeps.credentials is injected by the caller (salesforce-rest-support-records.ts:191-200)
-  gap: Reference validation exists; resolution does not, so no live adapter can obtain credentials in a deployed composition.
+  - resolver.test.ts [FO-06-04] read in flight when refresh()
+  - runtime.test.ts [FO-06-04]
+  gap: Not yet the only credential source of live adapters (WP-07); SSM references are refused.
   remediation: 'Implement SecretResolver (Secrets Manager, version stages, bounded cache, refresh on auth failure; local-fixture: resolver for tests) and bind it in the live composition.'
   size: M
   environmentDependency: AWS account with Secrets Manager for sandbox qualification
@@ -5763,16 +5858,21 @@ entries:
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-05
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - 'platform/src/adapters/live/salesforce-rest-support-records.ts:68-140 (fixed-key SalesforceFieldMappingSchema: every key required, API-name regex only; PLACEHOLDER mapping refused when schema PROVIDED)'
-  - platform/src/adapters/support-records-schema.ts (strict outbound value schemas)
-  gap: No generic mapping model, no prohibited class, no validation against vendor metadata (describe types, picklists, lengths).
+  - connector.test.ts [FAULT:SCHEMA_DRIFT seam]
+  - runtime.test.ts [FO-06-05]
+  gap: Drift tests per connector come with each family; the readiness run is WP-32.
   remediation: Add MappingSpec to ConnectorProfile (per-field class, expected type, enum/unit semantics, data classification) and validate it against fetched metadata at startup and in the test wizard.
   size: M
   environmentDependency: none
@@ -5780,101 +5880,129 @@ entries:
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-06
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - 'No paginated read in platform/src/adapters (Salesforce adapter reads one record by external id: salesforce-rest-support-records.ts:375)'
-  gap: No cursor/page iteration exists for any source.
+  - connector.test.ts [FO-06-06] OFFSET last page / page bound + resume
+  - runtime.test.ts [FO-06-06] OFFSET over TLS
+  - mutants N15, D2-next-null, D2-start-ignored killed
+  gap: None for the acceptance; pagination per vendor is proven by each family's emulator.
   remediation: Implement bounded cursor iterators per adapter (Salesforce nextRecordsUrl, Snowflake result partitions, Athena NextToken, Talkdesk page links) driven by ConnectorProfile.pagination.
   size: M
   environmentDependency: none
   activation: []
-  workPackage: WP-06
+  workPackage: null
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-07
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/resilience/bulkhead.ts, circuit-breaker.ts, retry.ts, timeout.ts + resilience.test.ts (passing)
-  - platform/src/gateway/pipeline.ts:65-68,135 (breaker/retry/timeout around tool calls)
-  - platform/src/gateway/http/tool-rate-limit.ts (inbound per-integration limit)
-  - platform/src/adapters/live/salesforce-rest.contract.test.ts:220-252,321 (429/503 Retry-After, 403 REQUEST_LIMIT_EXCEEDED, Sforce-Limit-Info recorded)
-  gap: Primitives exist but budgets are not declared per connector profile or applied at the connector layer; background sync has no vendor-budget awareness; Salesforce API usage is only held in memory.
+  - rate-limiter.test.ts [FO-06-07] pause re-spaces queued callers
+  - connector.test.ts [FO-06-07] queued callers restart spaced; connector-wide cap
+  - 'runtime.test.ts [FO-06-07] Retry-After: 2 restart spaced'
+  gap: None for the acceptance; production budget values need vendor quotas.
   remediation: Bind a per-connector token bucket + bulkhead from ConnectorProfile.rateBudget in the connector runtime; export vendor usage as metrics; test throttling against emulators.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-06
+  workPackage: null
+  regressionPackage: WP-06
   provenance:
     origin: extraction
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-08
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/resilience/README.md + resilience.test.ts (withTimeout UNKNOWN default, retry never retries UNKNOWN, NESTED_RETRY_REFUSED)
-  - platform/src/adapters/live/salesforce-rest.contract.test.ts:220-300 ([ACT-03] over HTTP)
-  - platform/src/adapters/errors.ts (AdapterDependencyError reason codes)
-  gap: 'Verified for the gateway pipeline and the Salesforce adapter; future connectors must route through the same primitives. IMPLEMENTED, not VERIFIED_LOCAL: Contract tests exist only for the Salesforce REST adapter; the shared connector runtime that applies timeout and retry classification to every connector does not exist (WP-06).'
+  - connector.test.ts [FO-06-08] 503 on a write that needs reconciliation
+  - transport.test.ts [FO-06-08]
+  - runtime.test.ts [FO-06-08]
+  gap: None for the acceptance.
   remediation: Make the connector runtime the only call path to a vendor so classification is uniform; add the classification table to each ConnectorProfile.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-06
+  workPackage: null
+  regressionPackage: WP-06
   provenance:
     origin: extraction
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: contract tests exist only for the Salesforce REST adapter; the shared connector runtime that applies timeout and retry classification to every connector does not exist (WP-06).'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-06-09
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - No checkpoint/cursor table in platform/migrations (0001..0910)
-  gap: No incremental reader exists, so no checkpoint store exists.
+  - test/integration/connectors/checkpoints.test.ts [FO-06-09]
+  gap: None for the acceptance.
   remediation: Add connector_checkpoints (tenant, connector, stream, position, watermark, digest, updated_at) with RLS; commit checkpoint in the same transaction as inbox acceptance.
   size: M
   environmentDependency: none
   activation: []
-  workPackage: WP-06
+  workPackage: null
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-10
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   - platform.substrate
   evidence:
-  - platform/src/outbox/dispatcher.ts:8,261,295 (dead-letter after maxAttempts; listDead/requeueDead)
-  - platform/src/outbox/outbox.test.ts:118,138,159
-  - platform/src/business/support-requests.test.ts:101 (DEAD_LETTER + repair)
-  - platform/src/console-api/support-repair.test.ts
-  - platform/src/outbox/sqs-publisher.ts + sqs-publisher.contract.test.ts
-  gap: 'Covers outbound support-record sync only, and failures are produced by fixture faults (platform/src/business/support-requests.test.ts:101-120). The SQS evidence is a mock: sqs-publisher.contract.test.ts uses a StubSqsClient (''stub client, no AWS access'', lines 1-4, 22-38), not ElasticMQ or LocalStack, so it must not be cited as protocol verification. Inbound connector records have no DLQ (new FO-06-97). Not composed outside local. IMPLEMENTED, not VERIFIED_LOCAL: The SQS evidence is a mock (StubSqsClient in platform/src/outbox/sqs-publisher.contract.test.ts:1-4,22-38), not ElasticMQ or LocalStack; only the Postgres outbox DLQ is verified.'
+  - substrate/sqs.test.ts [FO-06-10] redrive refused without the audit write; failed move audited
+  - src/outbox/outbox.test.ts requeue fails closed without an operator
+  gap: The console endpoint for SQS redrive is WP-38's; AWS is not configured.
   remediation: Reuse the dispatcher DLQ pattern for inbound inbox processing and every new outbound connector; compose with SQS in the live composition.
   size: S
   environmentDependency: SQS queues + DLQ in AWS for sandbox
   activation:
   - AIN-01
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
@@ -5882,6 +6010,11 @@ entries:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the SQS evidence is a mock (StubSqsClient in platform/src/outbox/sqs-publisher.contract.test.ts:1-4,22-38), not ElasticMQ or LocalStack; only the Postgres outbox DLQ is verified.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-06-11
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -5889,10 +6022,9 @@ entries:
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/adapters/registry.ts healthReport (fails closed for throwing/slow/malformed checks)
-  - platform/src/adapters/registry.test.ts:79
-  - 'platform/src/adapters/live/salesforce-rest-support-records.ts health() (passive: last failure only)'
-  gap: Health is passive for Salesforce and absent for non-existent connectors; no active synthetic probe; no per-capability readiness surface.
+  - connector.test.ts [FO-06-11] sandbox write must name a WRITE op
+  - connector.test.ts [FO-06-11] metadata on the standard call path
+  gap: Per-capability readiness is not on an operator surface yet (WP-32), and probes per family come with each family.
   remediation: Define active probes in ConnectorProfile, run them from the worker, record results as capability evidence and expose readiness in onboarding.
   size: S
   environmentDependency: none
@@ -5903,69 +6035,87 @@ entries:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-06-12
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/config/schema.ts:36-44 AdapterConfigSchema (kind, endpoint, credentialRef, authMethod, exceptionApprovalId, timeoutMs, integrationApprovalId only)
-  - platform/src/adapters/integration-inventory.ts:30-58 (descriptive inventory incl. version/sourceDoc - documentation, not runtime configuration)
-  - no ConnectorProfile in platform/src/protocol (grep)
-  gap: The section-4 ConnectorProfile contract does not exist; the inventory is static documentation.
+  - src/connectors/profile/profile.test.ts
+  gap: None for the acceptance.
   remediation: Add ConnectorProfile to platform/src/protocol with generate-schemas output and loader validation; derive the inventory from profiles.
   size: M
   environmentDependency: none
   activation: []
-  workPackage: WP-06
+  workPackage: null
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-13
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/config/schema.ts:21-25 (EndpointUrl without query/userinfo)
-  - platform/src/privacy/egress.ts (exact-host allowlist per classification), egress-startup.ts
-  - platform/src/adapters/live/salesforce-rest-support-records.ts:291 (host must end .my.salesforce.com) and instance_url equality
-  gap: Only a single endpoint and a global egress allowlist exist; no per-profile allowedHosts, region or account binding (e.g. Salesforce org id, Snowflake account locator).
+  - connector.test.ts [FO-06-13]
+  - runtime.test.ts [FO-06-13]
+  gap: None for the acceptance; metadata responses now get the header binding check too.
   remediation: Add baseUrl/allowedHosts/region/accountBinding fields; enforce in the connector HTTP client and verify the bound account id from the first authenticated response.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-06
+  workPackage: null
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-14
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/config/schema.ts:39-40 (credentialRef + authMethod only)
-  - salesforce-rest-support-records.ts:204-209 TokenResponse ignores scope
-  gap: No scopes field and no granted-scope verification.
+  - connector.test.ts [FO-06-14]
+  gap: None for the acceptance.
   remediation: Add scopes[] to the profile; verify token scope claims in the shared token manager; least-privilege test per connector.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-06
+  workPackage: null
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-15
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - SalesforceRestSupportRecords exposes upsertInteraction/upsertCase/getCaseByExternalId unconditionally once schema is not BLOCKED (salesforce-rest-support-records.ts)
-  - no per-adapter operation allowlist in platform/src/adapters/registry.ts
-  gap: No capability allowlist or authoritative-field declaration.
+  - connector.test.ts [FO-06-15]
+  gap: Authoritative fields do not drive context precedence yet (WP-18).
   remediation: Add reads/writes/authoritativeFields/eventSchemas to the profile; the connector runtime checks every operation against it.
   size: M
   environmentDependency: none
@@ -5973,33 +6123,42 @@ entries:
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-16
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/config/schema.ts:42 timeoutMs is the only operational field
-  gap: Operational semantics are hard-coded per adapter.
+  - src/connectors/profile/profile.test.ts [FO-06-16]
+  gap: None for the acceptance.
   remediation: Add operation-level pagination/rateBudget/timeoutMs/idempotency {key, lookupByKey, reconcile} fields and enforce them in the runtime.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-06
+  workPackage: null
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-17
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/retention/datasets.ts (vendor deletion declared for salesforce only)
-  - platform/src/adapters/integration-inventory.ts (retention 'UNKNOWN' text)
-  - platform/src/privacy/egress.ts DestinationKind (not linked to adapter profiles)
-  gap: Deletion/retention/egress classes are not tied to connector configuration.
+  - profile.test.ts [FO-06-17]
+  gap: The retention registry (WP-22) and the composed egress policy (WP-07) do not consume the derivations yet.
   remediation: Add deletion {supportsDelete, tombstones, vendorDeletionPath}, retentionClass and egressClass to the profile and feed retention registry and EgressGuard from it.
   size: S
   environmentDependency: Privacy counsel retention matrix (PRQ-025)
@@ -6008,16 +6167,21 @@ entries:
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-18
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - salesforce-rest-support-records.ts SalesforceSchemaEvidence {status, evidenceRef, approvalId} (adapter-specific)
-  - platform/src/protocol/release.ts:125-150 ReleaseManifest has no connector configuration digest
-  gap: No generic evidence/digest on connector configuration.
+  - runtime.test.ts [FO-06-18]
+  - evidence.test.ts
+  gap: Profile digests are not pinned in the release manifest (WP-40 / WP-01), and the registry checks the format of approval ids only.
   remediation: Compute a canonical digest per profile, add connectorProfileDigests to ReleaseManifest, store capability evidence records (see FO-06-95).
   size: M
   environmentDependency: none
@@ -6025,6 +6189,11 @@ entries:
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-19
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -6057,11 +6226,10 @@ entries:
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/adapters/live/salesforce-rest.contract.test.ts:328 (instance_url must equal configured origin)
-  - 'platform/src/adapters/live/salesforce-rest-support-records.ts:526 (redirect: manual, bounded body)'
-  - platform/src/privacy/egress.test.ts, egress-startup.test.ts (startup fails closed for non-allowlisted live endpoints)
-  - platform/src/knowledge/search.ts (retrieval reads the database only)
-  gap: Enforced per adapter; fetchImpl is injectable and no shared allowlisted HTTP client or lint rule prevents a future connector from calling arbitrary hosts.
+  - test/integration/connectors/pinning.test.ts [FO-06-20] (N17 killed)
+  - transport.test.ts [FO-06-20]
+  - lint-rules.test.ts
+  gap: The Salesforce adapter keeps its reviewed fetch lint exception until WP-07 moves it onto the transport.
   remediation: Add ConnectorHttpClient (profile allowlist, no redirects, size/time bounds, egress classification) and an ESLint no-restricted-globals/imports rule for fetch/http/https outside it.
   size: S
   environmentDependency: none
@@ -6072,6 +6240,11 @@ entries:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-06-21
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -6079,8 +6252,8 @@ entries:
   capabilityIds:
   - connectors.runtime
   evidence:
-  - 'All caller- and model-supplied values reach SQL only as $n parameters. SQL text is sometimes assembled from internal constant fragments: platform/src/actions/action-service.ts:1667 (`where ${where}`), platform/src/retention/job.ts:230-241 (`${table}`, `${expiredWhere}`), platform/src/retention/verifiers.ts:25 and column-list constants in support-request-service.ts and read-models.ts.'
-  gap: Satisfied by construction only; no automated guard and no warehouse template mechanism yet.
+  - lint-rules.test.ts [FO-06-21]
+  gap: Warehouse templates (WP-21) do not exist, and SQL sinks are recognised by name (query/exec).
   remediation: Add a lint/CI check for SQL string interpolation and adversarial tests with the Snowflake/Athena template engine (FO-06-61).
   size: S
   environmentDependency: none
@@ -6090,39 +6263,57 @@ entries:
     origin: extraction
     challengeCorrected:
     - evidence
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-06-22
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - 'grep: no eval/new Function in platform/src; child_process only execFileSync with fixed arguments in platform/src/evaluation/manifest.ts:29 and platform/src/policy/ensure-bundle.ts:17'
-  - platform/src/gateway/catalog.test.ts:74 (frozen catalogue, no runtime registration)
-  gap: Holds by construction; platform/eslint.config.js does not enable no-eval/no-new-func/no-implied-eval or restrict dynamic import.
+  - lint-rules.test.ts [FO-06-22] incl. WebAssembly probes
+  gap: None for the acceptance; lint is a first gate, not a sandbox.
   remediation: Enable those lint rules and a restricted-imports rule for child_process/vm/worker_threads outside an allowlist.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-06
+  workPackage: null
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-06-23
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - No DSL or declarative adapter; every adapter is hand-written TypeScript (platform/src/adapters/live/*)
-  gap: Operators cannot connect an unknown internal API without code changes.
+  - dsl.test.ts [FO-06-23] step limit / output-size limit
+  - dsl.property.test.ts [FO-06-23]
+  - mutants D01, D02 killed
+  gap: None for the acceptance.
   remediation: Implement a JSON-pointer based mapping DSL (rename, cast, enum map, date/zone parse, unit conversion) over reviewed operation templates (method, path template with typed params, request/response JSON Schema) and use it for the business-system reference integration.
   size: L
   environmentDependency: none
   activation: []
-  workPackage: WP-06
+  workPackage: null
+  regressionPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-24
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -6150,10 +6341,8 @@ entries:
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/adapters/live/blocked-base.ts (BLOCKED_CAPABILITY_UNVERIFIED)
-  - platform/src/adapters/live/blocked.test.ts:91-114
-  - platform/src/gateway/http/webhook-routes.ts:6-14 (WEBHOOK_AUTH_UNVERIFIED outside local/ci)
-  gap: 'None for the acceptance: every refused operation throws a typed BLOCKED error, reports unhealthy and names no invented endpoint (blocked.test.ts:91-114). Follow-up outside the acceptance, with owners: WP-06 adds typed refusal reasons UNSUPPORTED_UNDOCUMENTED versus NOT_IMPLEMENTED; WP-07 removes the BLOCKED stubs and its live-registry scan refuses any not-implemented operation in a live composition.'
+  - src/adapters/refusals.test.ts [FO-06-25]
+  gap: 'Regression only: WP-07 removes the BLOCKED stubs from the live composition.'
   remediation: Keep the pattern for genuinely undocumented behaviour only (WP-06); WP-07 live-registry scan.
   size: S
   environmentDependency: none
@@ -6167,6 +6356,11 @@ entries:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
     - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it; the reason-code follow-up is now a WP-06 deliverable instead of an unowned gap'
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-06-26
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -7532,16 +7726,15 @@ entries:
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
 - id: FO-06-97
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/outbox/dispatcher.ts:261-310 (DEAD state, listDead/requeueDead exist for OUTBOUND outbox messages only)
-  - 'no inbound inbox table or consumer exists (grep inbound_events/inbox in platform/migrations and platform/src: none)'
-  - c2 FO-06-10 limits the DLQ requirement to outbound deliveries; section 6 lists DLQ among the transport properties of every connector
-  gap: The only DLQ is the outbound outbox. Nothing captures inbound processing failures, so a poison CDC or webhook event would either block its stream or be dropped.
+  - ingress/processing.test.ts [FO-06-97] poison -> INBOUND_DEAD with alarm; replay needs audit + MFA
+  - src/ingress/ingress.test.ts [FO-06-97] future MFA refused; replay limit
+  gap: Stream watermark gaps are shown only with an in-test StreamSource, and the CloudWatch alarm is WP-39's.
   remediation: Add an INBOUND_DEAD state with attempts/last_error columns to the inbound inbox proposed in FO-07-17. Reuse PgOutboxDispatcher's bounded backoff and its audited requeueDead pattern for inbox consumers. Record the dead-lettered position as a gap in source_watermarks (FO-07-23), and expose list and replay in the console DLQ work queue (section 14).
   size: M
   environmentDependency: none for software; SQS DLQ in AWS for VERIFIED_SANDBOX
@@ -7550,26 +7743,36 @@ entries:
   workPackage: WP-04
   provenance:
     origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-06-98
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - ingress.events
   evidence:
-  - platform/src/gateway/http/webhook-routes.ts:6-14 (single synthetic LOCAL FIXTURE HMAC key; WEBHOOK_AUTH_UNVERIFIED outside local/ci)
-  - platform/src/gateway/auth.ts:192 (JWKS key rotation exists for inbound JWTs only)
-  - 'no secret resolver exists (FO-06-04 MISSING; grep GetSecretValue/SecretResolver: documentation only)'
-  gap: Section 6 requires token rotation for connectors, but rotation is modelled only for outbound OAuth (FO-06-03) and inbound JWKS. Inbound feeds that use shared secrets or certificates have no rotation model.
+  - ingress/http.test.ts [FO-06-98][FO-15-50] Secrets Manager rotation inside the overlap only (17/17 x3)
+  - ingress/http.test.ts [FO-06-98] AWSPENDING staged before promotion
+  gap: LocalStack Secrets Manager only; the rotation function and per-source secrets belong to WP-39 and activation.
   remediation: Add a credential-version list (current, next, notAfter) to the ingress verifier registry, resolved through SecretResolver (FO-06-04) with a bounded refresh. Verify against every active version in constant time, persist credentialVersion with the inbox record, and test rotation against each emulator.
   size: S
   environmentDependency: Secrets Manager rotation configuration per tenant/source
   activation:
   - AIN-01
   - AIN-36
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-06-99
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -7893,15 +8096,16 @@ entries:
   provenance:
     origin: extraction
 - id: FO-07-16
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - ingress.events
   evidence:
-  - platform/src/gateway/http/webhook-routes.ts (fixture HMAC for transfer events, local/ci only)
-  - platform/src/gateway/auth.ts (JWT for tool calls)
-  gap: No generic authenticated event ingress.
+  - ingress/http.test.ts HMAC, HS256 bearer, socket mTLS over real HTTP/TLS
+  - ingress/livekit-webhook.test.ts [FO-07-16] livekit-server signed webhooks
+  - src/ingress/ingress.test.ts [FO-07-16] lookup EVENT_MISMATCH refused
+  gap: JWKS and reconcile-by-lookup are unit-tested only, and ingressPlugin is not registered in the gateway (WP-07).
   remediation: Add an ingress router selecting the verifier from the source profile.
   size: M
   environmentDependency: Per-source documented auth mechanism (Talkdesk TB-09, CDP, notification vendors)
@@ -7913,106 +8117,151 @@ entries:
   workPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-07-17
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - ingress.events
   evidence:
-  - platform/src/workflows/transfer.ts (transfer journeys persisted; early events held - transfer-specific)
-  - no inbox table in platform/migrations
-  gap: No generic inbox.
+  - ingress/crash.test.ts SIGKILL before and after the inbox commit
+  - ingress/http.test.ts [FO-07-17] persist before acknowledge (503)
+  - src/ingress/ingress.test.ts [FO-07-17] digest mismatch -> INBOUND_DEAD
+  gap: LocalStack KMS and postgres:16 only; the KMS key and policy are WP-39's.
   remediation: Add inbound_events table (tenant, source, event_id, payload ciphertext, digest, schema, auth mechanism, received_at) with RLS.
   size: M
   environmentDependency: KMS key for envelope encryption
   activation:
   - AIN-01
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-18
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - ingress.events
   evidence:
-  - platform/src/outbox/consumer-dedup.ts (consumer idempotency for internal outbox messages; outbox.test.ts:201)
-  - platform/src/gateway/http/webhook-routes.ts (replay window for fixture signatures)
-  gap: Pattern exists for internal messages only.
+  - ingress/http.test.ts [FAULT:DUPLICATE_WEBHOOK] deterministic two-replica race
+  - ingress/processing.test.ts two processors, each event handled once
+  gap: Emulators only.
   remediation: Unique (tenant, source, event_id) on the inbox and reuse consumer-dedup for projection consumers.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-19
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - no inbox
-  gap: Not implemented.
+  - ingress/http.test.ts digest, schema, auth mechanism and credential version on postgres:16
+  - ingress/livekit-webhook.test.ts JWT_BEARER with verifying version
+  gap: No live source is configured.
   remediation: Part of the inbox schema.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-20
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.substrate
   evidence:
-  - 'platform/src/adapters/local/telephony-fixture.transfer-contract.test.ts:62,71 (transfer events: order from the state machine, duplicates absorbed) - transfer-only'
-  - docs/adr/ADR-0017-out-of-order-transfer-events.md
-  gap: Only transfer events handle reorder; no general source-version ordering.
+  - ingress/processing.test.ts [FO-07-20] versions 3,1,2 leave 3
+  - src/ingress/ingress.test.ts [FO-07-20] permutation property
+  gap: Backfill from a real stream is not exercised.
   remediation: 'Generalize: projections apply events by (source_version, occurred_at) with last-writer-by-version semantics.'
   size: M
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-21
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - ingress.events
   evidence:
-  - strict zod bodies reject unknown fields with 4xx (platform/src/gateway/http/webhook-routes.ts TransferEventBody) - rejection, not quarantine+alert
-  gap: No quarantine path for inbound data.
+  - ingress/processing.test.ts [FO-07-21] unknown schema quarantined, never processed
+  - src/ingress/ingress.test.ts [FO-07-21] counted and alarmed
+  gap: The alarm rule is WP-39's.
   remediation: Add quarantine state and alarm vsp_inbox_quarantined_total.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-22
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.substrate
   evidence:
-  - no raw replay store (privacy/README mentions restricted quarantine store for redaction failures only)
-  gap: Not implemented.
+  - ingress/processing.test.ts [FO-07-22] restricted columns, retention, legal hold
+  - src/ingress/ingress.test.ts [FO-07-22] purged after processing only
+  gap: Registering inbound_raw_payloads with the retention registry under an approved duration belongs to the retention owner.
   remediation: Store raw payload ciphertext in the inbox/restricted S3 prefix with retention registration.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-23
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -8796,8 +9045,8 @@ entries:
   capabilityIds:
   - knowledge.retrieval
   evidence:
-  - no graph store or graph retriever dependency or module in platform/, console/ or scripts/ (searched 2026-10-19 at 8c0f5a0)
-  gap: 'Not yet triggered: no graph retrieval exists and no work package plans it. Nothing fails if one is added without a retrieval evaluation showing gains (WP-20 writes the retrieval evaluation reports under evidence/evaluation/retrieval/).'
+  - decision-gates.test.ts [FO-08-17]
+  gap: 'Not triggered yet: no graph store or retriever exists (WP-20).'
   remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when a graph database client or graph retriever module appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it. The ADR must cite a WP-20 retrieval evaluation report showing the gain.'
   size: S
   environmentDependency: none
@@ -8809,6 +9058,11 @@ entries:
     - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
     - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when graph retrieval appears without a decision record'
     repairStatusFrom: NOT_APPLICABLE
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-08-18
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -9136,8 +9390,8 @@ entries:
   capabilityIds:
   - knowledge.retrieval
   evidence:
-  - no semantic cache in platform/src (searched 2026-10-19 at 8c0f5a0); the planned WP-24 context caches are exact-key caches (FO-07-42), not similarity caches
-  gap: 'Not yet triggered: no semantic cache exists and none is planned. Nothing fails if a similarity-keyed cache is added without the FO-07-42 key and the disclosure re-check on return.'
+  - decision-gates.test.ts [FO-08-35]
+  gap: 'Not triggered yet: no semantic cache exists.'
   remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when a cache module declared with kind semantic appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it. Every cache module must declare its kind in modules.yaml; a semantic cache additionally needs the FO-07-42 key and a re-check-on-return test.'
   size: S
   environmentDependency: none
@@ -9149,6 +9403,11 @@ entries:
     - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
     - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when semantic caches appears without a decision record'
     repairStatusFrom: NOT_APPLICABLE
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-08-36
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -11020,27 +11279,30 @@ entries:
   provenance:
     origin: extraction
 - id: FO-10-43
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - actions.effects
   evidence:
-  - platform/migrations/0100_action_ledger.sql (action_ledger_one_in_doubt_per_record)
-  - platform/src/actions/action-service.ts:760-781,1379-1431 (commit_attempt_id fencing)
-  - platform/src/actions/action-service.test.ts:764,784
-  - platform/src/actions/action-service.property.test.ts
-  gap: 'PGlite is single-connection: true multi-connection races are exercised only through optimistic predicates. IMPLEMENTED, not VERIFIED_LOCAL: PGlite is single-connection, so concurrent commits were never contended; ADR-0018 decision 7.2 rules PGlite out as evidence for multi-connection concurrency (WP-04 postgres:16 contention suite).'
+  - 'substrate/contention.test.ts two replicas commit one action: one provider commit, one effect'
+  gap: Each real vendor's idempotency handling must be verified per connector.
   remediation: Add a Docker Postgres multi-connection concurrency test (Layer 2).
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: PGlite is single-connection, so concurrent commits were never contended; ADR-0018 decision 7.2 rules PGlite out as evidence for multi-connection concurrency (WP-04 postgres:16 contention suite).'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-10-44
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -11486,21 +11748,20 @@ entries:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
 - id: FO-11-13
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - actions.effects
   evidence:
-  - platform/src/actions/action-service.ts:1526-1548 (row_version predicate)
-  - platform/migrations/0100_action_ledger.sql
-  - platform/src/actions/action-service.test.ts:643,751,764,784
-  gap: 'PGlite single connection; real concurrent-connection behaviour unverified (documented in business/README ''Once per call under concurrency''). IMPLEMENTED, not VERIFIED_LOCAL: PGlite single connection: leases, fencing and optimistic concurrency were never contended by concurrent connections (ADR-0018 decision 7.2; WP-04 postgres:16 contention suite).'
+  - substrate/contention.test.ts two-connection race on the partial unique index; row_version race
+  gap: Emulators only.
   remediation: 'Add a Layer-2 suite that runs postgres:16 in Docker with PgPoolDb (platform/src/db/pg.ts, which currently has no test). Parameterize action-service.test.ts and action-service.property.test.ts over the db engine, and add a two-pool race test: two LedgerActionService instances commit the same action and the same record concurrently, and the test asserts one in-doubt row, commit_attempt_id fencing, a single provider call and correct row_version conflicts.'
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
@@ -11508,6 +11769,11 @@ entries:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: PGlite single connection: leases, fencing and optimistic concurrency were never contended by concurrent connections (ADR-0018 decision 7.2; WP-04 postgres:16 contention suite).'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-11-14
   softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
@@ -14647,10 +14913,9 @@ entries:
   - connectors.runtime
   - privacy.operations
   evidence:
-  - platform/src/privacy/egress.ts
-  - platform/src/privacy/egress.test.ts
-  - platform/src/privacy/egress-startup.test.ts
-  gap: 'No judge pipeline exists yet. The runtime EgressGuard (platform/src/privacy/egress.ts:114) is called only by RedactionService (redaction-service.ts:109), which has no caller, so no outbound client (Salesforce REST, notifications, telemetry exporters) checks it per request. Enforcement today is the startup check alone (platform/src/main/container.ts:306-318 checkStartupEgress / assertStartupEgress). IMPLEMENTED, not VERIFIED_LOCAL: EgressGuard sits on no outbound path: it is called only by RedactionService (platform/src/privacy/redaction-service.ts:109), which nothing calls (built in platform/src/main/container.ts:375-376); enforcement is the startup check alone (WP-06 egress-classified HTTP client).'
+  - transport.test.ts [FO-15-19]
+  - connector.test.ts [DATA-01] egress failure injection
+  gap: The Salesforce, notification and OTLP clients are not on the transport yet (WP-07).
   remediation: Route every outbound HTTP client through an EgressGuard-checking wrapper (destination id plus data class), with a test that an unapproved destination is refused at call time. Require the same wrapper on the future judge client.
   size: S
   environmentDependency: none
@@ -14664,6 +14929,11 @@ entries:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: EgressGuard sits on no outbound path: it is called only by RedactionService (platform/src/privacy/redaction-service.ts:109), which nothing calls (built in platform/src/main/container.ts:375-376); enforcement is the startup check alone (WP-06 egress-classified HTTP client).'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-15-20
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -14799,11 +15069,9 @@ entries:
   capabilityIds:
   - connectors.runtime
   evidence:
-  - infra/terraform/modules/ecs_service/main.tf (task roles)
-  - infra/terraform/modules/secrets/main.tf:27-30 (rotation hook optional, null)
-  - platform/src/adapters/live/salesforce-rest-support-records.ts (client credentials)
-  - docs/RUNBOOKS/secret-rotation.md
-  gap: Rotation hooks null; no rotation/revocation test.
+  - runtime.test.ts [FO-15-26]
+  - resolver.test.ts [FO-15-26]
+  gap: Rotation Lambdas and Terraform hooks are WP-39's.
   remediation: Implement rotation handlers and a revocation drill test in Layer 5.
   size: M
   environmentDependency: Secrets and rotation owners
@@ -14812,6 +15080,11 @@ entries:
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-15-27
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -14837,11 +15110,9 @@ entries:
   capabilityIds:
   - audit.independent
   evidence:
-  - infra/terraform/modules/kms/main.tf
-  - infra/terraform/modules/audit/tests/audit.tftest.hcl
-  - platform/src/audit/sinks/s3-iam-model.test.ts
-  - platform/migrations/0201_audit_evidence.sql
-  gap: Not verified against real IAM.
+  - substrate/pg-pool.test.ts [FO-15-28][FO-15-42] database roles separated
+  - substrate/audit-export.test.ts MinIO STS writer/reader sessions
+  gap: LocalStack and MinIO do not enforce the KMS key-admin vs key-use split or distinct IAM principals (AIN-03, WP-39).
   remediation: Keep the DB role tests and run them on postgres:16. Prove the key-admin, key-user, audit-writer and audit-reader split with the IAM policy simulator for each role in a sandbox under authority (environment evidence); LocalStack community does not evaluate IAM policies.
   size: S
   environmentDependency: Audit account
@@ -14854,6 +15125,11 @@ entries:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-15-29
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -14933,29 +15209,31 @@ entries:
   provenance:
     origin: extraction
 - id: FO-15-33
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/audit/writer.ts
-  - platform/src/audit/health.ts
-  - platform/src/audit/writer.test.ts
-  - platform/src/audit/evidence-flow.test.ts
-  - platform/src/gateway/pipeline.audit-metric.test.ts
-  gap: PGlite only (single connection); not run against real PostgreSQL/Aurora concurrency.
+  - substrate/faults.test.ts [FAULT:AUDIT_OUTAGE] commit/prepare blocked before any provider call
+  gap: Not Aurora.
   remediation: Add a test-database switch (e.g. VSP_TEST_DB=pg) so createTestDb returns PgPoolDb over a postgres:16 container. Run the src/audit and src/actions suites on it, and add a two-connection test where a mutation and its audit append race a concurrent writer and a killed connection.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-15-34
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -14963,10 +15241,8 @@ entries:
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/protocol/audit.ts:42-79
-  - platform/src/protocol/common.ts:125-134 (VersionSet)
-  - platform/src/audit/schema.test.ts
-  gap: No external source sequence, context snapshot id, config digest or source-freshness version fields; receipts only via evidence pointers.
+  - platform/src/protocol/audit.ts new fields; schemas:check passes
+  gap: Only the ingress fills the new fields; context snapshot, config digest and receipt refs belong to WP-05, WP-07 and WP-25.
   remediation: Add sourceSequence, contextSnapshotId, configDigest and receiptRef fields (schema version bump) and populate.
   size: S
   environmentDependency: none
@@ -14974,6 +15250,11 @@ entries:
   workPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-15-35
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -15001,10 +15282,9 @@ entries:
   capabilityIds:
   - platform.substrate
   evidence:
-  - platform/migrations/0201_audit_evidence.sql, 0100_action_ledger.sql, 0110_outbox.sql
-  - platform/src/audit/migration.test.ts:27,32,39,99 (app_runtime, owner and app_worker cannot UPDATE, DELETE or TRUNCATE)
-  - platform/src/actions/ledger-schema.test.ts:88 (no runtime or worker role can DELETE ledger, outbox or dedupe evidence), :108 (console and auditor roles have no access)
-  gap: PGlite only.
+  - 'regression: substrate/pg-pool.test.ts append-only grants and triggers on postgres:16'
+  - src/audit unit suites green (1044/1044 with dependents)
+  gap: None found.
   remediation: Re-run on Postgres container.
   size: S
   environmentDependency: none
@@ -15016,17 +15296,21 @@ entries:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
     - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-15-37
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/audit/sinks/s3-object-lock.ts:1-40
-  - platform/src/audit/sinks/s3-object-lock.test.ts (stub client)
-  - infra/terraform/modules/audit/main.tf
-  gap: Only stub-client contract tests; never run against an S3 implementation; not composed outside local.
+  - substrate/audit-export.test.ts GOVERNANCE retention and SSE-KMS on MinIO
+  - substrate/audit-signatures.test.ts locked original manifest version retained
+  gap: Independent administration (separate account, SCPs) is on the environment axis (AIN-01, AIN-03).
   remediation: Test against MinIO/LocalStack with Object Lock in the compose and compose the sink in the live worker.
   size: M
   environmentDependency: Audit AWS account, bucket, KMS key, approved retention (PRQ-040)
@@ -15034,32 +15318,43 @@ entries:
   - AIN-01
   - AIN-03
   - AIN-25
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-15-38
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.substrate
   evidence:
-  - platform/src/audit/chain.ts
-  - platform/src/audit/shipper.ts
-  - platform/src/audit/verifier.ts
-  gap: Manifests carry digests and hash chains but are not cryptographically signed.
+  - src/audit/exporter/verifier.test.ts [FO-15-38] unsigned / invalid signature FAIL
+  - substrate/audit-signatures.test.ts [FO-15-38] insider manifest versions FAIL (60/60 x3)
+  gap: The audit KMS key and its key policy in AWS are WP-39's.
   remediation: Add KMS Sign over manifest digests and signature verification in IntegrityVerifier.
   size: S
   environmentDependency: Audit signing key
   activation:
   - AIN-03
   - AIN-34
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-15-39
   softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
@@ -15067,10 +15362,8 @@ entries:
   capabilityIds:
   - ingress.events
   evidence:
-  - platform/src/audit/monitor.ts; platform/src/worker/loops.ts:405 (audit.verify runs in the worker loop)
-  - 'platform/src/audit/monitor.test.ts:59 (worker composes audit.verify), :96 (deleted evidence detected: sequence gap and alarm metric)'
-  - infra/terraform/modules/observability/tests/observability.tftest.hcl:62 (audit-ingestion-gap alarm treats missing data as breaching)
-  gap: Uses writer chain heads as source counts, not independent per-source counters (README).
+  - 'regression: src/audit/monitor.test.ts and verifier ingestion-gap tests green'
+  gap: None found locally; monitor.test.ts needs the policy bundle that CI builds (scripts/policy.sh).
   remediation: Add independent per-source counters (e.g., gateway request counts) to detectIngestionGaps.
   size: S
   environmentDependency: none
@@ -15082,23 +15375,28 @@ entries:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
     - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-15-40
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/audit/verifier.ts
-  - platform/src/audit/verifier.test.ts
-  - platform/src/audit/sinks/s3-iam-model.test.ts
-  gap: 'No live composition with the verifier-role sink. MISSING: no verifier with its own identity and read-only sink credentials exists (platform/src/worker/worker.ts:163-176 composes it as the shipper).'
+  - substrate/audit-export.test.ts [FO-15-40][FO-15-42] verifier judged by its login
+  - src/audit/exporter/verifier.test.ts [FO-15-40] INCONCLUSIVE without a sink reader
+  gap: The AWS verifier task role and separate IAM principals are WP-39's (AIN-03).
   remediation: 'Run AuditCompletenessMonitor as a separate verifier task with its own DB role (new app_audit_verifier: SELECT on the audit tables only) and an S3 client built from the verifier role''s credentials. Compose it outside the worker, and add a test that the verifier role cannot insert audit rows.'
   size: S
   environmentDependency: Audit account verifier role
   activation:
   - AIN-03
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
@@ -15108,49 +15406,64 @@ entries:
     repair:
     - 'Phase A repair (critic gap 2): IMPLEMENTED -> MISSING: the composed verifier runs as the shipper identity with the same sink client (platform/src/worker/worker.ts:163-176); no separate verifier exists'
     repairStatusFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-15-41
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/audit/monitor.ts (ledger keyed reconciliation)
-  - platform/src/audit/verifier.ts (reconcileCounts)
-  - platform/src/audit/monitor.test.ts
-  gap: Reconciles only the internal action ledger; external provider/CRM counts are not reconciled.
+  - substrate/audit-reconciliation.test.ts [FO-15-41] cross-tenant / non-commit / re-pointed deferral decoys FAIL
+  - src/audit/exporter/verifier.test.ts keyed action, receipt, CRM and route reconciliation
+  gap: Provider and CRM counts are reconciled against the platform's ledger, not pulled from vendor APIs.
   remediation: Add provider receipt and CRM sync counts as reconciliation sources.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-15-42
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/migrations/0201_audit_evidence.sql
-  - platform/src/audit/query.test.ts
-  - platform/src/audit/sinks/s3-iam-model.test.ts
-  gap: None in code.
+  - substrate/pg-pool.test.ts [FO-15-28][FO-15-42] verifier and auditor cannot write
+  - substrate/audit-export.test.ts [FO-15-42] MinIO enforces STS session policies
+  gap: MinIO enforces the STS session policies locally and AWS IAM remains WP-39's; app_runtime still reads its own tenant's audit rows by design.
   remediation: Keep the DB grant tests and run them on postgres:16. Verify the IAM half with the IAM policy simulator for the writer, auditor and verifier roles in a sandbox under authority, recorded as environment evidence.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-15-43
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -15176,10 +15489,8 @@ entries:
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/audit/health.ts
-  - platform/src/audit/health.test.ts
-  - platform/src/audit/shipper.test.ts
-  gap: Bounds are engineering values; PGlite only.
+  - 'regression: substrate/faults.test.ts bounded journal during AUDIT_OUTAGE (3/3 runs)'
+  gap: None found.
   remediation: Approve bounds; test on Postgres container.
   size: S
   environmentDependency: none
@@ -15190,17 +15501,22 @@ entries:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-15-45
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.substrate
   evidence:
-  - 'platform/src/audit/deferred.ts:39-44 (CRASH-LOSS LIMIT: queue in process memory)'
-  - docs/adr/ADR-0011-deferred-route-audit.md
-  - infra/terraform/modules/observability/main.tf:227
-  gap: The deferral queue is process memory at 8c0f5a0; a crash loses queued events.
+  - src/audit/journal.test.ts [FO-15-45] forged-time, CHECK-refusal, privilege-loss and clock-skew tests
+  - substrate/route-audit-crash.test.ts [FO-15-45] forged '2026'/year-0000 and CHECK-refused items quarantined on postgres:16
+  - substrate/dynamo.test.ts [FO-15-45] newestPendingMs across filtered pages
+  gap: 'Not composed: WP-07/WP-25 must replace the process-local queue in container.ts and the handoff, and carrier-event reconciliation is absent.'
   remediation: Add a durable local journal (append-only file with fsync on a separate volume, or a DynamoDB/SQS journal independent of the audit DB) plus carrier-event reconciliation; crash-injection test.
   size: M
   environmentDependency: Approved storage location for the journal
@@ -15211,6 +15527,11 @@ entries:
     origin: extraction
     repair:
     - gap refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-15-46
   softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
@@ -15218,10 +15539,8 @@ entries:
   capabilityIds:
   - platform.substrate
   evidence:
-  - platform/src/audit/health.ts
-  - platform/src/gateway/pipeline.db-outage.test.ts
-  - platform/src/business/db-outage.test.ts
-  gap: None locally.
+  - 'regression: substrate/faults.test.ts prepare/commit blocked with AUDIT_STORE_UNWRITABLE (3/3 runs)'
+  gap: None found.
   remediation: Repeat in Layer 2.
   size: S
   environmentDependency: none
@@ -15233,6 +15552,11 @@ entries:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
     - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-12.db-outage'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-15-47
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -15265,10 +15589,10 @@ entries:
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/observability/metrics.ts (vsp_audit_deferred_*, vsp_audit_ingestion_gaps_total)
-  - console/src/pages/OverviewPage.tsx:66-80
-  - platform/src/audit/deferred.test.ts
-  gap: Losses before a process reaches the queue are only counted by the gateway entry point.
+  - src/audit/journal.test.ts [FO-15-48] health-gated flush recounts (real PgAuditHealth); fresh process reports no postgres value
+  - substrate/route-audit-crash.test.ts [FO-15-48] dynamodb gauge on read-only postgres:16
+  - src/audit/exporter/verifier.test.ts [FO-15-48] pending deferral past grace is a discrepancy
+  gap: The console overview (WP-38) and the alarms, including missing-data handling (WP-39), are not built.
   remediation: Make the detached route-tool execution write its deferred event to the durable journal (FO-15-45) before the tool timeout answers. Alarm on any TIMEOUT for request_human_transfer or request_safety_route that has no matching audit or journal entry.
   size: S
   environmentDependency: none
@@ -15280,6 +15604,11 @@ entries:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-15-49
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -15302,23 +15631,30 @@ entries:
     repair:
     - 'evidence refreshed: follow-on threat rows added to docs/security/threat-model.md section 8 in the Phase A repair; status unchanged (controls and tests are not built, review NOT_RUN)'
 - id: FO-15-50
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - ingress.events
   evidence:
-  - platform/src/gateway/http/webhook-routes.ts:6-14 (fixture HMAC local/ci only; WEBHOOK_AUTH_UNVERIFIED elsewhere)
-  - platform/src/gateway/http/webhook-routes.test.ts
-  gap: Only a labelled fixture scheme; no rotation; refused outside local/ci.
+  - ingress/livekit-webhook.test.ts [FO-15-50] livekit-server webhooks verify; foreign key refused
+  - ingress/http.test.ts [FO-15-50] rotation, timestamp window, 413, replay cache, lifetime
+  - src/ingress/ingress.test.ts [FO-15-50] JWT without exp refused
+  gap: The carrier/Talkdesk signature scheme is UNKNOWN (AIN-07, PRQ-021) and is never invented.
   remediation: Implement verifier interface with key-set rotation and per-vendor implementations (LiveKit webhook JWT, carrier signatures) and tests.
   size: M
   environmentDependency: Vendor-documented webhook auth mechanism (TB-09)
   activation:
   - AIN-07
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-15-51
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -15502,27 +15838,31 @@ entries:
   provenance:
     origin: extraction
 - id: FO-16-03
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.substrate
   evidence:
-  - platform/migrations/*.sql
-  - platform/src/db/migrate.ts
-  - platform/src/db/db.test.ts
-  gap: Tested only on PGlite; PgPoolDb path untested.
+  - substrate/pg-pool.test.ts every migration in order as non-superuser owner, checksums, re-run no-op
+  gap: Not Aurora.
   remediation: Add a postgres:16 service (with pgvector) and run the migrations through PgPoolDb as a non-superuser owner role, as on Aurora, in CI. Assert checksums, role grants and RLS policies through catalog queries.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-16-04
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -16100,10 +16440,8 @@ entries:
   capabilityIds:
   - connectors.runtime
   evidence:
-  - infra/terraform/modules/kms
-  - infra/terraform/modules/secrets
-  - platform/src/config/approvals.ts (KmsTrustedKeyResolver)
-  gap: Runtime secret resolution for adapters is not composed (live composition refused).
+  - runtime.test.ts [FO-16-31]
+  gap: Runtime secret resolution is not composed in the live container (WP-07).
   remediation: Implement a runtime secret resolver (Secrets Manager GetSecretValue with caching and rotation-aware refresh) used by the live composition (FO-16-11), and test it against LocalStack Secrets Manager in the local compose. Test KmsTrustedKeyResolver against LocalStack KMS GetPublicKey.
   size: S
   environmentDependency: AWS accounts
@@ -16116,6 +16454,11 @@ entries:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-16-32
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -16260,10 +16603,9 @@ entries:
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/resilience/circuit-breaker.ts
-  - platform/src/resilience/bulkhead.ts
-  - platform/src/resilience/resilience.test.ts
-  gap: Production thresholds unmeasured.
+  - connector.test.ts [FO-16-39] connector-wide cap (P02 killed)
+  - connector.test.ts [FO-16-39] circuit opens
+  gap: Provider ports, Salesforce and notifications are not wrapped yet (WP-07), and the safety-route exemption is not tested here.
   remediation: Wrap each outbound dependency call (provider ports, Salesforce REST, notifications) in executeWithPolicy with a per-dependency Bulkhead from configuration, and keep safety and human routes outside it. Test that a saturated bulkhead rejects with BULKHEAD_FULL while safety routing proceeds. Calibrate limits from load tests.
   size: S
   environmentDependency: none
@@ -16275,6 +16617,11 @@ entries:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-16-40
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -16304,11 +16651,9 @@ entries:
   capabilityIds:
   - platform.substrate
   evidence:
-  - platform/src/outbox/dispatcher.ts:177-199
-  - platform/src/outbox/outbox.test.ts:201
-  - platform/src/main/server.ts:15-200
-  - platform/src/main/server.test.ts
-  gap: 'Workflow engine leases and media session draining are not covered. Concurrent claims (FOR UPDATE SKIP LOCKED, platform/src/outbox/dispatcher.ts:185-197) were never contended: PGlite serializes on one connection, so two dispatchers racing for one row is untested. IMPLEMENTED, not VERIFIED_LOCAL: Two dispatchers racing for one row (FOR UPDATE SKIP LOCKED, platform/src/outbox/dispatcher.ts:185-197) were never contended because PGlite serializes on one connection; workflow and media leases are not covered.'
+  - substrate/contention.test.ts lease claiming and claim-token fencing on two pools
+  - ingress/processing.test.ts stalled lease takeover fenced; route-audit-crash SIGTERM seal
+  gap: SIGTERM draining of in-flight work belongs to the worker loop (WP-07); workflow and media leases are not covered.
   remediation: Run a two-dispatcher contention test on postgres:16 through PgPoolDb (each row claimed exactly once, redelivery after lease expiry), add lease and drain handling to PgWorkflowEngine ticks, and extend draining to media sessions once they exist.
   size: S
   environmentDependency: none
@@ -16322,6 +16667,11 @@ entries:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: two dispatchers racing for one row (FOR UPDATE SKIP LOCKED, platform/src/outbox/dispatcher.ts:185-197) were never contended because PGlite serializes on one connection; workflow and media leases are not covered.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-16-42
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -16835,8 +17185,9 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/actions/action-service.property.test.ts | platform/src/policy/engine.property.test.ts | platform/src/adapters/local/faults.property.test.ts | platform/src/safety/conversation-guard.property.test.ts | platform/src/workflows/transfer.out-of-order.test.ts | platform/src/workflows/grants.test.ts | platform/src/voice/speech-queue.test.ts | scripts/ci/check-release-manifest.test.ts | evidence/test-reports/vitest-platform.json (3350/3350 after fix wave 5)
-  gap: 'Deletion has no property tests; stale-speech/session-generation coverage limited to the text speech queue. IMPLEMENTED, not VERIFIED_LOCAL: Deletion has no property tests and stale-speech coverage is limited to the text speech queue.'
+  - test/invariants/property.test.ts
+  - test/invariants/evaluation-boundary.test.ts
+  gap: Concurrency is covered on single-connection PGlite only.
   remediation: Add deletion and session-generation property suites.
   size: S
   environmentDependency: none
@@ -16849,6 +17200,11 @@ entries:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: deletion has no property tests and stale-speech coverage is limited to the text speech queue.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-03
   softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
@@ -16995,10 +17351,9 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - evidence/evaluation/corpus-local-20261018w4.root-causes.md
-  - evidence/evaluation/corpus-local-20261018w4.root-causes.json
-  - evidence/evaluation/tools
-  gap: Attribution is by owner/root cause, not the four required categories; 305 FAIL/20 INCONCLUSIVE/7 critical remain in w4; no rerun after fix wave 5 (8c0f5a0) is committed.
+  - historical-classification.test.ts
+  - corpus-local-20261019w5.historical-classification.json
+  gap: Category judgements are recorded analysis, and 283 runs remain non-PASS awaiting product decisions.
   remediation: Map root causes to the four categories, fix product defects, rerun and keep both records.
   size: M
   environmentDependency: none
@@ -17008,6 +17363,11 @@ entries:
     origin: extraction
     repair:
     - stale "fix wave 5 in progress" text refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-11
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -17015,11 +17375,10 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/evaluation/scorer.ts:197-198
-  - platform/src/evaluation/generate-risk.ts (faultReachabilityProblems)
-  - platform/src/evaluation/driver/local-driver.ts (PARTIAL_WRITE counted only if effect exists)
-  - platform/src/evaluation/scorer.test.ts
-  gap: 'Reached is driver self-reported (faultsInjected), not cross-checked against independent evidence for every fault kind. IMPLEMENTED, not VERIFIED_LOCAL: Reach is cross-checked against fixture state for 10 of 25 fault kinds only; the others are counted when armed or when the targeted tool is called (see the FO-17-24.* rows).'
+  - fault-reach.test.ts driver_self_report
+  - test/invariants/fault-reach-driver.test.ts [FO-17-44]
+  - scorer.test.ts verifier probe p1
+  gap: Four WP-34 local-driver tests still assert PASS on the outbox self-report and fail until the handed-off patch is applied.
   remediation: Require fault-point evidence (e.g., ledger commit row before crash) per fault plan.
   size: S
   environmentDependency: none
@@ -17030,102 +17389,137 @@ entries:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: reach is cross-checked against fixture state for 10 of 25 fault kinds only; the others are counted when armed or when the targeted tool is called (see the FO-17-24.* rows).'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-12
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/evaluation/results.ts (exclusive create)
-  - evidence/evaluation/corpus-local-20261018w3.summary.json
-  - evidence/evaluation/corpus-local-20261018w4.summary.json
-  gap: No explicit link from rerun to the original failing result.
+  - corpus-run.test.ts
+  - reach-erratum.test.ts [FO-17-12]
+  gap: Run directories are gitignored; the committed record is the summaries, errata and addenda.
   remediation: Add supersedes/rerunOf fields to results.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-01
+  workPackage: null
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-13
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/evaluation/README.md (corpus expectation decisions table)
-  - platform/src/evaluation/corpus.test.ts
-  gap: Several expectation changes (e.g., outcome relabels) were made by engineering without independent review; no automated guard against gate weakening.
+  - corpus-guard.test.ts disclosure (g40) and backend_record collection (g24) tests
+  - corpus-guard.test.ts expectation-relabel and gate-registration tests
+  - 'r3mut/results.txt: 79/82 KILLED, 0 survivors'
+  gap: Relaxations need a human ReviewRecord whose signature is not yet cryptographically verified (AIN-31), and the lock baseline was set by engineering.
   remediation: Add a corpus diff check requiring review records for expectation changes.
   size: S
   environmentDependency: Independent reviewer
   activation:
   - AIN-31
-  workPackage: WP-01
+  workPackage: null
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-14
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/evaluation/aggregate.ts:212-219 (INCONCLUSIVE blocks)
-  - platform/src/evaluation/aggregate.ts:335 (task completion excludes INCONCLUSIVE)
-  gap: No required-scenario set check (unrun scenarios do not affect the gate) and taskCompletionRate excludes INCONCLUSIVE from the denominator.
+  - aggregate.test.ts [FO-17-14]
+  - scenarios/manifests/required-scenarios.json (scenarios:check)
+  gap: None locally.
   remediation: Add required scenario manifest per gate and compute rates over the fixed denominator.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-01
+  workPackage: null
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-15
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/evaluation/corpus.ts:106 (coverage summary)
-  - platform/src/evaluation/driver/local-driver.ts (UNINJECTABLE_FAULTS)
-  gap: No explicit coverage-hole/unsupported-intent section in reports.
+  - aggregate.test.ts coverage-hole fields
+  gap: None locally.
   remediation: Add coverage-hole section to aggregate report.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-01
+  workPackage: null
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-16
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  capabilityIds:
+  - evaluation.test_truth
+  evidence:
+  - corpus.test.ts [FO-17-16] buildLineage parent
+  - lineage-erratum.test.ts
+  gap: No committed held-out scenario is independent (0 of 225); a human-reviewed held-out set is needed.
+  remediation: Extend CorpusSplit and add lineage fields.
+  size: S
+  environmentDependency: none
+  activation: []
+  workPackage: null
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-17-17
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/protocol/evaluation.ts:23 (development | heldout_acceptance only)
-  - platform/src/evaluation/split.ts
-  gap: No tuning or regression split; lineage limited to versions.
-  remediation: Extend CorpusSplit and add lineage fields.
-  size: S
-  environmentDependency: none
-  activation: []
-  workPackage: WP-01
-  provenance:
-    origin: extraction
-- id: FO-17-17
-  softwareStatus: MISSING
-  environmentStatus: NOT_CONFIGURED
-  qualification: NOT_RUN
-  capabilityIds:
-  - evaluation.test_truth
-  evidence:
-  - platform/src/evaluation/split.ts:13-16 (hash of scenarioId)
-  gap: Split by individual scenario id, so variant families of one intent straddle dev and held-out.
+  - split.ts family-split.v2
+  - scenarios:check leakage 0
+  gap: Synthetic accounts appear in several splits through different intents (6); this is reported, not prevented.
   remediation: Split by family key (intent skeleton/account) with a leakage check; version the change.
   size: S
   environmentDependency: none
@@ -17133,6 +17527,11 @@ entries:
   workPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-17-18
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -17288,7 +17687,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-05
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-04
   - WP-05
@@ -17313,7 +17712,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-14
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-14
   postconditionPackages:
@@ -17366,7 +17765,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-19
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-19
   postconditionPackages:
@@ -17393,7 +17792,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-30
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-19
   - WP-22
@@ -17450,7 +17849,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-25
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-23
   postconditionPackages:
@@ -17501,7 +17900,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-24
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-21
   - WP-24
@@ -17528,7 +17927,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-24
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-18
   - WP-24
@@ -17571,9 +17970,8 @@ entries:
   capabilityIds:
   - ingress.events
   evidence:
-  - scenarios/fixtures/failures/DUPLICATE_WEBHOOK.json (fault plan v1)
-  - platform/src/evaluation/driver/local-driver.ts inject() case DUPLICATE_WEBHOOK (in-process fixture stack; counted only when the fixture state shows the fault manifested)
-  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:DUPLICATE_WEBHOOK] test.
+  - 'ingress/http.test.ts [FAULT:DUPLICATE_WEBHOOK] two-replica race and redeliveries: one row, one effect'
+  gap: The EvaluationResult requestedFault/reachedFault element is WP-34's.
   remediation: WP-04 builds the injection point (inbound inbox redelivery with the same (tenant, source, event_id) and outbox redelivery) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:DUPLICATE_WEBHOOK]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
@@ -17589,6 +17987,11 @@ entries:
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-24.MISSING_WEBHOOK
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -17603,7 +18006,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-29
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-29
   postconditionPackages:
@@ -17681,7 +18084,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-25
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-23
   - WP-25
@@ -17706,7 +18109,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-25
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-23
   - WP-25
@@ -17757,7 +18160,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-32
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-06
   postconditionPackages:
@@ -17783,7 +18186,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-07
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-04
   postconditionPackages:
@@ -17809,7 +18212,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-17
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-08
   postconditionPackages:
@@ -17837,7 +18240,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-15
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-08
   postconditionPackages:
@@ -17864,7 +18267,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-17
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-08
   postconditionPackages:
@@ -17891,7 +18294,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-15
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-13
   postconditionPackages:
@@ -17916,7 +18319,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-15
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-13
   postconditionPackages:
@@ -17941,7 +18344,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-35
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-35
   postconditionPackages:
@@ -17993,7 +18396,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-28
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-28
   postconditionPackages:
@@ -18070,7 +18473,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-25
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-11
   postconditionPackages:
@@ -18089,9 +18492,8 @@ entries:
   capabilityIds:
   - audit.independent
   evidence:
-  - scenarios/fixtures/failures/AUDIT_OUTAGE.json (fault plan v1)
-  - platform/src/evaluation/driver/local-driver.ts inject() case AUDIT_OUTAGE (in-process fixture stack; counted as injected when it is armed, not when it manifests)
-  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:AUDIT_OUTAGE] test.
+  - substrate/faults.test.ts [FAULT:AUDIT_OUTAGE] fail closed before any provider call; routes journaled
+  gap: The EvaluationResult requestedFault/reachedFault element is WP-34's.
   remediation: WP-04 builds the injection point (the central sink and local audit outbox cannot be written (MinIO Object Lock and Postgres in Layer 2)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:AUDIT_OUTAGE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
@@ -18107,6 +18509,11 @@ entries:
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-24.LOCAL_PERSISTENCE_FAILURE
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -18122,7 +18529,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-15
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-04
   postconditionPackages:
@@ -18177,7 +18584,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-24
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-22
   postconditionPackages:
@@ -18205,7 +18612,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-24
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-19
   postconditionPackages:
@@ -18231,7 +18638,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-24
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-19
   postconditionPackages:
@@ -18311,7 +18718,7 @@ entries:
   environmentDependency: none
   activation: []
   workPackage: WP-42
-  faultSource: prompt section 17
+  faultSource: registry and prompt section 17
   injectionPointPackages:
   - WP-42
   postconditionPackages:
@@ -18523,20 +18930,20 @@ entries:
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
 - id: FO-17-24.POLICY_ENGINE_ERROR
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - scenarios/fixtures/failures/POLICY_ENGINE_ERROR.json (fault plan v1)
-  - platform/src/evaluation/driver/local-driver.ts inject() case POLICY_ENGINE_ERROR (in-process fixture stack; counted as injected when it is armed, not when it manifests)
-  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:POLICY_ENGINE_ERROR] test.
+  - test/invariants/policy-engine-error.fault.test.ts [FAULT:POLICY_ENGINE_ERROR]
+  gap: The engine is decorated through a private-field seam; a public seam is requested from WP-05.
   remediation: WP-01 builds the injection point (the in-process OPA evaluation throws or is undefined) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:POLICY_ENGINE_ERROR]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-01
+  workPackage: null
+  regressionPackage: WP-01
   faultSource: registry
   injectionPointPackages:
   - WP-01
@@ -18547,6 +18954,11 @@ entries:
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-24.GUARDRAIL_LIMIT
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -18775,10 +19187,8 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/observability/slo.ts:136-189
-  - platform/src/evaluation/scorer.ts (hard gates)
-  - evidence/evaluation/corpus-local-20261018w4.summary.json (7 critical failures)
-  gap: Local corpus still shows 7 critical failures (crash-after-commit reconciliation gates). vsp_duplicate_effects_total (platform/src/observability/metrics.ts:486) is never emitted, so the zero-duplicate objective has no production signal.
+  - corpus-local-20261019w5.reach-erratum.md
+  gap: vsp_duplicate_effects_total is not emitted, and the w5 local gate FAILs.
   remediation: Re-run the corpus after fix wave 5 and keep the w4 results. Fix the risk-draft generator so that the crash_after_commit slot-conflict scripts reach commit before the injected crash (root cause AFTER_COMMIT_FAULT_NOT_REACHED_SLOT_CONFLICT, 6 of the 7 critical runs in evidence/evaluation/corpus-local-20261018w4.root-causes.md), without relabelling expectations. Emit vsp_duplicate_effects_total wherever reconciliation finds more than one provider effect for one idempotency key.
   size: S
   environmentDependency: none
@@ -18789,6 +19199,11 @@ entries:
     challengeCorrected:
     - gap
     - remediation
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-36
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -18870,11 +19285,9 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/evaluation/aggregate.ts:212-219
-  - platform/src/evaluation/manifest.ts
-  - platform/src/evaluation/manifest.test.ts
-  - scripts/ci/check-release-manifest.test.ts
-  gap: None.
+  - platform/src/evaluation/aggregate.test.ts (a rare critical failure fails the gate whatever the average)
+  - targeted run green
+  gap: none locally
   remediation: Keep.
   size: S
   environmentDependency: none
@@ -18885,24 +19298,35 @@ entries:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-17-41
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/protocol/evaluation.ts:110
-  - platform/src/evaluation/aggregate.ts (slices)
-  - platform/src/evaluation/stats.ts
-  gap: No model/voice/load/region slices or latency intervals; latencies from simulated clock.
+  - stats.test.ts [FO-17-41] value tests (N14 killed)
+  - aggregate.test.ts w5 latency addendum
+  - corpus-local-20261019w5.latency-addendum.md
+  gap: Latencies come from the local driver's simulated clock, not measured audio latency.
   remediation: Extend slices and intervals.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-01
+  workPackage: null
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-17-42
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -18928,10 +19352,9 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/evaluation/stats.ts
-  - platform/src/evaluation/aggregate.test.ts
-  - evidence/evaluation/corpus-local-20261018w4.summary.json (criticalBoundPerRun/PerScenario)
-  gap: None.
+  - platform/src/evaluation/aggregate.test.ts 'uncertainty bounds' and per-run / per-scenario bounds tests
+  - targeted run green
+  gap: none locally
   remediation: Keep.
   size: S
   environmentDependency: none
@@ -18942,6 +19365,11 @@ entries:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-17-44
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -18949,8 +19377,9 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/protocol/evaluation.ts:84-119
-  gap: Missing seed, initial-world digest, requested vs reached fault, observed tool list, audio evidence, judge/human labels and disagreements, errors.
+  - test/invariants/fault-reach-driver.test.ts
+  - result-context.ts
+  gap: The EvaluationResult contract lacks world digest, observed tools, errors, audio and judge fields (WP-02/WP-34).
   remediation: Extend schema (version bump) and populate from drivers.
   size: S
   environmentDependency: none
@@ -18960,6 +19389,11 @@ entries:
     origin: extraction
     repair:
     - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-2.version-proof'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-45
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -18967,9 +19401,8 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/evaluation/results.ts
-  - platform/src/evaluation/driver/run-corpus.ts
-  gap: Rerun command not recorded per result.
+  - corpus-run.test.ts rerun
+  gap: Reruns are reproducible on the local driver only.
   remediation: Record command and versions.
   size: S
   environmentDependency: none
@@ -18977,27 +19410,37 @@ entries:
   workPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-46
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/observability/slo.ts:66-84 (targetStatus PROPOSED, measured false)
-  - platform/src/observability/slo.test.ts:46-50,95-138
-  - platform/src/evaluation/aggregate.ts:264,312 (PROPOSED_GOAL_COMPLETION)
-  gap: 'Labelling is enforced for the SLO definitions. The report''s goal-completion check (aggregate.ts:312) uses the same proposed target over a denominator that excludes INCONCLUSIVE runs (FO-17-14), so ''meets proposed target'' is inflated there. IMPLEMENTED, not VERIFIED_LOCAL: The report goal-completion check (platform/src/evaluation/aggregate.ts:312) uses a denominator that excludes INCONCLUSIVE runs (FO-17-14), so "meets proposed target" is inflated there.'
+  - aggregate.test.ts goal line
+  - observability/slo.test.ts
+  gap: The target stays PROPOSED until it is approved and measured.
   remediation: Keep the slo.test.ts rule. When FO-17-14 fixes the denominator, add a test that the report's goal-completion line names the target as PROPOSED and states the execution mode and sample size.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-01
+  workPackage: null
+  regressionPackage: WP-01
   provenance:
     origin: challenge-missed
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the report goal-completion check (platform/src/evaluation/aggregate.ts:312) uses a denominator that excludes INCONCLUSIVE runs (FO-17-14), so "meets proposed target" is inflated there.'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-18-01
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -19611,10 +20054,9 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/evaluation/scorer.ts, platform/src/evaluation/scorer.test.ts
-  - platform/src/evaluation/driver/local-driver.test.ts:464 (not-injected fault is INCONCLUSIVE, never PASS), :479-586 (MUTATION tests for no_duplicate_effect)
-  - fix wave 5 merged at 8c0f5a0 (evaluation generator and harness fixes)
-  gap: Scorer judges the LOCAL SIMULATED COORDINATOR (keyword rules), not a model or audio; section 17 scorer requirements (full-duplex, calibrated judges, per-gate mutation coverage) not re-audited.
+  - scorer.mutation.test.ts
+  - fault-reach.test.ts
+  gap: No judge or audio scoring exists yet, and the WP-34 driver tests need the handed-off patch.
   remediation: After wave 5 merges, audit every gate against section 17; add a mutation test per hard gate; record scorer version in the release manifest.
   size: M
   environmentDependency: none
@@ -19624,6 +20066,11 @@ entries:
     origin: extraction
     repair:
     - stale "fix wave 5 in progress" text refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-19-05
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -19631,8 +20078,9 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - 'docs/REQUIREMENTS_TRACEABILITY.md:20-24 (generated 2026-10-19T04:48:46Z: 168 requirements, 2 128 tagged tests, 149 IMPLEMENTED_OFFLINE, 19 NO_TEST, 0 FAILING); evidence/test-reports/vitest-platform.json (3350 passed, 0 failed); platform/src/voice/speech-queue.test.ts:44-78 (ACT-05 text-level gate only)'
-  gap: Invariants are verified only on the LOCAL FIXTURE composition. No audio release boundary exists, so ACT-05/AUTH-06/DATA-02 cannot be tested at it. 19 catalogue requirements have no tagged test. Per c1.challenge, failure injection is missing for AUTH-03, AUTH-05, DATA-01, DATA-04, ACT-04, SAFE-01, SAFE-05, OPS-04 and OPS-06, and no invariant has an owner.
+  - test/invariants/evaluation-boundary.test.ts
+  - failure-injection.test.ts
+  gap: No audio release boundary exists, so ACT-05, AUTH-06 and DATA-02 are untested there.
   remediation: Add audio-boundary tests once the media runtime exists; close the 35 NO_TEST rows; rerun traceability after wave 5.
   size: L
   environmentDependency: none
@@ -19643,6 +20091,11 @@ entries:
     challengeCorrected:
     - evidence
     - gap
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-19-06
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -19687,37 +20140,37 @@ entries:
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
 - id: FO-19-07a
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/db/pg.ts (PgPoolDb, no test)
-  - DynamoKvStore never run against DynamoDB or DynamoDB Local
-  - S3 Object Lock sink tested only through a fixture S3 client
-  - platform/src/main/container.ts:308-313 (not composed outside local/ci)
-  gap: Real adapter code exists but has never run against a real service or emulator and is not composed.
+  - 'substrate pg-pool, dynamo, sqs, audit-export: production adapters on emulators (60/60 x3)'
+  gap: Emulators only.
   remediation: Docker-compose emulator stack plus contract tests in platform/test/integration (postgres:16-alpine, amazon/dynamodb-local, minio/minio with object lock, ElasticMQ).
   size: M
   environmentDependency: none for software; AWS sandbox account (PRQ-037) for VERIFIED_SANDBOX
   activation:
   - AIN-01
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: challenge-split
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-19-08
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - platform/src/adapters/live/business-systems-blocked.ts:40-111 (Scheduling/Billing/Claims/ProviderSystem LiveBlocked)
-  - platform/src/adapters/live/talkdesk-blocked.ts:71,122 (TalkdeskTelephonyLive, TalkdeskExploreClient blocked)
-  - platform/src/adapters/live/blocked-base.ts:28-40 (throws BlockedCapabilityError)
-  - platform/src/adapters/live/salesforce-rest-support-records.ts and oidc-verifier.ts (only real transports)
-  gap: Only Salesforce REST and the OIDC verifier are real transports; scheduling, billing, claims, provider, telephony and reporting are blocked stubs.
+  - src/adapters/refusals.test.ts
+  gap: No port is bound to the runtime yet; the BLOCKED stubs remain (WP-07 and the family packages).
   remediation: Build a configurable REST/FHIR connector framework with field mappings, auth profiles and emulators; implement LiveKit/SIP telephony adapter; keep Talkdesk adapter behind the capability gate.
   size: XL
   environmentDependency: system API documentation and sandbox credentials to activate (PRQ-006, PRQ-007, PRQ-034)
@@ -19729,6 +20182,11 @@ entries:
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-19-09
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -21151,22 +21609,27 @@ entries:
     challengeCorrected:
     - remediation
 - id: FO-19-82
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/audit/verifier.ts (IntegrityVerifier library)
-  - worker audit verification loop (OPS-AUD-01)
-  gap: Library exists; no CLI.
+  - substrate/audit-export.test.ts [FO-19-82] verify-audit exits 0 intact, 2 without sink reader, 1 after a deleted event
+  gap: --env live is gated by VSP_AUDIT_VERIFY_LIVE=1 and has never been run (AIN-03).
   remediation: Wrap verifier in a CLI.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-19-83
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -22927,9 +23390,9 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - platform/src/actions/action-service.reconciliation.test.ts
-  - platform/src/adapters/live/salesforce-rest.contract.test.ts:253-279
-  gap: Apply to new connectors. reconcile_attempts is counted but never capped (platform/src/actions/action-service.ts:1544; no maximum anywhere), so an UNKNOWN action can be reconciled forever without escalation (c3.challenge FO-11-18).
+  - scorer.test.ts [FO-22-07]
+  - unknown.test.ts
+  gap: The local driver (WP-34) does not collect reconciliation records, so retries score INCONCLUSIVE.
   remediation: Shared classification helper.
   size: S
   environmentDependency: none
@@ -22939,28 +23402,39 @@ entries:
     origin: extraction
     challengeCorrected:
     - gap
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-22-08
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - audit.independent
   evidence:
-  - platform/src/audit/chain.ts, verifier.ts, shipper.ts
-  - platform/src/audit/sinks/s3-object-lock.ts
-  gap: Fix wave 5 is committed, but route-audit deferral is still held in process memory and a crash loses it (platform/src/audit/deferred.ts:39-45, 'A durable deferral store ... (not implemented)'). This is the Section 1 observation and it remains open. The S3 Object Lock sink has never run against S3 or MinIO object lock and is not composed.
+  - substrate/audit-export.test.ts and audit-reconciliation.test.ts WORM export verified by the separate verifier
+  - substrate/faults.test.ts recovery export PASS
+  gap: Separate account administration is on the environment axis (AIN-01, AIN-03).
   remediation: Add an audit_deferred table (migration 02xx) written in the same transaction as the safety_events row, flushed by the worker; and a MinIO object-lock contract test for S3ObjectLockAuditSink.
   size: M
   environmentDependency: audit account (PRQ-037, PRQ-040)
   activation:
   - AIN-01
   - AIN-03
-  workPackage: WP-04
+  workPackage: null
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - gap
     - remediation
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-22-09
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -23518,8 +23992,8 @@ entries:
   capabilityIds:
   - governance.documents
   evidence:
-  - no package manifest, lockfile or module references the Personal Agent Protocol (searched 2026-10-19 at 8c0f5a0)
-  gap: 'Not yet triggered: nothing integrates the Personal Agent Protocol and no work package plans to. Nothing fails if a dependency on it is added without a decision record that qualifies it.'
+  - decision-gates.test.ts [FO-23-08]
+  gap: 'Not triggered yet: no Personal Agent Protocol dependency exists.'
   remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when a Personal Agent Protocol client or schema appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it.'
   size: S
   environmentDependency: none
@@ -23531,6 +24005,11 @@ entries:
     - 'Phase A repair (critic gap 11): section 23 constraint row'
     - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when the Personal Agent Protocol appears without a decision record'
     repairStatusFrom: NOT_APPLICABLE
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-23-09
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED

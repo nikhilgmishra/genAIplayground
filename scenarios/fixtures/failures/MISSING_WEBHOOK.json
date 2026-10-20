@@ -1,0 +1,75 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "MISSING_WEBHOOK",
+  "version": 1,
+  "title": "A vendor event never arrives",
+  "description": "A Talkdesk or Salesforce event the platform waits for is never delivered (the emulator drops it); the platform must time out, reconcile against the vendor API and never infer the missing state.",
+  "category": "delivery",
+  "target": {
+    "components": [
+      "platform/src/ingress",
+      "platform/src/connectors",
+      "platform/src/workflows"
+    ],
+    "dependency": "telephony"
+  },
+  "trigger": {
+    "kind": "ON_TRANSFER_STATE",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": "QUEUED"
+  },
+  "effect": {
+    "kind": "EVENT_NOT_DELIVERED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    },
+    {
+      "check": "transfer_fallback_or_connected",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller stays connected while the transfer is checked; a fallback route is used if the receiver cannot be confirmed.",
+  "backendEvidence": [
+    "Watermark/timeout record for the missing event",
+    "Reconciliation call to the vendor API",
+    "No state advanced without its event or an authoritative read"
+  ],
+  "requirementIds": [
+    "SPEC-8.webhook-auth"
+  ],
+  "appliesToIntents": [
+    "human_request",
+    "complaint_intake"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:MISSING_WEBHOOK] owned by WP-29 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.MISSING_WEBHOOK",
+    "origin": "prompt_section_17",
+    "injectionPoint": "a vendor event that never arrives (Talkdesk/Salesforce emulator drops it)",
+    "injectionPointPackages": [
+      "WP-29"
+    ],
+    "postconditionPackages": [
+      "WP-04",
+      "WP-06",
+      "WP-29"
+    ],
+    "layer2Owner": "WP-29",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "The missing state is never inferred",
+    "A reconciliation read against the vendor API runs after the timeout",
+    "The caller is never abandoned"
+  ]
+}

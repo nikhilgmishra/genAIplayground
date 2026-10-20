@@ -105,10 +105,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/scorer.ts, platform/src/evaluation/scorer.test.ts
-  - platform/src/evaluation/driver/local-driver.test.ts:464 (not-injected fault is INCONCLUSIVE, never PASS), :479-586 (MUTATION tests for no_duplicate_effect)
-  - fix wave 5 merged at 8c0f5a0 (evaluation generator and harness fixes)
-  gap: Scorer judges the LOCAL SIMULATED COORDINATOR (keyword rules), not a model or audio; section 17 scorer requirements (full-duplex, calibrated judges, per-gate mutation coverage) not re-audited.
+  - scorer.mutation.test.ts
+  - fault-reach.test.ts
+  gap: No judge or audio scoring exists yet, and the WP-34 driver tests need the handed-off patch.
   remediation: After wave 5 merges, audit every gate against section 17; add a mutation test per hard gate; record scorer version in the release manifest.
   size: M
   environmentDependency: none
@@ -117,6 +116,11 @@ requirements:
     origin: extraction
     repair:
     - stale "fix wave 5 in progress" text refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-19-05
   section: '19'
   kind: software
@@ -135,8 +139,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'docs/REQUIREMENTS_TRACEABILITY.md:20-24 (generated 2026-10-19T04:48:46Z: 168 requirements, 2 128 tagged tests, 149 IMPLEMENTED_OFFLINE, 19 NO_TEST, 0 FAILING); evidence/test-reports/vitest-platform.json (3350 passed, 0 failed); platform/src/voice/speech-queue.test.ts:44-78 (ACT-05 text-level gate only)'
-  gap: Invariants are verified only on the LOCAL FIXTURE composition. No audio release boundary exists, so ACT-05/AUTH-06/DATA-02 cannot be tested at it. 19 catalogue requirements have no tagged test. Per c1.challenge, failure injection is missing for AUTH-03, AUTH-05, DATA-01, DATA-04, ACT-04, SAFE-01, SAFE-05, OPS-04 and OPS-06, and no invariant has an owner.
+  - test/invariants/evaluation-boundary.test.ts
+  - failure-injection.test.ts
+  gap: No audio release boundary exists, so ACT-05, AUTH-06 and DATA-02 are untested there.
   remediation: Add audio-boundary tests once the media runtime exists; close the 35 NO_TEST rows; rerun traceability after wave 5.
   size: L
   environmentDependency: none
@@ -146,6 +151,11 @@ requirements:
     challengeCorrected:
     - evidence
     - gap
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-19-06
   section: '19'
   kind: software
@@ -215,21 +225,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/db/pg.ts (PgPoolDb, no test)
-  - DynamoKvStore never run against DynamoDB or DynamoDB Local
-  - S3 Object Lock sink tested only through a fixture S3 client
-  - platform/src/main/container.ts:308-313 (not composed outside local/ci)
-  gap: Real adapter code exists but has never run against a real service or emulator and is not composed.
+  - 'substrate pg-pool, dynamo, sqs, audit-export: production adapters on emulators (60/60 x3)'
+  gap: Emulators only.
   remediation: Docker-compose emulator stack plus contract tests in platform/test/integration (postgres:16-alpine, amazon/dynamodb-local, minio/minio with object lock, ElasticMQ).
   size: M
   environmentDependency: none for software; AWS sandbox account (PRQ-037) for VERIFIED_SANDBOX
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: challenge-split
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-19-08
   section: '19'
   kind: software
@@ -241,21 +253,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/live/business-systems-blocked.ts:40-111 (Scheduling/Billing/Claims/ProviderSystem LiveBlocked)
-  - platform/src/adapters/live/talkdesk-blocked.ts:71,122 (TalkdeskTelephonyLive, TalkdeskExploreClient blocked)
-  - platform/src/adapters/live/blocked-base.ts:28-40 (throws BlockedCapabilityError)
-  - platform/src/adapters/live/salesforce-rest-support-records.ts and oidc-verifier.ts (only real transports)
-  gap: Only Salesforce REST and the OIDC verifier are real transports; scheduling, billing, claims, provider, telephony and reporting are blocked stubs.
+  - src/adapters/refusals.test.ts
+  gap: No port is bound to the runtime yet; the BLOCKED stubs remain (WP-07 and the family packages).
   remediation: Build a configurable REST/FHIR connector framework with field mappings, auth profiles and emulators; implement LiveKit/SIP telephony adapter; keep Talkdesk adapter behind the capability gate.
   size: XL
   environmentDependency: system API documentation and sandbox credentials to activate (PRQ-006, PRQ-007, PRQ-034)
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-19-09
   section: '19'
   kind: software
@@ -2141,19 +2155,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/verifier.ts (IntegrityVerifier library)
-  - worker audit verification loop (OPS-AUD-01)
-  gap: Library exists; no CLI.
+  - substrate/audit-export.test.ts [FO-19-82] verify-audit exits 0 intact, 2 without sink reader, 1 after a deleted event
+  gap: --env live is gated by VSP_AUDIT_VERIFY_LIVE=1 and has never been run (AIN-03).
   remediation: Wrap verifier in a CLI.
   size: S
   environmentDependency: none
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-19-83
   section: '19'
   subsection: entrypoints

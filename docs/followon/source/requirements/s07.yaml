@@ -387,19 +387,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - ingress.events
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/gateway/http/webhook-routes.ts (fixture HMAC for transfer events, local/ci only)
-  - platform/src/gateway/auth.ts (JWT for tool calls)
-  gap: No generic authenticated event ingress.
+  - ingress/http.test.ts HMAC, HS256 bearer, socket mTLS over real HTTP/TLS
+  - ingress/livekit-webhook.test.ts [FO-07-16] livekit-server signed webhooks
+  - src/ingress/ingress.test.ts [FO-07-16] lookup EVENT_MISMATCH refused
+  gap: JWKS and reconcile-by-lookup are unit-tested only, and ingressPlugin is not registered in the gateway (WP-07).
   remediation: Add an ingress router selecting the verifier from the source profile.
   size: M
   environmentDependency: Per-source documented auth mechanism (Talkdesk TB-09, CDP, notification vendors)
   workPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-07-17
   section: '7'
   subsection: Ingestion and history reconciliation
@@ -412,19 +418,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - ingress.events
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/workflows/transfer.ts (transfer journeys persisted; early events held - transfer-specific)
-  - no inbox table in platform/migrations
-  gap: No generic inbox.
+  - ingress/crash.test.ts SIGKILL before and after the inbox commit
+  - ingress/http.test.ts [FO-07-17] persist before acknowledge (503)
+  - src/ingress/ingress.test.ts [FO-07-17] digest mismatch -> INBOUND_DEAD
+  gap: LocalStack KMS and postgres:16 only; the KMS key and policy are WP-39's.
   remediation: Add inbound_events table (tenant, source, event_id, payload ciphertext, digest, schema, auth mechanism, received_at) with RLS.
   size: M
   environmentDependency: KMS key for envelope encryption
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-18
   section: '7'
   subsection: Ingestion and history reconciliation
@@ -436,19 +448,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - ingress.events
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/outbox/consumer-dedup.ts (consumer idempotency for internal outbox messages; outbox.test.ts:201)
-  - platform/src/gateway/http/webhook-routes.ts (replay window for fixture signatures)
-  gap: Pattern exists for internal messages only.
+  - ingress/http.test.ts [FAULT:DUPLICATE_WEBHOOK] deterministic two-replica race
+  - ingress/processing.test.ts two processors, each event handled once
+  gap: Emulators only.
   remediation: Unique (tenant, source, event_id) on the inbox and reuse consumer-dedup for projection consumers.
   size: S
   environmentDependency: none
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-19
   section: '7'
   subsection: Ingestion and history reconciliation
@@ -461,18 +478,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no inbox
-  gap: Not implemented.
+  - ingress/http.test.ts digest, schema, auth mechanism and credential version on postgres:16
+  - ingress/livekit-webhook.test.ts JWT_BEARER with verifying version
+  gap: No live source is configured.
   remediation: Part of the inbox schema.
   size: S
   environmentDependency: none
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-20
   section: '7'
   subsection: Ingestion and history reconciliation
@@ -485,19 +508,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.substrate
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'platform/src/adapters/local/telephony-fixture.transfer-contract.test.ts:62,71 (transfer events: order from the state machine, duplicates absorbed) - transfer-only'
-  - docs/adr/ADR-0017-out-of-order-transfer-events.md
-  gap: Only transfer events handle reorder; no general source-version ordering.
+  - ingress/processing.test.ts [FO-07-20] versions 3,1,2 leave 3
+  - src/ingress/ingress.test.ts [FO-07-20] permutation property
+  gap: Backfill from a real stream is not exercised.
   remediation: 'Generalize: projections apply events by (source_version, occurred_at) with last-writer-by-version semantics.'
   size: M
   environmentDependency: none
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-21
   section: '7'
   subsection: Ingestion and history reconciliation
@@ -510,18 +538,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - ingress.events
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - strict zod bodies reject unknown fields with 4xx (platform/src/gateway/http/webhook-routes.ts TransferEventBody) - rejection, not quarantine+alert
-  gap: No quarantine path for inbound data.
+  - ingress/processing.test.ts [FO-07-21] unknown schema quarantined, never processed
+  - src/ingress/ingress.test.ts [FO-07-21] counted and alarmed
+  gap: The alarm rule is WP-39's.
   remediation: Add quarantine state and alarm vsp_inbox_quarantined_total.
   size: S
   environmentDependency: none
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-22
   section: '7'
   subsection: Ingestion and history reconciliation
@@ -534,18 +568,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.substrate
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no raw replay store (privacy/README mentions restricted quarantine store for redaction failures only)
-  gap: Not implemented.
+  - ingress/processing.test.ts [FO-07-22] restricted columns, retention, legal hold
+  - src/ingress/ingress.test.ts [FO-07-22] purged after processing only
+  gap: Registering inbound_raw_payloads with the retention registry under an approved duration belongs to the retention owner.
   remediation: Store raw payload ciphertext in the inbox/restricted S3 prefix with retention registration.
   size: S
   environmentDependency: none
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-07-23
   section: '7'
   subsection: Ingestion and history reconciliation

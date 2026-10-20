@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "BILLING_TIMEOUT",
-  "version": 1,
+  "version": 2,
   "title": "Billing system times out on read",
   "description": "The billing read API times out before sending (safe to retry, bounded).",
   "category": "dependency",
@@ -52,5 +52,39 @@
     "late_cancellation_fee_question",
     "billing_dispute"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.BILLING_TIMEOUT",
+    "origin": "registry",
+    "injectionPoint": "reference business API billing read timeout",
+    "injectionPointPackages": [
+      "WP-23"
+    ],
+    "postconditionPackages": [
+      "WP-23"
+    ],
+    "layer2Owner": "WP-23",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "tool_response",
+      "tools": [
+        "get_invoice_status"
+      ],
+      "statuses": [
+        "RETRYABLE_FAILURE",
+        "PERMANENT_FAILURE"
+      ],
+      "reasonCodes": [
+        "TIMEOUT_BEFORE_SEND"
+      ],
+      "sessionStates": null
+    }
+  ],
+  "postconditions": [
+    "The billing read times out before send and is classified, with bounded retry and no nested retry stacking",
+    "No invoice fields are spoken without a source record",
+    "The caller reaches a person (one configured rule for a failed dependency read)"
+  ]
 }

@@ -43,6 +43,9 @@ import type { Clock } from "../shared/clock.js";
 import { newId } from "../shared/ids.js";
 import { corpusDigest } from "./corpus.js";
 import { REPO_ROOT, posixRelative, repoPaths, walkFiles } from "./paths.js";
+import { SCORER_GATES } from "./scorer.js";
+import { classifyRecordedTest, verdictOfTests } from "./unknown.js";
+import type { RecordedTestStatus } from "./unknown.js";
 
 export const UNPINNED_DIGEST = sha256Hex("UNPINNED");
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -189,6 +192,62 @@ export function collectEvidence(root: string, evidenceDir: string, env: Environm
   return { tests, load };
 }
 
+/**
+ * The scorer a release is gated with (FO-19-04: "record scorer version in the release manifest"). Its version is
+ * the content of the files that decide verdicts, digested like the corpus (sorted `<path>:<sha256(content)>`
+ * lines); its status is the recorded result of the scorer mutation suite (one mutation per gate family that must
+ * turn the gate to FAIL or INCONCLUSIVE, SCORER_MUTATION_SUITE) in the test reports of the evidence directory.
+ * No recorded result is NOT_RUN, a failed or skipped mutation case is FAIL or INCONCLUSIVE (one shared
+ * classification, unknown.ts), and an unreadable source leaves the digest null and the entry INCONCLUSIVE: a
+ * scorer that cannot be identified is never bound as if it were known (OPS-06, OPS-03).
+ */
+export const SCORER_SOURCES = [
+  "platform/src/evaluation/aggregate.ts",
+  "platform/src/evaluation/fault-plan.ts",
+  "platform/src/evaluation/fault-reach.ts",
+  "platform/src/evaluation/scorer.ts",
+  "platform/src/evaluation/unknown.ts",
+  "platform/src/evaluation/vocabulary.ts",
+] as const;
+export const SCORER_MUTATION_SUITE = "platform/src/evaluation/scorer.mutation.test.ts";
+
+/** Digest of the scorer sources under `root` (null when any is unreadable). */
+export function scorerDigest(root: string): string | null {
+  try {
+    return sha256Hex(SCORER_SOURCES.map((f) => `${f}:${sha256Hex(readFileSync(join(root, f)))}`).join("\n"));
+  } catch {
+    return null;
+  }
+}
+
+/** Recorded statuses of the scorer mutation suite's tests in vitest JSON reports (`testResults[].assertionResults`). */
+export function scorerMutationStatuses(reports: readonly unknown[]): RecordedTestStatus[] {
+  const suite = SCORER_MUTATION_SUITE.slice("platform/".length);
+  const out: RecordedTestStatus[] = [];
+  for (const r of reports) {
+    const files = (r as { testResults?: unknown }).testResults;
+    if (!Array.isArray(files)) continue;
+    for (const f of files as { name?: unknown; assertionResults?: unknown }[]) {
+      if (typeof f.name !== "string" || !f.name.replace(/\\/g, "/").endsWith(`/${suite}`)) continue;
+      for (const a of Array.isArray(f.assertionResults) ? (f.assertionResults as { status?: unknown }[]) : []) out.push(classifyRecordedTest(typeof a.status === "string" ? a.status : null));
+    }
+  }
+  return out;
+}
+
+/** The `scorer_version` test-evidence entry: scorer digest plus the recorded mutation-suite result. */
+export function scorerVersionEvidence(root: string, reports: readonly unknown[]): EvidenceRef {
+  const digest = scorerDigest(root);
+  const v = verdictOfTests(scorerMutationStatuses(reports));
+  const status: EvidenceStatus = digest === null ? "INCONCLUSIVE" : v === "PASS" || v === "FAIL" || v === "NOT_RUN" ? v : "INCONCLUSIVE";
+  return {
+    kind: "scorer_version",
+    ref: `platform/src/evaluation/scorer.ts SCORER_GATES (${Object.keys(SCORER_GATES).length} gate families); sources ${SCORER_SOURCES.map((f) => f.slice("platform/src/evaluation/".length)).join(",")}; mutation suite ${SCORER_MUTATION_SUITE}`,
+    digest,
+    status,
+  };
+}
+
 const isLive = (env: Environment) => env === "sandbox" || env === "staging" || env === "production";
 
 /** Schema bounds of ReleaseManifest.testEvidence / quotaAndLoadEvidence (protocol/release.ts). */
@@ -274,6 +333,21 @@ export function buildReleaseManifest(input: ManifestInput): ManifestBuildResult 
   // size bound is applied; the recorded subset keeps every non-PASS entry so the deploy
   // gate (which only sees the manifest) still sees each failure.
   const evidence = collectEvidence(root, input.evidenceDir ?? p.evidence, env);
+  const noTestEvidence = evidence.tests.length === 0;
+  // FO-19-04: the scorer version and its mutation-suite result, read from the same test reports.
+  const reports = evidence.tests
+    .filter((e) => e.kind === "test_report")
+    .flatMap((e) => {
+      try {
+        return [JSON.parse(readFileSync(resolve(root, e.ref), "utf8")) as unknown];
+      } catch {
+        return [];
+      }
+    });
+  const scorer = scorerVersionEvidence(root, reports);
+  if (scorer.digest === null) gap("SCORER_VERSION_UNREADABLE", "the scorer sources could not be read; the scorer the release is gated with is unknown");
+  else if (scorer.status !== "PASS") gap("SCORER_MUTATION_SUITE_NOT_PASS", `${SCORER_MUTATION_SUITE} has no passing recorded result in the evidence reports (${scorer.status})`);
+  evidence.tests.push(scorer);
   const testEvidence = boundEvidence(evidence.tests, MAX_TEST_EVIDENCE);
   const quotaAndLoadEvidence = boundEvidence(evidence.load, MAX_LOAD_EVIDENCE);
   if (evidence.tests.some((e) => e.status === "FAIL")) blockers.push({ code: "TEST_EVIDENCE_FAILING", detail: "at least one evidence entry is FAIL", prerequisites: [] });
@@ -289,7 +363,7 @@ export function buildReleaseManifest(input: ManifestInput): ManifestBuildResult 
     if (live || nonPassDropped > 0) blockers.push({ code: `${label}_TRUNCATED`, detail: `${all.length} entries, ${kept.length} recorded (${dropped} dropped, ${nonPassDropped} of them not PASS)`, prerequisites: [] });
     else notes.push(`${label}_TRUNCATED: ${all.length} entries, ${kept.length} recorded (only PASS entries dropped)`);
   }
-  if (evidence.tests.length === 0) notes.push("NO_TEST_EVIDENCE: evidence/ holds no test reports or evaluation runs");
+  if (noTestEvidence) notes.push("NO_TEST_EVIDENCE: evidence/ holds no test reports or evaluation runs");
   if (live) {
     const eligible = evidence.tests.filter((e) => e.kind === "evaluation_run" && e.status === "PASS");
     if (eligible.length === 0) {
@@ -329,6 +403,22 @@ export function buildReleaseManifest(input: ManifestInput): ManifestBuildResult 
     blockers.push({ code: "RELEASE_DECISION_HUMAN_ONLY", detail: "pilot or production promotion is authorized only by named human approvers", prerequisites: ["PRQ-024"] });
   }
 
+  // ---------- source digests that must be read (OPS-06: an unreadable source is never bound) ----------
+  const readDigest = (code: string, detail: string, read: () => string): string => {
+    try {
+      return read();
+    } catch {
+      blockers.push({ code, detail, prerequisites: [] });
+      return UNPINNED_DIGEST;
+    }
+  };
+  const migrations = readDigest("MIGRATIONS_UNREADABLE", "platform/migrations could not be read; placeholder digest of 'UNPINNED' recorded", () => migrationsDigest(p.migrations));
+  const corpus = readDigest("EVALUATION_CORPUS_UNREADABLE", "the evaluation corpus could not be read or is empty; placeholder digest of 'UNPINNED' recorded", () => {
+    const c = corpusDigest(root);
+    if (c.files.length === 0) throw new Error("EVALUATION_CORPUS_EMPTY");
+    return c.digest;
+  });
+
   const status: ReleaseStatus = blockers.length > 0 ? "BLOCKED" : env === "sandbox" ? "VERIFIED_SANDBOX" : live ? "BLOCKED" : "IMPLEMENTED_OFFLINE";
   const manifest = ReleaseManifest.parse({
     manifestVersion: "release-manifest.v1",
@@ -340,13 +430,13 @@ export function buildReleaseManifest(input: ManifestInput): ManifestBuildResult 
     build: { buildId: build.buildId, imageDigest: build.imageDigest },
     infrastructurePlanDigest: infra,
     schemaVersion: PROTOCOL_VERSION,
-    migrationsDigest: migrationsDigest(p.migrations),
+    migrationsDigest: migrations,
     talkdeskConfigurationId: talkdesk,
     versions,
     toolSchemaDigest: toolDigest ?? UNPINNED_DIGEST,
     policyBundleDigest: policyDigest ?? UNPINNED_DIGEST,
     knowledgeSnapshotDigest: knowledgeDigest,
-    evaluationCorpusDigest: corpusDigest(root).digest,
+    evaluationCorpusDigest: corpus,
     testEvidence,
     quotaAndLoadEvidence,
     retentionConfigurationDigest: retention,

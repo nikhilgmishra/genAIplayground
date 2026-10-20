@@ -12,7 +12,9 @@
  * alternative) carry `borderline: true`: their expected route is a conservative
  * engineering placeholder that a named reviewer must confirm or change.
  *
- * Output: scenarios/risk/<family>.json (one bundle per family).
+ * Output: scenarios/risk/<family>.json (one bundle per family). Because this generator runs last in
+ * `scenarios:gen` / `scenarios:check`, it also runs the corpus-wide step (corpus-step.ts): the lineage and
+ * required-scenario manifests, the family leakage check and the corpus guard (lock and change records).
  * Usage: tsx src/evaluation/generate-risk.ts [--check] [--root <repo root>]
  */
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -21,12 +23,14 @@ import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { RiskClass, ScenarioDefinition } from "../protocol/index.js";
 import type { Outcome, Role, ScenarioTurn } from "../protocol/index.js";
+import { runCorpusStep } from "./corpus-step.js";
 import { loadFaultPlans } from "./fault-plan.js";
 import type { FaultPlan } from "./fault-plan.js";
 import { validateReferences } from "./generate.js";
 import type { DriftReport, PlannedFile } from "./generate.js";
 import { REPO_ROOT, posixRelative, repoPaths, walkFiles } from "./paths.js";
-import { stableSplit } from "./split.js";
+import { JOURNEY_INTENTS } from "./journeys.js";
+import { familySplit } from "./split.js";
 import { RISK_DRAFT_LABEL, isConsequentialToolName } from "./vocabulary.js";
 
 export const RiskDraftEntry = z.strictObject({
@@ -45,7 +49,8 @@ export const RiskBundle = z.strictObject({
   countsTowardHumanReviewedRequirement: z.literal(false),
   riskClass: RiskClass,
   description: z.string().min(10).max(600),
-  generator: z.literal("platform/src/evaluation/generate-risk.ts@1"),
+  /** @2: drafts take the split of their intent family (split.ts family-split.v2). */
+  generator: z.literal("platform/src/evaluation/generate-risk.ts@2"),
   requiredReviewers: z.array(z.string().min(3).max(80)).min(1).max(4),
   drafts: z.array(RiskDraftEntry).min(1).max(200),
 });
@@ -131,7 +136,7 @@ function toEntry(def: FamilyDef, spec: DraftSpec, index: number): RiskDraftEntry
   const scenario: ScenarioDefinition = {
     scenarioId,
     version: spec.version ?? 1,
-    split: stableSplit(scenarioId),
+    split: familySplit(spec.intent, JOURNEY_INTENTS),
     intent: spec.intent,
     audience: spec.audience,
     locale: spec.locale ?? "en-US",
@@ -1186,7 +1191,7 @@ export function buildRiskBundles(): RiskBundle[] {
       countsTowardHumanReviewedRequirement: false,
       riskClass: def.riskClass,
       description: def.description,
-      generator: "platform/src/evaluation/generate-risk.ts@1",
+      generator: "platform/src/evaluation/generate-risk.ts@2",
       requiredReviewers: def.reviewers,
       drafts: def.specs().map((s, i) => toEntry(def, s, i)),
     }),
@@ -1298,12 +1303,12 @@ export function main(argv: readonly string[]): number {
   const summary = `${total} risk drafts in ${bundles.length} families (all UNREVIEWED; ${RISK_DRAFT_LABEL})`;
   const drift = checkRiskDrift(root, files);
   if (argv.includes("--check")) {
+    let code = 0;
     if (drift.missing.length + drift.changed.length + drift.stale.length > 0) {
       process.stderr.write(`risk corpus drift: missing=${drift.missing.length} changed=${drift.changed.length} stale=${drift.stale.length}\n`);
-      return 1;
-    }
-    process.stdout.write(`risk corpus up to date: ${summary}\n`);
-    return 0;
+      code = 1;
+    } else process.stdout.write(`risk corpus up to date: ${summary}\n`);
+    return Math.max(code, runCorpusStep(root, bundles, true));
   }
   for (const s of drift.stale) rmSync(join(root, s));
   for (const f of files) {
@@ -1311,7 +1316,7 @@ export function main(argv: readonly string[]): number {
     writeFileSync(join(root, f.path), f.content);
   }
   process.stdout.write(`wrote ${summary}\n`);
-  return 0;
+  return runCorpusStep(root, bundles, false);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

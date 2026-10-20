@@ -1,0 +1,85 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "CHANGED_SLOT_DURING_CONFIRMATION",
+  "version": 1,
+  "title": "Slot version changes between read-back and commit",
+  "description": "The scheduling source changes the slot version after the prepared action was read back and before the commit; the commit recheck must refuse the stale version.",
+  "category": "concurrency",
+  "target": {
+    "components": [
+      "platform/src/actions",
+      "platform/src/domain"
+    ],
+    "dependency": "scheduling"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": "commit_appointment_change",
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "SOURCE_VERSION_CHANGED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "confirmation_fresh",
+      "gate": "transaction"
+    },
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    }
+  ],
+  "callerVisible": "The caller hears that the time is no longer available and is offered new options; no change is announced.",
+  "backendEvidence": [
+    "Commit refused STATE_CHANGED on the before-state version",
+    "No effect for the stale version"
+  ],
+  "requirementIds": [
+    "ACT-01",
+    "SPEC-8.commit-recheck"
+  ],
+  "appliesToIntents": [
+    "appointment_reschedule",
+    "appointment_create"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:CHANGED_SLOT_DURING_CONFIRMATION] owned by WP-25 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.CHANGED_SLOT_DURING_CONFIRMATION",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the scheduling source changes the slot version between read-back and commit",
+    "injectionPointPackages": [
+      "WP-23"
+    ],
+    "postconditionPackages": [
+      "WP-25"
+    ],
+    "layer2Owner": "WP-25",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [
+    {
+      "source": "tool_response",
+      "tools": [
+        "commit_appointment_change"
+      ],
+      "statuses": [
+        "PERMANENT_FAILURE"
+      ],
+      "reasonCodes": [
+        "STATE_CHANGED"
+      ],
+      "sessionStates": null
+    }
+  ],
+  "postconditions": [
+    "The commit is refused on the stale slot version and nothing is booked",
+    "A new commit needs a freshly prepared and confirmed action"
+  ]
+}

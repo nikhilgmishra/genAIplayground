@@ -208,6 +208,374 @@
                 "type": "null"
               }
             ]
+          },
+          "capability": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$"
+          },
+          "params": {
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-zA-Z0-9_]{0,40}$"
+                },
+                "in": {
+                  "type": "string",
+                  "enum": [
+                    "path",
+                    "query"
+                  ]
+                },
+                "wireName": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,40}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "opaque_id",
+                    "token",
+                    "integer",
+                    "enum_code",
+                    "date",
+                    "instant"
+                  ]
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "maxLength": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 200
+                },
+                "enumValues": {
+                  "anyOf": [
+                    {
+                      "minItems": 1,
+                      "maxItems": 64,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_.-]{1,64}$"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "integerRange": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "min": {
+                          "type": "integer",
+                          "minimum": -1000000000,
+                          "maximum": 9007199254740991
+                        },
+                        "max": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 1000000000
+                        }
+                      },
+                      "required": [
+                        "min",
+                        "max"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "in",
+                "wireName",
+                "type",
+                "required",
+                "maxLength",
+                "enumValues",
+                "integerRange"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 30000
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "strategy": {
+                "type": "string",
+                "enum": [
+                  "NONE",
+                  "CURSOR",
+                  "PAGE_TOKEN",
+                  "KEYSET",
+                  "OFFSET",
+                  "NEXT_LINK"
+                ]
+              },
+              "maxPageSize": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "maxPages": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              },
+              "pageSizeParam": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cursorParam": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,40}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nextPointer": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 200,
+                    "pattern": "^(\\/([A-Za-z0-9_.$@-]|~[01])*)*$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cursorExpiredStatus": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 400,
+                    "maximum": 499
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "strategy",
+              "maxPageSize",
+              "maxPages",
+              "pageSizeParam",
+              "cursorParam",
+              "nextPointer",
+              "cursorExpiredStatus"
+            ],
+            "additionalProperties": false
+          },
+          "rateBudget": {
+            "type": "object",
+            "properties": {
+              "requestsPerSecond": {
+                "type": "number",
+                "minimum": 0.01,
+                "maximum": 10000
+              },
+              "burst": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "maxConcurrency": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              }
+            },
+            "required": [
+              "requestsPerSecond",
+              "burst",
+              "maxConcurrency"
+            ],
+            "additionalProperties": false
+          },
+          "idempotencyKeyHeader": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,40}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "externalIdParam": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9_]{0,40}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requiredScopes": {
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:/-]+$"
+            }
+          },
+          "responseObject": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_.]{0,63}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordsPointer": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^(\\/([A-Za-z0-9_.$@-]|~[01])*)*$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requestBody": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "fields": {
+                    "minItems": 1,
+                    "maxItems": 64,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "targetPointer": {
+                          "type": "string",
+                          "maxLength": 200,
+                          "pattern": "^(\\/([A-Za-z0-9_.$@-]|~[01])*)*$"
+                        },
+                        "inputField": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-zA-Z0-9_]{0,40}$"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "string",
+                            "integer",
+                            "number",
+                            "boolean",
+                            "instant",
+                            "date",
+                            "money_minor_units",
+                            "currency_code",
+                            "enum_code",
+                            "opaque_id"
+                          ]
+                        },
+                        "requirement": {
+                          "type": "string",
+                          "enum": [
+                            "REQUIRED",
+                            "OPTIONAL"
+                          ]
+                        },
+                        "classification": {
+                          "type": "string",
+                          "enum": [
+                            "PUBLIC",
+                            "INTERNAL",
+                            "PHI",
+                            "PHI_RESTRICTED",
+                            "FINANCIAL",
+                            "VERIFICATION_SECRET"
+                          ]
+                        },
+                        "maxLength": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 4000
+                        }
+                      },
+                      "required": [
+                        "targetPointer",
+                        "inputField",
+                        "type",
+                        "requirement",
+                        "classification",
+                        "maxLength"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "fields"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "successStatuses": {
+            "minItems": 1,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 200,
+              "maximum": 299
+            }
           }
         },
         "required": [
@@ -431,6 +799,506 @@
         "type": "string",
         "pattern": "^cpe_[A-Za-z0-9_-]{16,64}$"
       }
+    },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "enum": [
+            "OAUTH2_CLIENT_CREDENTIALS",
+            "OAUTH2_JWT_BEARER",
+            "SIGNED_JWT_BEARER",
+            "API_KEY_HEADER"
+          ]
+        },
+        "tokenUrl": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "pattern": "^https:\\/\\/[A-Za-z0-9.-]{1,253}(:\\d{2,5})?(\\/[A-Za-z0-9._~/-]*)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clientAuth": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "CLIENT_SECRET_POST",
+                "CLIENT_SECRET_BASIC",
+                "PRIVATE_KEY_JWT"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "audience": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9_.:/-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tokenMaxAgeSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "apiKeyHeader": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "scheme",
+        "tokenUrl",
+        "clientAuth",
+        "audience",
+        "tokenMaxAgeSeconds",
+        "apiKeyHeader"
+      ],
+      "additionalProperties": false
+    },
+    "capabilityCredentials": {
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "capability": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$"
+          },
+          "access": {
+            "type": "string",
+            "enum": [
+              "READ",
+              "WRITE"
+            ]
+          },
+          "credentialRef": {
+            "type": "string",
+            "maxLength": 512,
+            "pattern": "^(arn:aws:(secretsmanager|kms|ssm):[A-Za-z0-9-]{1,32}:[A-Za-z0-9]{1,32}:[A-Za-z0-9/_+=.@:-]{1,256}|local-fixture:[a-z0-9][a-z0-9._/-]{0,127})$"
+          },
+          "scopes": {
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:/-]+$"
+            }
+          }
+        },
+        "required": [
+          "capability",
+          "access",
+          "credentialRef",
+          "scopes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "streams": {
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "streamId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,40}$"
+          },
+          "sourceObject": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_.]{0,63}$"
+          },
+          "deletionBehavior": {
+            "type": "string",
+            "enum": [
+              "DELETE_EVENT",
+              "TOMBSTONE",
+              "SOFT_DELETE_FLAG",
+              "RECONCILIATION_ONLY",
+              "NOT_SUPPORTED"
+            ]
+          },
+          "retentionClass": {
+            "type": "string",
+            "enum": [
+              "TRANSIENT_CONVERSATION",
+              "BUSINESS_RECORD",
+              "RESTRICTED_QA_MEDIA",
+              "SECURITY_AUDIT"
+            ]
+          },
+          "egressClass": {
+            "type": "string",
+            "enum": [
+              "PUBLIC",
+              "INTERNAL",
+              "PHI",
+              "PHI_RESTRICTED",
+              "FINANCIAL",
+              "VERIFICATION_SECRET"
+            ]
+          },
+          "vendorDeletionOperationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.]{2,63}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eventSchema": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "schemaRef": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_.:-]{2,80}$"
+                  },
+                  "version": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                  }
+                },
+                "required": [
+                  "schemaRef",
+                  "version"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "streamId",
+          "sourceObject",
+          "deletionBehavior",
+          "retentionClass",
+          "egressClass",
+          "vendorDeletionOperationId",
+          "eventSchema"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "health": {
+      "type": "object",
+      "properties": {
+        "metadataOperationId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_.]{2,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "metadataFormat": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "JSON_SCHEMA",
+                "FIELD_DESCRIBE"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "syntheticRecord": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "operationId": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_.]{2,63}$"
+                },
+                "params": {
+                  "maxItems": 16,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-zA-Z0-9_]{0,40}$"
+                      },
+                      "value": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          {
+                            "type": "integer",
+                            "minimum": -1000000000,
+                            "maximum": 1000000000
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "operationId",
+                "params"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "metadataOperationId",
+        "metadataFormat",
+        "syntheticRecord"
+      ],
+      "additionalProperties": false
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "addressClass": {
+          "type": "string",
+          "enum": [
+            "PUBLIC_INTERNET",
+            "PRIVATE_NETWORK"
+          ]
+        },
+        "tlsCaRef": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "pattern": "^(arn:aws:(secretsmanager|kms|ssm):[A-Za-z0-9-]{1,32}:[A-Za-z0-9]{1,32}:[A-Za-z0-9/_+=.@:-]{1,256}|local-fixture:[a-z0-9][a-z0-9._/-]{0,127})$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "addressClass",
+        "tlsCaRef"
+      ],
+      "additionalProperties": false
+    },
+    "bindingVerification": {
+      "type": "object",
+      "properties": {
+        "account": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "TOKEN_RESPONSE",
+                    "RESPONSE_HEADER"
+                  ]
+                },
+                "locator": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "^(\\/([A-Za-z0-9_.$@-]|~[01])*)+$|^[A-Za-z][A-Za-z0-9_.-]{0,40}$"
+                }
+              },
+              "required": [
+                "source",
+                "locator"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "region": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "TOKEN_RESPONSE",
+                    "RESPONSE_HEADER"
+                  ]
+                },
+                "locator": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "^(\\/([A-Za-z0-9_.$@-]|~[01])*)+$|^[A-Za-z][A-Za-z0-9_.-]{0,40}$"
+                }
+              },
+              "required": [
+                "source",
+                "locator"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "account",
+        "region"
+      ],
+      "additionalProperties": false
+    },
+    "mappingTables": {
+      "type": "object",
+      "properties": {
+        "enums": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tableId": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.-]{1,60}$"
+              },
+              "entries": {
+                "minItems": 1,
+                "maxItems": 256,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "to": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_.-]{1,64}$"
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "tableId",
+              "entries"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "timeZones": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "zoneKey": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{1,30}$"
+              },
+              "ianaZone": {
+                "type": "string",
+                "pattern": "^(UTC|[A-Za-z_]{2,30}(\\/[A-Za-z0-9_+-]{2,30}){1,2})$"
+              }
+            },
+            "required": [
+              "zoneKey",
+              "ianaZone"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "enums",
+        "timeZones"
+      ],
+      "additionalProperties": false
+    },
+    "usageHeaders": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "remaining": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,40}$"
+            },
+            "limit": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,40}$"
+            }
+          },
+          "required": [
+            "remaining",
+            "limit"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "configDigest": {
       "type": "string",

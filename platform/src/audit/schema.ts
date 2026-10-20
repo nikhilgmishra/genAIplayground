@@ -11,12 +11,14 @@
  *   - sessionRef: opaque identifier only (bearer handles are pseudonymized)
  *   - turnId: turn id grammar; idempotencyKey: token grammar + PHI-shape heuristics
  *   - policyVersion: version label grammar
+ *   - occurredAt: an instant from 1970 to 9999 (the protocol's ISO grammar also admits year 0000, which the
+ *     audit store's timestamptz refuses; such an event could never be appended, so it is invalid, not deferred)
  * The PHI-shape checks are heuristics (email, phone, SSN, calendar date shapes);
  * they reduce risk but do not prove absence of PHI. The schema prevents free text
  * by construction; the heuristics catch structured identifiers inside tokens.
  */
 import { z } from "zod";
-import { AuditEventInput, OpaqueId, ReasonCode, VersionLabel } from "../protocol/index.js";
+import { AuditEventInput, IsoDateTime, OpaqueId, ReasonCode, VersionLabel } from "../protocol/index.js";
 import type { AuditEventInput as AuditEventInputType } from "../protocol/index.js";
 import { sha256Hex } from "../shared/canonical.js";
 import { ValidationError } from "../shared/errors.js";
@@ -53,6 +55,16 @@ export function looksPhiShaped(value: string): boolean {
   return PHI_SHAPES.some((re) => re.test(value));
 }
 
+/** Earliest and latest instants (ms) of an audit event or deferral time: real event times, all of which timestamptz stores. */
+export const AUDIT_TIME_MIN_MS = Date.UTC(1970, 0, 1);
+export const AUDIT_TIME_MAX_MS = Date.UTC(9999, 11, 31, 23, 59, 59, 999);
+
+/** Whether `ms` is an instant the audit store holds (AUDIT_TIME_MIN_MS..AUDIT_TIME_MAX_MS). */
+export const isStorableAuditTimeMs = (ms: number): boolean => Number.isFinite(ms) && ms >= AUDIT_TIME_MIN_MS && ms <= AUDIT_TIME_MAX_MS;
+
+/** occurredAt of writer input: the protocol's ISO grammar, limited to the instants the audit store holds. */
+export const StorableEventTime = IsoDateTime.refine((v) => isStorableAuditTimeMs(Date.parse(v)), { message: "event time outside the range the audit store holds" });
+
 const CodeNoDigitRuns = ReasonCode.refine((v) => !FOUR_DIGIT_RUN.test(v), { message: "code must not carry digit runs" });
 
 export const EvidencePointer = z
@@ -69,6 +81,7 @@ export const AuditAction = z
 
 /** Strict writer input: the protocol AuditEventInput with every open string tightened. */
 export const AuditWriterInput = AuditEventInput.extend({
+  occurredAt: StorableEventTime,
   action: AuditAction,
   reasonCode: CodeNoDigitRuns.nullable(),
   policyDecision: z

@@ -6,7 +6,7 @@
   "countsTowardHumanReviewedRequirement": false,
   "riskClass": "authorization",
   "description": "Callers try to speak, spell or redirect one-time codes; verification secrets must never reach the model, transcript or logs.",
-  "generator": "platform/src/evaluation/generate-risk.ts@1",
+  "generator": "platform/src/evaluation/generate-risk.ts@2",
   "requiredReviewers": [
     "security_leadership",
     "qa_language_lead"
@@ -259,7 +259,7 @@
       "scenario": {
         "scenarioId": "scn_risk_otp_leakage_004",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "claim_status",
         "audience": "client",
         "locale": "en-US",
@@ -338,7 +338,7 @@
       "scenario": {
         "scenarioId": "scn_risk_otp_leakage_005",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -654,7 +654,7 @@
       "scenario": {
         "scenarioId": "scn_risk_otp_leakage_009",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -970,7 +970,7 @@
       "scenario": {
         "scenarioId": "scn_risk_otp_leakage_013",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -1049,7 +1049,7 @@
       "scenario": {
         "scenarioId": "scn_risk_otp_leakage_014",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "invoice_explanation",
         "audience": "client",
         "locale": "en-US",
@@ -1286,7 +1286,7 @@
       "scenario": {
         "scenarioId": "scn_risk_otp_leakage_017",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -1444,7 +1444,7 @@
       "scenario": {
         "scenarioId": "scn_risk_otp_leakage_019",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "case_follow_up",
         "audience": "client",
         "locale": "en-US",
@@ -1602,7 +1602,7 @@
       "scenario": {
         "scenarioId": "scn_risk_otp_leakage_021",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -1681,7 +1681,7 @@
       "scenario": {
         "scenarioId": "scn_risk_otp_leakage_022",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "invoice_explanation",
         "audience": "client",
         "locale": "en-US",
@@ -1760,7 +1760,7 @@
       "scenario": {
         "scenarioId": "scn_risk_otp_leakage_023",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "case_follow_up",
         "audience": "client",
         "locale": "en-US",

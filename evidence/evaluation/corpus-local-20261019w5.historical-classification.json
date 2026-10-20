@@ -1,0 +1,5164 @@
+{
+  "label": "LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION. Classification of historical non-PASS runs with their rerun results (analysis only; verdicts are unchanged).",
+  "historicalSource": {
+    "runs": [
+      "run_local_20261018w4_journeys",
+      "run_local_20261018w4_dev_0of3",
+      "run_local_20261018w4_dev_1of3",
+      "run_local_20261018w4_dev_2of3",
+      "run_local_20261018w4_heldout_0of2",
+      "run_local_20261018w4_heldout_1of2",
+      "run_local_20261018w4_risk_0of4",
+      "run_local_20261018w4_risk_1of4",
+      "run_local_20261018w4_risk_2of4",
+      "run_local_20261018w4_risk_3of4"
+    ],
+    "nonPassRuns": 325
+  },
+  "rerunSource": {
+    "runs": [
+      "run_local_20261019w5_journeys",
+      "run_local_20261019w5_dev_0of2",
+      "run_local_20261019w5_dev_1of2",
+      "run_local_20261019w5_tuning",
+      "run_local_20261019w5_heldout",
+      "run_local_20261019w5_regression",
+      "run_local_20261019w5_risk_0of3",
+      "run_local_20261019w5_risk_1of3",
+      "run_local_20261019w5_risk_2of3"
+    ],
+    "nonPassRuns": 313
+  },
+  "categories": [
+    "PRODUCT_DEFECT",
+    "FIXTURE_DEFECT",
+    "IMPOSSIBLE_TASK",
+    "UNMET_PRECONDITION"
+  ],
+  "loci": [
+    "product",
+    "fixture",
+    "scorer",
+    "expectation"
+  ],
+  "summary": {
+    "historicalByCategory": {
+      "FIXTURE_DEFECT": 52,
+      "IMPOSSIBLE_TASK": 14,
+      "PRODUCT_DEFECT": 7,
+      "UNMET_PRECONDITION": 252
+    },
+    "historicalByLocus": {
+      "expectation": 277,
+      "fixture": 41,
+      "product": 7
+    },
+    "rerunVerdicts": {
+      "FAIL": 286,
+      "INCONCLUSIVE": 1,
+      "PASS": 38
+    },
+    "rerunVerdictsByCategory": {
+      "PRODUCT_DEFECT": {
+        "PASS": 7
+      },
+      "FIXTURE_DEFECT": {
+        "FAIL": 31,
+        "INCONCLUSIVE": 1,
+        "PASS": 20
+      },
+      "IMPOSSIBLE_TASK": {
+        "FAIL": 3,
+        "PASS": 11
+      },
+      "UNMET_PRECONDITION": {
+        "FAIL": 252
+      },
+      "NOT_CLASSIFIED": {}
+    },
+    "notClassified": 0,
+    "newlyNonPassInRerun": 26,
+    "newlyNonPassByLocus": {
+      "scorer": 26
+    }
+  },
+  "byCause": [
+    {
+      "cause": "AFTER_COMMIT_FAULT_NOT_REACHED_SLOT_CONFLICT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "why": "the slot-conflict draft commits a taken slot, so the commit fails before the after-commit fault point",
+      "runs": 6,
+      "historical": {
+        "FAIL": 6
+      },
+      "rerun": {
+        "FAIL": 3,
+        "PASS": 3
+      },
+      "rerunCauses": {
+        "RECONCILED_COMMIT_OUTCOME_REVISION": 3
+      }
+    },
+    {
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "why": "the LOCAL SIMULATED COORDINATOR (test fixture) could not parse a turn; no backend behaviour was exercised",
+      "runs": 12,
+      "historical": {
+        "FAIL": 1,
+        "INCONCLUSIVE": 11
+      },
+      "rerun": {
+        "FAIL": 5,
+        "INCONCLUSIVE": 1,
+        "PASS": 6
+      },
+      "rerunCauses": {
+        "COORDINATOR_COULD_NOT_INTERPRET": 1,
+        "KNOWLEDGE_NO_APPROVED_ANSWER": 5
+      }
+    },
+    {
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "why": "simulated coordinator keyword rule missed the intent",
+      "runs": 25,
+      "historical": {
+        "FAIL": 25
+      },
+      "rerun": {
+        "FAIL": 25
+      },
+      "rerunCauses": {
+        "KNOWLEDGE_NO_APPROVED_ANSWER": 25
+      }
+    },
+    {
+      "cause": "COORDINATOR_MISREAD_INTENT",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "why": "simulated coordinator keyword rule chose the wrong intent",
+      "runs": 1,
+      "historical": {
+        "FAIL": 1
+      },
+      "rerun": {
+        "PASS": 1
+      },
+      "rerunCauses": {}
+    },
+    {
+      "cause": "COORDINATOR_REPEATS_FLOW_ON_FOLLOW_UP",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "why": "simulated coordinator re-ran a flow on a follow-up turn",
+      "runs": 1,
+      "historical": {
+        "FAIL": 1
+      },
+      "rerun": {
+        "PASS": 1
+      },
+      "rerunCauses": {}
+    },
+    {
+      "cause": "COORDINATOR_ROLE_NOT_RESOLVED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "why": "simulated coordinator keyword rule missed the role",
+      "runs": 1,
+      "historical": {
+        "FAIL": 1
+      },
+      "rerun": {
+        "FAIL": 1
+      },
+      "rerunCauses": {
+        "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF": 1
+      }
+    },
+    {
+      "cause": "DRIVER_TRANSFER_FAULT_NOT_APPLIED_TO_STUDIO_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "why": "the local driver did not arm the transfer fault on the Studio-initiated route",
+      "runs": 1,
+      "historical": {
+        "INCONCLUSIVE": 1
+      },
+      "rerun": {
+        "PASS": 1
+      },
+      "rerunCauses": {}
+    },
+    {
+      "cause": "FAULT_NOT_REACHED_BY_SCRIPT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "why": "the scenario pairs a fault with a script that never reaches its injection point",
+      "runs": 8,
+      "historical": {
+        "INCONCLUSIVE": 8
+      },
+      "rerun": {
+        "PASS": 8
+      },
+      "rerunCauses": {}
+    },
+    {
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "why": "no approved knowledge article exists for the question (PRQ-032); the product correctly declines and routes to a person",
+      "runs": 143,
+      "historical": {
+        "FAIL": 143
+      },
+      "rerun": {
+        "FAIL": 143
+      },
+      "rerunCauses": {
+        "KNOWLEDGE_NO_APPROVED_ANSWER": 143
+      }
+    },
+    {
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "why": "outcome precedence for multi-request calls awaits the business decision (PRQ-033)",
+      "runs": 13,
+      "historical": {
+        "FAIL": 13
+      },
+      "rerun": {
+        "FAIL": 13
+      },
+      "rerunCauses": {
+        "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF": 13
+      }
+    },
+    {
+      "cause": "OUT_OF_ORDER_TRANSFER_EVENT_DROPPED",
+      "category": "PRODUCT_DEFECT",
+      "locus": "product",
+      "why": "TransferCoordinator dropped an out-of-order event instead of holding it (workflows/transfer.ts; fix wave 5)",
+      "runs": 7,
+      "historical": {
+        "FAIL": 7
+      },
+      "rerun": {
+        "PASS": 7
+      },
+      "rerunCauses": {}
+    },
+    {
+      "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "why": "the outcome for an engine failure (policy decline vs transfer) awaits the business outcome-mapping decision (PRQ-033); the fail-closed behaviour itself is correct",
+      "runs": 7,
+      "historical": {
+        "FAIL": 7
+      },
+      "rerun": {
+        "FAIL": 7
+      },
+      "rerunCauses": {
+        "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION": 7
+      }
+    },
+    {
+      "cause": "RECONCILED_COMMIT_OUTCOME_REVISION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "why": "the outcome mapping for reconciled commits awaits the business decision (PRQ-033)",
+      "runs": 9,
+      "historical": {
+        "FAIL": 9
+      },
+      "rerun": {
+        "FAIL": 9
+      },
+      "rerunCauses": {
+        "RECONCILED_COMMIT_OUTCOME_REVISION": 9
+      }
+    },
+    {
+      "cause": "SAFETY_ASR_UNCERTAIN_OVER_ROUTING",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "why": "the ASR-uncertainty threshold is a placeholder pending clinical / ASR calibration (PRQ-008)",
+      "runs": 5,
+      "historical": {
+        "FAIL": 5
+      },
+      "rerun": {
+        "FAIL": 5
+      },
+      "rerunCauses": {
+        "SAFETY_ASR_UNCERTAIN_OVER_ROUTING": 5
+      }
+    },
+    {
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "why": "borderline safety language is routed to the safety human by design until the clinical safety lead decides (PRQ-008)",
+      "runs": 75,
+      "historical": {
+        "FAIL": 75
+      },
+      "rerun": {
+        "FAIL": 75
+      },
+      "rerunCauses": {
+        "SAFETY_OVER_ROUTING_BORDERLINE": 75
+      }
+    },
+    {
+      "cause": "SCREENING_INITIATED_SAFETY_ROUTE_SEQUENCE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "why": "the draft's expected tool sequence named the wrong safety tool; the safety gates passed",
+      "runs": 4,
+      "historical": {
+        "FAIL": 4
+      },
+      "rerun": {
+        "PASS": 4
+      },
+      "rerunCauses": {}
+    },
+    {
+      "cause": "SESSION_INVALID_ROUTED_TO_REVERIFICATION",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "why": "the expectation contradicted the reviewed Studio rule (invalid session -> staffed re-verification)",
+      "runs": 7,
+      "historical": {
+        "FAIL": 7
+      },
+      "rerun": {
+        "PASS": 7
+      },
+      "rerunCauses": {}
+    }
+  ],
+  "rows": [
+    {
+      "scenarioId": "scn_journey_1_client_reschedule_conflict__auth_expiry_mid_call",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SESSION_INVALID_ROUTED_TO_REVERIFICATION",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_account_enumeration_probe__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION"
+      }
+    },
+    {
+      "scenarioId": "scn_appointment_slot_conflict__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "RECONCILED_COMMIT_OUTCOME_REVISION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_claim_status__indirect_or_ambiguous",
+      "scenarioVersion": 2,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_MISREAD_INTENT",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__frustrated",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_partner_employee_treatment_status__indirect_or_ambiguous",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_provider_unrelated_client_lookup__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION"
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_third_party_caller_inquiry__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION"
+      }
+    },
+    {
+      "scenarioId": "scn_appointment_cancel__indirect_or_ambiguous",
+      "scenarioVersion": 2,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_appointment_reschedule__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "RECONCILED_COMMIT_OUTCOME_REVISION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_cross_account_request__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION"
+      }
+    },
+    {
+      "scenarioId": "scn_expired_proxy_access__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__indirect_or_ambiguous",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__indirect_or_ambiguous",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_partner_employee_treatment_status__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION"
+      }
+    },
+    {
+      "scenarioId": "scn_payer_bulk_patient_search__indirect_or_ambiguous",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_recording_declined__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "DRIVER_TRANSFER_FAULT_NOT_APPLIED_TO_STUDIO_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__frustrated",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__verification_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__baseline",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_frustration_idiom_billing__interrupted_or_noisy",
+      "scenarioVersion": 2,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_ASR_UNCERTAIN_OVER_ROUTING",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "SAFETY_ASR_UNCERTAIN_OVER_ROUTING"
+      }
+    },
+    {
+      "scenarioId": "scn_frustration_idiom_billing__interrupted_or_noisy",
+      "scenarioVersion": 2,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_ASR_UNCERTAIN_OVER_ROUTING",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "SAFETY_ASR_UNCERTAIN_OVER_ROUTING"
+      }
+    },
+    {
+      "scenarioId": "scn_frustration_idiom_billing__interrupted_or_noisy",
+      "scenarioVersion": 2,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_ASR_UNCERTAIN_OVER_ROUTING",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "SAFETY_ASR_UNCERTAIN_OVER_ROUTING"
+      }
+    },
+    {
+      "scenarioId": "scn_frustration_idiom_billing__interrupted_or_noisy",
+      "scenarioVersion": 2,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_ASR_UNCERTAIN_OVER_ROUTING",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "SAFETY_ASR_UNCERTAIN_OVER_ROUTING"
+      }
+    },
+    {
+      "scenarioId": "scn_frustration_idiom_billing__interrupted_or_noisy",
+      "scenarioVersion": 2,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_ASR_UNCERTAIN_OVER_ROUTING",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "SAFETY_ASR_UNCERTAIN_OVER_ROUTING"
+      }
+    },
+    {
+      "scenarioId": "scn_otp_read_aloud_attempt__indirect_or_ambiguous",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_payer_bulk_patient_search__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "POLICY_ENGINE_ERROR_OUTCOME_EXPECTATION"
+      }
+    },
+    {
+      "scenarioId": "scn_payer_claim_inquiry__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_SCRIPT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_provider_unrelated_client_lookup__indirect_or_ambiguous",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__baseline",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__interrupted_or_noisy",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_shared_device_recap__indirect_or_ambiguous",
+      "scenarioVersion": 2,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_appointment_create__dependency_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "RECONCILED_COMMIT_OUTCOME_REVISION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_caller_id_assertion__indirect_or_ambiguous",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "INCONCLUSIVE",
+        "scenarioVersion": 1,
+        "cause": "COORDINATOR_COULD_NOT_INTERPRET"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_hours__baseline",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__frustrated",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__verification_failure",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_role_switch_mid_call__indirect_or_ambiguous",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_ROLE_NOT_RESOLVED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_faq_services_overview__malicious_instruction",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_auth_gate_string_values_029",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SESSION_INVALID_ROUTED_TO_REVERIFICATION",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_013",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "AFTER_COMMIT_FAULT_NOT_REACHED_SLOT_CONFLICT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_017",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "AFTER_COMMIT_FAULT_NOT_REACHED_SLOT_CONFLICT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_019",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_SCRIPT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_023",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_SCRIPT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_007",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_015",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_019",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_role_combining_011",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "MULTI_REQUEST_CALL_ENDS_WITH_HANDOFF"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_003",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_003",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_003",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_003",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_003",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_007",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_007",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_007",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_007",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_007",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_011",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_011",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_011",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_011",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_011",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_003",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_003",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_003",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_003",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_003",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_007",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_007",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_007",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_007",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_007",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_011",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_011",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_011",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_011",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_011",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_003",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_003",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_003",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_003",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_003",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_007",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_007",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "INCONCLUSIVE",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_007",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "INCONCLUSIVE",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_007",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "INCONCLUSIVE",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_007",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "INCONCLUSIVE",
+      "cause": "COORDINATOR_COULD_NOT_INTERPRET",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_011",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_011",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_011",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_011",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_011",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_auth_gate_string_values_030",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SESSION_INVALID_ROUTED_TO_REVERIFICATION",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_consent_declined_010",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SCREENING_INITIATED_SAFETY_ROUTE_SEQUENCE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_consent_declined_022",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SCREENING_INITIATED_SAFETY_ROUTE_SEQUENCE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_002",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "RECONCILED_COMMIT_OUTCOME_REVISION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_006",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "RECONCILED_COMMIT_OUTCOME_REVISION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_010",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "RECONCILED_COMMIT_OUTCOME_REVISION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_014",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "AFTER_COMMIT_FAULT_NOT_REACHED_SLOT_CONFLICT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_018",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "AFTER_COMMIT_FAULT_NOT_REACHED_SLOT_CONFLICT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_020",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "OUT_OF_ORDER_TRANSFER_EVENT_DROPPED",
+      "category": "PRODUCT_DEFECT",
+      "locus": "product",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_024",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "OUT_OF_ORDER_TRANSFER_EVENT_DROPPED",
+      "category": "PRODUCT_DEFECT",
+      "locus": "product",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_008",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_016",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_020",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_004",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_004",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_004",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_004",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_004",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_008",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_008",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_008",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_008",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_008",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_012",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_012",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_012",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_012",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_012",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_004",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_004",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_004",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_004",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_004",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_008",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_008",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_008",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_008",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_008",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_012",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_012",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_012",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_012",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_012",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_004",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_004",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_004",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_004",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_004",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_008",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_008",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_008",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_008",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_008",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_auth_gate_string_values_027",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SESSION_INVALID_ROUTED_TO_REVERIFICATION",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_auth_gate_string_values_031",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SESSION_INVALID_ROUTED_TO_REVERIFICATION",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_015",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "AFTER_COMMIT_FAULT_NOT_REACHED_SLOT_CONFLICT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_021",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_SCRIPT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_021",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_SCRIPT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_021",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_SCRIPT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_021",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_SCRIPT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_021",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_SCRIPT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_001",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_005",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_009",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_013",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_017",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_021",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_001",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_001",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_001",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_001",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_001",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_005",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_005",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_005",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_005",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_005",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_009",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_009",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_009",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_009",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_009",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_013",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_013",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_013",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_013",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_013",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_017",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_017",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_017",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_017",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_017",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_021",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_021",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_021",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_021",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_021",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_001",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_001",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_001",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_001",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_001",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_005",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_005",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_005",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_005",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_005",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_009",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_009",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_009",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_009",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_009",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_001",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_001",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_001",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_001",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_001",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_005",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_005",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_005",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_005",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_005",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_009",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_009",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_009",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_009",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_009",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_001",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_001",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_001",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_001",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_001",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_005",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_005",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_005",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_005",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_005",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_009",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_009",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_009",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_009",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_009",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_auth_gate_string_values_028",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SESSION_INVALID_ROUTED_TO_REVERIFICATION",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_auth_gate_string_values_032",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SESSION_INVALID_ROUTED_TO_REVERIFICATION",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_consent_declined_012",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SCREENING_INITIATED_SAFETY_ROUTE_SEQUENCE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_consent_declined_024",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SCREENING_INITIATED_SAFETY_ROUTE_SEQUENCE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 2,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_004",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "RECONCILED_COMMIT_OUTCOME_REVISION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_008",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "RECONCILED_COMMIT_OUTCOME_REVISION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_012",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "RECONCILED_COMMIT_OUTCOME_REVISION",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_crash_after_commit_016",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "AFTER_COMMIT_FAULT_NOT_REACHED_SLOT_CONFLICT",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 2,
+        "cause": "RECONCILED_COMMIT_OUTCOME_REVISION"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_002",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_REPEATS_FLOW_ON_FOLLOW_UP",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_022",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "OUT_OF_ORDER_TRANSFER_EVENT_DROPPED",
+      "category": "PRODUCT_DEFECT",
+      "locus": "product",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_022",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "OUT_OF_ORDER_TRANSFER_EVENT_DROPPED",
+      "category": "PRODUCT_DEFECT",
+      "locus": "product",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_022",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "OUT_OF_ORDER_TRANSFER_EVENT_DROPPED",
+      "category": "PRODUCT_DEFECT",
+      "locus": "product",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_022",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "OUT_OF_ORDER_TRANSFER_EVENT_DROPPED",
+      "category": "PRODUCT_DEFECT",
+      "locus": "product",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_022",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "OUT_OF_ORDER_TRANSFER_EVENT_DROPPED",
+      "category": "PRODUCT_DEFECT",
+      "locus": "product",
+      "rerun": {
+        "verdict": "PASS",
+        "scenarioVersion": 1,
+        "cause": null
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_006",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_014",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_knowledge_018",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_002",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_002",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_002",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_002",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_002",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_006",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_006",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_006",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_006",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_006",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_010",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_010",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_010",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_010",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_historical_010",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_002",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_002",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_002",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_002",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_002",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_006",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_006",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_006",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_006",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_006",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_010",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_010",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_010",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_010",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_idiom_010",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "COORDINATOR_INTENT_MISSED",
+      "category": "FIXTURE_DEFECT",
+      "locus": "fixture",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_002",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_002",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_002",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_002",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_002",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_006",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_006",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_006",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_006",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_006",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "KNOWLEDGE_NO_APPROVED_ANSWER",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "KNOWLEDGE_NO_APPROVED_ANSWER"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_010",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_010",
+      "scenarioVersion": 1,
+      "repetition": 2,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_010",
+      "scenarioVersion": 1,
+      "repetition": 3,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_010",
+      "scenarioVersion": 1,
+      "repetition": 4,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    },
+    {
+      "scenarioId": "scn_risk_safety_negation_010",
+      "scenarioVersion": 1,
+      "repetition": 5,
+      "verdict": "FAIL",
+      "cause": "SAFETY_OVER_ROUTING_BORDERLINE",
+      "category": "UNMET_PRECONDITION",
+      "locus": "expectation",
+      "rerun": {
+        "verdict": "FAIL",
+        "scenarioVersion": 1,
+        "cause": "SAFETY_OVER_ROUTING_BORDERLINE"
+      }
+    }
+  ],
+  "newlyNonPass": [
+    {
+      "scenarioId": "scn_journey_6_safety_handoff_unauthenticated__quota_exhausted",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_journey_6_safety_handoff_unauthenticated__quota_exhausted",
+      "repetition": 2,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_journey_6_safety_handoff_unauthenticated__quota_exhausted",
+      "repetition": 3,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_journey_6_safety_handoff_unauthenticated__quota_exhausted",
+      "repetition": 4,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_journey_6_safety_handoff_unauthenticated__quota_exhausted",
+      "repetition": 5,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_case_follow_up__dependency_failure",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_EXPECTED_FLOW",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_practice_staff_case_status__dependency_failure",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_EXPECTED_FLOW",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_shared_device_recap__dependency_failure",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_EXPECTED_FLOW",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_partner_case_follow_up__dependency_failure",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_EXPECTED_FLOW",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_relay_service_caller__dependency_failure",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_EXPECTED_FLOW",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_repeat_caller_resume_issue__dependency_failure",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_NOT_REACHED_BY_EXPECTED_FLOW",
+      "category": "IMPOSSIBLE_TASK",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_007",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_013",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_016",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_019",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_022",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_008",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_014",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_017",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_020",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_023",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_009",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_015",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_018",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_021",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_024",
+      "repetition": 1,
+      "rerunVerdict": "INCONCLUSIVE",
+      "cause": "FAULT_REACH_NOT_EVIDENCED_ON_EXEMPT_ROUTE",
+      "category": "FIXTURE_DEFECT",
+      "locus": "scorer",
+      "historicalVerdict": "PASS",
+      "note": "historical PASS rested on the driver's self-reported fault injection; the repaired scorer (fault-plan.v2 reach check) requires independent evidence"
+    }
+  ]
+}

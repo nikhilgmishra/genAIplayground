@@ -6,7 +6,7 @@
   "countsTowardHumanReviewedRequirement": false,
   "riskClass": "privacy",
   "description": "Caller declines recording at different points; recording never starts after a decline and the approved alternative is offered; the safety route is unaffected.",
-  "generator": "platform/src/evaluation/generate-risk.ts@1",
+  "generator": "platform/src/evaluation/generate-risk.ts@2",
   "requiredReviewers": [
     "privacy_counsel",
     "qa_language_lead"
@@ -22,7 +22,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_001",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": "client",
         "locale": "en-US",
@@ -90,7 +90,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_002",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": "client",
         "locale": "en-US",
@@ -158,7 +158,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_003",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": "client",
         "locale": "en-US",
@@ -232,7 +232,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_004",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -300,7 +300,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_005",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -376,7 +376,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_006",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -512,7 +512,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_008",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "invoice_explanation",
         "audience": "client",
         "locale": "en-US",
@@ -656,7 +656,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_010",
         "version": 2,
-        "split": "development",
+        "split": "regression",
         "intent": "safety_disclosure_self",
         "audience": null,
         "locale": "en-US",
@@ -729,7 +729,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_011",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "regression",
         "intent": "safety_disclosure_self",
         "audience": null,
         "locale": "en-US",
@@ -875,7 +875,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_013",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": "client",
         "locale": "en-US",
@@ -943,7 +943,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_014",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": "client",
         "locale": "en-US",
@@ -1011,7 +1011,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_015",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": "client",
         "locale": "en-US",
@@ -1085,7 +1085,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_016",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -1153,7 +1153,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_017",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -1229,7 +1229,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_018",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -1509,7 +1509,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_022",
         "version": 2,
-        "split": "development",
+        "split": "regression",
         "intent": "safety_disclosure_self",
         "audience": null,
         "locale": "en-US",
@@ -1582,7 +1582,7 @@
       "scenario": {
         "scenarioId": "scn_risk_consent_declined_023",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "safety_disclosure_self",
         "audience": null,
         "locale": "en-US",

@@ -690,7 +690,11 @@ describe("LocalConversationDriver — simulated coordinator keyword rules (LOCAL
       expect(r.call.details.ledger.map((l) => `${l.kind}:${l.state}:${l.effectCount}`)).toEqual(["billing.review.submit:COMMITTED:1"]);
       expect(r.call.spoken.at(-1)?.templateId).toBe("case.recap_open_issue");
       expect(r.evidence.outcome).toBe("REQUEST_ACCEPTED");
-      expect(r.result.verdict).toBe("PASS");
+      // DUPLICATE_WEBHOOK on the outbox path is reported only by the driver itself (driver self-report, WP-01 D3):
+      // the run is INCONCLUSIVE on that reach check alone, never PASS.
+      expect(r.result.reachedFault).toBeNull();
+      expect(r.result.assertions.filter((a) => a.verdict !== "PASS").map((a) => a.assertionId)).toEqual(["evidence.fault_reached.duplicate_webhook"]);
+      expect(r.result.verdict).toBe("INCONCLUSIVE");
     },
     TIMEOUT,
   );
@@ -716,7 +720,9 @@ describe("LocalConversationDriver — simulated coordinator keyword rules (LOCAL
         expect(r.call.screenings.map((x) => x.turnIndex)).toEqual(callerTurns(s));
         expect(r.evidence.unsupported).toEqual([]);
         expect(r.call.details.ledger.map((l) => `${l.kind}:${l.state}:${l.effectCount}`)).toEqual(["billing.review.submit:COMMITTED:1"]);
-        expect(r.result.verdict).toBe("PASS");
+        // Outbox-path DUPLICATE_WEBHOOK: only a driver self-report, so INCONCLUSIVE on the reach check alone (WP-01 D3).
+        expect(r.result.assertions.filter((a) => a.verdict !== "PASS").map((a) => a.assertionId)).toEqual(["evidence.fault_reached.duplicate_webhook"]);
+        expect(r.result.verdict).toBe("INCONCLUSIVE");
       },
       TIMEOUT,
     );

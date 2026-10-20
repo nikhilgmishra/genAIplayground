@@ -1,0 +1,67 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "CONTRADICTORY_EVENT",
+  "version": 1,
+  "title": "Two sources disagree on a snapshot field",
+  "description": "Two sources or events disagree on a field the ContextSnapshot uses (for example an appointment status); the snapshot must mark the conflict and the agent must not assert either value without an authoritative check.",
+  "category": "context",
+  "target": {
+    "components": [
+      "platform/src/context",
+      "platform/src/entity"
+    ],
+    "dependency": "event_inbox"
+  },
+  "trigger": {
+    "kind": "AT_CALL_START",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "SOURCE_CONTRADICTION",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller hears that the record is being checked or is offered a person; no contradictory fact is asserted.",
+  "backendEvidence": [
+    "Conflict recorded on the snapshot field with both source watermarks",
+    "Authoritative lookup or human route"
+  ],
+  "requirementIds": [
+    "SPEC-3.trust-boundaries"
+  ],
+  "appliesToIntents": [
+    "appointment_lookup",
+    "case_follow_up"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:CONTRADICTORY_EVENT] owned by WP-24 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.CONTRADICTORY_EVENT",
+    "origin": "prompt_section_17",
+    "injectionPoint": "two sources or events disagree on a field used by the snapshot",
+    "injectionPointPackages": [
+      "WP-18",
+      "WP-24"
+    ],
+    "postconditionPackages": [
+      "WP-24"
+    ],
+    "layer2Owner": "WP-24",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "The conflicting field is marked and never spoken as fact",
+    "An authoritative lookup or a person resolves it"
+  ]
+}

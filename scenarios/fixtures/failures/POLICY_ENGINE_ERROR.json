@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "POLICY_ENGINE_ERROR",
-  "version": 1,
+  "version": 2,
   "title": "Policy evaluation errors",
   "description": "The OPA evaluation throws or returns an undefined decision.",
   "category": "policy",
@@ -53,5 +53,37 @@
     "appointment_lookup",
     "invoice_explanation"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.POLICY_ENGINE_ERROR",
+    "origin": "registry",
+    "injectionPoint": "the in-process OPA evaluation throws or is undefined",
+    "injectionPointPackages": [
+      "WP-01"
+    ],
+    "postconditionPackages": [
+      "WP-01"
+    ],
+    "layer2Owner": "WP-01",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "tool_response",
+      "tools": null,
+      "statuses": [
+        "POLICY_DENIED"
+      ],
+      "reasonCodes": [
+        "POLICY_ENGINE_ERROR"
+      ],
+      "sessionStates": null
+    }
+  ],
+  "postconditions": [
+    "A policy evaluation that throws or returns an undefined decision fails closed with POLICY_ENGINE_ERROR for every protected read and action",
+    "No protected data is returned and no consequential action is prepared or committed while the engine fails",
+    "Safety and human routes stay allowed (SAFE-02)",
+    "Each denial is a durable audit event carrying POLICY_ENGINE_ERROR"
+  ]
 }

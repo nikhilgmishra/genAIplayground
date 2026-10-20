@@ -1,0 +1,75 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "STALE_SOURCE",
+  "version": 1,
+  "title": "Context source older than its freshness budget",
+  "description": "A context source (for example a warehouse snapshot older than a recorded payment) is older than its freshness budget when the snapshot is assembled; volatile facts must be refreshed from the authoritative system before they are spoken or acted on.",
+  "category": "context",
+  "target": {
+    "components": [
+      "platform/src/context",
+      "platform/src/connectors"
+    ],
+    "dependency": "context_source"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "SOURCE_STALE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    },
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    }
+  ],
+  "callerVisible": "The caller is not told a stale balance or status; the agent checks the current record or offers a person.",
+  "backendEvidence": [
+    "Snapshot freshness record marks the source stale",
+    "Fresh authoritative lookup before the consequential act"
+  ],
+  "requirementIds": [
+    "SPEC-12.bounded-caching"
+  ],
+  "appliesToIntents": [
+    "invoice_explanation",
+    "billing_dispute",
+    "case_follow_up"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:STALE_SOURCE] owned by WP-24 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.STALE_SOURCE",
+    "origin": "prompt_section_17",
+    "injectionPoint": "a context source older than its freshness budget (warehouse snapshot older than a payment)",
+    "injectionPointPackages": [
+      "WP-21",
+      "WP-24"
+    ],
+    "postconditionPackages": [
+      "WP-14",
+      "WP-23",
+      "WP-24"
+    ],
+    "layer2Owner": "WP-24",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "A stale volatile fact is never spoken as current",
+    "A consequential act waits for a fresh authoritative lookup",
+    "The staleness is visible in the snapshot evidence"
+  ]
+}

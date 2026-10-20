@@ -11,6 +11,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { PgliteDb } from "../../db/pglite.js";
 import { FakeClock } from "../../shared/clock.js";
 import { PgAuditHealth } from "../health.js";
+import { KmsManifestSigner, ManifestSignatureVerifier } from "../exporter/signer.js";
+import { KmsSignStubFixture } from "../exporter/testing.js";
 import { AuditShipper } from "../shipper.js";
 import { appendMany, createAuditTestDb } from "../testing.js";
 import { IntegrityVerifier } from "../verifier.js";
@@ -81,6 +83,9 @@ let clock: FakeClock;
 let bucket: ModelledBucketFixture;
 let writerSink: S3ObjectLockAuditSink;
 let verifierSink: S3ObjectLockAuditSink;
+let kms: KmsSignStubFixture;
+/** Live sinks receive signed manifests only (FO-15-38); the KMS here is a labelled in-process stub. */
+const signer = () => new KmsManifestSigner(kms, kms.keyArn, clock);
 
 beforeEach(async () => {
   db = await createAuditTestDb();
@@ -88,6 +93,7 @@ beforeEach(async () => {
   bucket = new ModelledBucketFixture();
   writerSink = new S3ObjectLockAuditSink(bucket.client("writer"), config, clock);
   verifierSink = new S3ObjectLockAuditSink(bucket.client("verifier"), config, clock);
+  kms = new KmsSignStubFixture();
 });
 afterEach(async () => {
   await db.close();
@@ -102,7 +108,7 @@ const append = (n: number) => {
 describe("S3 sink recovery under the repository's audit IAM (OPS-AUD-02)", () => {
   it("[OPS-01][ACT-02][OPS-AUD-02] a lost PutObject response (batch body or manifest) recovers on the next run without the writer ever reading evidence", async () => {
     await append(3);
-    const shipper = new AuditShipper({ db, sink: writerSink, clock, batchSize: 10 });
+    const shipper = new AuditShipper({ db, sink: writerSink, clock, batchSize: 10, signer: signer() });
     bucket.loseResponseOfPut = new Set([1]); // body stored, response lost
     expect((await shipper.runOnce()).failedStreams).toBe(1);
     const second = await shipper.runOnce();
@@ -125,7 +131,7 @@ describe("S3 sink recovery under the repository's audit IAM (OPS-AUD-02)", () =>
   it("[OPS-01][OPS-AUD-02] after a lost response the stream drains, so AuditHealth never wedges consequential actions on AUDIT_SINK_STALE", async () => {
     const health = new PgAuditHealth({ db, clock, policy: { maxBacklog: 1_000, maxBacklogAgeSeconds: 300 }, probeId: "s3-iam-model" });
     await append(4);
-    const shipper = new AuditShipper({ db, sink: writerSink, clock, batchSize: 10 });
+    const shipper = new AuditShipper({ db, sink: writerSink, clock, batchSize: 10, signer: signer() });
     bucket.loseResponseOfPut = new Set([2]); // manifest stored, response lost
     await shipper.runOnce();
     clock.advanceSeconds(301); // past the bounded buffering age while the batch is in doubt
@@ -141,7 +147,7 @@ describe("S3 sink recovery under the repository's audit IAM (OPS-AUD-02)", () =>
     const key = `audit/${STREAM}/000000000001-000000000002.ndjson`;
     const forged = "{\"forged\":true}\n";
     bucket.objects.set(key, { body: forged, checksum: createHash("sha256").update(forged, "utf8").digest("base64") });
-    const shipper = new AuditShipper({ db, sink: writerSink, clock, batchSize: 10 });
+    const shipper = new AuditShipper({ db, sink: writerSink, clock, batchSize: 10, signer: signer() });
     expect((await shipper.runOnce()).failedStreams).toBe(0);
     const verifier = new IntegrityVerifier({ db, sink: verifierSink, clock });
     const v = await verifier.verifyShipped(STREAM, { markVerified: true });
@@ -155,9 +161,31 @@ describe("S3 sink recovery under the repository's audit IAM (OPS-AUD-02)", () =>
     await append(1);
     const headSink = new S3ObjectLockAuditSink(bucket.client("writer"), { ...config, existingObjectCheck: "head_checksum" }, clock);
     bucket.loseResponseOfPut = new Set([1]);
-    const shipper = new AuditShipper({ db, sink: headSink, clock, batchSize: 10 });
+    const shipper = new AuditShipper({ db, sink: headSink, clock, batchSize: 10, signer: signer() });
     await shipper.runOnce();
     const r = await shipper.runOnce();
     expect(r.streams[0]?.reasonCode).toBe("AUDIT_SINK_UNAVAILABLE");
+  });
+
+  it("[FO-15-38][OPS-01] a live sink refuses unsigned export, and every manifest the writer stores is signed and verifies with the public key only", async () => {
+    expect(() => new AuditShipper({ db, sink: writerSink, clock })).toThrow("AUDIT_MANIFEST_SIGNER_REQUIRED");
+    await append(3);
+    const shipper = new AuditShipper({ db, sink: writerSink, clock, batchSize: 2, signer: signer() });
+    expect((await shipper.runOnce()).batchesShipped).toBe(2);
+    const manifests = await verifierSink.listManifests(STREAM);
+    expect(manifests).toHaveLength(2);
+    const check = new ManifestSignatureVerifier().trust(kms.keyArn, kms.publicKey);
+    expect(manifests.map((m) => check.check(m))).toEqual(["VALID", "VALID"]);
+    // The PLANNED record and the sink copy are the same signed manifest (re-puts are byte-identical).
+    const local = await db.tx((tx) => tx.query<{ manifest: { signature?: unknown } }>("select manifest from audit_manifests order by first_sequence"), { role: "owner" });
+    expect(local.rows.every((r) => r.manifest.signature !== undefined)).toBe(true);
+    // A tampered manifest field or an untrusted key is a finding, never VALID.
+    const m0 = manifests[0];
+    if (!m0) throw new Error("no manifest");
+    expect(check.check({ ...m0, lastSequence: m0.lastSequence + 1 })).toBe("INVALID");
+    expect(new ManifestSignatureVerifier().check(m0)).toBe("UNTRUSTED_KEY");
+    const { signature: _s, signedAt: _a, signerRole: _r, ...unsigned } = m0;
+    expect(check.check(unsigned)).toBe("UNSIGNED");
+    expect(check.check({ ...unsigned, signedAt: m0.signedAt })).toBe("PARTIAL");
   });
 });

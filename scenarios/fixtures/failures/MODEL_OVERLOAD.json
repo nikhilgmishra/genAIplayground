@@ -1,0 +1,69 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "MODEL_OVERLOAD",
+  "version": 1,
+  "title": "The model endpoint is overloaded or rate limited",
+  "description": "The model endpoint returns overload or rate-limit errors; admission control must shed nonessential work and keep safety and human routes available.",
+  "category": "model",
+  "target": {
+    "components": [
+      "platform/src/models",
+      "platform/src/ops"
+    ],
+    "dependency": "model_runtime"
+  },
+  "trigger": {
+    "kind": "AT_CALL_START",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "MODEL_OVERLOAD",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller is offered the non-AI route or a person without a long silence.",
+  "backendEvidence": [
+    "Overload classified with bounded retry",
+    "Admission decision recorded"
+  ],
+  "requirementIds": [
+    "SPEC-12.admission"
+  ],
+  "appliesToIntents": [
+    "human_request",
+    "safety_disclosure_self"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:MODEL_OVERLOAD] owned by WP-17 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.MODEL_OVERLOAD",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the model emulator returns overload/rate-limit errors",
+    "injectionPointPackages": [
+      "WP-08"
+    ],
+    "postconditionPackages": [
+      "WP-08",
+      "WP-15",
+      "WP-17"
+    ],
+    "layer2Owner": "WP-17",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "Overload is classified and retried within budget only",
+    "Safety and human routes stay available",
+    "The admission decision is recorded"
+  ]
+}

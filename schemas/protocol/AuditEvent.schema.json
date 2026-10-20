@@ -366,6 +366,107 @@
         "SECURITY_AUDIT"
       ]
     },
+    "sourceSequence": {
+      "type": "object",
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{2,63}$"
+        },
+        "position": {
+          "type": "string",
+          "pattern": "^[0-9]{1,39}$"
+        }
+      },
+      "required": [
+        "sourceId",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    "contextSnapshotId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "configDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "receiptRefs": {
+      "minItems": 1,
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{2,63}$"
+        },
+        "payloadDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schemaId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_.-]{2,63}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schemaVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,32}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authMechanism": {
+          "type": "string",
+          "enum": [
+            "HMAC_SHA256_HEADER",
+            "HMAC_SHA1_HEADER",
+            "JWT_BEARER",
+            "MTLS",
+            "RECONCILE_BY_LOOKUP",
+            "STREAM_IAM"
+          ]
+        },
+        "credentialVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]{1,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "sourceId",
+        "payloadDigest",
+        "schemaId",
+        "schemaVersion",
+        "authMechanism",
+        "credentialVersion"
+      ],
+      "additionalProperties": false
+    },
     "sourceStream": {
       "type": "string",
       "pattern": "^[a-z0-9_.-]{3,64}$"

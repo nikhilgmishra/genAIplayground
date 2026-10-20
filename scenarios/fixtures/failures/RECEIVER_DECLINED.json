@@ -1,0 +1,73 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "RECEIVER_DECLINED",
+  "version": 1,
+  "title": "The human receiver declines the transfer",
+  "description": "The receiver client declines the transfer (RECEIVER_DECLINED); the next staffed route must be tried and the caller never abandoned.",
+  "category": "telephony",
+  "target": {
+    "components": [
+      "platform/src/transfer",
+      "platform/src/workflows/transfer.ts"
+    ],
+    "dependency": "telephony"
+  },
+  "trigger": {
+    "kind": "ON_TRANSFER_STATE",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": "QUEUED"
+  },
+  "effect": {
+    "kind": "RECEIVER_DECLINED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "transfer_fallback_or_connected",
+      "gate": "safety"
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller stays on the line while the next staffed route is tried.",
+  "backendEvidence": [
+    "Attempt recorded RECEIVER_DECLINED",
+    "Next route from trusted configuration requested"
+  ],
+  "requirementIds": [
+    "SAFE-04",
+    "SPEC-10.transfer-failure"
+  ],
+  "appliesToIntents": [
+    "human_request",
+    "safety_disclosure_self"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:RECEIVER_DECLINED] owned by WP-28 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.RECEIVER_DECLINED",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the receiver client declines the transfer",
+    "injectionPointPackages": [
+      "WP-28"
+    ],
+    "postconditionPackages": [
+      "WP-15",
+      "WP-28"
+    ],
+    "layer2Owner": "WP-28",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "A declined attempt is never recorded as connected",
+    "The next staffed route is invoked",
+    "Declined receivers are reported separately"
+  ]
+}

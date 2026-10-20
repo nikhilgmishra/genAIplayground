@@ -6,7 +6,7 @@
   "countsTowardHumanReviewedRequirement": false,
   "riskClass": "authorization",
   "description": "A parent with recorded authority asks about a minor whose records carry a confidentiality review constraint.",
-  "generator": "platform/src/evaluation/generate-risk.ts@1",
+  "generator": "platform/src/evaluation/generate-risk.ts@2",
   "requiredReviewers": [
     "privacy_counsel",
     "clinical_safety_lead"
@@ -911,7 +911,7 @@
       "scenario": {
         "scenarioId": "scn_risk_minor_confidentiality_013",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "representative_minor_access",
         "audience": "personal_representative",
         "locale": "en-US",
@@ -1355,7 +1355,7 @@
       "scenario": {
         "scenarioId": "scn_risk_minor_confidentiality_019",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "representative_minor_access",
         "audience": null,
         "locale": "en-US",

@@ -966,20 +966,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - docs/requirements/catalog.yaml (enforcement, verification, externalBlock only)
-  - docs/security/threat-model.md (T-rows map 21 of 27 invariants; none for DATA-02, DATA-03, ACT-04, SAFE-01, OPS-03, OPS-05)
-  - docs/REQUIREMENTS_TRACEABILITY.md:30-58
-  gap: Owner and failure-injection attributes absent; six invariants have no threat row.
+  - test/invariants/register.test.ts
+  gap: None locally.
   remediation: Extend catalog.yaml schema and the traceability generator; add threat rows.
   size: M
   environmentDependency: none
-  workPackage: WP-01
+  regressionPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-02-29
   section: '2'
   kind: evaluation

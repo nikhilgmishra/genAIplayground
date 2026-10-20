@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "SCHEDULING_UNAVAILABLE",
-  "version": 1,
+  "version": 2,
   "title": "Scheduling system unavailable on read",
   "description": "The scheduling read API refuses connections for the duration of the call (fails before sending; nothing committed).",
   "category": "dependency",
@@ -55,5 +55,38 @@
     "provider_schedule_lookup",
     "representative_minor_access"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.SCHEDULING_UNAVAILABLE",
+    "origin": "registry",
+    "injectionPoint": "reference business API scheduling read refused before send",
+    "injectionPointPackages": [
+      "WP-23"
+    ],
+    "postconditionPackages": [
+      "WP-23"
+    ],
+    "layer2Owner": "WP-23",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "tool_response",
+      "tools": [
+        "get_appointment_options"
+      ],
+      "statuses": [
+        "RETRYABLE_FAILURE",
+        "PERMANENT_FAILURE"
+      ],
+      "reasonCodes": [
+        "CONNECTION_REFUSED"
+      ],
+      "sessionStates": null
+    }
+  ],
+  "postconditions": [
+    "The scheduling read is refused before send and classified NOT_STARTED",
+    "No appointment facts are spoken without a source record; nothing is committed"
+  ]
 }

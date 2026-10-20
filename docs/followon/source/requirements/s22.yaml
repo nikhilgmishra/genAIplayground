@@ -172,9 +172,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/actions/action-service.reconciliation.test.ts
-  - platform/src/adapters/live/salesforce-rest.contract.test.ts:253-279
-  gap: Apply to new connectors. reconcile_attempts is counted but never capped (platform/src/actions/action-service.ts:1544; no maximum anywhere), so an UNKNOWN action can be reconciled forever without escalation (c3.challenge FO-11-18).
+  - scorer.test.ts [FO-22-07]
+  - unknown.test.ts
+  gap: The local driver (WP-34) does not collect reconciliation records, so retries score INCONCLUSIVE.
   remediation: Shared classification helper.
   size: S
   environmentDependency: none
@@ -183,6 +183,11 @@ requirements:
     origin: extraction
     challengeCorrected:
     - gap
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-22-08
   section: '22'
   kind: constraint
@@ -194,22 +199,27 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/chain.ts, verifier.ts, shipper.ts
-  - platform/src/audit/sinks/s3-object-lock.ts
-  gap: Fix wave 5 is committed, but route-audit deferral is still held in process memory and a crash loses it (platform/src/audit/deferred.ts:39-45, 'A durable deferral store ... (not implemented)'). This is the Section 1 observation and it remains open. The S3 Object Lock sink has never run against S3 or MinIO object lock and is not composed.
+  - substrate/audit-export.test.ts and audit-reconciliation.test.ts WORM export verified by the separate verifier
+  - substrate/faults.test.ts recovery export PASS
+  gap: Separate account administration is on the environment axis (AIN-01, AIN-03).
   remediation: Add an audit_deferred table (migration 02xx) written in the same transaction as the safety_events row, flushed by the worker; and a MinIO object-lock contract test for S3ObjectLockAuditSink.
   size: M
   environmentDependency: audit account (PRQ-037, PRQ-040)
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - gap
     - remediation
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-22-09
   section: '22'
   kind: constraint

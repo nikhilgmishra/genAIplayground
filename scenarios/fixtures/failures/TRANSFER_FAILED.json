@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "TRANSFER_FAILED",
-  "version": 1,
+  "version": 2,
   "title": "Transfer to the first destination fails",
   "description": "The first allowlisted destination rejects the transfer (no receiver acceptance). The transfer state machine must invoke the next staffed route from trusted configuration.",
   "category": "telephony",
@@ -53,5 +53,32 @@
     "safety_disclosure_third_party",
     "human_request"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.TRANSFER_FAILED",
+    "origin": "registry",
+    "injectionPoint": "the first allowlisted destination rejects the transfer",
+    "injectionPointPackages": [
+      "WP-28"
+    ],
+    "postconditionPackages": [
+      "WP-28"
+    ],
+    "layer2Owner": "WP-28",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "transfer_states",
+      "adjacent": [
+        "QUEUED",
+        "TIMEOUT"
+      ]
+    }
+  ],
+  "postconditions": [
+    "The first allowlisted destination rejects or times out and the attempt is recorded failed",
+    "The fallback destination comes from trusted configuration only (SAFE-05)",
+    "The transfer is never recorded as success without receiver acceptance and a verified connection"
+  ]
 }

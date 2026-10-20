@@ -1,0 +1,66 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "DLQ_FULL",
+  "version": 1,
+  "title": "The dead-letter destination is full or unwritable",
+  "description": "The dead-letter queue is at capacity or refuses writes while a poison message must be parked; consumption must stop and alarm instead of dropping the message or advancing the checkpoint.",
+  "category": "delivery",
+  "target": {
+    "components": [
+      "platform/src/outbox",
+      "platform/src/connectors",
+      "platform/src/worker"
+    ],
+    "dependency": "dead_letter_queue"
+  },
+  "trigger": {
+    "kind": "AFTER_CALL",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "DEAD_LETTER_UNAVAILABLE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_duplicate_effect",
+      "gate": "transaction"
+    }
+  ],
+  "callerVisible": "Not caller visible; the operator sees the alarm and the held backlog.",
+  "backendEvidence": [
+    "Consumer stopped with the source checkpoint kept",
+    "DLQ capacity alarm raised"
+  ],
+  "requirementIds": [
+    "ACT-02"
+  ],
+  "appliesToIntents": [],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:DLQ_FULL] owned by WP-07 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.DLQ_FULL",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the dead-letter destination is at capacity or unwritable (ElasticMQ)",
+    "injectionPointPackages": [
+      "WP-04"
+    ],
+    "postconditionPackages": [
+      "WP-06",
+      "WP-07"
+    ],
+    "layer2Owner": "WP-07",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "No message is dropped and the source checkpoint is not advanced",
+    "The alarm rule fires",
+    "Redelivery after recovery creates no duplicate effect"
+  ]
+}

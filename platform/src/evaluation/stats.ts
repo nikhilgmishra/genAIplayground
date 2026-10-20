@@ -82,3 +82,30 @@ export function failureRateBound(failures: number, opportunities: number): Failu
     ruleOfThreeUpper95: ruleOfThreeUpper(failures, opportunities),
   };
 }
+
+export interface QuantileEstimate {
+  /** Quantile level (0.5, 0.95, 0.99). */
+  q: number;
+  samples: number;
+  /** Nearest-rank estimate; null without samples. */
+  estimate: number | null;
+  /** Distribution-free 95% interval from binomial order statistics; null where the sample is too small to bound it. */
+  lower95: number | null;
+  upper95: number | null;
+}
+
+/**
+ * Nearest-rank quantile with a distribution-free 95% confidence interval (order statistics, normal approximation
+ * of the binomial rank). Samples must be independent for the interval to hold; turns of one call are not, so the
+ * interval is reported with that caveat (FO-17-41, FO-17-43).
+ */
+export function quantileWithInterval(values: readonly number[], q: number): QuantileEstimate {
+  const n = values.length;
+  if (n === 0) return { q, samples: 0, estimate: null, lower95: null, upper95: null };
+  const sorted = [...values].sort((a, b) => a - b);
+  const at = (rank: number) => sorted[Math.min(n, Math.max(1, rank)) - 1] as number;
+  const half = 1.959964 * Math.sqrt(n * q * (1 - q));
+  const lo = Math.floor(n * q - half);
+  const hi = Math.ceil(n * q + half) + 1;
+  return { q, samples: n, estimate: at(Math.ceil(q * n)), lower95: lo >= 1 ? at(lo) : null, upper95: hi <= n ? at(hi) : null };
+}

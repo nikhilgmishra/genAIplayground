@@ -197,11 +197,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/gateway/http/routes.test.ts:358
-  - platform/src/gateway/call-state.test.ts:11
-  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
-  - platform/src/evaluation/scorer.test.ts:189 ([SPEC-14.hard-gates] RESOLVED without commit receipts fails; a case or accepted workflow is not resolution)
-  gap: 'None at 8c0f5a0: fix wave 5 merged the scorer repair; scorer.test.ts:189 fails RESOLVED without commit receipts and the call-state tracker never records RESOLVED from case creation. A fresh corpus run is still pending (FO-01-07).'
+  - platform/src/evaluation/scorer.test.ts and aggregate.test.ts (RESOLVED without reconciled commit receipts fails; an accepted request is not resolution)
+  - 'targeted run: 40 files / 472 tests passed'
+  gap: none locally
   remediation: Re-run scorer mutation checks after fix wave 5.
   size: S
   environmentDependency: none
@@ -210,6 +208,11 @@ requirements:
     origin: extraction
     repair:
     - VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1); evidence lines added
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-00-09
   section: '0'
   kind: software
@@ -701,20 +704,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/release.ts:115 (single-axis ReleaseStatus IMPLEMENTED_OFFLINE..BLOCKED)
-  - docs/REQUIREMENTS_TRACEABILITY.md:24 (IMPLEMENTED_OFFLINE/BLOCKED columns)
-  - platform/src/protocol/evaluation.ts:73 (Verdict incl. NOT_RUN, BLOCKED)
-  gap: Repository uses the old single-axis vocabulary everywhere.
+  - platform/src/evaluation/traceability.ts
+  - traceability.test.ts [FO-00-29]
+  gap: ReleaseManifest and ActivationReport still carry one status axis (WP-40/WP-44/WP-45).
   remediation: Migrate protocol enums, traceability generator and docs to the two axes plus qualification.
   size: M
   environmentDependency: none
   workPackage: WP-01
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-00-30
   section: '0'
   kind: constraint
@@ -935,17 +942,17 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - docs/requirements/catalog.yaml:17-211 (27 invariants with exact text)
-  - 'skeptic check 2026-10-19: all 27 invariant texts in docs/spec/voice-support-followon-specification.txt:126-152 are character-identical to the `text` of the same ids in docs/requirements/catalog.yaml'
-  - docs/followon/requirements.yaml originalIds (every id resolves to docs/requirements/catalog.yaml and all 168 catalog ids are covered; checked by python3 -I docs/tools/followon/generate.py --check)
-  gap: The mapping exists (docs/followon/requirements.yaml originalIds; derivedFrom holds ADR, TB and follow-on-prompt references); it is checked by the committed generator, not yet by a test in the suite.
+  - traceability.test.ts [FO-00-37]
+  - test/docs suites pass (main and fresh copy)
+  gap: The committed traceability report must be regenerated from committed CI reports by the coordinator.
   remediation: Write the FO-to-original mapping.
   size: S
   environmentDependency: none
+  regressionPackage: WP-01
   provenance:
     origin: extraction
     challengeCorrected:
@@ -954,7 +961,11 @@ requirements:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the FO-to-original mapping now exists and docs/tools/followon/generate.py --check resolves every originalId and covers all 168 catalog ids, but no test in the suite enforces it (WP-01 traceability generator check).'
     - 'gap refreshed: requirements.yaml now exists (critic gap 3)'
     repairStatusFrom: VERIFIED_LOCAL
-  workPackage: WP-01
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-00-38
   section: '0'
   kind: operations

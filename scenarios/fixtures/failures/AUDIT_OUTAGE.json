@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "AUDIT_OUTAGE",
-  "version": 1,
+  "version": 2,
   "title": "Durable audit evidence cannot be written",
   "description": "The audit writer cannot persist events (central sink and local outbox both unavailable).",
   "category": "audit",
@@ -56,5 +56,39 @@
     "appointment_reschedule",
     "complaint_intake"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.AUDIT_OUTAGE",
+    "origin": "registry",
+    "injectionPoint": "the central sink and local audit outbox cannot be written (MinIO Object Lock and Postgres in Layer 2)",
+    "injectionPointPackages": [
+      "WP-04"
+    ],
+    "postconditionPackages": [
+      "WP-04"
+    ],
+    "layer2Owner": "WP-04",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "tool_response",
+      "tools": null,
+      "statuses": [
+        "RETRYABLE_FAILURE",
+        "PERMANENT_FAILURE",
+        "POLICY_DENIED"
+      ],
+      "reasonCodes": [
+        "AUDIT_UNAVAILABLE"
+      ],
+      "sessionStates": null
+    }
+  ],
+  "postconditions": [
+    "Consequential and audited tools fail closed with AUDIT_UNAVAILABLE while the central sink and the local audit outbox cannot be written",
+    "No mutation is acknowledged and no provider effect exists without its audit record",
+    "Safety and human routes stay available (deferred route audit, never for mutations)",
+    "The audit health alarm is raised"
+  ]
 }

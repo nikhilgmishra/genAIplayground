@@ -406,8 +406,8 @@ summary:
     F: 8
     G: 6
     H: 1
-  requirementsAssigned: 1063
-  regressionItems: 107
+  requirementsAssigned: 1017
+  regressionItems: 153
   waves: 25
   earlyStart:
   - WP-23
@@ -422,36 +422,36 @@ packages:
   earliestWave: 2
   requirementIds:
   - FO-00-29
-  - FO-00-37
   - FO-01-07
-  - FO-01-23
-  - FO-02-28
   - FO-17-02
   - FO-17-10
   - FO-17-11
-  - FO-17-12
-  - FO-17-13
-  - FO-17-14
-  - FO-17-15
-  - FO-17-16
   - FO-17-17
-  - FO-17-24.POLICY_ENGINE_ERROR
   - FO-17-35
-  - FO-17-41
   - FO-17-44
   - FO-17-45
-  - FO-17-46
   - FO-19-04
   - FO-19-05
   - FO-22-07
   regressionIds:
   - FO-00-08
+  - FO-00-37
+  - FO-01-23
+  - FO-02-28
+  - FO-17-12
+  - FO-17-13
+  - FO-17-14
+  - FO-17-15
+  - FO-17-16
+  - FO-17-24.POLICY_ENGINE_ERROR
   - FO-17-40
+  - FO-17-41
   - FO-17-43
+  - FO-17-46
   counts:
-    MISSING: 3
-    IMPLEMENTED: 20
-    regression: 3
+    MISSING: 0
+    IMPLEMENTED: 12
+    regression: 14
   capabilityIds:
   - evaluation.test_truth
   invariantObligations:
@@ -465,8 +465,7 @@ packages:
   - OPS-03
   - OPS-04
   - OPS-06
-  faultObligations:
-  - POLICY_ENGINE_ERROR
+  faultObligations: []
   faultInjectionPoints: []
   owns:
   - platform/src/evaluation/*.ts
@@ -499,7 +498,6 @@ packages:
   - 'python3 -I docs/tools/followon/generate.py --check (the traceability inputs are consistent: every originalId resolves, every catalog id is covered)'
   - pnpm --filter @vsp/platform exec vitest run test/invariants (register lists all 27 invariants with their secondary packages and existing test ids)
   - 'Invariant obligations at this package''s boundary (FO-02 secondaryPackages): positive, adversarial and failure-injection tests tagged [AUTH-03] [AUTH-05] [DATA-01] [DATA-04] [ACT-04] [SAFE-01] [SAFE-05] [OPS-03] [OPS-04] [OPS-06] pass in this package''s own suites.'
-  - 'Fault-matrix obligations (FO-17-24.<FAULT_ID> rows owned here): Layer-2 tests tagged [FAULT:POLICY_ENGINE_ERROR] reach the fault at its injection point and assert its postconditions.'
   externalActivation:
   - 'AIN-31: scenarios count as HUMAN_REVIEWED only with real reviewer records; nothing in this package can mark them reviewed.'
   notes:
@@ -678,18 +676,26 @@ packages:
   - WP-03
   earliestWave: 2
   requirementIds:
-  - FO-01-13
   - FO-01-19
   - FO-01-34
   - FO-03-10
   - FO-03-21
+  - FO-03-26
+  - FO-06-97
+  - FO-07-16
+  - FO-15-28
+  - FO-15-34
+  - FO-15-45
+  - FO-15-48
+  - FO-16-41
+  - FO-17-24.DUPLICATE_WEBHOOK
+  - FO-17-24.AUDIT_OUTAGE
+  regressionIds:
+  - FO-01-13
   - FO-03-22
   - FO-03-24
-  - FO-03-26
   - FO-06-10
-  - FO-06-97
   - FO-06-98
-  - FO-07-16
   - FO-07-17
   - FO-07-18
   - FO-07-19
@@ -698,33 +704,25 @@ packages:
   - FO-07-22
   - FO-10-43
   - FO-11-13
-  - FO-15-28
   - FO-15-33
-  - FO-15-34
+  - FO-15-36
   - FO-15-37
   - FO-15-38
+  - FO-15-39
   - FO-15-40
   - FO-15-41
   - FO-15-42
-  - FO-15-45
-  - FO-15-48
+  - FO-15-44
+  - FO-15-46
   - FO-15-50
   - FO-16-03
-  - FO-16-41
-  - FO-17-24.DUPLICATE_WEBHOOK
-  - FO-17-24.AUDIT_OUTAGE
   - FO-19-07a
   - FO-19-82
   - FO-22-08
-  regressionIds:
-  - FO-15-36
-  - FO-15-39
-  - FO-15-44
-  - FO-15-46
   counts:
-    MISSING: 17
-    IMPLEMENTED: 21
-    regression: 4
+    MISSING: 0
+    IMPLEMENTED: 14
+    regression: 28
   capabilityIds:
   - platform.substrate
   - audit.independent
@@ -922,7 +920,6 @@ packages:
   - WP-03
   earliestWave: 2
   requirementIds:
-  - FO-03-11
   - FO-03-25
   - FO-03-29
   - FO-05-39
@@ -931,22 +928,12 @@ packages:
   - FO-06-03
   - FO-06-04
   - FO-06-05
-  - FO-06-06
-  - FO-06-07
-  - FO-06-08
-  - FO-06-09
   - FO-06-11
-  - FO-06-12
-  - FO-06-13
-  - FO-06-14
   - FO-06-15
-  - FO-06-16
   - FO-06-17
   - FO-06-18
   - FO-06-20
   - FO-06-21
-  - FO-06-22
-  - FO-06-23
   - FO-08-17
   - FO-08-35
   - FO-15-19
@@ -956,11 +943,22 @@ packages:
   - FO-19-08
   - FO-23-08
   regressionIds:
+  - FO-03-11
+  - FO-06-06
+  - FO-06-07
+  - FO-06-08
+  - FO-06-09
+  - FO-06-12
+  - FO-06-13
+  - FO-06-14
+  - FO-06-16
+  - FO-06-22
+  - FO-06-23
   - FO-06-25
   counts:
-    MISSING: 16
-    IMPLEMENTED: 17
-    regression: 1
+    MISSING: 0
+    IMPLEMENTED: 22
+    regression: 12
   capabilityIds:
   - platform.substrate
   - connectors.runtime

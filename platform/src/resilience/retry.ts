@@ -40,6 +40,12 @@ export interface RetryOptions {
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   metrics?: Metrics;
   signal?: AbortSignal;
+  /**
+   * Server-directed delay for a retryable error (e.g. a vendor Retry-After), in ms; null when the error
+   * carries none. The retry waits at least this long; a hint above maxDelayMs ends the retries (the
+   * dependency asked for more patience than the budget allows), so a Retry-After is never shortened.
+   */
+  delayFor?: (err: unknown, attempt: number) => number | null;
 }
 
 const scope = new AsyncLocalStorage<{ dependency: string }>();
@@ -114,8 +120,14 @@ export async function retry<T>(fn: (attempt: number) => Promise<T>, opts: RetryO
           m?.increment("vsp_retry_attempts_total", labels("exhausted"));
           throw err;
         }
+        const hinted = opts.delayFor?.(err, attempt) ?? null;
+        if (hinted !== null && (!Number.isFinite(hinted) || hinted > opts.maxDelayMs)) {
+          m?.increment("vsp_retry_attempts_total", labels("exhausted"));
+          throw err;
+        }
         m?.increment("vsp_retry_attempts_total", labels("retry_scheduled"));
-        await sleep(fullJitterDelay(attempt, opts.baseDelayMs, opts.maxDelayMs, random), opts.signal);
+        const jitter = fullJitterDelay(attempt, opts.baseDelayMs, opts.maxDelayMs, random);
+        await sleep(hinted === null ? jitter : Math.max(jitter, Math.ceil(hinted)), opts.signal);
         if (opts.signal?.aborted) {
           m?.increment("vsp_retry_attempts_total", labels("exhausted"));
           throw err;

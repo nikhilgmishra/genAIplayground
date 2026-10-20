@@ -450,8 +450,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no graph store or graph retriever dependency or module in platform/, console/ or scripts/ (searched 2026-10-19 at 8c0f5a0)
-  gap: 'Not yet triggered: no graph retrieval exists and no work package plans it. Nothing fails if one is added without a retrieval evaluation showing gains (WP-20 writes the retrieval evaluation reports under evidence/evaluation/retrieval/).'
+  - decision-gates.test.ts [FO-08-17]
+  gap: 'Not triggered yet: no graph store or retriever exists (WP-20).'
   remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when a graph database client or graph retriever module appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it. The ADR must cite a WP-20 retrieval evaluation report showing the gain.'
   size: S
   environmentDependency: none
@@ -462,6 +462,11 @@ requirements:
     - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
     - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when graph retrieval appears without a decision record'
     repairStatusFrom: NOT_APPLICABLE
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-08-18
   section: '8'
   subsection: Hybrid retrieval, reranking and retrieval evaluation
@@ -926,8 +931,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no semantic cache in platform/src (searched 2026-10-19 at 8c0f5a0); the planned WP-24 context caches are exact-key caches (FO-07-42), not similarity caches
-  gap: 'Not yet triggered: no semantic cache exists and none is planned. Nothing fails if a similarity-keyed cache is added without the FO-07-42 key and the disclosure re-check on return.'
+  - decision-gates.test.ts [FO-08-35]
+  gap: 'Not triggered yet: no semantic cache exists.'
   remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when a cache module declared with kind semantic appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it. Every cache module must declare its kind in modules.yaml; a semantic cache additionally needs the FO-07-42 key and a re-check-on-return test.'
   size: S
   environmentDependency: none
@@ -938,6 +943,11 @@ requirements:
     - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
     - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when semantic caches appears without a decision record'
     repairStatusFrom: NOT_APPLICABLE
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-08-36
   section: '8'
   subsection: Knowledge ingestion and management

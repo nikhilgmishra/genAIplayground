@@ -100,7 +100,7 @@ Waves follow the dependency order in `docs/followon/work-packages.yaml`.
 | Wave | Packages | Run id | State |
 |---|---|---|---|
 | B1 | WP-02, WP-03 (+ ledger fix job) | wf_5abdf51f-ed0 | DONE: both PARTIAL after 3 rounds; the coordinator fixed the residuals (WP-02 snapshot watermark rules, party-URI refs, byte-size args, hand-over notes; WP-03 Step Functions Local TaskSubmitted race, missing-emulation-summary exit, digest pointer). Ledger: 56 rows moved (MISSING 613, IMPLEMENTED 450, VERIFIED_LOCAL 107). Layer-2 `_harness` 72/72 three times; workflow file 20/20 |
-| B2 | WP-01, WP-04, WP-06 | wf_786b1518-a8e | RUNNING (launched 2026-10-19 16:05 UTC; resume with resumeFromRunId after a restart) |
+| B2 | WP-01, WP-04, WP-06 | wf_786b1518-a8e (wave), wf_334c062a-d28 (residuals) | Wave done 2026-10-20 00:32 UTC: all three PARTIAL after 3 rounds (WP-01 4, WP-04 5, WP-06 7 required changes). Residual-fix workflow (fixer, re-verifier, one more round) RUNNING; inputs in the scratchpad waves/B2-residual-args.json. Then close-out |
 
 B1 close-out gates (2026-10-19, local, all PASS): check-runtime, check-deps, lint, typecheck, make test-unit
 (platform 3531/3531, console 107/107), contract/docs/journey projects, OPA policy tests, policy golden
@@ -122,6 +122,43 @@ ownership is finished and no package holds it):
 * CI on 709125c failed one unit test that passed locally: the WP-02 registry test read
   `evidence/runs/**/results.jsonl`, which is gitignored local output (fixed in c344192: the test now
   generates the scorer's output over the committed corpus). The local gates now also run `make test-unit`
-  in a clean worktree of the commit being pushed. After wave B2 completes (not while it runs, so a resume
-  keeps its cache), add to the wave prompt: tests must pass on a fresh checkout and never read gitignored
-  or untracked state (`evidence/runs`, `.tools/`, report directories).
+  in a clean worktree of the commit being pushed. Done after wave B2 (2026-10-20): the wave prompt now
+  requires tests to pass on a fresh checkout (no gitignored or untracked state), allowlisted fixture
+  credential shapes with a gitleaks check of changed files, and compact status reports; verifiers get a
+  compact view of the reports (latest last, 60 000 characters) because B2's verifiers saw truncated
+  status lists.
+* 2026-10-20 00:17 UTC, at the owner's request: a point-in-time snapshot of the unverified wave B2 working
+  tree was pushed to branch `claude/spec-prompt-implementation-l9zicg-wip-b2` (commit 8485153, no PR, CI
+  does not run on it). It is not the verified result; the B2 close-out commit goes to the PR branch.
+  gitleaks flags 10 false positives in it (SYNTHETIC client secrets and API keys in WP-06 connector
+  tests, and the `family-split.v2` split-key version in WP-01): at close-out, rename the fixture values to
+  the allowlisted `<prefix>_synth...` form or add a narrow allowlist, so CI's history scan stays clean.
+* 2026-10-20 02:43 and 03:17 UTC: two container restarts killed the B2 residual-fix workflow; it was
+  resumed with resumeFromRunId each time after `dockerd` and `make up`. The resume re-ran round-1
+  verification for WP-01 and WP-04 against a tree that already held later fixes (prompt keys changed), so
+  at close-out take the orphaned fix:WP-01-r2 report (journal key ending 04ce263d) into account. Killed
+  verifiers mutate through vitest aliases and scratch copies, not in place (checked: no leftover mutants
+  or backup files). The WIP snapshot branch was refreshed at 03:20 UTC (commit 57ed02f, gitleaks clean).
+
+Open hand-offs from wave B2 (owners named; none is done by the package that raised it):
+
+* WP-07 (composition): register the WP-04 ingress plugin; swap the process-local DeferredAuditQueue in
+  container.ts for the durable queue; schedule the RouteAuditReconciler, InboxProcessor, StreamIngestor and
+  purge loops; add the audit-exporter entry point; decide whether `reconcile_by_lookup` requires
+  gatewayCredentials (fail closed) or is rate-limited at the WAF (WP-39). Compose the WP-06 connector runtime.
+* WP-34 (evaluation driver): record requestedFault/reachedFault in EvaluationResult so the FO-17-24
+  DUPLICATE_WEBHOOK and AUDIT_OUTAGE rows can be run; collect CallEvidence.reconciliations for
+  ambiguous-outcome retries. The coordinator applied WP-01's patch to
+  platform/src/evaluation/driver/local-driver.test.ts (outbox-path DUPLICATE_WEBHOOK is a driver self-report,
+  so INCONCLUSIVE, not PASS).
+* WP-05: a public seam for PolicyEvaluationFault (it decorates the engine's private evaluator today).
+* Dependency set (phase C owner WP-17): @aws-sdk/client-kinesis and kafkajs plus compose services for the
+  WP-04 stream ingestion emulator runs; the `media` audit overrides (above).
+* Retention owner: register `inbound_raw_payloads` (INBOUND_RAW_REPLAY) under an approved duration (FO-07-22).
+* WP-39: TTL or delete-on-drain for drained independent-journal items in DynamoDB.
+* Plan edge: WP-04's substrate/support.ts and scripts/vsp/verify-audit.mts import WP-06's
+  platform/src/connectors/http; a change to that transport API must run WP-04's Layer-2 suite.
+* .github/gitleaks.toml owner: in `gitleaks dir` mode the AND-conditioned path allowlists act as file filters,
+  so test fixtures are not scanned; only git mode (CI's) scans them.
+* AIN-31 (human review keys): the corpus lock (corpus-lock.v4) and earlier relabels have no human
+  ReviewRecord; ReviewRecord signatures are schema-checked only.

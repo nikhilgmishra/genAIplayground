@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "PROVIDER_API_TIMEOUT",
-  "version": 1,
+  "version": 2,
   "title": "Provider network API times out",
   "description": "The provider onboarding / remittance API times out.",
   "category": "dependency",
@@ -52,5 +52,40 @@
     "remittance_lookup",
     "delegated_practice_remittance"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.PROVIDER_API_TIMEOUT",
+    "origin": "registry",
+    "injectionPoint": "reference business API provider-network timeout before send",
+    "injectionPointPackages": [
+      "WP-23"
+    ],
+    "postconditionPackages": [
+      "WP-23"
+    ],
+    "layer2Owner": "WP-23",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "tool_response",
+      "tools": [
+        "get_provider_onboarding_status",
+        "get_remittance_status"
+      ],
+      "statuses": [
+        "RETRYABLE_FAILURE",
+        "PERMANENT_FAILURE"
+      ],
+      "reasonCodes": [
+        "TIMEOUT_BEFORE_SEND"
+      ],
+      "sessionStates": null
+    }
+  ],
+  "postconditions": [
+    "The provider-network call times out before send and is classified and bounded",
+    "No status is spoken without a source record",
+    "The caller reaches a person"
+  ]
 }

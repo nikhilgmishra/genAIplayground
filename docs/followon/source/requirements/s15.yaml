@@ -452,10 +452,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/privacy/egress.ts
-  - platform/src/privacy/egress.test.ts
-  - platform/src/privacy/egress-startup.test.ts
-  gap: 'No judge pipeline exists yet. The runtime EgressGuard (platform/src/privacy/egress.ts:114) is called only by RedactionService (redaction-service.ts:109), which has no caller, so no outbound client (Salesforce REST, notifications, telemetry exporters) checks it per request. Enforcement today is the startup check alone (platform/src/main/container.ts:306-318 checkStartupEgress / assertStartupEgress). IMPLEMENTED, not VERIFIED_LOCAL: EgressGuard sits on no outbound path: it is called only by RedactionService (platform/src/privacy/redaction-service.ts:109), which nothing calls (built in platform/src/main/container.ts:375-376); enforcement is the startup check alone (WP-06 egress-classified HTTP client).'
+  - transport.test.ts [FO-15-19]
+  - connector.test.ts [DATA-01] egress failure injection
+  gap: The Salesforce, notification and OTLP clients are not on the transport yet (WP-07).
   remediation: Route every outbound HTTP client through an EgressGuard-checking wrapper (destination id plus data class), with a test that an unapproved destination is refused at call time. Require the same wrapper on the future judge client.
   size: S
   environmentDependency: none
@@ -467,6 +466,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: EgressGuard sits on no outbound path: it is called only by RedactionService (platform/src/privacy/redaction-service.ts:109), which nothing calls (built in platform/src/main/container.ts:375-376); enforcement is the startup check alone (WP-06 egress-classified HTTP client).'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
   workPackage: WP-06
 - id: FO-15-20
   section: '15'
@@ -645,17 +649,20 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - infra/terraform/modules/ecs_service/main.tf (task roles)
-  - infra/terraform/modules/secrets/main.tf:27-30 (rotation hook optional, null)
-  - platform/src/adapters/live/salesforce-rest-support-records.ts (client credentials)
-  - docs/RUNBOOKS/secret-rotation.md
-  gap: Rotation hooks null; no rotation/revocation test.
+  - runtime.test.ts [FO-15-26]
+  - resolver.test.ts [FO-15-26]
+  gap: Rotation Lambdas and Terraform hooks are WP-39's.
   remediation: Implement rotation handlers and a revocation drill test in Layer 5.
   size: M
   environmentDependency: Secrets and rotation owners
   workPackage: WP-06
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-15-27
   section: '15'
   kind: operations
@@ -692,11 +699,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - infra/terraform/modules/kms/main.tf
-  - infra/terraform/modules/audit/tests/audit.tftest.hcl
-  - platform/src/audit/sinks/s3-iam-model.test.ts
-  - platform/migrations/0201_audit_evidence.sql
-  gap: Not verified against real IAM.
+  - substrate/pg-pool.test.ts [FO-15-28][FO-15-42] database roles separated
+  - substrate/audit-export.test.ts MinIO STS writer/reader sessions
+  gap: LocalStack and MinIO do not enforce the KMS key-admin vs key-use split or distinct IAM principals (AIN-03, WP-39).
   remediation: Keep the DB role tests and run them on postgres:16. Prove the key-admin, key-user, audit-writer and audit-reader split with the IAM policy simulator for each role in a sandbox under authority (environment evidence); LocalStack community does not evaluate IAM policies.
   size: S
   environmentDependency: Audit account
@@ -707,6 +712,11 @@ requirements:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-15-29
   section: '15'
   kind: software
@@ -818,26 +828,27 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/writer.ts
-  - platform/src/audit/health.ts
-  - platform/src/audit/writer.test.ts
-  - platform/src/audit/evidence-flow.test.ts
-  - platform/src/gateway/pipeline.audit-metric.test.ts
-  gap: PGlite only (single connection); not run against real PostgreSQL/Aurora concurrency.
+  - substrate/faults.test.ts [FAULT:AUDIT_OUTAGE] commit/prepare blocked before any provider call
+  gap: Not Aurora.
   remediation: Add a test-database switch (e.g. VSP_TEST_DB=pg) so createTestDb returns PgPoolDb over a postgres:16 container. Run the src/audit and src/actions suites on it, and add a two-connection test where a mutation and its audit append race a concurrent writer and a killed connection.
   size: S
   environmentDependency: none
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-15-34
   section: '15'
   kind: software
@@ -853,16 +864,19 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/audit.ts:42-79
-  - platform/src/protocol/common.ts:125-134 (VersionSet)
-  - platform/src/audit/schema.test.ts
-  gap: No external source sequence, context snapshot id, config digest or source-freshness version fields; receipts only via evidence pointers.
+  - platform/src/protocol/audit.ts new fields; schemas:check passes
+  gap: Only the ingress fills the new fields; context snapshot, config digest and receipt refs belong to WP-05, WP-07 and WP-25.
   remediation: Add sourceSequence, contextSnapshotId, configDigest and receiptRef fields (schema version bump) and populate.
   size: S
   environmentDependency: none
   workPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-15-35
   section: '15'
   kind: constraint
@@ -905,10 +919,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/migrations/0201_audit_evidence.sql, 0100_action_ledger.sql, 0110_outbox.sql
-  - platform/src/audit/migration.test.ts:27,32,39,99 (app_runtime, owner and app_worker cannot UPDATE, DELETE or TRUNCATE)
-  - platform/src/actions/ledger-schema.test.ts:88 (no runtime or worker role can DELETE ledger, outbox or dedupe evidence), :108 (console and auditor roles have no access)
-  gap: PGlite only.
+  - 'regression: substrate/pg-pool.test.ts append-only grants and triggers on postgres:16'
+  - src/audit unit suites green (1044/1044 with dependents)
+  gap: None found.
   remediation: Re-run on Postgres container.
   size: S
   environmentDependency: none
@@ -918,6 +931,11 @@ requirements:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
     - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-15-37
   section: '15'
   kind: software
@@ -929,20 +947,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/sinks/s3-object-lock.ts:1-40
-  - platform/src/audit/sinks/s3-object-lock.test.ts (stub client)
-  - infra/terraform/modules/audit/main.tf
-  gap: Only stub-client contract tests; never run against an S3 implementation; not composed outside local.
+  - substrate/audit-export.test.ts GOVERNANCE retention and SSE-KMS on MinIO
+  - substrate/audit-signatures.test.ts locked original manifest version retained
+  gap: Independent administration (separate account, SCPs) is on the environment axis (AIN-01, AIN-03).
   remediation: Test against MinIO/LocalStack with Object Lock in the compose and compose the sink in the live worker.
   size: M
   environmentDependency: Audit AWS account, bucket, KMS key, approved retention (PRQ-040)
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-15-38
   section: '15'
   kind: software
@@ -953,23 +975,27 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.substrate
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/chain.ts
-  - platform/src/audit/shipper.ts
-  - platform/src/audit/verifier.ts
-  gap: Manifests carry digests and hash chains but are not cryptographically signed.
+  - src/audit/exporter/verifier.test.ts [FO-15-38] unsigned / invalid signature FAIL
+  - substrate/audit-signatures.test.ts [FO-15-38] insider manifest versions FAIL (60/60 x3)
+  gap: The audit KMS key and its key policy in AWS are WP-39's.
   remediation: Add KMS Sign over manifest digests and signature verification in IntegrityVerifier.
   size: S
   environmentDependency: Audit signing key
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-15-39
   section: '15'
   kind: software
@@ -985,10 +1011,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/monitor.ts; platform/src/worker/loops.ts:405 (audit.verify runs in the worker loop)
-  - 'platform/src/audit/monitor.test.ts:59 (worker composes audit.verify), :96 (deleted evidence detected: sequence gap and alarm metric)'
-  - infra/terraform/modules/observability/tests/observability.tftest.hcl:62 (audit-ingestion-gap alarm treats missing data as breaching)
-  gap: Uses writer chain heads as source counts, not independent per-source counters (README).
+  - 'regression: src/audit/monitor.test.ts and verifier ingestion-gap tests green'
+  gap: None found locally; monitor.test.ts needs the policy bundle that CI builds (scripts/policy.sh).
   remediation: Add independent per-source counters (e.g., gateway request counts) to detectIngestionGaps.
   size: S
   environmentDependency: none
@@ -998,6 +1022,11 @@ requirements:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
     - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-15-40
   section: '15'
   kind: software
@@ -1009,17 +1038,17 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/verifier.ts
-  - platform/src/audit/verifier.test.ts
-  - platform/src/audit/sinks/s3-iam-model.test.ts
-  gap: 'No live composition with the verifier-role sink. MISSING: no verifier with its own identity and read-only sink credentials exists (platform/src/worker/worker.ts:163-176 composes it as the shipper).'
+  - substrate/audit-export.test.ts [FO-15-40][FO-15-42] verifier judged by its login
+  - src/audit/exporter/verifier.test.ts [FO-15-40] INCONCLUSIVE without a sink reader
+  gap: The AWS verifier task role and separate IAM principals are WP-39's (AIN-03).
   remediation: 'Run AuditCompletenessMonitor as a separate verifier task with its own DB role (new app_audit_verifier: SELECT on the audit tables only) and an S3 client built from the verifier role''s credentials. Compose it outside the worker, and add a test that the verifier role cannot insert audit rows.'
   size: S
   environmentDependency: Audit account verifier role
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
@@ -1029,7 +1058,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 2): IMPLEMENTED -> MISSING: the composed verifier runs as the shipper identity with the same sink client (platform/src/worker/worker.ts:163-176); no separate verifier exists'
     repairStatusFrom: IMPLEMENTED
-  workPackage: WP-04
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-15-41
   section: '15'
   kind: software
@@ -1041,23 +1074,27 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/monitor.ts (ledger keyed reconciliation)
-  - platform/src/audit/verifier.ts (reconcileCounts)
-  - platform/src/audit/monitor.test.ts
-  gap: Reconciles only the internal action ledger; external provider/CRM counts are not reconciled.
+  - substrate/audit-reconciliation.test.ts [FO-15-41] cross-tenant / non-commit / re-pointed deferral decoys FAIL
+  - src/audit/exporter/verifier.test.ts keyed action, receipt, CRM and route reconciliation
+  gap: Provider and CRM counts are reconciled against the platform's ledger, not pulled from vendor APIs.
   remediation: Add provider receipt and CRM sync counts as reconciliation sources.
   size: S
   environmentDependency: none
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-15-42
   section: '15'
   kind: software
@@ -1069,24 +1106,28 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/migrations/0201_audit_evidence.sql
-  - platform/src/audit/query.test.ts
-  - platform/src/audit/sinks/s3-iam-model.test.ts
-  gap: None in code.
+  - substrate/pg-pool.test.ts [FO-15-28][FO-15-42] verifier and auditor cannot write
+  - substrate/audit-export.test.ts [FO-15-42] MinIO enforces STS session policies
+  gap: MinIO enforces the STS session policies locally and AWS IAM remains WP-39's; app_runtime still reads its own tenant's audit rows by design.
   remediation: Keep the DB grant tests and run them on postgres:16. Verify the IAM half with the IAM policy simulator for the writer, auditor and verifier roles in a sandbox under authority, recorded as environment evidence.
   size: S
   environmentDependency: none
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-15-43
   section: '15'
   kind: operations
@@ -1125,10 +1166,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/health.ts
-  - platform/src/audit/health.test.ts
-  - platform/src/audit/shipper.test.ts
-  gap: Bounds are engineering values; PGlite only.
+  - 'regression: substrate/faults.test.ts bounded journal during AUDIT_OUTAGE (3/3 runs)'
+  gap: None found.
   remediation: Approve bounds; test on Postgres container.
   size: S
   environmentDependency: none
@@ -1137,6 +1176,11 @@ requirements:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-15-45
   section: '15'
   kind: software
@@ -1149,14 +1193,14 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.substrate
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'platform/src/audit/deferred.ts:39-44 (CRASH-LOSS LIMIT: queue in process memory)'
-  - docs/adr/ADR-0011-deferred-route-audit.md
-  - infra/terraform/modules/observability/main.tf:227
-  gap: The deferral queue is process memory at 8c0f5a0; a crash loses queued events.
+  - src/audit/journal.test.ts [FO-15-45] forged-time, CHECK-refusal, privilege-loss and clock-skew tests
+  - substrate/route-audit-crash.test.ts [FO-15-45] forged '2026'/year-0000 and CHECK-refused items quarantined on postgres:16
+  - substrate/dynamo.test.ts [FO-15-45] newestPendingMs across filtered pages
+  gap: 'Not composed: WP-07/WP-25 must replace the process-local queue in container.ts and the handoff, and carrier-event reconciliation is absent.'
   remediation: Add a durable local journal (append-only file with fsync on a separate volume, or a DynamoDB/SQS journal independent of the audit DB) plus carrier-event reconciliation; crash-injection test.
   size: M
   environmentDependency: Approved storage location for the journal
@@ -1165,6 +1209,11 @@ requirements:
     origin: extraction
     repair:
     - gap refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-15-46
   section: '15'
   kind: software
@@ -1180,10 +1229,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/health.ts
-  - platform/src/gateway/pipeline.db-outage.test.ts
-  - platform/src/business/db-outage.test.ts
-  gap: None locally.
+  - 'regression: substrate/faults.test.ts prepare/commit blocked with AUDIT_STORE_UNWRITABLE (3/3 runs)'
+  gap: None found.
   remediation: Repeat in Layer 2.
   size: S
   environmentDependency: none
@@ -1193,6 +1240,11 @@ requirements:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
     - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-12.db-outage'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
 - id: FO-15-47
   section: '15'
   kind: software
@@ -1238,10 +1290,10 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/observability/metrics.ts (vsp_audit_deferred_*, vsp_audit_ingestion_gaps_total)
-  - console/src/pages/OverviewPage.tsx:66-80
-  - platform/src/audit/deferred.test.ts
-  gap: Losses before a process reaches the queue are only counted by the gateway entry point.
+  - src/audit/journal.test.ts [FO-15-48] health-gated flush recounts (real PgAuditHealth); fresh process reports no postgres value
+  - substrate/route-audit-crash.test.ts [FO-15-48] dynamodb gauge on read-only postgres:16
+  - src/audit/exporter/verifier.test.ts [FO-15-48] pending deferral past grace is a discrepancy
+  gap: The console overview (WP-38) and the alarms, including missing-data handling (WP-39), are not built.
   remediation: Make the detached route-tool execution write its deferred event to the durable journal (FO-15-45) before the tool timeout answers. Alarm on any TIMEOUT for request_human_transfer or request_safety_route that has no matching audit or journal entry.
   size: S
   environmentDependency: none
@@ -1252,6 +1304,11 @@ requirements:
     - remediation
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-15-49
   section: '15'
   kind: document
@@ -1288,19 +1345,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - ingress.events
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/gateway/http/webhook-routes.ts:6-14 (fixture HMAC local/ci only; WEBHOOK_AUTH_UNVERIFIED elsewhere)
-  - platform/src/gateway/http/webhook-routes.test.ts
-  gap: Only a labelled fixture scheme; no rotation; refused outside local/ci.
+  - ingress/livekit-webhook.test.ts [FO-15-50] livekit-server webhooks verify; foreign key refused
+  - ingress/http.test.ts [FO-15-50] rotation, timestamp window, 413, replay cache, lifetime
+  - src/ingress/ingress.test.ts [FO-15-50] JWT without exp refused
+  gap: The carrier/Talkdesk signature scheme is UNKNOWN (AIN-07, PRQ-021) and is never invented.
   remediation: Implement verifier interface with key-set rotation and per-vendor implementations (LiveKit webhook JWT, carrier signatures) and tests.
   size: M
   environmentDependency: Vendor-documented webhook auth mechanism (TB-09)
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-15-51
   section: '15'
   kind: software

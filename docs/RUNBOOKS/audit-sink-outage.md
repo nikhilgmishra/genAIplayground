@@ -103,6 +103,102 @@
      A `server.shutdown_drain_timeout` warning with no error log after it means callers were cut
      off; it rules out lost evidence only when no route tool timed out shortly before the stop.
 
+## Durable route-audit journal, route reconciliation and independent verification (WP-04)
+
+Implemented and verified against protocol emulators (Layer 2: postgres:16, DynamoDB Local, MinIO
+Object Lock, LocalStack KMS); **not yet wired into the gateway, worker or handoff** (composition
+packages WP-07, WP-14, WP-25) and not run in AWS. Until it is wired, the process-local queue above
+is what runs. When wired:
+
+* **Where a deferred route event goes.** `DurableDeferredAuditQueue`
+  (`platform/src/audit/journal.ts`) journals a refused route event in PostgreSQL `audit_deferred`
+  (inside the handoff's own transaction when the caller passes it). If PostgreSQL refuses that too, it
+  goes to the independent DynamoDB journal (table with `pk raj#<tenant>`, `sk <deferredAt>#<deferralId>`);
+  only if both refuse is it held in process memory (error log `audit.journal.memory_fallback`). A
+  crash or restart no longer loses journaled events: **restarting tasks is safe** once
+  `vsp_audit_journal_pending{journal="memory"}` is 0 on every task.
+* **Signals.** `vsp_audit_journal_entries_total{journal,result}` (`journaled`, `flushed`,
+  `journal_failed`, `dropped`), `vsp_audit_journal_pending{journal}`; logs
+  `audit.journal.deferred`, `audit.journal.postgres_refused`, `audit.journal.independent_refused`,
+  `audit.journal.memory_fallback`, `audit.journal.flushed`, `audit.journal.dropped`,
+  `audit.journal.quarantined`, `audit.journal.lost_at_shutdown` (codes and opaque ids only).
+* **Flush.** Each flush appends every PENDING deferral of a tenant once, in deferral order, with its
+  `audit.deferred.recorded` marker (`evidencePointers` `deferral:<id>`), in one transaction per
+  deferral; two replicas flushing at once append each event once. DynamoDB entries are drained into
+  `audit_deferred` (column `journal = dynamodb`) first. Tenant order holds across the journals: while
+  anything of the tenant waits in `audit_deferred`, the DynamoDB journal or memory, a new route event is
+  journaled behind it, not appended ahead. **While the DynamoDB journal cannot be read** (log
+  `audit.journal.deferred` with `reasonCode` `AUDIT_JOURNAL_READ_FAILED`, flush `reasonCode` the same), new
+  route events are journaled in `audit_deferred` and nothing of that tenant flushes, so
+  `vsp_audit_journal_pending{journal="postgres"}` grows (and `{journal="dynamodb"}` keeps its last known value):
+  restore DynamoDB access (table, IAM, endpoint) and the next flush appends everything in order. Do not delete or
+  edit journal rows to unblock it.
+* **While the audit store is unwritable**, each flush appends nothing (flush `reasonCode`
+  `AUDIT_STORE_UNWRITABLE`) but still recounts `audit_deferred` and the DynamoDB journal for every tenant, so
+  `vsp_audit_deferred_depth` and `vsp_audit_journal_pending{journal}` show what waits even on a task that was
+  restarted during the outage or did not defer the events itself.
+* **While PostgreSQL is down or read-only**, route events go to the DynamoDB journal:
+  `vsp_audit_journal_pending{journal="dynamodb"}` and `vsp_audit_deferred_depth` show how many wait there (each
+  flush counts the journal), and the `postgres` series keeps its last known value; neither reads 0 while evidence
+  is held. A task started during the PostgreSQL outage has no known PostgreSQL count yet: it reports **no**
+  `{journal="postgres"}` value (missing data, not 0; alarm on missing data as breaching), its depth counts only what
+  it could count, and its flush `reasonCode` (`DB_UNAVAILABLE`) says why; check the other tasks' series or query
+  `audit_deferred` once the database answers. After recovery the flush drains DynamoDB in bounded passes, oldest first; a backlog larger than one pass
+  takes several flush runs, and newer events wait behind the older ones until then (the gauges fall to 0).
+* **A tampered or corrupted DynamoDB journal item** - its digest does not match, it sits in another tenant's
+  partition or under another sort key, it carries a deferral time that is not canonical (`2026`, a local-time form)
+  or an event time PostgreSQL cannot store (year 0000), or PostgreSQL refuses its content when it is drained (a
+  data exception or CHECK violation) - (log `audit.journal.quarantined` at error level, reason
+  `AUDIT_JOURNAL_ENTRY_DIGEST_MISMATCH` or `AUDIT_JOURNAL_ENTRY_INVALID`; chain event
+  `audit.journal.entry_quarantined`; `vsp_audit_journal_entries_total{journal="dynamodb",result="dropped"}`)
+  is never appended and does not block the tenant: the flush records the quarantine in the chain, marks the
+  item `QUARANTINED` (attributes `quarantineReason`, `quarantineRef`, `quarantineEventId`) and continues. Treat
+  it as a security incident: the item's content is kept for forensics; find it in the tenant partition
+  `raj#<tenant>` by `quarantineRef` (= the hex digest in the event's `kv://route-audit-journal/...` pointer),
+  preserve it, review who could write the table (IAM, CloudTrail data events), and expect an
+  `audit.route.not_recorded` marker for the route it claimed to evidence. Never edit it back to `PENDING`.
+  While the audit store is unwritable the quarantine cannot be recorded, so the item stays `PENDING` and the
+  tenant's newer route events wait in `audit_deferred` until the store recovers.
+* **Gaps are surfaced, not guessed.** `RouteAuditReconciler` (`route-reconciler.ts`) writes
+  `audit.route.not_recorded` for every safety incident (`safety_events`) without route evidence after
+  the grace (default 300 s) and for every route intent (`route_audit_intents`, opened before a detached
+  route execution) past its deadline without evidence, and `audit.safety_event.unaudited` for safety rows
+  written during an outage whose route evidence exists. One row per subject in
+  `route_audit_reconciliations`; metric `vsp_route_audit_reconciled_total{subject,result}`. A
+  `not_recorded` marker is an evidence gap: document it (SEV-1 for a safety route) and cross-check the
+  call's transfer journey.
+* **Independent verification.** The exporter (`AuditExporter`, writer credentials: put only) signs every
+  manifest with the audit KMS key (`ECC_NIST_P256`, `ECDSA_SHA_256`). The verifier runs as its own identity:
+  its own database login granted only `app_audit_verifier`, read-only sink credentials (list and get) and
+  `kms:GetPublicKey` only. Locally the command provisions a per-run login `vsp_verify_<random>` (dropped
+  afterwards) and MinIO session credentials restricted to list/get on the bucket; in AWS the verifier task
+  role provides both (WP-39):
+
+  ```bash
+  tsx scripts/vsp/verify-audit.mts --env local --database <db> --bucket <bucket> --kms-key <key-arn> [--from <ISO>] [--to <ISO>]
+  # live (never from a default command): VSP_AUDIT_VERIFY_LIVE=1 VSP_AUDIT_VERIFIER_DATABASE_URL=... VSP_AUDIT_BUCKET=...
+  #   VSP_AUDIT_BUCKET_OWNER=... VSP_AUDIT_KMS_KEY_ID=... AWS_REGION=... tsx scripts/vsp/verify-audit.mts --env live
+  ```
+
+  Exit 0 PASS, 1 FAIL (findings: integrity, unsigned or invalid manifest signatures, ingestion gaps,
+  keyed reconciliation of committed actions, provider receipts, CRM writes and route evidence), 2
+  INCONCLUSIVE (no sink reader or no signature key: never a pass), 3 usage, 4 dependency unreachable.
+  Without `--bucket` the command cannot read the exported copy: reconciliation then uses the local outbox and
+  reports shipped evidence per source as `unverified` (reason `RECONCILIATION_NOT_VERIFIED_WITHOUT_SINK`), so an
+  intact database is exit 2, never 0 and never a false 1. A finding visible locally is still exit 1: a chain or
+  ingestion gap, a route deferral pending past the grace, evidence unshipped past the grace, or a local event
+  that contradicts the ledger, a deferral or a marker (another tenant, action, key, correlation or receipt).
+  During a sink-reader outage, an exit 2 with `unverified` counts is expected; re-run with the reader before
+  closing the incident.
+  The JSON report carries codes, streams, sequences, opaque ids and counts only. A
+  `VERIFIER_IDENTITY_NOT_READ_ONLY` reason means the verifier was given a writing identity; `identity.findings`
+  names why (`VERIFIER_LOGIN_PRIVILEGED` superuser or CREATEROLE, `VERIFIER_LOGIN_WRITER_MEMBER` a member of
+  `app_runtime` / `app_worker` / `app_console` — for example the application's own login —,
+  `VERIFIER_LOGIN_OWNS_OBJECTS`, `VERIFIER_IDENTITY_CAN_WRITE`, `VERIFIER_IDENTITY_DEFINER_WRITE_PATH`,
+  `VERIFIER_IDENTITY_CAN_CREATE`, `VERIFIER_LOGIN_UNRESOLVED`). Fix the credentials before trusting any
+  verdict. A `route_evidence` discrepancy on a RECORDED deferral means the journal names an event the export
+  does not hold: treat it as an integrity incident (threat T-16).
+
 ## Evidence preservation
 
 Privacy counsel determines any reporting obligations and deadlines; the software preserves evidence and supports the process.
@@ -117,7 +213,7 @@ Privacy counsel determines any reporting obligations and deadlines; the software
    * **HTTP 412 on re-put (OPS-AUD-02).** After a lost `PutObject` response or a crash before the local mark, the re-put of the same batch gets 412 on its deterministic key. With the default `existingObjectCheck: "defer_to_verifier"` the writer accepts it without reading (the writer role is denied `s3:GetObject*` and `kms:Decrypt`), counts it in `existingObjectsUnverified` (in-process counter, not a metric) and moves on; the read-only verifier identity later proves the stored content with `verifyShipped`, and local rows are purged only after a clean verification. If every retry still ends `AUDIT_SINK_UNAVAILABLE`, check that the sink is not configured with `head_checksum`, which needs HeadObject and `kms:Decrypt` that the writer role does not have.
    * A verifier finding `MANIFEST_DIGEST_MISMATCH`, `MANIFEST_CONTENT_MISMATCH` or `LOCAL_SINK_DIVERGENCE` after a 412 means a foreign or stale object sits at our key (for example sequence reuse after a database restore): handle it as an integrity gap (step 3) and keep the local rows.
 2. Store unwritable → treat as a database incident ([dependency-outage.md](dependency-outage.md)).
-3. Ingestion gap or broken link → stop shipping for that stream (the shipper refuses to ship across a gap). `audit.verify` already runs `verifyStream`, `verifyShipped` (when it has a sink reader), the writer chain-head counts and the keyed reconciliation of committed ledger actions every run; read its verdict and finding codes, re-run the checks for the affected streams, and document every missing or extra event. Completeness is PASS only when integrity, ingestion monitoring and reconciliation all ran clean (`assessCompleteness`); without a sink reader the verdict is INCONCLUSIVE (`SHIPPED_INTEGRITY_NOT_VERIFIED`), never PASS.
+3. Ingestion gap or broken link → stop shipping for that stream (the shipper refuses to ship across a gap). `audit.verify` already runs `verifyStream`, `verifyShipped` (when it has a sink reader), the writer chain-head counts and the keyed reconciliation of committed ledger actions every run; read its verdict and finding codes, re-run the checks for the affected streams, and document every missing or extra event. Completeness is PASS only when integrity, ingestion monitoring and reconciliation all ran clean (`assessCompleteness`); without a sink reader the verdict is INCONCLUSIVE (`SHIPPED_INTEGRITY_NOT_VERIFIED`), never PASS, and a local finding still makes it FAIL.
    * A stream blocked by `AUDIT_CHAIN_GAP`, `AUDIT_CHAIN_BROKEN` or `AUDIT_PLANNED_BATCH_DIVERGED` stays blocked, and its backlog eventually blocks every consequential action (`AUDIT_SINK_STALE`). No seal-and-continue procedure exists, and restarting the writer under a new stream name does not unblock health. Escalate to security leadership; never edit audit tables to clear it.
 4. Release blocks only after the backlog is within bounds and verification is clean.
 
@@ -126,6 +222,7 @@ Privacy counsel determines any reporting obligations and deadlines; the software
 * Backlog drained; `vsp_audit_export_completeness_ratio` back to 1 and the `audit-export-incomplete` alarm cleared; `audit.verify` verdict PASS (not INCONCLUSIVE) for every stream touched; reconciliation shows every accepted consequential action has an audit event.
 * `vsp_audit_deferred_depth` back to 0 on every process, with an `audit.deferred.recorded` marker for every deferred handoff event and no `dropped` count, `audit.deferred.unflushed_at_shutdown`, `audit.deferred.lost_at_shutdown` or `server.shutdown_handlers_unsettled` log in the window (or each lost event, or each call behind a logged count, documented), and every route-tool `TIMEOUT` shortly before a gateway stop cross-checked against its transfer journey and `safety_events` row; see [How to confirm the flush](#deferred-route-audit-queue).
 * `<prefix>-audit-not-recorded-ratio` back to OK, with every affected accepted action reconciled against the ledger.
+* Once the durable journal is wired: `vsp_audit_journal_pending` back to 0 for every journal, every `audit.route.not_recorded` marker in the window documented, and `verify-audit` exit 0 (PASS) for the window with the verifier identity.
 
 ## Communication roles
 

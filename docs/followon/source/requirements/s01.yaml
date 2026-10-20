@@ -177,9 +177,9 @@ requirements:
   qualification: FAIL
   qualificationEvidence: 'evidence/evaluation/corpus-local-20261018w4.summary.json: gates.local FAIL (CRITICAL_FAILURES 7, FAILING_RESULTS 305, INCONCLUSIVE_RESULTS 20; executionMode local_fixture; historical w4 run that predates fix wave 5 at 8c0f5a0)'
   evidence:
-  - evidence/evaluation/corpus-local-20261018w4.summary.json (runs 2711, pass 2386, fail 305, inconclusive 20, criticalFailures 7)
-  - platform/src/protocol/evaluation.ts:89 (executionMode local_fixture)
-  gap: Still the latest committed aggregate. It predates fix wave 5 (8c0f5a0), which changed the coordinator and corpus expectations; no post-fix-wave corpus run is committed; 7 critical failures stay open.
+  - corpus-local-20261019w5.provenance.md
+  - corpus-local-20261019w5.rescore-check-r4.json
+  gap: w5 used a snapshot plus overlay (sourceCommit null), and the local gate FAILs.
   remediation: Re-run the corpus after fix wave 5 and record it as a new historical run.
   size: M
   environmentDependency: none
@@ -188,6 +188,11 @@ requirements:
     origin: extraction
     repair:
     - gap and qualification evidence refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-01-08
   section: '1'
   kind: environment
@@ -320,20 +325,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/audit/sinks/s3-object-lock.ts:109
-  - platform/src/audit/sinks/s3-object-lock.test.ts:1-5 (stub client contract test)
-  - infra/terraform/modules/audit
-  gap: Never exercised against an S3 API; not composed outside local.
+  - substrate/audit-export.test.ts [FO-01-13] Object-Lock export, separate verifier PASS (60/60 x3)
+  - substrate/faults.test.ts [FAULT:AUDIT_OUTAGE] export + verifier PASS after recovery
+  gap: Not run against the AWS audit account (AIN-01, AIN-03); the exporter entry point and task identity belong to WP-07/WP-39.
   remediation: Test against MinIO with Object Lock; compose live.
   size: M
   environmentDependency: independent audit account (PRQ-037, PRQ-040)
-  workPackage: WP-04
+  regressionPackage: WP-04
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-01-14
   section: '1'
   kind: software
@@ -495,15 +504,13 @@ requirements:
   - ADR-0011
   capabilityIds:
   - audit.independent
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'platform/src/audit/deferred.ts:39-44 (CRASH-LOSS LIMIT at 8c0f5a0: the queue is in process memory; a durable deferral store is "not implemented")'
-  - 'platform/src/audit/deferred.ts:29-37 (LIMIT: a route-tool execution detached by its tool timeout loses its event with no log if the process exits first)'
-  - 'platform/src/main/server.ts (fix wave 5, 8c0f5a0: the gateway drains its own deferred queue in a bounded shutdown; a crash still loses it)'
-  - platform/migrations/0610_safety_events.sql (safety_events row stays durable)
-  gap: 'Still process-local at 8c0f5a0: fix wave 5 added draining at shutdown, not durability; a crash loses queued route evidence.'
+  - src/audit/journal.test.ts [FO-01-19] order, bounded-flush, same-instant and clock-skew tests
+  - substrate/route-audit-crash.test.ts [FO-01-19] SIGKILL, cross-journal order, forged-time quarantine
+  gap: container.ts (WP-07) still builds the process-local DeferredAuditQueue, and the WP-25 handoff does not call appendOrDeferIn.
   remediation: Durable deferral journal (DynamoDB/SQS or fsynced local journal) with crash-restart test.
   size: M
   environmentDependency: none
@@ -514,6 +521,11 @@ requirements:
     - evidence
     repair:
     - evidence and gap refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-01-20
   section: '1'
   kind: software
@@ -607,21 +619,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - evaluation.test_truth
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/evaluation/scorer.ts; aggregate.ts
-  - 'fix wave 5 (8c0f5a0): coordinator rule gaps with negative guards and fault-reachable crash-after-commit drafts (platform/src/evaluation/driver/coordinator.ts, local-driver.test.ts)'
-  gap: Repairs are merged at 8c0f5a0 but not re-verified by a fresh corpus run; INCONCLUSIVE still leaves the goal-completion denominator (FO-17-46); not every gate has a mutation test.
+  - scorer.mutation.test.ts MUTATION evidence.fault_plans_present
+  - scorer.test.ts [FO-17-11] verifier probe p1
+  gap: None locally.
   remediation: Verify after fix wave 5; add scorer mutation suite.
   size: M
   environmentDependency: none
-  workPackage: WP-01
+  regressionPackage: WP-01
   provenance:
     origin: extraction
     repair:
     - evidence and gap refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-01-24
   section: '1'
   kind: constraint
@@ -898,16 +915,21 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - audit.independent
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'platform/src/audit/deferred.ts:29-37 (LIMIT: a route-tool execution detached by its tool timeout loses its event with no log if the process exits first)'
-  - platform/src/main/server.ts (bounded shutdown waits for request handlers, not for detached executions; fix wave 5, 8c0f5a0)
-  gap: Fix wave 5 documents this loss path instead of closing it, and c1's FO-01-19 covers only the crash-loss of queued events.
+  - src/audit/route-reconciler.test.ts [FO-01-34] decoys close no intent
+  - substrate/route-audit-crash.test.ts [FO-01-34] detached safety route -> one not_recorded marker
+  gap: The request_safety_route timeout and SIGTERM path needs gateway intents (WP-14) and the handoff wiring (WP-25).
   remediation: 'Write an intent row (route_audit_intents: routeId, safety_event_id, started_at) in the same transaction that starts the handoff, mark it on audit append, and add a worker sweep that turns unmatched intents older than the timeout into audit.route.not_recorded events. Share the durable journal with FO-01-19.'
   size: M
   environmentDependency: none
   workPackage: WP-04
   provenance:
     origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED

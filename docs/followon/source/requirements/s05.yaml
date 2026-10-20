@@ -979,9 +979,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/gateway/auth.ts:173 (JwtAccessTokenAuthenticator)
-  - platform/src/gateway/auth.test.ts:90-117
-  gap: Not composed outside local.
+  - src/connectors/profile/profile.test.ts [FO-05-39]
+  gap: Not wired into platform/src/config/guard.ts (WP-07).
   remediation: Live composition.
   size: S
   environmentDependency: IdP client credentials per environment
@@ -991,6 +990,11 @@ requirements:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-05-40
   section: '5'
   kind: constraint
@@ -1385,17 +1389,21 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'platform/src/config/schema.ts:36-44 (AdapterConfigSchema: one credentialRef per adapter)'
-  - platform/src/config/guard.ts:411 (refRule checks credentialRef format only; no reuse rule)
-  - platform/src/adapters/live/blocked-set.ts:33-45 (Salesforce adapter takes one credentials() callback for read and upsert)
-  gap: c1 FO-05-39 covers inbound channel identities only. Outbound, one credential per adapter covers both read and write, and nothing prevents reuse across environments.
+  - src/connectors/runtime/connector.test.ts [FO-05-56]
+  - runtime.test.ts [FO-05-56]
+  gap: The guard rule is not called from config/guard.ts and the Salesforce credentials are not split (WP-07).
   remediation: Model capability-scoped credentials in ConnectorProfile (FO-04-34). Add guard rules CREDENTIAL_REUSED_ACROSS_CAPABILITIES and CREDENTIAL_REUSED_ACROSS_ENVIRONMENTS, the latter by comparing committed platform/config/*.json. Split SalesforceRestSupportRecords credentials into read and upsert clients and add an emulator test that a read-scoped token is refused on upsert.
   size: M
   environmentDependency: per-capability integration users or clients from each system owner (activation register)
   workPackage: WP-06
   provenance:
     origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED

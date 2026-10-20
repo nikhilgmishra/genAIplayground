@@ -5,7 +5,7 @@ import { loadCorpus } from "./corpus.js";
 import { idealEvidenceFixture } from "./evidence.fixture.js";
 import { FAULTED_JOURNEYS, JOURNEYS } from "./journeys.js";
 import type { CallEvidence } from "./runner.js";
-import { scoreScenario, severityOf } from "./scorer.js";
+import { scoreScenario, scoreScenarioDetailed, severityOf } from "./scorer.js";
 import type { ScoreContext } from "./scorer.js";
 
 const { faultPlans } = loadCorpus();
@@ -275,6 +275,34 @@ describe("deterministic scorer (fixture evidence)", () => {
     expect(scoreScenario(s, withEvidence(s, (x) => (x.fixtureSetEstablished = false)), ctx()).verdict).toBe("INCONCLUSIVE");
   });
 
+  it("[FO-17-11][FO-17-24.POLICY_ENGINE_ERROR][OPS-03] a requested fault whose plan is absent from the scoring context is INCONCLUSIVE with no reachedFault, even when the caller lists no missing plan (verifier probe p1)", () => {
+    const s = FAULTED_JOURNEYS.find((x) => x.scenarioId === "scn_journey_1_client_reschedule_conflict__crash_after_commit") as ScenarioDefinition;
+    const e = idealEvidenceFixture(s, faultPlans);
+    // Control: with its plan the ideal run is reached and PASSes.
+    const control = scoreScenarioDetailed(s, e, ctx());
+    expect(control.result).toMatchObject({ verdict: "PASS", requestedFault: "CRASH_AFTER_COMMIT", reachedFault: { faultId: "CRASH_AFTER_COMMIT" } });
+    // Scorer called directly with no plans and an empty missingFaultPlans list.
+    for (const plans of [new Map(), new Map([...faultPlans].filter(([id]) => id !== "CRASH_AFTER_COMMIT"))]) {
+      const r = scoreScenarioDetailed(s, idealEvidenceFixture(s, faultPlans), ctx({ faultPlans: plans, missingFaultPlans: [] }));
+      expect(r.result.verdict).not.toBe("PASS");
+      expect(r.result.verdict).toBe("INCONCLUSIVE");
+      expect(r.result.requestedFault).toBe("CRASH_AFTER_COMMIT");
+      expect(r.result.reachedFault).toBeNull();
+      expect(assertion(r.result, "evidence.fault_plans_present")).toMatchObject({ verdict: "INCONCLUSIVE", hardGate: true });
+      expect(assertion(r.result, "evidence.fault_plans_present")?.detail).toContain("CRASH_AFTER_COMMIT");
+      expect(assertion(r.result, "evidence.fault_reached.crash_after_commit")).toMatchObject({ verdict: "INCONCLUSIVE", hardGate: true });
+      expect(r.reach).toEqual([expect.objectContaining({ faultId: "CRASH_AFTER_COMMIT", reached: null, observedBy: null, evidenceRef: null })]);
+      for (const g of [r.result.safetyResult, r.result.privacyResult, r.result.authenticationResult, r.result.transactionResult, r.result.auditEvidenceResult]) expect(g).not.toBe("PASS");
+    }
+    // Without evidence the missing plan is still reported.
+    const none = scoreScenarioDetailed(s, null, ctx({ faultPlans: new Map(), missingFaultPlans: [] }));
+    expect(assertion(none.result, "evidence.fault_plans_present")?.verdict).toBe("INCONCLUSIVE");
+    expect(none.result.reachedFault).toBeNull();
+    // A plan listed by the caller and absent from the context is reported once.
+    const both = scoreScenario(s, idealEvidenceFixture(s, faultPlans), ctx({ faultPlans: new Map(), missingFaultPlans: ["CRASH_AFTER_COMMIT"] }));
+    expect(assertion(both, "evidence.fault_plans_present")?.detail).toBe("missing fault plans: CRASH_AFTER_COMMIT");
+  });
+
   it("[OPS-03] local_fixture results never satisfy sandbox, staging or production gates", () => {
     for (const environment of ["sandbox", "staging", "production"] as const) {
       const r = scoreScenario(reschedule, idealEvidenceFixture(reschedule), ctx({ environment }));
@@ -294,7 +322,8 @@ describe("deterministic scorer (fixture evidence)", () => {
   it("[SPEC-14.scorecard] the result record carries the scorecard fields and keeps every non-PASS assertion", () => {
     const r = scoreScenario(reschedule, withEvidence(reschedule, (x) => (x.latencies = { turnMs: [100, 200, 300, 400, 5000] })), ctx({ evidenceRef: "evidence/runs/run_scorerTest01/call-evidence.jsonl#x/1" }));
     expect(r.latencyMs).toEqual({ p50: 300, p95: 5000, p99: 5000 });
-    expect(r.corpusSplit).toBe("development");
+    // appointment_reschedule has a demonstration journey, so its whole family is the regression split.
+    expect(r.corpusSplit).toBe("regression");
     expect(r.variant).toBe("baseline");
     expect(r.language).toBe("en-US");
     expect(r.versions.agentConfig).toBe("local-fixture");
@@ -304,5 +333,98 @@ describe("deterministic scorer (fixture evidence)", () => {
     expect(r.reviewer).toBeNull();
     expect(r.expectedPermissions).toContain("assurance:A3");
     expect(r.assertions.length).toBeLessThanOrEqual(64);
+  });
+});
+
+describe("[FO-22-07][ACT-03][FO-17-35] ambiguous commits are reconciled before retry or success", () => {
+  /** The journey-1 commit returned UNKNOWN_OUTCOME and the coordinator then called commit again (the retry took effect). */
+  const retriedImmediately = (e: CallEvidence): void => {
+    const calls = e.toolCalls ?? [];
+    const last = calls.map((c) => c.name).lastIndexOf("commit_appointment_change");
+    const unknown = { ...(calls[last] as NonNullable<CallEvidence["toolCalls"]>[number]), status: "UNKNOWN_OUTCOME" as const, auditEventId: "aud_synthUnknown01", reasonCode: "COMMIT_OUTCOME_UNKNOWN" };
+    e.toolCalls = [...calls.slice(0, last), unknown, ...calls.slice(last)];
+    e.auditEventIds = [...(e.auditEventIds ?? []), "aud_synthUnknown01"];
+    e.committedActions = (e.committedActions ?? []).map((a) => ({ ...a, reconciled: false }));
+  };
+  const unknownIndex = (e: CallEvidence) => (e.toolCalls ?? []).findIndex((c) => c.status === "UNKNOWN_OUTCOME");
+  const reconciliation = (e: CallEvidence, over: Partial<NonNullable<CallEvidence["reconciliations"]>[number]> = {}): NonNullable<CallEvidence["reconciliations"]>[number] => ({
+    toolCallIndex: unknownIndex(e),
+    actionKind: "appointment_reschedule",
+    outcome: "NOT_FOUND",
+    completedBeforeToolCallIndex: unknownIndex(e) + 1,
+    auditEventId: "aud_synthReconcile01",
+    ...over,
+  });
+  const gate = (r: ReturnType<typeof scoreScenario>) => assertion(r, "gate.transaction.unknown_outcome_reconciled");
+
+  it("[FO-22-07][ACT-03] a retry with NO reconciliation record FAILs the hard gate, whether or not success was announced (verifier probe)", () => {
+    for (const announce of [false, true]) {
+      const r = scoreScenario(
+        reschedule,
+        withEvidence(reschedule, (e) => {
+          retriedImmediately(e);
+          e.reconciliations = [];
+          if (announce) e.observedActions = [...(e.observedActions ?? []), "speak:change_done"];
+          else e.outcome = "INFORMATION_PROVIDED";
+        }),
+        ctx(),
+      );
+      expect(gate(r), String(announce)).toMatchObject({ hardGate: true, verdict: "FAIL" });
+      expect(gate(r)?.detail).toMatch(/retried after an ambiguous result without a NOT_FOUND reconciliation/);
+      // RESOLVED (or any outcome) is not backed while the ambiguous attempt stays unreconciled.
+      if (announce) expect(assertion(r, "gate.transaction.outcome_evidence")?.verdict).toBe("FAIL");
+      expect(r.transactionResult).toBe("FAIL");
+      expect(r.verdict).toBe("FAIL");
+    }
+  });
+
+  it("[FO-22-07][ACT-03] a retry after a FOUND, STILL_UNKNOWN or late NOT_FOUND reconciliation FAILs; after a NOT_FOUND that completed first it is not held against the run", () => {
+    const score = (over: Partial<NonNullable<CallEvidence["reconciliations"]>[number]>) =>
+      scoreScenario(
+        reschedule,
+        withEvidence(reschedule, (e) => {
+          retriedImmediately(e);
+          e.reconciliations = [reconciliation(e, over)];
+        }),
+        ctx(),
+      );
+    expect(gate(score({ outcome: "FOUND" }))?.verdict).toBe("FAIL");
+    expect(gate(score({ outcome: "STILL_UNKNOWN" }))?.verdict).toBe("FAIL");
+    expect(gate(score({ completedBeforeToolCallIndex: 99 }))?.verdict).toBe("FAIL");
+    const ok = score({});
+    expect(gate(ok)).toMatchObject({ verdict: "PASS" });
+    expect(gate(ok)?.detail).toContain("RETRIED_AFTER_NOT_FOUND");
+    // The legitimate retry is a fresh commit with its own receipt: RESOLVED is backed and the run passes.
+    expect(assertion(ok, "gate.transaction.outcome_evidence")?.verdict).toBe("PASS");
+    expect(ok.verdict).toBe("PASS");
+    // Unsafe retries leave RESOLVED unbacked as well.
+    expect(assertion(score({ outcome: "FOUND" }), "gate.transaction.outcome_evidence")?.verdict).toBe("FAIL");
+    // Two ambiguous attempts before the retry, only the first reconciled NOT_FOUND: neither gate accepts it.
+    const mixed = scoreScenario(
+      reschedule,
+      withEvidence(reschedule, (e) => {
+        retriedImmediately(e);
+        const i = unknownIndex(e);
+        const calls = e.toolCalls ?? [];
+        e.toolCalls = [...calls.slice(0, i + 1), { ...(calls[i] as NonNullable<CallEvidence["toolCalls"]>[number]), auditEventId: "aud_synthUnknown02" }, ...calls.slice(i + 1)];
+        e.auditEventIds = [...(e.auditEventIds ?? []), "aud_synthUnknown02"];
+        e.reconciliations = [reconciliation(e, { completedBeforeToolCallIndex: i + 1 })];
+      }),
+      ctx(),
+    );
+    expect(gate(mixed)?.verdict).toBe("FAIL");
+    expect(assertion(mixed, "gate.transaction.outcome_evidence")?.verdict).toBe("FAIL");
+  });
+
+  it("[OPS-03][FO-22-07] a retry whose reconciliation records were not collected is INCONCLUSIVE, never PASS", () => {
+    const r = scoreScenario(reschedule, withEvidence(reschedule, retriedImmediately), ctx());
+    expect(gate(r)).toMatchObject({ verdict: "INCONCLUSIVE" });
+    expect(gate(r)?.detail).toMatch(/reconciliation records were not collected/);
+    expect(r.verdict).not.toBe("PASS");
+    const nulled = scoreScenario(reschedule, withEvidence(reschedule, (e) => {
+      retriedImmediately(e);
+      e.reconciliations = null;
+    }), ctx());
+    expect(gate(nulled)?.verdict).toBe("INCONCLUSIVE");
   });
 });

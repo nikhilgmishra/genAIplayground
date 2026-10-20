@@ -1,0 +1,68 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "TTS_FAILURE",
+  "version": 1,
+  "title": "Speech synthesis fails mid-utterance",
+  "description": "The TTS sidecar or managed TTS fails during an utterance; the fallback audio path must keep safety and error prompts usable.",
+  "category": "media",
+  "target": {
+    "components": [
+      "media/src/speech",
+      "media/src/egress"
+    ],
+    "dependency": "tts"
+  },
+  "trigger": {
+    "kind": "DURING_SPEECH",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "TTS_FAILURE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller hears a pre-recorded approved prompt and is connected to a person if needed.",
+  "backendEvidence": [
+    "TTS failure recorded on the release receipt",
+    "Pre-rendered fallback audio released"
+  ],
+  "requirementIds": [
+    "ACT-05",
+    "SAFE-02"
+  ],
+  "appliesToIntents": [
+    "safety_disclosure_self",
+    "human_request"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:TTS_FAILURE] owned by WP-15 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.TTS_FAILURE",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the TTS sidecar or managed TTS fails mid-utterance",
+    "injectionPointPackages": [
+      "WP-13"
+    ],
+    "postconditionPackages": [
+      "WP-15"
+    ],
+    "layer2Owner": "WP-15",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "Fallback audio is pre-approved and released through the same guard",
+    "Safety prompts stay usable without TTS",
+    "The partial utterance is recorded as not completed"
+  ]
+}

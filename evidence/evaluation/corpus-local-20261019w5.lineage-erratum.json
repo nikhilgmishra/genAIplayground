@@ -1,0 +1,304 @@
+{
+  "label": "LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION. Erratum to the held-out independence line of a committed combined run summary (analysis only; the summary and its report are unchanged).",
+  "summary": "corpus-local-20261019w5.summary.json",
+  "recorded": {
+    "lineageVersion": "corpus-lineage.v1",
+    "heldout": 225,
+    "acceptanceIndependent": 34,
+    "rule": "held out now and under scenario-split.v1"
+  },
+  "corrected": {
+    "lineageVersion": "corpus-lineage.v2",
+    "heldout": 225,
+    "acceptanceIndependent": 0,
+    "blockers": {
+      "MOVED_INTO_HELDOUT": 191,
+      "INTENT_FAMILY_EXPOSED": 225,
+      "REVISED_AFTER_RUNS": 35
+    },
+    "rule": "no independence blocker (corpus-manifests.ts INDEPENDENCE_BLOCKERS)"
+  },
+  "oldRuleReproduced": true,
+  "lineageDigest": "cf728cf25bf23b226434a7081986a2d269977abc9038d09fc606e6335b28ea8e",
+  "countedByOldRule": [
+    {
+      "scenarioId": "scn_accessibility_long_pauses__baseline",
+      "version": 1,
+      "intent": "accessibility_long_pauses",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_appointment_cancel__dependency_failure",
+      "version": 2,
+      "intent": "appointment_cancel",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED",
+        "REVISED_AFTER_RUNS"
+      ]
+    },
+    {
+      "scenarioId": "scn_appointment_cancel__interrupted_or_noisy",
+      "version": 2,
+      "intent": "appointment_cancel",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED",
+        "REVISED_AFTER_RUNS"
+      ]
+    },
+    {
+      "scenarioId": "scn_appointment_cancel__malicious_instruction",
+      "version": 2,
+      "intent": "appointment_cancel",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED",
+        "REVISED_AFTER_RUNS"
+      ]
+    },
+    {
+      "scenarioId": "scn_appointment_cancel__verification_failure",
+      "version": 2,
+      "intent": "appointment_cancel",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED",
+        "REVISED_AFTER_RUNS"
+      ]
+    },
+    {
+      "scenarioId": "scn_appointment_lookup__verification_failure",
+      "version": 1,
+      "intent": "appointment_lookup",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_complaint_intake__dependency_failure",
+      "version": 1,
+      "intent": "complaint_intake",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_interpreter_request__dependency_failure",
+      "version": 1,
+      "intent": "interpreter_request",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_interpreter_request__interrupted_or_noisy",
+      "version": 1,
+      "intent": "interpreter_request",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_new_client_intake__frustrated",
+      "version": 1,
+      "intent": "new_client_intake",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_new_client_intake__verification_failure",
+      "version": 1,
+      "intent": "new_client_intake",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_partner_case_follow_up__dependency_failure",
+      "version": 2,
+      "intent": "partner_case_follow_up",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED",
+        "REVISED_AFTER_RUNS"
+      ]
+    },
+    {
+      "scenarioId": "scn_partner_case_follow_up__verification_failure",
+      "version": 2,
+      "intent": "partner_case_follow_up",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED",
+        "REVISED_AFTER_RUNS"
+      ]
+    },
+    {
+      "scenarioId": "scn_partner_intake__baseline",
+      "version": 1,
+      "intent": "partner_intake",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_payout_destination_change__frustrated",
+      "version": 1,
+      "intent": "payout_destination_change",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_payout_destination_change__malicious_instruction",
+      "version": 1,
+      "intent": "payout_destination_change",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_provider_clinical_records_request__dependency_failure",
+      "version": 1,
+      "intent": "provider_clinical_records_request",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_provider_tax_info_change__indirect_or_ambiguous",
+      "version": 1,
+      "intent": "provider_tax_info_change",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_provider_tax_info_change__verification_failure",
+      "version": 1,
+      "intent": "provider_tax_info_change",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_remittance_lookup__repeat_contact_or_handoff",
+      "version": 1,
+      "intent": "remittance_lookup",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_008",
+      "version": 1,
+      "intent": "appointment_cancel",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_016",
+      "version": 1,
+      "intent": "partner_intake",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_018",
+      "version": 1,
+      "intent": "partner_intake",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_020",
+      "version": 1,
+      "intent": "new_client_intake",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_audit_outage_021",
+      "version": 1,
+      "intent": "new_client_intake",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_auth_gate_string_values_031",
+      "version": 2,
+      "intent": "appointment_lookup",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED",
+        "REVISED_AFTER_RUNS"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_cross_account_004",
+      "version": 1,
+      "intent": "cross_account_request",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_cross_account_020",
+      "version": 1,
+      "intent": "cross_account_request",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_cross_account_022",
+      "version": 1,
+      "intent": "cross_account_request",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_dial_target_injection_015",
+      "version": 1,
+      "intent": "interpreter_request",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_dial_target_injection_018",
+      "version": 1,
+      "intent": "interpreter_request",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_duplicate_webhook_006",
+      "version": 1,
+      "intent": "complaint_intake",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_otp_leakage_001",
+      "version": 1,
+      "intent": "appointment_lookup",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    },
+    {
+      "scenarioId": "scn_risk_prompt_injection_speech_014",
+      "version": 1,
+      "intent": "appointment_lookup",
+      "independenceBlockers": [
+        "INTENT_FAMILY_EXPOSED"
+      ]
+    }
+  ]
+}
