@@ -57,11 +57,15 @@ describe("[FO-17-24][FO-17-14][OPS-03] fixed fault registry", () => {
 
   it("[FO-17-24] the cross-check names every kind of disagreement", () => {
     const p = onePlan("X_FAULT");
-    const row = (over: Partial<LedgerFaultRow>): LedgerFaultRow => ({ id: "FO-17-24.X_FAULT", faultId: "X_FAULT", workPackage: "WP-01", faultSource: "registry", injectionPointPackages: ["WP-01"], postconditionPackages: ["WP-01"], softwareStatus: "IMPLEMENTED", ...over });
+    const row = (over: Partial<LedgerFaultRow>): LedgerFaultRow => ({ id: "FO-17-24.X_FAULT", faultId: "X_FAULT", workPackage: "WP-01", regressionPackage: null, faultSource: "registry", injectionPointPackages: ["WP-01"], postconditionPackages: ["WP-01"], softwareStatus: "IMPLEMENTED", ...over });
     expect(crossCheckLedger(p, [row({})])).toEqual([]);
     expect(crossCheckLedger(p, [])).toEqual(["PLAN_WITHOUT_LEDGER_ROW X_FAULT"]);
     expect(crossCheckLedger(p, [row({}), { ...row({}), id: "FO-17-24.Y_FAULT", faultId: "Y_FAULT" }])).toEqual(["LEDGER_ROW_WITHOUT_PLAN FO-17-24.Y_FAULT"]);
     expect(crossCheckLedger(p, [row({ workPackage: "WP-09" })])).toEqual(["LAYER2_OWNER_MISMATCH X_FAULT plan=WP-01 ledger=WP-09"]);
+    // A VERIFIED_LOCAL row names its owner as regressionPackage (no workPackage).
+    expect(crossCheckLedger(p, [row({ workPackage: null, regressionPackage: "WP-01", softwareStatus: "VERIFIED_LOCAL" })])).toEqual([]);
+    expect(crossCheckLedger(p, [row({ workPackage: null, regressionPackage: "WP-09", softwareStatus: "VERIFIED_LOCAL" })])).toEqual(["LAYER2_OWNER_MISMATCH X_FAULT plan=WP-01 ledger=WP-09"]);
+    expect(crossCheckLedger(p, [row({ workPackage: null })])).toEqual(["LAYER2_OWNER_MISMATCH X_FAULT plan=WP-01 ledger=none"]);
     expect(crossCheckLedger(p, [row({ injectionPointPackages: ["WP-02"] })])).toEqual(["INJECTION_POINT_PACKAGES_MISMATCH X_FAULT"]);
     expect(crossCheckLedger(p, [row({ postconditionPackages: [] })])).toEqual(["POSTCONDITION_PACKAGES_MISMATCH X_FAULT"]);
     expect(crossCheckLedger(p, [row({ faultSource: "prompt section 17" })])).toEqual(["LEDGER_FAULT_SOURCE_STALE X_FAULT faultSource=prompt section 17"]);

@@ -308,7 +308,7 @@ describe("[FO-17-24][OPS-03] the fault registry section shows every plan versus 
   const ledgerRow = (faultId: string, over: Partial<LedgerFaultRow> = {}): LedgerFaultRow => {
     const p = plans.get(faultId);
     if (!p) throw new Error(`no plan ${faultId}`);
-    return { id: `FO-17-24.${faultId}`, faultId, workPackage: p.registry.layer2Owner, faultSource: "registry", injectionPointPackages: [...p.registry.injectionPointPackages], postconditionPackages: [...p.registry.postconditionPackages], softwareStatus: "IMPLEMENTED", ...over };
+    return { id: `FO-17-24.${faultId}`, faultId, workPackage: p.registry.layer2Owner, regressionPackage: null, faultSource: "registry", injectionPointPackages: [...p.registry.injectionPointPackages], postconditionPackages: [...p.registry.postconditionPackages], softwareStatus: "IMPLEMENTED", ...over };
   };
   const render = (ledger: LedgerFaultRow[] | null, orphan = false) => {
     const tests = orphan ? [{ faultId: "NO_SUCH_FAULT", file: "platform/test/invariants/x.test.ts", line: 7, title: "[FAULT:NO_SUCH_FAULT] x", seam: false, layer: "layer1" as const, suite: null }] : [];

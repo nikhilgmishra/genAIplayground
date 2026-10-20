@@ -118,6 +118,8 @@ export interface LedgerFaultRow {
   id: string;
   faultId: string;
   workPackage: string | null;
+  /** Set instead of workPackage once the row is VERIFIED_LOCAL (the package that re-runs its Layer-2 test). */
+  regressionPackage: string | null;
   faultSource: string | null;
   injectionPointPackages: string[];
   postconditionPackages: string[];
@@ -133,6 +135,7 @@ export function ledgerFaultRows(ledger: unknown): LedgerFaultRow[] {
       id: e.id as string,
       faultId: (e.id as string).slice("FO-17-24.".length),
       workPackage: typeof e.workPackage === "string" ? e.workPackage : null,
+      regressionPackage: typeof e.regressionPackage === "string" ? e.regressionPackage : null,
       faultSource: typeof e.faultSource === "string" ? e.faultSource : null,
       injectionPointPackages: Array.isArray(e.injectionPointPackages) ? (e.injectionPointPackages as string[]) : [],
       postconditionPackages: Array.isArray(e.postconditionPackages) ? (e.postconditionPackages as string[]) : [],
@@ -189,7 +192,9 @@ export function crossCheckLedger(plans: ReadonlyMap<string, FaultPlan>, rows: re
       issues.push(`PLAN_WITHOUT_LEDGER_ROW ${id}`);
       continue;
     }
-    if (r.workPackage !== p.registry.layer2Owner) issues.push(`LAYER2_OWNER_MISMATCH ${id} plan=${p.registry.layer2Owner} ledger=${r.workPackage ?? "none"}`);
+    // generate.py: the row's owner is its workPackage, or its regressionPackage once it is VERIFIED_LOCAL.
+    const owner = r.workPackage ?? r.regressionPackage;
+    if (owner !== p.registry.layer2Owner) issues.push(`LAYER2_OWNER_MISMATCH ${id} plan=${p.registry.layer2Owner} ledger=${owner ?? "none"}`);
     if (!sameSet(r.injectionPointPackages, p.registry.injectionPointPackages)) issues.push(`INJECTION_POINT_PACKAGES_MISMATCH ${id}`);
     if (!sameSet(r.postconditionPackages, p.registry.postconditionPackages)) issues.push(`POSTCONDITION_PACKAGES_MISMATCH ${id}`);
     // generate.py: a fault with a plan has faultSource "registry..." (the coordinator regenerates the ledger).
