@@ -52,7 +52,7 @@ scoped authority exists. No billable endpoint is invoked by a safe local default
 | Phase | Scope | State |
 |---|---|---|
 | A | Inventory, requirement extraction, gap ledger, architecture/threat/data-flow diagrams, decision record, implementation and activation registers | DONE (commit bf25655; last minor/one material ledger fix runs with wave B1) |
-| B | Scorer truth, invariant regressions, production composition, storage/session/workforce identity/audit, real transport adapter boundaries | IN_PROGRESS: wave B1 (WP-02, WP-03) DONE; next B2 (WP-01, WP-04, WP-06), B3 (WP-05), B4 (WP-07) |
+| B | Scorer truth, invariant regressions, production composition, storage/session/workforce identity/audit, real transport adapter boundaries | IN_PROGRESS: waves B1 (WP-02, WP-03) and B2 (WP-01, WP-04, WP-06) DONE; next B3 (WP-05), B4 (WP-07) |
 | C | Live model adapters, controllable media (LiveKit/SIP), protected output, fallback audio, turn/session fencing, real local audio-to-action journey | NOT_STARTED |
 | D | Historical/event/live context, entity linking, knowledge ingestion, deletions, model registry, specialist loops, canonical domain adapters | NOT_STARTED |
 | E | Every workflow family, CRM/outbox sync, long-horizon work, secure companion, notifications, accepted human transfer | NOT_STARTED |
@@ -100,7 +100,7 @@ Waves follow the dependency order in `docs/followon/work-packages.yaml`.
 | Wave | Packages | Run id | State |
 |---|---|---|---|
 | B1 | WP-02, WP-03 (+ ledger fix job) | wf_5abdf51f-ed0 | DONE: both PARTIAL after 3 rounds; the coordinator fixed the residuals (WP-02 snapshot watermark rules, party-URI refs, byte-size args, hand-over notes; WP-03 Step Functions Local TaskSubmitted race, missing-emulation-summary exit, digest pointer). Ledger: 56 rows moved (MISSING 613, IMPLEMENTED 450, VERIFIED_LOCAL 107). Layer-2 `_harness` 72/72 three times; workflow file 20/20 |
-| B2 | WP-01, WP-04, WP-06 | wf_786b1518-a8e (wave), wf_334c062a-d28 (residuals) | Wave done 2026-10-20 00:32 UTC: all three PARTIAL after 3 rounds (WP-01 4, WP-04 5, WP-06 7 required changes). Residual-fix workflow (fixer, re-verifier, one more round) RUNNING; inputs in the scratchpad waves/B2-residual-args.json. Then close-out |
+| B2 | WP-01, WP-04, WP-06 | wf_786b1518-a8e (wave), wf_334c062a-d28 and wf_3801b69b-969 (residuals) | DONE 2026-10-20: all three ACCEPTED by the independent verifier (WP-01 and WP-06 after one residual round, WP-04 after two). Coordinator: local-driver test hand-off applied, FO-17-24 faultSource relabelled, sharp 0.35.5 and adm-zip 0.6.1 overrides (no high advisories left), fault-registry owner rule for VERIFIED_LOCAL rows. Ledger: 102 rows moved (MISSING 577, IMPLEMENTED 440, VERIFIED_LOCAL 153). Two container restarts during the residual run; resumed. |
 
 B1 close-out gates (2026-10-19, local, all PASS): check-runtime, check-deps, lint, typecheck, make test-unit
 (platform 3531/3531, console 107/107), contract/docs/journey projects, OPA policy tests, policy golden
@@ -118,7 +118,10 @@ ownership is finished and no package holds it):
   under onnxruntime-node, sharp under @livekit/agents and @huggingface/transformers) plus uuid and
   sprintf-js. Apply pnpm overrides to patched versions (sharp >= 0.35.5, adm-zip >= 0.6.1) between B2 and
   B3, re-run check-deps and the media smoke import, and record the result; if an override breaks the
-  media dependency set, hand it to WP-10/WP-17 with the failing evidence.
+  media dependency set, hand it to WP-10/WP-17 with the failing evidence. Done 2026-10-20 (B2 close-out): pnpm overrides
+  sharp 0.35.5 and adm-zip 0.6.1 (both published more than 7 days earlier); `pnpm audit` reports no high or
+  critical advisory (3 moderate: uuid, sprintf-js, no fixed sprintf-js release), check-deps passes, and
+  sharp loads and runs a native operation through @livekit/agents.
 * CI on 709125c failed one unit test that passed locally: the WP-02 registry test read
   `evidence/runs/**/results.jsonl`, which is gitignored local output (fixed in c344192: the test now
   generates the scorer's output over the committed corpus). The local gates now also run `make test-unit`
@@ -153,7 +156,7 @@ Open hand-offs from wave B2 (owners named; none is done by the package that rais
   so INCONCLUSIVE, not PASS).
 * WP-05: a public seam for PolicyEvaluationFault (it decorates the engine's private evaluator today).
 * Dependency set (phase C owner WP-17): @aws-sdk/client-kinesis and kafkajs plus compose services for the
-  WP-04 stream ingestion emulator runs; the `media` audit overrides (above).
+  WP-04 stream ingestion emulator runs.
 * Retention owner: register `inbound_raw_payloads` (INBOUND_RAW_REPLAY) under an approved duration (FO-07-22).
 * WP-39: TTL or delete-on-drain for drained independent-journal items in DynamoDB.
 * Plan edge: WP-04's substrate/support.ts and scripts/vsp/verify-audit.mts import WP-06's
