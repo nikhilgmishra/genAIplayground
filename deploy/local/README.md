@@ -14,7 +14,8 @@ each phase (`docs/followon/work-packages.yaml`).
 ```bash
 pnpm install --frozen-lockfile        # once; the runner and the tests use the workspace dependencies
 make up PROFILE=core                  # start the core services and wait for every health check
-make test-integration SUITE=_harness  # Layer-2 harness suite (platform/test/integration/_harness)
+make test-integration                 # every Layer-2 suite (platform/test/integration/*); what CI runs
+make test-integration SUITE=_harness  # one suite, here the harness (platform/test/integration/_harness)
 make ps                               # services, health, published ports
 make logs SERVICE=keycloak            # container logs
 make down                             # remove containers and networks; volumes are kept

@@ -101,6 +101,14 @@ Waves follow the dependency order in `docs/followon/work-packages.yaml`.
 |---|---|---|---|
 | B1 | WP-02, WP-03 (+ ledger fix job) | wf_5abdf51f-ed0 | DONE: both PARTIAL after 3 rounds; the coordinator fixed the residuals (WP-02 snapshot watermark rules, party-URI refs, byte-size args, hand-over notes; WP-03 Step Functions Local TaskSubmitted race, missing-emulation-summary exit, digest pointer). Ledger: 56 rows moved (MISSING 613, IMPLEMENTED 450, VERIFIED_LOCAL 107). Layer-2 `_harness` 72/72 three times; workflow file 20/20 |
 | B2 | WP-01, WP-04, WP-06 | wf_786b1518-a8e (wave), wf_334c062a-d28 and wf_3801b69b-969 (residuals) | DONE 2026-10-20: all three ACCEPTED by the independent verifier (WP-01 and WP-06 after one residual round, WP-04 after two). Coordinator: local-driver test hand-off applied, FO-17-24 faultSource relabelled, sharp 0.35.5 and adm-zip 0.6.1 overrides (no high advisories left), fault-registry owner rule for VERIFIED_LOCAL rows. Ledger: 102 rows moved (MISSING 577, IMPLEMENTED 440, VERIFIED_LOCAL 153). Two container restarts during the residual run; resumed. |
+| B3 | WP-05 | wf_2e7d9aef-a72 (wave script v2: two-lens verifier panel, acceptance and adversarial security/failure; a requirement keeps the lower verified status of the two) | RUNNING (started 2026-10-20 10:30 UTC) |
+
+B2 close-out (2026-10-20): every Layer-2 suite (_harness, substrate, ingress, connectors) 179/179 on two
+timed runs (206 s and 184 s) and once more from a clean worktree of the pushed commit; CI's integration job
+now runs every suite and fetches the pinned tools first (the substrate suite re-runs unit suites on
+postgres:16, which build the policy bundle with the pinned OPA binary; without them a fresh checkout fails
+`src/audit/monitor.test.ts` with POLICY_BUNDLE_NOT_LOADED). The coordinator's local gate run has the same
+two steps (all suites, then all suites from a clean worktree). CI on 1255c8d: success.
 
 B1 close-out gates (2026-10-19, local, all PASS): check-runtime, check-deps, lint, typecheck, make test-unit
 (platform 3531/3531, console 107/107), contract/docs/journey projects, OPA policy tests, policy golden

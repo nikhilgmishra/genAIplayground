@@ -166,11 +166,18 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
 
+      # The substrate suite re-runs the audit, ingress, outbox, KV and db unit suites on postgres:16
+      # (FO-15-33); like make test-unit they build the policy bundle with the pinned OPA binary.
+      - name: Fetch pinned tools (OPA, Terraform; SHA256 verified)
+        run: bash scripts/fetch-tools.sh
+
       - name: Start the core composition (digest-pinned images, 127.0.0.1 only, no billable endpoint)
         run: make up PROFILE=core
 
-      - name: Layer-2 harness suite (production adapters against the emulators)
-        run: make test-integration SUITE=_harness
+      # Every suite under platform/test/integration (harness, substrate, ingress, connectors and each
+      # later package's suite). About 4 minutes locally on 4 CPUs (two timed runs, 179 tests).
+      - name: Layer-2 suites (production adapters against the emulators)
+        run: make test-integration
 
       - name: Composition state on failure
         if: failure()
