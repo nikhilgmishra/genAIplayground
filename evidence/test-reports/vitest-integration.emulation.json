@@ -23,8 +23,8 @@
         "protocol": "DynamoDB JSON 1.0 over HTTP (AWS SDK v3)",
         "notEmulated": "throttling and capacity limits, IAM conditions, point-in-time recovery, global tables, TTL deletion timing"
       },
-      "tests": 35,
-      "passed": 35,
+      "tests": 99,
+      "passed": 99,
       "failed": 0
     },
     {
@@ -35,8 +35,8 @@
         "protocol": "SQS JSON and query protocols (AWS SDK v3)",
         "notEmulated": "IAM and queue policies, SSE-KMS, account isolation (the queue URL host and account id are ignored), quotas and throughput limits"
       },
-      "tests": 34,
-      "passed": 34,
+      "tests": 98,
+      "passed": 98,
       "failed": 0
     },
     {
@@ -47,8 +47,8 @@
         "protocol": "OpenID Connect 1.0 / OAuth 2.0 over HTTPS (certificate from the checkout's local CA)",
         "notEmulated": "the tenant IdPs' real claims, amr/acr values, MFA and conditional-access policies, key rotation cadence, federation"
       },
-      "tests": 37,
-      "passed": 37,
+      "tests": 49,
+      "passed": 49,
       "failed": 0
     },
     {
@@ -83,8 +83,8 @@
         "protocol": "AWS JSON and query protocols (AWS SDK v3)",
         "notEmulated": "IAM and key policies, key custody (keys live in emulator memory), rotation schedules, real email/SMS delivery, sending quotas and reputation"
       },
-      "tests": 63,
-      "passed": 63,
+      "tests": 127,
+      "passed": 127,
       "failed": 0
     },
     {
@@ -119,8 +119,8 @@
         "protocol": "PostgreSQL wire protocol v3 (node-postgres pool, PgPoolDb)",
         "notEmulated": "Aurora failover and replication lag, IAM database authentication, storage durability, parameter groups"
       },
-      "tests": 129,
-      "passed": 129,
+      "tests": 197,
+      "passed": 197,
       "failed": 0
     },
     {
@@ -911,6 +911,958 @@
       "emulated": [
         "stepfunctions",
         "elasticmq"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][OPS-04] positive: an approval record signed with KMS Sign verifies against the KMS public key and satisfies the required scope; a record edited after signing does not count",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][AUTH-02] adversarial: a record signed with a foreign KMS key is refused (APPROVAL_MISSING, SIGNATURE_INVALID)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][OPS-04] adversarial: an ENCRYPT_DECRYPT key is never a trust anchor (KeyUsage checked on GetPublicKey); the environment is refused",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][FO-14-53] adversarial: a local PEM key in the sandbox profile is refused even when the record verifies against it (APPROVAL_TRUST_KEY_REF_NOT_KMS)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][OPS-01] failure injection: the anchor key pending deletion in KMS (GetPublicKey refused) fails closed: no approval counts and the environment is refused",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][AUTH-02] adversarial: the trust anchor equal to the runtime assertion key refuses the environment (APPROVAL_TRUST_KEY_IS_ASSERTION_KEY), and a SECURITY_REVIEW record minted through the runtime's KmsAssertionSigner is never VALID",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][AUTH-02] control: with a separate anchor the gateway starts and the runtime-minted record is SIGNATURE_INVALID (never VALID); requiring its scope refuses the environment",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][AUTH-02] adversarial: the trust anchor equal to the runtime assertion key of ANOTHER committed environment configuration refuses the environment",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [AUTH-02][OPS-01] adversarial: the audit manifest key equal to the assertion key (by its bare key id), the trust anchor among the trusted manifest keys, and the console sealer equal to the request-hash pepper each refuse the environment",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [AUTH-02][DATA-01] adversarial: every secret serves one purpose: the console sealer equal to the runtime database login (also by its partial ARN) or to the audit exporter login, and the request-hash pepper equal to the database login, each refuse the environment",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][AUTH-02] adversarial (reverse direction): a sandbox runtime whose assertion key (through the allowlisted override) is the approval trust anchor of the committed staging configuration is refused; that runtime's signer could mint a staging approval that verifies",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [AUTH-02][FO-14-56] adversarial: a signing key or a secret shared with another committed environment configuration refuses the environment",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][AUTH-02] adversarial: a trust anchor that is ANOTHER key id holding the assertion key's imported key material is refused by key material, and the runtime-minted record is never VALID",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][AUTH-02] adversarial: an audit manifest key named by its BARE key id that holds the assertion key's imported key material is refused by material (GetPublicKey by bare id), as is its key ARN form",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][AUTH-02] adversarial: the trust anchor holding the imported key material of an audit manifest key named by its BARE key id is refused; an approval minted with the manifest key (it verifies under the anchor) is never VALID",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][OPS-01] failure injection: GetPublicKey refused on an audit manifest key (pending deletion) while the anchor resolves refuses the environment (RUNTIME_SIGNING_KEY_UNRESOLVED, never only logged) and the anchor is not used",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/approval-trust.test.ts",
+      "name": "approval trust anchor: KMS GetPublicKey over LocalStack [FO-14-56] > [FO-14-56][AUTH-02] adversarial: the anchor naming the assertion key by a replica ARN in another region (its public key not fetchable here) is still refused, by reference",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/boot.test.ts",
+      "name": "live composition in the sandbox profile [FO-19-06][FO-16-11] > [FO-19-06][FO-16-11][FO-21-03][OPS-04] positive: the sandbox gateway starts from real adapters; /health/ready is 200 and lists every capability with its state",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/boot.test.ts",
+      "name": "live composition in the sandbox profile [FO-19-06][FO-16-11] > [FO-00-30][FO-21-10][OPS-04] positive: the worker composes its live loops over the same container (outbox to SQS, durable deferred audit, route reconciler)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/boot.test.ts",
+      "name": "live composition in the sandbox profile [FO-19-06][FO-16-11] > [FO-00-26][FO-19-06][DATA-01] registry scan: every adapter port of the live registry is either live or a guard port that refuses with CAPABILITY_NOT_CONFIGURED; none answers with canned data",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/boot.test.ts",
+      "name": "live composition in the sandbox profile [FO-19-06][FO-16-11] > [FO-21-10][FO-00-26][OPS-01] runtime scan of EVERY injected port (business ports, verification, caller id-token verifier, interaction lookup, call-session resolver and its integration identity, quarantine, consent, account state): each is a reviewed live class or a guard port that refuses, counts and pages",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/boot.test.ts",
+      "name": "live composition in the sandbox profile [FO-19-06][FO-16-11] > [FO-00-30][OPS-04] positive: a missing tenant input disables only its capability: without the connector profile connectors.runtime turns NOT_CONFIGURED with its reason, every other capability keeps its state and reasons, and the gateway still starts (readiness 200); without the OTP pepper only identity.caller's entry changes",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/boot.test.ts",
+      "name": "live composition in the sandbox profile [FO-19-06][FO-16-11] > [FO-00-30] ingress.events reports missing code as a software gap, apart from its one tenant input: with every input supplied it stays NOT_CONFIGURED with the gap and no reason; an ingress.sourceDirectory key is refused by the strict schema (a key nothing reads never stands in for the code)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/boot.test.ts",
+      "name": "live composition in the sandbox profile [FO-19-06][FO-16-11] > [OPS-04][FO-19-06] adversarial: missing mandatory substrate refuses the whole environment before anything is served (no outbox queue, no journal table, memory sessions, PGlite)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/boot.test.ts",
+      "name": "live composition in the sandbox profile [FO-19-06][FO-16-11] > [OPS-04][FO-16-11] failure injection: a database whose schema is behind the code refuses the unit (SCHEMA_MIGRATIONS_PENDING) and nothing is listening",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/boot.test.ts",
+      "name": "live composition in the sandbox profile [FO-19-06][FO-16-11] > [FO-16-11][OPS-01] failure injection: a session store whose table is gone fails closed at use (the live DynamoDB store, not a memory fallback)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/console.test.ts",
+      "name": "live console over the live container [FO-21-03] > [FO-21-03][FO-03-49][OPS-04] positive: the console boots in the sandbox profile; auth/config is served from the IdP's own discovery (SSO mode, no local fixture)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/console.test.ts",
+      "name": "live console over the live container [FO-21-03] > [FO-21-03][AUTH-02] positive: a staff member signs in with the backend PKCE exchange; /me answers with the IdP-granted role, verified against the remote JWKS fetched through the transport",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/console.test.ts",
+      "name": "live console over the live container [FO-21-03] > [SAFE-HANDOFF-05][SAFE-03][FO-21-03][OPS-01] adversarial: without telephony control (the live console) a staff SAFETY escalation still revokes the call's pending mutations and records the safety event; only the dial is refused (telephony guard port) and the response says so; a plain transfer is refused before anything happens",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/console.test.ts",
+      "name": "live console over the live container [FO-21-03] > [FO-14-53][FO-03-49][AUTH-02] adversarial: local sign-in is not registered, and fixture-style or self-signed staff tokens are refused (401)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/console.test.ts",
+      "name": "live console over the live container [FO-21-03] > [FO-21-03][OPS-01] adversarial: the sign-in prefix is rate limited per source address; other endpoints are not counted",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/console.test.ts",
+      "name": "live console over the live container [FO-21-03] > [FO-21-03][OPS-01][STRIDE-D] adversarial: a percent-encoded path is the same route and the same budget (%61uth, %63onsole, %2F); a spoofed X-Forwarded-For from a direct client changes nothing",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/console.test.ts",
+      "name": "live console over the live container [FO-21-03] > [FO-21-03][OPS-01][STRIDE-D] behind the load balancer: only a trusted proxy peer names the client; each client keeps its own budget, so one anonymous client cannot lock every operator out",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/console.test.ts",
+      "name": "live console over the live container [FO-21-03] > [FO-21-03][OPS-01] failure injection: with the IdP unreachable the console still starts, shows sign-in as unavailable and every sign-in fails closed",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/console.test.ts",
+      "name": "live console over the live container [FO-21-03] > [FO-21-03][OPS-04] adversarial: without its session sealer key the console refuses to start (operator.console NOT_CONFIGURED), while the gateway still starts",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/faults.test.ts",
+      "name": "[FAULT:AUTH_EXPIRY_MID_CALL] session expiry between a session-bound call and the commit, in the composed live gateway > [FAULT:AUTH_EXPIRY_MID_CALL][FO-17-24.AUTH_EXPIRY_MID_CALL][AUTH-02][OPS-04] the commit after expiry fails closed at the session step (before admission and any provider) while the DynamoDB session row still exists",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/faults.test.ts",
+      "name": "[FAULT:DLQ_FULL] the live worker's connector feed with its dead-letter queue unwritable > [FAULT:DLQ_FULL][FO-17-24.DLQ_FULL][OPS-01][DATA-01] consumption stops, the paging alarm fires and the source checkpoint is kept; nothing is dropped and the feed resumes from the checkpoint once the queue accepts",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/faults.test.ts",
+      "name": "[FAULT:DLQ_FULL] the live worker's connector feed with its dead-letter queue unwritable > [FO-17-24.DLQ_FULL][OPS-01] control: with a writable dead-letter queue the keyless record is dead-lettered and the checkpoint advances in the same run",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/inbound-auth.test.ts",
+      "name": "live gateway inbound authentication over the transport [FO-14-53][AUTH-01] > [AUTH-01][FO-19-06] positive: a client-credentials token of the configured audience and scope is accepted; the JWKS was fetched by the gateway through the transport",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/inbound-auth.test.ts",
+      "name": "live gateway inbound authentication over the transport [FO-14-53][AUTH-01] > [AUTH-01][AUTH-02] adversarial: another audience, a forged key, a missing credential and a tenant claim are refused (401)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/inbound-auth.test.ts",
+      "name": "live gateway inbound authentication over the transport [FO-14-53][AUTH-01] > [AUTH-01][OPS-01] failure injection: with the issuer unreachable and the key cache cold, a valid token is refused (fail closed), never accepted",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack",
+        "keycloak"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/no-dev-bypass.test.ts",
+      "name": "no development bypass in the live composition [FO-14-53] > [FO-14-53][AUTH-02] adversarial: every LOCAL FIXTURE integration token is refused (401) on the catalogue, the tool route and MCP",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/no-dev-bypass.test.ts",
+      "name": "no development bypass in the live composition [FO-14-53] > [FO-14-53][OPS-04] adversarial: the development signing key and local key references are refused by the guard in the sandbox profile",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/no-dev-bypass.test.ts",
+      "name": "no development bypass in the live composition [FO-14-53] > [FO-14-53] adversarial: endpoint overrides only name emulator hosts in sandbox; staging refuses every override, path-style S3 and the network resolver",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/no-dev-bypass.test.ts",
+      "name": "no development bypass in the live composition [FO-14-53] > [FO-14-53][OPS-04] adversarial: a non-emulator override receives ZERO requests (refused before any client exists); control: an emulator-host override does receive the signed GetPublicKey",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/no-dev-bypass.test.ts",
+      "name": "no development bypass in the live composition [FO-14-53] > [AUTH-02][FO-19-06] adversarial: a connector profile that reuses an adapter's credential reference, or another committed environment's, refuses the environment",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/no-dev-bypass.test.ts",
+      "name": "no development bypass in the live composition [FO-14-53] > [FO-14-53][DATA-01] positive: assertions are signed by the configured KMS key (published key from KMS GetPublicKey), never by a development key",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/no-dev-bypass.test.ts",
+      "name": "no development bypass in the live composition [FO-14-53] > [FO-14-53][OPS-01] failure injection: with the assertion key unusable in KMS (pending deletion) the signer fails closed (no fallback key)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/routing.test.ts",
+      "name": "routing tools over the NOT_CONFIGURED telephony guard port [FO-21-10][SAFE-04] > [FO-21-10][SAFE-02][SAFE-03][SAFE-04][OPS-01] adversarial: with every dial refused, request_safety_route and request_human_transfer report ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE with no transfer id; the safety evidence is still recorded and the guard port pages",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/secret-separation.test.ts",
+      "name": "connector profile credentials are secrets of this environment [AUTH-02][FT-91] > [AUTH-02][DATA-01] adversarial: the console session sealer equal to a connector profile's read credential refuses the gateway, the worker and the console (SECRET_REUSED_ACROSS_PURPOSES at the profile position)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/secret-separation.test.ts",
+      "name": "connector profile credentials are secrets of this environment [AUTH-02][FT-91] > [AUTH-02][DATA-01] adversarial: the request-hash pepper equal to a connector profile's WRITE credential (also by its partial ARN) refuses the environment",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/secret-separation.test.ts",
+      "name": "connector credentials compare by identity, not by spelling [AUTH-02][FT-91] > [AUTH-02] fidelity: LocalStack Secrets Manager resolves the full and the partial ARN of a secret to the same secret",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/secret-separation.test.ts",
+      "name": "connector credentials compare by identity, not by spelling [AUTH-02][FT-91] > [AUTH-02] adversarial: one secret named by its full ARN in one adapter and by its partial ARN in another refuses the environment (CREDENTIAL_REUSED_ACROSS_CONNECTORS); separate secrets boot",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/secret-separation.test.ts",
+      "name": "connector credentials compare by identity, not by spelling [AUTH-02][FT-91] > [AUTH-02] adversarial: a connector profile credential (full ARN) and an adapter credential (partial ARN of the same secret) refuse the environment once, by the connector rule",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/secret-separation.test.ts",
+      "name": "connector credentials compare by identity, not by spelling [AUTH-02][FT-91] > [AUTH-02] adversarial: this environment's adapter or profile credential and a committed other environment's adapter credential naming the same secret by another spelling refuse the environment (CREDENTIAL_REUSED_ACROSS_ENVIRONMENTS)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/telemetry.test.ts",
+      "name": "OpenTelemetry export to a real collector [FO-03-30] > [FO-03-30][DATA-01] positive: catalogue metrics with the service identity reach the collector over OTLP/HTTP and TLS; content never does",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/telemetry.test.ts",
+      "name": "OpenTelemetry export to a real collector [FO-03-30] > [FO-03-30][DATA-01][OPS-04] adversarial: an OTLP endpoint that is not allowlisted, or allowlisted as a non-telemetry destination, refuses the environment",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/telemetry.test.ts",
+      "name": "OpenTelemetry export to a real collector [FO-03-30] > [FO-03-30][DATA-01] adversarial: spans reach the collector with registered names and allowlisted attributes only; content in a span name, attribute, event, status message or link (raw tracer, no SafeTracer) never does",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/telemetry.test.ts",
+      "name": "OpenTelemetry export to a real collector [FO-03-30] > [FO-03-30][OPS-01] failure injection: with the collector stopped, exports fail and are counted; the gateway keeps serving",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/transfer-store.test.ts",
+      "name": "PgTransferStore on PostgreSQL 16 [FO-19-06][SAFE-04] > [FO-19-06] insert, read back, list; a second insert of the same handoff is TRANSFER_VERSION_CONFLICT",
+      "state": "passed",
+      "emulated": [
+        "postgres"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/transfer-store.test.ts",
+      "name": "PgTransferStore on PostgreSQL 16 [FO-19-06][SAFE-04] > [SAFE-04][FO-19-06] compare-and-set: of two concurrent writers of version 1 exactly one advances the journey; the stale writer is refused, never overwrites",
+      "state": "passed",
+      "emulated": [
+        "postgres"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/transfer-store.test.ts",
+      "name": "PgTransferStore on PostgreSQL 16 [FO-19-06][SAFE-04] > [SAFE-04] the trigger refuses a version step other than +1, a key change, a delete and a truncate, even for a writer that bypasses the store",
+      "state": "passed",
+      "emulated": [
+        "postgres"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/transfer-store.test.ts",
+      "name": "PgTransferStore on PostgreSQL 16 [FO-19-06][SAFE-04] > [AUTH-02][FO-03-49] RLS per role: another tenant's journeys are invisible to runtime, worker and console; the console reads its own but cannot write (store or SQL)",
+      "state": "passed",
+      "emulated": [
+        "postgres"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/worker.test.ts",
+      "name": "live outbox consumer on ElasticMQ [FO-21-10][OPS-01] > [FO-16-11][ACT-02] positive: a consumed message is deleted after its effect; a redelivered duplicate is deleted without being applied again",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/worker.test.ts",
+      "name": "live outbox consumer on ElasticMQ [FO-21-10][OPS-01] > [OPS-01][FO-21-10] failure injection: a failing handler, an invalid envelope and a message without a consumer stay on the queue; the run fails, the failures are counted and the alarm fires",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/worker.test.ts",
+      "name": "live outbox consumer on ElasticMQ [FO-21-10][OPS-01] > [OPS-01][AUTH-02] failure injection: only unconsumable envelopes (malformed, or of a tenant this worker does not serve) fail the run as OUTBOX_UNCONSUMABLE (never reported as a success)",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/worker.test.ts",
+      "name": "live outbox consumer on ElasticMQ [FO-21-10][OPS-01] > [OPS-01][FO-21-10] failure injection: an outbox queue that does not exist refuses every publish; outbox.dispatch fails, is counted and alarmed, readiness turns 503 after three runs; once the queue exists the message is published",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/composition/worker.test.ts",
+      "name": "live outbox consumer on ElasticMQ [FO-21-10][OPS-01] > [OPS-01] readiness: three consecutive failing consume runs turn the worker's /health/ready to 503 with the loop's reason; a healthy run turns it back",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "dynamodb",
+        "elasticmq",
+        "localstack"
       ],
       "noEmulatorReason": null,
       "realLocal": [],
@@ -1753,6 +2705,219 @@
       "unavailableServices": []
     },
     {
+      "file": "test/integration/ingress/crash.test.ts",
+      "name": "ingress replica killed in the middle of an accept > [FO-07-17][FO-07-18][ACT-02][OPS-01] crash after the inbox commit, before the response: no acknowledgement reaches the sender, the event is durable, and its redelivery to another replica is a recorded duplicate",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/crash.test.ts",
+      "name": "ingress replica killed in the middle of an accept > [FO-07-17][ACT-02][OPS-01] crash after the insert, before the commit: the transaction is rolled back (no row, no audit event), nothing is acknowledged, and the redelivery is accepted once",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/http.test.ts",
+      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-07-16][FO-07-17][FO-07-19][OPS-01] a signed event is authenticated, sealed with a KMS data key and audited before the 200; a bad signature is refused and stores nothing; an identical replayed request is a recorded duplicate",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack",
+        "elasticmq"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/http.test.ts",
+      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-07-17][OPS-01] persist before acknowledge: while the inbox cannot be written the sender gets 503 and nothing is acknowledged; its retry is accepted once",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack",
+        "elasticmq"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/http.test.ts",
+      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-06-98][FO-15-50][AUTH-04] rotation through Secrets Manager without a restart: old and new keys both verify inside the overlap window only; a pending key only when accepted; the verifying version is recorded",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack",
+        "elasticmq"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/http.test.ts",
+      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-06-98][FO-15-50][AUTH-04] a next key staged as AWSPENDING long before its promotion: the old key verifies for the full overlap counted from the PROMOTION (UpdateSecretVersionStage), at every replica and after a restart, and is refused after it",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack",
+        "elasticmq"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/http.test.ts",
+      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-07-18][FO-15-50][FAULT:DUPLICATE_WEBHOOK][ACT-02] redeliveries reach the inbox whichever replica receives them: a body-signed webhook redelivered byte for byte to a second replica is a recorded duplicate (200); a bearer token reused over other bytes at another replica is refused by the durable replay cache; a token outside its lifetime bound is refused",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack",
+        "elasticmq"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/http.test.ts",
+      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-07-16][AUTH-04] mTLS on the socket: a CA-verified client certificate whose fingerprint is pinned in Secrets Manager is accepted; an unpinned certificate of the same CA and a foreign certificate are refused",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack",
+        "elasticmq"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/http.test.ts",
+      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FAULT:DUPLICATE_WEBHOOK][FO-07-18][ACT-02] deterministic race: two replicas' accepts of one event are held at the same point inside the transaction; the per-event accept lock serializes them, so both answer 200 (accepted, then a recorded duplicate), one row, never a 503",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack",
+        "elasticmq"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/http.test.ts",
+      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FAULT:DUPLICATE_WEBHOOK][FO-07-18][ACT-02] ten concurrent redeliveries of one event id and an SQS redelivery of the outbox message it produced: one row, one effect, every duplicate recorded",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack",
+        "elasticmq"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/livekit-webhook.test.ts",
+      "name": "LiveKit's own webhooks over real HTTP into the authenticated inbox > [FO-15-50][FO-07-16][FO-07-17][FO-07-19][AUTH-04] livekit-server's signed room webhooks (HS256 JWT binding the body's SHA-256, LiveKit's documented mechanism) verify against the API secret version in Secrets Manager, are sealed, audited and processed; deliveries signed with a key the source does not hold are refused before anything is stored",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack",
+        "livekit"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/processing.test.ts",
+      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-06-97][OPS-03] a poison event is retried with backoff, then INBOUND_DEAD after its bounded attempts, with an alarm; it is never claimed before its backoff",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/processing.test.ts",
+      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-06-97][OPS-01] operator replay: refused without its audit write and without fresh MFA (nothing changes); with both, the event re-runs and is processed once",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/processing.test.ts",
+      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-07-18][FO-16-41][ACT-02] two processors on two pools: thirty events, each handled exactly once",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/processing.test.ts",
+      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-16-41][FO-10-43][ACT-02] a processor stalled past its lease loses the event to another processor; its late attempt is fenced by the claim token and applies nothing",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/processing.test.ts",
+      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-07-20][ACT-02] source-version ordering: versions delivered 3, 1, 2 with a delayed clock and a duplicate leave version 3 projected; the late older versions run no handler",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
+      "file": "test/integration/ingress/processing.test.ts",
+      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-07-21][FO-07-22][DATA-03][OPS-03] an unknown schema is quarantined at acceptance and never processed; raw payloads are restricted columns and are purged at retention, keeping the digest, except while a legal hold applies",
+      "state": "passed",
+      "emulated": [
+        "postgres",
+        "localstack"
+      ],
+      "noEmulatorReason": null,
+      "realLocal": [],
+      "unavailableServices": []
+    },
+    {
       "file": "test/integration/substrate/audit-export.test.ts",
       "name": "independent audit export: exporter, signed manifests, separate verifier, verify-audit > [FO-01-13][FO-15-37][FO-15-38][FO-22-08][OPS-01] the exporter ships Object-Lock objects with signed manifests; the separate verifier (read-only DB role, sink reader, public key only) returns PASS",
       "state": "passed",
@@ -2465,219 +3630,6 @@
       "emulated": [
         "postgres",
         "elasticmq"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/crash.test.ts",
-      "name": "ingress replica killed in the middle of an accept > [FO-07-17][FO-07-18][ACT-02][OPS-01] crash after the inbox commit, before the response: no acknowledgement reaches the sender, the event is durable, and its redelivery to another replica is a recorded duplicate",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/crash.test.ts",
-      "name": "ingress replica killed in the middle of an accept > [FO-07-17][ACT-02][OPS-01] crash after the insert, before the commit: the transaction is rolled back (no row, no audit event), nothing is acknowledged, and the redelivery is accepted once",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/http.test.ts",
-      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-07-16][FO-07-17][FO-07-19][OPS-01] a signed event is authenticated, sealed with a KMS data key and audited before the 200; a bad signature is refused and stores nothing; an identical replayed request is a recorded duplicate",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack",
-        "elasticmq"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/http.test.ts",
-      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-07-17][OPS-01] persist before acknowledge: while the inbox cannot be written the sender gets 503 and nothing is acknowledged; its retry is accepted once",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack",
-        "elasticmq"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/http.test.ts",
-      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-06-98][FO-15-50][AUTH-04] rotation through Secrets Manager without a restart: old and new keys both verify inside the overlap window only; a pending key only when accepted; the verifying version is recorded",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack",
-        "elasticmq"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/http.test.ts",
-      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-06-98][FO-15-50][AUTH-04] a next key staged as AWSPENDING long before its promotion: the old key verifies for the full overlap counted from the PROMOTION (UpdateSecretVersionStage), at every replica and after a restart, and is refused after it",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack",
-        "elasticmq"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/http.test.ts",
-      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-07-18][FO-15-50][FAULT:DUPLICATE_WEBHOOK][ACT-02] redeliveries reach the inbox whichever replica receives them: a body-signed webhook redelivered byte for byte to a second replica is a recorded duplicate (200); a bearer token reused over other bytes at another replica is refused by the durable replay cache; a token outside its lifetime bound is refused",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack",
-        "elasticmq"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/http.test.ts",
-      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FO-07-16][AUTH-04] mTLS on the socket: a CA-verified client certificate whose fingerprint is pinned in Secrets Manager is accepted; an unpinned certificate of the same CA and a foreign certificate are refused",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack",
-        "elasticmq"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/http.test.ts",
-      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FAULT:DUPLICATE_WEBHOOK][FO-07-18][ACT-02] deterministic race: two replicas' accepts of one event are held at the same point inside the transaction; the per-event accept lock serializes them, so both answer 200 (accepted, then a recorded duplicate), one row, never a 503",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack",
-        "elasticmq"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/http.test.ts",
-      "name": "inbound inbox over HTTP/TLS with KMS and Secrets Manager > [FAULT:DUPLICATE_WEBHOOK][FO-07-18][ACT-02] ten concurrent redeliveries of one event id and an SQS redelivery of the outbox message it produced: one row, one effect, every duplicate recorded",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack",
-        "elasticmq"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/livekit-webhook.test.ts",
-      "name": "LiveKit's own webhooks over real HTTP into the authenticated inbox > [FO-15-50][FO-07-16][FO-07-17][FO-07-19][AUTH-04] livekit-server's signed room webhooks (HS256 JWT binding the body's SHA-256, LiveKit's documented mechanism) verify against the API secret version in Secrets Manager, are sealed, audited and processed; deliveries signed with a key the source does not hold are refused before anything is stored",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack",
-        "livekit"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/processing.test.ts",
-      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-06-97][OPS-03] a poison event is retried with backoff, then INBOUND_DEAD after its bounded attempts, with an alarm; it is never claimed before its backoff",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/processing.test.ts",
-      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-06-97][OPS-01] operator replay: refused without its audit write and without fresh MFA (nothing changes); with both, the event re-runs and is processed once",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/processing.test.ts",
-      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-07-18][FO-16-41][ACT-02] two processors on two pools: thirty events, each handled exactly once",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/processing.test.ts",
-      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-16-41][FO-10-43][ACT-02] a processor stalled past its lease loses the event to another processor; its late attempt is fenced by the claim token and applies nothing",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/processing.test.ts",
-      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-07-20][ACT-02] source-version ordering: versions delivered 3, 1, 2 with a delayed clock and a duplicate leave version 3 projected; the late older versions run no handler",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack"
-      ],
-      "noEmulatorReason": null,
-      "realLocal": [],
-      "unavailableServices": []
-    },
-    {
-      "file": "test/integration/ingress/processing.test.ts",
-      "name": "inbox processing on postgres:16 with KMS-sealed payloads > [FO-07-21][FO-07-22][DATA-03][OPS-03] an unknown schema is quarantined at acceptance and never processed; raw payloads are restricted columns and are purged at retention, keeping the digest, except while a legal hold applies",
-      "state": "passed",
-      "emulated": [
-        "postgres",
-        "localstack"
       ],
       "noEmulatorReason": null,
       "realLocal": [],

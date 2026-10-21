@@ -2,7 +2,7 @@
   "traceabilityVersion": "traceability.v2",
   "catalogVersion": "2026-10-19.1",
   "catalogDigest": "07907c3c9d6fb15a475ebe4b890100dcf76133473282a70ac12e90632160eb76",
-  "generatedAt": "2026-10-21T03:58:31.272Z",
+  "generatedAt": "2026-10-21T20:34:52.879Z",
   "resultSources": [
     "evidence/test-reports/vitest-platform.json",
     "evidence/test-reports/vitest-console.json",
@@ -13,8 +13,8 @@
   ],
   "followOnSources": {
     "requirements": "14a34ba86065ba71415eb11e03d9dfe1fed9aa534328cb02f5595defef6c38a6",
-    "gapLedger": "c9e935f9477b2b32e5cdd344de8178464baf31c6508a16ee0b3673c677ed06e1",
-    "capabilities": "1597d3cadcb148ae051fa1e7d4728b53dcb9038c81d4f6830e78937c2e268dd3",
+    "gapLedger": "b7b52f0440cc60a34651a6cceff8d54577d1581854b0a70b886a2191b6352e3b",
+    "capabilities": "7085d1a9cf9f12ba167fe2354543259674a047ac01f3cf0ab7db3634005ec3d5",
     "activationRegister": "fe1ffb59b6a70d3edcf80fadc7c15146109bcb3afc3b743700a229e5d1068ef6",
     "asOf": "2026-10-19"
   },
@@ -52,6 +52,63 @@
           "kind": "it",
           "tags": [
             "FO-05-09",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/transport-jwks.test.ts",
+          "line": 44,
+          "title": "transportJwksResolver [FO-14-53][AUTH-01]",
+          "kind": "describe",
+          "tags": [
+            "FO-14-53",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/transport-jwks.test.ts",
+          "line": 45,
+          "title": "[AUTH-01] positive: verifies a token with the published key, fetched once through the transport and cached for the TTL",
+          "kind": "it",
+          "tags": [
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/transport-jwks.test.ts",
+          "line": 59,
+          "title": "[AUTH-01][DATA-01] adversarial: a key set that publishes PRIVATE key members is refused (JWKS_PRIVATE_KEY_PUBLISHED), never used",
+          "kind": "it",
+          "tags": [
+            "AUTH-01",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/transport-jwks.test.ts",
+          "line": 75,
+          "title": "[AUTH-01] adversarial: an empty, malformed or encryption-only key set fails closed (JWKS_UNAVAILABLE); an unreachable IdP is JWKS_UNAVAILABLE, not acceptance",
+          "kind": "it",
+          "tags": [
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/transport-jwks.test.ts",
+          "line": 88,
+          "title": "[AUTH-01] rotation: an unknown kid refetches once, then the cooldown spaces further refetches (no refetch storm)",
+          "kind": "it",
+          "tags": [
             "AUTH-01"
           ],
           "status": "passed",
@@ -297,6 +354,54 @@
           "viaAlias": null
         },
         {
+          "file": "platform/test/integration/composition/inbound-auth.test.ts",
+          "line": 109,
+          "title": "live gateway inbound authentication over the transport [FO-14-53][AUTH-01]",
+          "kind": "describe",
+          "tags": [
+            "FO-14-53",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/inbound-auth.test.ts",
+          "line": 110,
+          "title": "[AUTH-01][FO-19-06] positive: a client-credentials token of the configured audience and scope is accepted; the JWKS was fetched by the gateway through the transport",
+          "kind": "it",
+          "tags": [
+            "AUTH-01",
+            "FO-19-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/inbound-auth.test.ts",
+          "line": 124,
+          "title": "[AUTH-01][AUTH-02] adversarial: another audience, a forged key, a missing credential and a tenant claim are refused (401)",
+          "kind": "it",
+          "tags": [
+            "AUTH-01",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/inbound-auth.test.ts",
+          "line": 140,
+          "title": "[AUTH-01][OPS-01] failure injection: with the issuer unreachable and the key cache cold, a valid token is refused (fail closed), never accepted",
+          "kind": "it",
+          "tags": [
+            "AUTH-01",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/test/integration/identity/caller-identity.test.ts",
           "line": 248,
           "title": "[FO-05-04][AUTH-01] a password-only real IdP login (amr [pwd], the account's own subject) cannot complete the secure link: MFA_REQUIRED, nothing bound, the transaction closed",
@@ -411,7 +516,7 @@
         }
       ],
       "counts": {
-        "passed": 31,
+        "passed": 40,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -498,6 +603,29 @@
           "file": "platform/src/actions/action-service.test.ts",
           "line": 516,
           "title": "[AUTH-02] a different session (even same tenant) cannot commit another session's action",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/not-configured.test.ts",
+          "line": 82,
+          "title": "PgTransferStore read-only console role [FO-03-49][AUTH-02]",
+          "kind": "describe",
+          "tags": [
+            "FO-03-49",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/not-configured.test.ts",
+          "line": 83,
+          "title": "[AUTH-02] under app_console the store refuses every write before any statement (least privilege of the console unit)",
           "kind": "it",
           "tags": [
             "AUTH-02"
@@ -657,6 +785,359 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 766,
+          "title": "[AUTH-02][OPS-04] the audit exporter and verifier run under identities separate from the runtime and from each other",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 815,
+          "title": "[AUTH-02] connector credential reuse refuses the environment (separation failure, not a missing input)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 909,
+          "title": "[FO-14-56][AUTH-02] control: the hypothetical production configuration keeps every key and secret apart and passes",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 917,
+          "title": "[FO-14-56][AUTH-02] adversarial: the approval trust anchor equal to the runtime assertion key refuses the environment, and no approval verifies (a record the runtime could mint is never VALID)",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 935,
+          "title": "[FO-14-56][AUTH-02] adversarial: the trust anchor equal to the audit manifest signing key or to any trusted manifest key (ARN or bare key id, any case) refuses the environment",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 951,
+          "title": "[AUTH-02][OPS-01] adversarial: an audit manifest key equal to the runtime assertion key refuses the environment (the runtime could forge export manifests)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 968,
+          "title": "[AUTH-02][DATA-01] adversarial: the console session sealer, the request-hash pepper and the OTP pepper are three different secrets (a full ARN matches the partial ARN of the same secret)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 994,
+          "title": "[FO-14-56][AUTH-02] adversarial: the trust anchor equal to a runtime signing key of ANOTHER committed environment configuration refuses the environment",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1010,
+          "title": "[FO-14-56][AUTH-02] signing keys are referenced by key, never by alias (which key an alias names is not visible in configuration)",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1043,
+          "title": "[AUTH-02][DATA-01] adversarial: every secret serves one purpose: the sealer or a pepper equal to the database login, the exporter or verifier login, or an adapter credential (and an adapter credential equal to the database login) each refuse the environment",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1069,
+          "title": "[AUTH-02] pairs another rule reports are left to it: two adapter credentials (connector credential rule, which compares this environment's configured adapters even without supplied sets) and the database logins (AUDIT_EXPORT_IDENTITY_SHARED, compared by secret identity)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1091,
+          "title": "[FO-14-56][AUTH-02] adversarial (reverse direction): this environment's assertion key or audit manifest key equal to ANOTHER environment's approval trust anchor refuses the environment; its own anchor stays usable",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1110,
+          "title": "[FO-14-56][AUTH-02] adversarial: a signing key (assertion, manifest signing or trusted manifest key) shared with another committed environment refuses the environment",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1118,
+          "title": "[AUTH-02][DATA-01] adversarial: a secret shared with another committed environment refuses the environment (adapter credentials between environments are the connector rule's whenever it sees that environment, compared here otherwise)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1138,
+          "title": "[FO-14-56][AUTH-02] control: the hypothetical production configuration against every committed environment configuration (their keys, anchors and secrets) passes",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1155,
+          "title": "[FO-14-56][AUTH-02] adversarial: the trust anchor holding the SAME key material as the assertion key or a manifest key (another key id, imported material) refuses the environment, and no approval verifies",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1194,
+          "title": "[AUTH-02][DATA-01][FT-91] adversarial: a connector profile credential of this environment (the default, a READ or a WRITE capability credential) equal to the console sealer, a pepper or the database login refuses the environment at the profile position",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01",
+            "FT-91"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1225,
+          "title": "[AUTH-02][FT-91] adversarial: connector credentials are compared by IDENTITY, not by spelling: a full and a partial Secrets Manager ARN of one secret in two adapters, in a profile and an adapter, and in this and another environment's adapters each refuse the environment (connector credential rule)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "FT-91"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1259,
+          "title": "[FO-14-56][AUTH-02] fail closed: when the composition resolved the runtime signing keys, a configured signing key it could not resolve refuses the environment (RUNTIME_SIGNING_KEY_UNRESOLVED) and the anchor is not used; nothing is reported without resolution, for an alias or for an assertion reference the mandatory rule refuses",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1343,
+          "title": "[FO-14-56][AUTH-02] startup hands the guard the runtime keys' material: two different key ids with the same public key (anchor and assertion key) refuse the environment for that reason",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1389,
+          "title": "[FO-14-56][AUTH-02] adversarial (startup, KMS resolvers): a manifest key named by its BARE key id holding the anchor's or the assertion key's key material is refused by material; GetPublicKey denied on it refuses the environment (RUNTIME_SIGNING_KEY_UNRESOLVED), never only logged",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/types.test.ts",
+          "line": 13,
+          "title": "sameKeyOrSecret [AUTH-02][FO-14-56]",
+          "kind": "describe",
+          "tags": [
+            "AUTH-02",
+            "FO-14-56"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/types.test.ts",
+          "line": 14,
+          "title": "[AUTH-02] a KMS key ARN matches its bare key id in any region or account and in any letter case",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/types.test.ts",
+          "line": 22,
+          "title": "[AUTH-02] a multi-region key id (mrk-) matches its replicas' ARNs and its bare id in any case",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/types.test.ts",
+          "line": 28,
+          "title": "[AUTH-02] aliases match by name only; an alias never matches a key id (which key it names is not visible)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/types.test.ts",
+          "line": 35,
+          "title": "[AUTH-02][DATA-01] a full Secrets Manager ARN matches the partial ARN of the same secret in the same region and account only",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/types.test.ts",
+          "line": 45,
+          "title": "[AUTH-02] SSM parameters match by name within one region and account; null or empty references never match",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/types.test.ts",
+          "line": 55,
+          "title": "canonicalReferences [AUTH-02][FT-91]",
+          "kind": "describe",
+          "tags": [
+            "AUTH-02",
+            "FT-91"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/types.test.ts",
+          "line": 57,
+          "title": "[AUTH-02] every spelling of one identity maps to one reference (the first seen): a full and a partial Secrets Manager ARN, a key ARN and its bare id",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/types.test.ts",
+          "line": 67,
+          "title": "[AUTH-02] different secrets stay different: a common prefix, another region or account, an empty reference",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/connectors/profile/profile.test.ts",
           "line": 121,
           "title": "capability-scoped credentials [FO-05-56][FO-05-39][AUTH-02]",
@@ -810,6 +1291,18 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/gateway-client/client.test.ts",
+          "line": 35,
+          "title": "[FO-03-11][AUTH-02] positive: a declared call carries its path parameters, its declared headers, the bearer and the JSON body",
+          "kind": "it",
+          "tags": [
+            "FO-03-11",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/gateway/pipeline.test.ts",
           "line": 30,
           "title": "[AUTH-02][SPEC-8.tool-pipeline] a verified client reads own appointments; field mask strips non-masked fields; speech is bound to turn, generation and decision",
@@ -878,6 +1371,126 @@
           "kind": "it",
           "tags": [
             "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 172,
+          "title": "audit exporter unit: cross-environment key separation at startup [FO-14-56][AUTH-02]",
+          "kind": "describe",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 175,
+          "title": "[FO-14-56][AUTH-02] adversarial: another committed environment's signing key equal to this environment's approval trust anchor, its anchor equal to this environment's audit manifest key, or its manifest key equal to this one refuses the audit unit at startup; the control boots the guard clean",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 231,
+          "title": "audit exporter unit: connector credential separation at startup [AUTH-02][FT-91]",
+          "kind": "describe",
+          "tags": [
+            "AUTH-02",
+            "FT-91"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 234,
+          "title": "[AUTH-02][FT-91] adversarial: a connector profile credential of the unit's environment (the profile default credentialRef, a capabilityCredentials[] credentialRef) that is the audit exporter's own database login or the request-hash pepper refuses the audit unit at startup at the profile position (SECRET_REUSED_ACROSS_PURPOSES); the control with distinct secrets boots the guard clean",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "FT-91"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/capabilities.test.ts",
+          "line": 66,
+          "title": "[FO-16-11][AUTH-02] audit.independent is CONFIGURED only with the export block, the sink AND the counsel-approved SECURITY_AUDIT retention",
+          "kind": "it",
+          "tags": [
+            "FO-16-11",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 137,
+          "title": "guard inputs shared by every live unit [AUTH-02][OPS-04]",
+          "kind": "describe",
+          "tags": [
+            "AUTH-02",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 149,
+          "title": "[AUTH-02][FO-05-56] the credential sets carry this environment's adapter references and every OTHER committed environment's, never this environment twice",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "FO-05-56"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 162,
+          "title": "[AUTH-02] a profile directory that does not load refuses the unit (CONNECTOR_PROFILE_REJECTED@connectors.profileDirectory), before the guard",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 171,
+          "title": "[FO-14-56][AUTH-02] the key sets carry every OTHER committed environment's assertion and audit manifest keys, approval trust anchor and secrets (never this environment's file); an unreadable directory refuses the unit",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 218,
+          "title": "[FO-14-56][AUTH-02][OPS-04] fail closed: a committed configuration whose environment does not parse, a file named after another environment than it declares, or a non-object file refuses the unit (COMMITTED_CONFIG_UNREADABLE@configDir.<name>) in BOTH cross-environment readers; it never drops out of the checks",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02",
+            "OPS-04"
           ],
           "status": "passed",
           "viaAlias": null
@@ -1079,6 +1692,340 @@
           "viaAlias": null
         },
         {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 136,
+          "title": "[FO-14-56][AUTH-02] adversarial: a record signed with a foreign KMS key is refused (APPROVAL_MISSING, SIGNATURE_INVALID)",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 199,
+          "title": "[FO-14-56][AUTH-02] adversarial: the trust anchor equal to the runtime assertion key refuses the environment (APPROVAL_TRUST_KEY_IS_ASSERTION_KEY), and a SECURITY_REVIEW record minted through the runtime's KmsAssertionSigner is never VALID",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 224,
+          "title": "[FO-14-56][AUTH-02] control: with a separate anchor the gateway starts and the runtime-minted record is SIGNATURE_INVALID (never VALID); requiring its scope refuses the environment",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 246,
+          "title": "[FO-14-56][AUTH-02] adversarial: the trust anchor equal to the runtime assertion key of ANOTHER committed environment configuration refuses the environment",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 261,
+          "title": "[AUTH-02][OPS-01] adversarial: the audit manifest key equal to the assertion key (by its bare key id), the trust anchor among the trusted manifest keys, and the console sealer equal to the request-hash pepper each refuse the environment",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 294,
+          "title": "[AUTH-02][DATA-01] adversarial: every secret serves one purpose: the console sealer equal to the runtime database login (also by its partial ARN) or to the audit exporter login, and the request-hash pepper equal to the database login, each refuse the environment",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 337,
+          "title": "[FO-14-56][AUTH-02] adversarial (reverse direction): a sandbox runtime whose assertion key (through the allowlisted override) is the approval trust anchor of the committed staging configuration is refused; that runtime's signer could mint a staging approval that verifies",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 361,
+          "title": "[AUTH-02][FO-14-56] adversarial: a signing key or a secret shared with another committed environment configuration refuses the environment",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "FO-14-56"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 377,
+          "title": "[FO-14-56][AUTH-02] adversarial: a trust anchor that is ANOTHER key id holding the assertion key's imported key material is refused by key material, and the runtime-minted record is never VALID",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 401,
+          "title": "[FO-14-56][AUTH-02] adversarial: an audit manifest key named by its BARE key id that holds the assertion key's imported key material is refused by material (GetPublicKey by bare id), as is its key ARN form",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 422,
+          "title": "[FO-14-56][AUTH-02] adversarial: the trust anchor holding the imported key material of an audit manifest key named by its BARE key id is refused; an approval minted with the manifest key (it verifies under the anchor) is never VALID",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 490,
+          "title": "[FO-14-56][AUTH-02] adversarial: the anchor naming the assertion key by a replica ARN in another region (its public key not fetchable here) is still refused, by reference",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 149,
+          "title": "[FO-21-03][AUTH-02] positive: a staff member signs in with the backend PKCE exchange; /me answers with the IdP-granted role, verified against the remote JWKS fetched through the transport",
+          "kind": "it",
+          "tags": [
+            "FO-21-03",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 249,
+          "title": "[FO-14-53][FO-03-49][AUTH-02] adversarial: local sign-in is not registered, and fixture-style or self-signed staff tokens are refused (401)",
+          "kind": "it",
+          "tags": [
+            "FO-14-53",
+            "FO-03-49",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/faults.test.ts",
+          "line": 104,
+          "title": "[FAULT:AUTH_EXPIRY_MID_CALL][FO-17-24.AUTH_EXPIRY_MID_CALL][AUTH-02][OPS-04] the commit after expiry fails closed at the session step (before admission and any provider) while the DynamoDB session row still exists",
+          "kind": "it",
+          "tags": [
+            "FO-17-24.AUTH_EXPIRY_MID_CALL",
+            "AUTH-02",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/inbound-auth.test.ts",
+          "line": 124,
+          "title": "[AUTH-01][AUTH-02] adversarial: another audience, a forged key, a missing credential and a tenant claim are refused (401)",
+          "kind": "it",
+          "tags": [
+            "AUTH-01",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/no-dev-bypass.test.ts",
+          "line": 76,
+          "title": "[FO-14-53][AUTH-02] adversarial: every LOCAL FIXTURE integration token is refused (401) on the catalogue, the tool route and MCP",
+          "kind": "it",
+          "tags": [
+            "FO-14-53",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/no-dev-bypass.test.ts",
+          "line": 186,
+          "title": "[AUTH-02][FO-19-06] adversarial: a connector profile that reuses an adapter's credential reference, or another committed environment's, refuses the environment",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "FO-19-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 84,
+          "title": "connector profile credentials are secrets of this environment [AUTH-02][FT-91]",
+          "kind": "describe",
+          "tags": [
+            "AUTH-02",
+            "FT-91"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 85,
+          "title": "[AUTH-02][DATA-01] adversarial: the console session sealer equal to a connector profile's read credential refuses the gateway, the worker and the console (SECRET_REUSED_ACROSS_PURPOSES at the profile position)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 109,
+          "title": "[AUTH-02][DATA-01] adversarial: the request-hash pepper equal to a connector profile's WRITE credential (also by its partial ARN) refuses the environment",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 126,
+          "title": "connector credentials compare by identity, not by spelling [AUTH-02][FT-91]",
+          "kind": "describe",
+          "tags": [
+            "AUTH-02",
+            "FT-91"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 127,
+          "title": "[AUTH-02] fidelity: LocalStack Secrets Manager resolves the full and the partial ARN of a secret to the same secret",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 136,
+          "title": "[AUTH-02] adversarial: one secret named by its full ARN in one adapter and by its partial ARN in another refuses the environment (CREDENTIAL_REUSED_ACROSS_CONNECTORS); separate secrets boot",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 155,
+          "title": "[AUTH-02] adversarial: a connector profile credential (full ARN) and an adapter credential (partial ARN of the same secret) refuse the environment once, by the connector rule",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 172,
+          "title": "[AUTH-02] adversarial: this environment's adapter or profile credential and a committed other environment's adapter credential naming the same secret by another spelling refuse the environment (CREDENTIAL_REUSED_ACROSS_ENVIRONMENTS)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/transfer-store.test.ts",
+          "line": 111,
+          "title": "[AUTH-02][FO-03-49] RLS per role: another tenant's journeys are invisible to runtime, worker and console; the console reads its own but cannot write (store or SQL)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "FO-03-49"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/worker.test.ts",
+          "line": 133,
+          "title": "[OPS-01][AUTH-02] failure injection: only unconsumable envelopes (malformed, or of a tenant this worker does not serve) fail the run as OUTBOX_UNCONSUMABLE (never reported as a success)",
+          "kind": "it",
+          "tags": [
+            "OPS-01",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/test/integration/connectors/runtime.test.ts",
           "line": 186,
           "title": "[FO-05-56][AUTH-02] a read-only credential cannot call a write endpoint: misconfigured in Secrets Manager the runtime refuses before I/O, and the vendor answers 403 to a read token on PUT",
@@ -1247,7 +2194,7 @@
         }
       ],
       "counts": {
-        "passed": 65,
+        "passed": 136,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -5176,6 +6123,84 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/adapters/live/connector-feed.test.ts",
+          "line": 31,
+          "title": "FeedDigester [DATA-01]",
+          "kind": "describe",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/connector-feed.test.ts",
+          "line": 32,
+          "title": "[DATA-01] record-key digests are HMAC-SHA256 under the environment key: never the plain SHA-256, stable for one key, different for another key or another feed",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/connector-feed.test.ts",
+          "line": 47,
+          "title": "[DATA-01] the record-key digest is exactly the documented keyed construction (independent reference)",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/connector-feed.test.ts",
+          "line": 53,
+          "title": "[DATA-01] the record digest is keyed (it changes with the environment key, so it cannot be recomputed without it) and domain-separated from the record-key digest",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/connector-feed.test.ts",
+          "line": 75,
+          "title": "[DATA-01] a key shorter than 32 bytes is refused",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/connector-feed.test.ts",
+          "line": 81,
+          "title": "ConnectorFeedSync.project keyed digests [DATA-01][OPS-01]",
+          "kind": "describe",
+          "tags": [
+            "DATA-01",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/connector-feed.test.ts",
+          "line": 82,
+          "title": "[DATA-01] index rows and the dead-letter envelope (and its deduplication id) carry the keyed digests only",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/adapters/live/oidc-client.test.ts",
           "line": 607,
           "title": "[DATA-01][AUTH-06] the code exchange is classified VERIFICATION_SECRET: a destination not approved for secrets refuses before any socket opens",
@@ -5193,6 +6218,29 @@
           "title": "[DATA-01] errors and logs carry reason codes only — never response bodies, tokens, secrets or record values",
           "kind": "it",
           "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/salesforce-transport.test.ts",
+          "line": 60,
+          "title": "[DATA-01] adversarial: an egress refusal is passed on as the refusal (nothing sent), never retried as an outage",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/transport-jwks.test.ts",
+          "line": 59,
+          "title": "[AUTH-01][DATA-01] adversarial: a key set that publishes PRIVATE key members is refused (JWKS_PRIVATE_KEY_PUBLISHED), never used",
+          "kind": "it",
+          "tags": [
+            "AUTH-01",
             "DATA-01"
           ],
           "status": "passed",
@@ -5514,11 +6562,84 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 784,
+          "title": "[FO-03-30][DATA-01] a telemetry endpoint must be an allowlisted TELEMETRY_EXPORTER destination and routable outside sandbox",
+          "kind": "it",
+          "tags": [
+            "FO-03-30",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 968,
+          "title": "[AUTH-02][DATA-01] adversarial: the console session sealer, the request-hash pepper and the OTP pepper are three different secrets (a full ARN matches the partial ARN of the same secret)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1043,
+          "title": "[AUTH-02][DATA-01] adversarial: every secret serves one purpose: the sealer or a pepper equal to the database login, the exporter or verifier login, or an adapter credential (and an adapter credential equal to the database login) each refuse the environment",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1118,
+          "title": "[AUTH-02][DATA-01] adversarial: a secret shared with another committed environment refuses the environment (adapter credentials between environments are the connector rule's whenever it sees that environment, compared here otherwise)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1194,
+          "title": "[AUTH-02][DATA-01][FT-91] adversarial: a connector profile credential of this environment (the default, a READ or a WRITE capability credential) equal to the console sealer, a pepper or the database login refuses the environment at the profile position",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01",
+            "FT-91"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/config/loader.test.ts",
           "line": 86,
           "title": "[DATA-01] endpoints may not carry query strings, fragments or userinfo",
           "kind": "it",
           "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/types.test.ts",
+          "line": 35,
+          "title": "[AUTH-02][DATA-01] a full Secrets Manager ARN matches the partial ARN of the same secret in the same region and account only",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
             "DATA-01"
           ],
           "status": "passed",
@@ -5639,6 +6760,18 @@
           "kind": "it",
           "tags": [
             "SPEC-7.break-glass",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/gateway-client/client.test.ts",
+          "line": 46,
+          "title": "[FO-03-11][DATA-01] adversarial: undeclared operations, headers, path parameters and bodies are refused before anything is sent",
+          "kind": "it",
+          "tags": [
+            "FO-03-11",
             "DATA-01"
           ],
           "status": "passed",
@@ -6161,6 +7294,61 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 37,
+          "title": "pgConnectionString: TLS outside sandbox [DATA-01]",
+          "kind": "describe",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 38,
+          "title": "[DATA-01] positive: a JSON secret without sslmode gets verify-full (the driver verifies certificate and host); sslrootcert names the CA bundle file",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 49,
+          "title": "[DATA-01] adversarial: outside sandbox sslmode disable / allow / prefer / require / verify-ca, a URI without sslmode, a duplicated sslmode or the legacy ssl parameter are refused DATABASE_TLS_REQUIRED (path only, never the secret)",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 70,
+          "title": "[DATA-01] adversarial: outside sandbox a URI secret may carry only sslmode and sslrootcert; parameters or hosts that redirect the connection (socket path, hostaddr, libpq compat, client keys) are refused",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 127,
+          "title": "[DATA-01] sandbox may run an emulator without TLS; malformed secrets are refused in every environment",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/observability/catalog/connectors.test.ts",
           "line": 10,
           "title": "connector metric catalogue [DATA-01]",
@@ -6186,6 +7374,40 @@
           "file": "platform/src/observability/catalog/connectors.test.ts",
           "line": 20,
           "title": "[DATA-01] adversarial: a host, URL or credential reference passed as a label value collapses to other",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/catalog/index.test.ts",
+          "line": 15,
+          "title": "platform metric catalogue merge [FO-03-30][DATA-01]",
+          "kind": "describe",
+          "tags": [
+            "FO-03-30",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/catalog/index.test.ts",
+          "line": 27,
+          "title": "[DATA-01] adversarial: a fragment that redeclares a base metric is refused, never silently shadowed",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/catalog/index.test.ts",
+          "line": 40,
+          "title": "[DATA-01] composition labels are closed code enums; a capability id that is not a runtime capability collapses to other",
           "kind": "it",
           "tags": [
             "DATA-01"
@@ -6330,8 +7552,78 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/observability/otlp.test.ts",
+          "line": 36,
+          "title": "OTLP/HTTP JSON exporters [FO-03-30][DATA-01]",
+          "kind": "describe",
+          "tags": [
+            "FO-03-30",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/otlp.test.ts",
+          "line": 58,
+          "title": "[DATA-01] adversarial: an id, a name or free text passed as a label value is exported as other; an undeclared key is never exported",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/otlp.test.ts",
+          "line": 73,
+          "title": "[DATA-01] defence in depth: a series or label that bypassed the emitter allowlist is dropped at encoding and counted",
+          "kind": "it",
+          "tags": [
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/otlp.test.ts",
+          "line": 103,
+          "title": "[FO-03-30][DATA-01] traces: allowlisted span attributes only, baggage never, exceptions never; a refused attribute is counted",
+          "kind": "it",
+          "tags": [
+            "FO-03-30",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/otlp.test.ts",
+          "line": 130,
+          "title": "[DATA-01][FO-03-30] adversarial: a span of the RAW tracer (no SafeTracer) with content in its name, attributes, events, status and links is exported without any of it, and every drop is counted",
+          "kind": "it",
+          "tags": [
+            "DATA-01",
+            "FO-03-30"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/otlp.test.ts",
+          "line": 161,
+          "title": "[DATA-01][FO-03-30] adversarial: the instrumentation scope is a closed name and a version label; a scope or version built from content is replaced or dropped and counted",
+          "kind": "it",
+          "tags": [
+            "DATA-01",
+            "FO-03-30"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/observability/tracing.test.ts",
-          "line": 101,
+          "line": 102,
           "title": "[DATA-01] drops non-allowlisted attributes and PHI-shaped values",
           "kind": "it",
           "tags": [
@@ -6342,7 +7634,19 @@
         },
         {
           "file": "platform/src/observability/tracing.test.ts",
-          "line": 119,
+          "line": 121,
+          "title": "[DATA-01][FO-03-30] adversarial: id attributes accept only the platform's generated id grammar (own prefix, exactly the generated body, no 7-digit run); reason codes only the closed upper-snake grammar without a 5-digit run",
+          "kind": "it",
+          "tags": [
+            "DATA-01",
+            "FO-03-30"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/tracing.test.ts",
+          "line": 169,
           "title": "[DATA-01] prototype keys such as toString or __proto__ are not treated as allowlisted",
           "kind": "it",
           "tags": [
@@ -6353,7 +7657,7 @@
         },
         {
           "file": "platform/src/observability/tracing.test.ts",
-          "line": 125,
+          "line": 175,
           "title": "[DATA-01] spans carry only sanitized attributes and record the reason code, not the exception",
           "kind": "it",
           "tags": [
@@ -6364,7 +7668,7 @@
         },
         {
           "file": "platform/src/observability/tracing.test.ts",
-          "line": 145,
+          "line": 195,
           "title": "[DATA-01] baggage writes are forbidden",
           "kind": "it",
           "tags": [
@@ -6375,7 +7679,7 @@
         },
         {
           "file": "platform/src/observability/tracing.test.ts",
-          "line": 150,
+          "line": 200,
           "title": "[DATA-01] inbound trace baggage is stripped before platform spans start and inside the span body",
           "kind": "it",
           "tags": [
@@ -6386,11 +7690,23 @@
         },
         {
           "file": "platform/src/observability/tracing.test.ts",
-          "line": 168,
+          "line": 218,
           "title": "[DATA-01] invalid span names are replaced by a constant",
           "kind": "it",
           "tags": [
             "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/tracing.test.ts",
+          "line": 224,
+          "title": "[DATA-01][FO-03-30] span and event names come from the closed registries: a well-formed name built from a value is replaced too",
+          "kind": "it",
+          "tags": [
+            "DATA-01",
+            "FO-03-30"
           ],
           "status": "passed",
           "viaAlias": null
@@ -6818,6 +8134,117 @@
           "viaAlias": null
         },
         {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 294,
+          "title": "[AUTH-02][DATA-01] adversarial: every secret serves one purpose: the console sealer equal to the runtime database login (also by its partial ARN) or to the audit exporter login, and the request-hash pepper equal to the database login, each refuse the environment",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/boot.test.ts",
+          "line": 109,
+          "title": "[FO-00-26][FO-19-06][DATA-01] registry scan: every adapter port of the live registry is either live or a guard port that refuses with CAPABILITY_NOT_CONFIGURED; none answers with canned data",
+          "kind": "it",
+          "tags": [
+            "FO-00-26",
+            "FO-19-06",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/faults.test.ts",
+          "line": 228,
+          "title": "[FAULT:DLQ_FULL][FO-17-24.DLQ_FULL][OPS-01][DATA-01] consumption stops, the paging alarm fires and the source checkpoint is kept; nothing is dropped and the feed resumes from the checkpoint once the queue accepts",
+          "kind": "it",
+          "tags": [
+            "FO-17-24.DLQ_FULL",
+            "OPS-01",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/no-dev-bypass.test.ts",
+          "line": 229,
+          "title": "[FO-14-53][DATA-01] positive: assertions are signed by the configured KMS key (published key from KMS GetPublicKey), never by a development key",
+          "kind": "it",
+          "tags": [
+            "FO-14-53",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 85,
+          "title": "[AUTH-02][DATA-01] adversarial: the console session sealer equal to a connector profile's read credential refuses the gateway, the worker and the console (SECRET_REUSED_ACROSS_PURPOSES at the profile position)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 109,
+          "title": "[AUTH-02][DATA-01] adversarial: the request-hash pepper equal to a connector profile's WRITE credential (also by its partial ARN) refuses the environment",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/telemetry.test.ts",
+          "line": 173,
+          "title": "[FO-03-30][DATA-01] positive: catalogue metrics with the service identity reach the collector over OTLP/HTTP and TLS; content never does",
+          "kind": "it",
+          "tags": [
+            "FO-03-30",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/telemetry.test.ts",
+          "line": 204,
+          "title": "[FO-03-30][DATA-01][OPS-04] adversarial: an OTLP endpoint that is not allowlisted, or allowlisted as a non-telemetry destination, refuses the environment",
+          "kind": "it",
+          "tags": [
+            "FO-03-30",
+            "DATA-01",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/telemetry.test.ts",
+          "line": 216,
+          "title": "[FO-03-30][DATA-01] adversarial: spans reach the collector with registered names and allowlisted attributes only; content in a span name, attribute, event, status message or link (raw tracer, no SafeTracer) never does",
+          "kind": "it",
+          "tags": [
+            "FO-03-30",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/test/integration/substrate/pg-pool.test.ts",
           "line": 57,
           "title": "[FO-16-03][FO-03-21][DATA-01] the new inbox and journal tables have forced row-level security and append-only triggers (catalog)",
@@ -6889,7 +8316,7 @@
         }
       ],
       "counts": {
-        "passed": 152,
+        "passed": 193,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -7657,7 +9084,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 131,
+          "line": 153,
           "title": "[DATA-03][OPS-03][SPEC-13.metrics] the retention loop reports blocked classes, unverified copies, deletions and pending vendor requests as metrics",
           "kind": "it",
           "tags": [
@@ -7670,7 +9097,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 244,
+          "line": 303,
           "title": "[DATA-03][OPS-03] every loop runs bounded and green on the local composition; retention reports BLOCKED classes and deletes nothing; audit is shipped to the LOCAL FIXTURE sink",
           "kind": "it",
           "tags": [
@@ -10359,7 +11786,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 167,
+          "line": 189,
           "title": "[ACT-02][SPEC-8.outbox] dispatch -> consume runs the business consumer once per message (ConsumerDedup); redeliveries are skipped; failures retry with backoff then dead-letter",
           "kind": "it",
           "tags": [
@@ -10371,7 +11798,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 353,
+          "line": 459,
           "title": "[SPEC-8.salesforce][ACT-02][SPEC-15.worker] with only the composed loops a failed sync is retried with backoff, never enqueued twice per attempt, and dead-lettered after the attempt budget",
           "kind": "it",
           "tags": [
@@ -10531,6 +11958,18 @@
           "kind": "it",
           "tags": [
             "FO-16-16",
+            "ACT-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/worker.test.ts",
+          "line": 90,
+          "title": "[FO-16-11][ACT-02] positive: a consumed message is deleted after its effect; a redelivered duplicate is deleted without being applied again",
+          "kind": "it",
+          "tags": [
+            "FO-16-11",
             "ACT-02"
           ],
           "status": "passed",
@@ -10944,7 +12383,7 @@
         }
       ],
       "counts": {
-        "passed": 147,
+        "passed": 148,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -11390,6 +12829,29 @@
           "file": "platform/src/adapters/live/salesforce-rest.contract.test.ts",
           "line": 336,
           "title": "[ACT-03] oversized responses are rejected: UNKNOWN for writes, FAILED for reads",
+          "kind": "it",
+          "tags": [
+            "ACT-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/salesforce-transport.test.ts",
+          "line": 49,
+          "title": "[FO-14-53][ACT-03] positive: token and upsert go through the transport with the org host only, the content-free data class and the write marked as a side effect",
+          "kind": "it",
+          "tags": [
+            "FO-14-53",
+            "ACT-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/salesforce-transport.test.ts",
+          "line": 69,
+          "title": "[ACT-03] failure: a write lost after it may have been sent is UNKNOWN (reconcile by external id), a refusal before I/O is NOT_STARTED",
           "kind": "it",
           "tags": [
             "ACT-03"
@@ -12072,10 +13534,22 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 227,
+          "line": 249,
           "title": "[ACT-03] the reconciler skips kinds without a provider and reports an inconclusive lookup, content-free",
           "kind": "it",
           "tags": [
+            "ACT-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/worker/worker.test.ts",
+          "line": 270,
+          "title": "[OPS-01][ACT-03] reconcile loop health: degraded only when work was found and none settled; the alarm fires on repeated degraded runs",
+          "kind": "it",
+          "tags": [
+            "OPS-01",
             "ACT-03"
           ],
           "status": "passed",
@@ -12258,7 +13732,7 @@
         }
       ],
       "counts": {
-        "passed": 104,
+        "passed": 107,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -13817,7 +15291,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 372,
+          "line": 449,
           "title": "[SAFE-02] every environment must keep a safety route, a human route and an outage continuity route",
           "kind": "it",
           "tags": [
@@ -14335,6 +15809,17 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/ops/capability-gate.test.ts",
+          "line": 50,
+          "title": "[SAFE-02] safety and human routes are never gated, whatever is NOT_CONFIGURED",
+          "kind": "it",
+          "tags": [
+            "SAFE-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/ops/kill-switches.test.ts",
           "line": 180,
           "title": "[SAFE-02] no kill switch ever blocks SAFETY or HUMAN_ROUTE",
@@ -14588,6 +16073,21 @@
           "viaAlias": null
         },
         {
+          "file": "platform/test/integration/composition/routing.test.ts",
+          "line": 46,
+          "title": "[FO-21-10][SAFE-02][SAFE-03][SAFE-04][OPS-01] adversarial: with every dial refused, request_safety_route and request_human_transfer report ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE with no transfer id; the safety evidence is still recorded and the guard port pages",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "SAFE-02",
+            "SAFE-03",
+            "SAFE-04",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/test/integration/identity/caller-identity.test.ts",
           "line": 185,
           "title": "[FAULT:AUTH_EXPIRY_IDLE][FO-05-18][FO-05-19][AUTH-04][SAFE-02] after the idle limit a protected read fails closed and is audited while the DynamoDB record still exists; speech prepared before the expiry is never spoken; a person stays reachable without re-authentication; only the same actor re-verifies",
@@ -14738,7 +16238,7 @@
         }
       ],
       "counts": {
-        "passed": 84,
+        "passed": 86,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -15013,7 +16513,7 @@
         },
         {
           "file": "platform/src/console-api/safety-escalation.test.ts",
-          "line": 21,
+          "line": 22,
           "title": "[SPEC-10.stop-admin-work][SAFE-03][SAFE-HANDOFF-05] a SAFETY_PRIORITY transfer takes the safety route with a HUMAN_INTERVENTION signal and revokes the call's pending mutations",
           "kind": "it",
           "tags": [
@@ -15026,12 +16526,25 @@
         },
         {
           "file": "platform/src/console-api/safety-escalation.test.ts",
-          "line": 47,
+          "line": 48,
           "title": "[SAFE-03][SAFE-HANDOFF-05] a safety-purpose destination chosen with another reason is also a safety escalation",
           "kind": "it",
           "tags": [
             "SAFE-03",
             "SAFE-HANDOFF-05"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/safety-escalation.test.ts",
+          "line": 81,
+          "title": "[SAFE-HANDOFF-05][SAFE-03][SPEC-10.stop-admin-work] a staff SAFETY escalation still takes the safety path and revokes the call's pending mutations; only the transfer is refused (503 TALKDESK_CONTROL_UNAVAILABLE), never claimed",
+          "kind": "it",
+          "tags": [
+            "SAFE-HANDOFF-05",
+            "SAFE-03",
+            "SPEC-10.stop-admin-work"
           ],
           "status": "passed",
           "viaAlias": null
@@ -15157,6 +16670,19 @@
           "tags": [
             "SAFE-02",
             "SAFE-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/gateway/tools/routing.test.ts",
+          "line": 36,
+          "title": "[FO-21-10][SAFE-03][SAFE-04] adversarial: every dial refused -> request_safety_route reports ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE with no transfer id; the safety evidence is still recorded",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "SAFE-03",
+            "SAFE-04"
           ],
           "status": "passed",
           "viaAlias": null
@@ -15780,6 +17306,35 @@
           "viaAlias": null
         },
         {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 160,
+          "title": "[SAFE-HANDOFF-05][SAFE-03][FO-21-03][OPS-01] adversarial: without telephony control (the live console) a staff SAFETY escalation still revokes the call's pending mutations and records the safety event; only the dial is refused (telephony guard port) and the response says so; a plain transfer is refused before anything happens",
+          "kind": "it",
+          "tags": [
+            "SAFE-HANDOFF-05",
+            "SAFE-03",
+            "FO-21-03",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/routing.test.ts",
+          "line": 46,
+          "title": "[FO-21-10][SAFE-02][SAFE-03][SAFE-04][OPS-01] adversarial: with every dial refused, request_safety_route and request_human_transfer report ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE with no transfer id; the safety evidence is still recorded and the guard port pages",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "SAFE-02",
+            "SAFE-03",
+            "SAFE-04",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/test/journeys/faults.test.ts",
           "line": 356,
           "title": "[SPEC-16.fault-failed-transfer][SAFE-03][SAFE-04][OPS-02] every staffed route fails: approved updates, the outage-continuity destination, then holding for operations; the call is never ended",
@@ -15885,7 +17440,7 @@
         }
       ],
       "counts": {
-        "passed": 89,
+        "passed": 93,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -15900,6 +17455,7 @@
       "evidence": [
         "evidence/test-reports/vitest-console.json",
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -16121,6 +17677,17 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/console-api/safety-escalation.test.ts",
+          "line": 109,
+          "title": "[SAFE-04] control: a plain transfer without telephony control is refused before anything is attempted (no handoff request, mutations untouched)",
+          "kind": "it",
+          "tags": [
+            "SAFE-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/evaluation/aggregate.test.ts",
           "line": 170,
           "title": "[SPEC-13.resolution-metrics][SAFE-04] suppressing a required transfer is a critical failure, never rewarded as containment or completion",
@@ -16326,6 +17893,79 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/gateway/tools/routing.test.ts",
+          "line": 24,
+          "title": "[FO-21-10][SAFE-04] statusOf: TRANSFER_REQUESTED only while an attempt can still connect",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "SAFE-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/gateway/tools/routing.test.ts",
+          "line": 36,
+          "title": "[FO-21-10][SAFE-03][SAFE-04] adversarial: every dial refused -> request_safety_route reports ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE with no transfer id; the safety evidence is still recorded",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "SAFE-03",
+            "SAFE-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/gateway/tools/routing.test.ts",
+          "line": 53,
+          "title": "[FO-21-10][SAFE-04] adversarial: every dial refused -> request_human_transfer reports ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE and never says 'connecting you now'",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "SAFE-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/gateway/tools/routing.test.ts",
+          "line": 64,
+          "title": "[FO-21-10][SAFE-04] the spoken safety prompt matches the reported route status: the acknowledgment while a route can connect, the Studio route prompt when none can; neither template claims what the other status means",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "SAFE-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/gateway/tools/routing.test.ts",
+          "line": 98,
+          "title": "[FO-21-10][SAFE-04] control: once telephony accepts the sweep's retry the same tool reports the transfer in flight",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "SAFE-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-composition.test.ts",
+          "line": 168,
+          "title": "[FO-21-10][SAFE-04] the routing tools never claim a transfer for a journey without a reachable route (no canned TRANSFER_REQUESTED)",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "SAFE-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/protocol/common.test.ts",
           "line": 125,
           "title": "[ACT-04][SAFE-04] evidence outcomes need evidence, and a partially resolved issue is never RESOLVED_WITH_EVIDENCE",
@@ -16385,7 +18025,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 316,
+          "line": 422,
           "title": "[SAFE-04][TB-07] LOCAL FIXTURE telephony events (duplicated, reordered) drive the transfer journey; the sweep times out a stalled attempt and moves to the next route",
           "kind": "it",
           "tags": [
@@ -16601,6 +18241,68 @@
           "viaAlias": null
         },
         {
+          "file": "platform/test/integration/composition/routing.test.ts",
+          "line": 45,
+          "title": "routing tools over the NOT_CONFIGURED telephony guard port [FO-21-10][SAFE-04]",
+          "kind": "describe",
+          "tags": [
+            "FO-21-10",
+            "SAFE-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/routing.test.ts",
+          "line": 46,
+          "title": "[FO-21-10][SAFE-02][SAFE-03][SAFE-04][OPS-01] adversarial: with every dial refused, request_safety_route and request_human_transfer report ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE with no transfer id; the safety evidence is still recorded and the guard port pages",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "SAFE-02",
+            "SAFE-03",
+            "SAFE-04",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/transfer-store.test.ts",
+          "line": 66,
+          "title": "PgTransferStore on PostgreSQL 16 [FO-19-06][SAFE-04]",
+          "kind": "describe",
+          "tags": [
+            "FO-19-06",
+            "SAFE-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/transfer-store.test.ts",
+          "line": 77,
+          "title": "[SAFE-04][FO-19-06] compare-and-set: of two concurrent writers of version 1 exactly one advances the journey; the stale writer is refused, never overwrites",
+          "kind": "it",
+          "tags": [
+            "SAFE-04",
+            "FO-19-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/transfer-store.test.ts",
+          "line": 98,
+          "title": "[SAFE-04] the trigger refuses a version step other than +1, a key change, a delete and a truncate, even for a writer that bypasses the store",
+          "kind": "it",
+          "tags": [
+            "SAFE-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/test/journeys/faults.test.ts",
           "line": 143,
           "title": "[SPEC-16.fault-duplicate-webhooks][SPEC-14.faults][ACT-02][SAFE-04][TB-09] transfer events delivered twice and out of order through the webhook: an early event is deferred, never applied early, then applied after its predecessor; one dial, each transition applied once",
@@ -16687,7 +18389,7 @@
         }
       ],
       "counts": {
-        "passed": 59,
+        "passed": 71,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -16701,6 +18403,7 @@
       },
       "evidence": [
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -17387,6 +19090,65 @@
           "title": "[OPS-01] COMMITTED requires a receipt and is terminal; the row version must advance by exactly one",
           "kind": "it",
           "tags": [
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/connector-feed.test.ts",
+          "line": 81,
+          "title": "ConnectorFeedSync.project keyed digests [DATA-01][OPS-01]",
+          "kind": "describe",
+          "tags": [
+            "DATA-01",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/not-configured.test.ts",
+          "line": 16,
+          "title": "[FO-21-10][OPS-01] every operation refuses CAPABILITY_NOT_CONFIGURED (NOT_STARTED, not retryable), counted and logged; health reports it",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/not-configured.test.ts",
+          "line": 44,
+          "title": "[FO-21-10][OPS-01] adversarial: coercing a guard port to a string (template literal, String(), concatenation) describes it and never starts an operation (no unhandled rejection, nothing counted)",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/not-configured.test.ts",
+          "line": 62,
+          "title": "[OPS-01] failure: a throwing metrics sink still refuses (the refusal never depends on telemetry)",
+          "kind": "it",
+          "tags": [
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/not-configured.test.ts",
+          "line": 67,
+          "title": "[FO-21-10][OPS-01] a guard OPERATION (a resolver function, e.g. the call-session integration identity) refuses, counts and pages like a port; it never answers null",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
             "OPS-01"
           ],
           "status": "passed",
@@ -18700,6 +20462,41 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 846,
+          "title": "[OPS-01][STRIDE-D] trusted proxy ranges: private ranges only; without them staging/production make the console NOT_CONFIGURED (one shared balancer address would let one client lock out every operator)",
+          "kind": "it",
+          "tags": [
+            "OPS-01",
+            "STRIDE-D"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 951,
+          "title": "[AUTH-02][OPS-01] adversarial: an audit manifest key equal to the runtime assertion key refuses the environment (the runtime could forge export manifests)",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1296,
+          "title": "[OPS-01] staging and production require the outbox dead-letter queue (one poison message must not fail the consume loop forever); sandbox may run without it",
+          "kind": "it",
+          "tags": [
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/connectors/profile/profile.test.ts",
           "line": 203,
           "title": "pinned, reviewed and audited changes [FO-06-18][OPS-01]",
@@ -18916,6 +20713,18 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/gateway-client/client.test.ts",
+          "line": 62,
+          "title": "[FO-03-11][OPS-01] failure: an undeclared status or a malformed body is refused with a reason code (no body or credential in the error)",
+          "kind": "it",
+          "tags": [
+            "FO-03-11",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/gateway/http/portal-routes.test.ts",
           "line": 74,
           "title": "[OPS-01][SPEC-13.audit-event][AUTH-06] verification.bound carries the bound call id, the non-bearer binding ref and the generation; the console call timeline shows the binding",
@@ -19113,6 +20922,29 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/main/capabilities.test.ts",
+          "line": 56,
+          "title": "[OPS-01] the gauge exports one series per capability and state; a throwing sink changes nothing",
+          "kind": "it",
+          "tags": [
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-console.test.ts",
+          "line": 11,
+          "title": "AuthRateLimiter [OPS-01][STRIDE-D]",
+          "kind": "describe",
+          "tags": [
+            "OPS-01",
+            "STRIDE-D"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/main/server.test.ts",
           "line": 119,
           "title": "[OPS-01][SAFE-02][SAFE-03][SPEC-16.fault-audit-outage] without any worker loop, the gateway's timer appends the deferred handoff event after recovery, followed by its marker",
@@ -19218,6 +21050,74 @@
           "file": "platform/src/main/server.test.ts",
           "line": 315,
           "title": "[OPS-01] the shutdown bounds are validated before anything is composed or bound, and together stay within the ECS stop timeout",
+          "kind": "it",
+          "tags": [
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/alarms.test.ts",
+          "line": 14,
+          "title": "composition alarm rules [FO-03-30][OPS-01]",
+          "kind": "describe",
+          "tags": [
+            "FO-03-30",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/alarms.test.ts",
+          "line": 21,
+          "title": "[OPS-01] every rule names, in its text and its field, a runbook id the runbook index lists",
+          "kind": "it",
+          "tags": [
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/alarms.test.ts",
+          "line": 40,
+          "title": "[OPS-01] the logger tap counts paging log events (console.sso.terminal_closure_unaudited, terminal_audit_unwritten) and only those; the line is still written",
+          "kind": "it",
+          "tags": [
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/observability/alarms.test.ts",
+          "line": 58,
+          "title": "[OPS-01] failure: a throwing metrics sink never suppresses the paging log line",
+          "kind": "it",
+          "tags": [
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/ops/capability-gate.test.ts",
+          "line": 40,
+          "title": "[FO-00-30][OPS-01] positive: an intent whose integration is CONFIGURED passes to the inner admission; a NOT_CONFIGURED one is refused CAPABILITY_NOT_CONFIGURED with the human route and counted",
+          "kind": "it",
+          "tags": [
+            "FO-00-30",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/ops/capability-gate.test.ts",
+          "line": 64,
+          "title": "[OPS-01] failure: a throwing metrics sink never turns a refusal into an admission",
           "kind": "it",
           "tags": [
             "OPS-01"
@@ -19341,6 +21241,43 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/worker/worker.test.ts",
+          "line": 125,
+          "title": "[OPS-01][FO-21-10][SPEC-8.outbox] outbox.dispatch fails the run when any claimed message failed to publish or was dead-lettered, and counts it",
+          "kind": "it",
+          "tags": [
+            "OPS-01",
+            "FO-21-10",
+            "SPEC-8.outbox"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/worker/worker.test.ts",
+          "line": 270,
+          "title": "[OPS-01][ACT-03] reconcile loop health: degraded only when work was found and none settled; the alarm fires on repeated degraded runs",
+          "kind": "it",
+          "tags": [
+            "OPS-01",
+            "ACT-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/worker/worker.test.ts",
+          "line": 344,
+          "title": "[OPS-01][FO-21-10] a publisher that refuses every message: the failed publish and the retry backlog fail outbox.dispatch, readiness turns 503 after three runs, and the first successful publish clears it",
+          "kind": "it",
+          "tags": [
+            "OPS-01",
+            "FO-21-10"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/workflows/engine.test.ts",
           "line": 77,
           "title": "[SPEC-9.workflow][OPS-01] start persists opaque references only and records an ACCEPTED event with audit evidence",
@@ -19428,6 +21365,266 @@
           "kind": "it",
           "tags": [
             "FO-16-21",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 181,
+          "title": "[FO-14-56][OPS-01] failure injection: the anchor key pending deletion in KMS (GetPublicKey refused) fails closed: no approval counts and the environment is refused",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 261,
+          "title": "[AUTH-02][OPS-01] adversarial: the audit manifest key equal to the assertion key (by its bare key id), the trust anchor among the trusted manifest keys, and the console sealer equal to the request-hash pepper each refuse the environment",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 459,
+          "title": "[FO-14-56][OPS-01] failure injection: GetPublicKey refused on an audit manifest key (pending deletion) while the anchor resolves refuses the environment (RUNTIME_SIGNING_KEY_UNRESOLVED, never only logged) and the anchor is not used",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/boot.test.ts",
+          "line": 131,
+          "title": "[FO-21-10][FO-00-26][OPS-01] runtime scan of EVERY injected port (business ports, verification, caller id-token verifier, interaction lookup, call-session resolver and its integration identity, quarantine, consent, account state): each is a reviewed live class or a guard port that refuses, counts and pages",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "FO-00-26",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/boot.test.ts",
+          "line": 344,
+          "title": "[FO-16-11][OPS-01] failure injection: a session store whose table is gone fails closed at use (the live DynamoDB store, not a memory fallback)",
+          "kind": "it",
+          "tags": [
+            "FO-16-11",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 160,
+          "title": "[SAFE-HANDOFF-05][SAFE-03][FO-21-03][OPS-01] adversarial: without telephony control (the live console) a staff SAFETY escalation still revokes the call's pending mutations and records the safety event; only the dial is refused (telephony guard port) and the response says so; a plain transfer is refused before anything happens",
+          "kind": "it",
+          "tags": [
+            "SAFE-HANDOFF-05",
+            "SAFE-03",
+            "FO-21-03",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 267,
+          "title": "[FO-21-03][OPS-01] adversarial: the sign-in prefix is rate limited per source address; other endpoints are not counted",
+          "kind": "it",
+          "tags": [
+            "FO-21-03",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 279,
+          "title": "[FO-21-03][OPS-01][STRIDE-D] adversarial: a percent-encoded path is the same route and the same budget (%61uth, %63onsole, %2F); a spoofed X-Forwarded-For from a direct client changes nothing",
+          "kind": "it",
+          "tags": [
+            "FO-21-03",
+            "OPS-01",
+            "STRIDE-D"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 302,
+          "title": "[FO-21-03][OPS-01][STRIDE-D] behind the load balancer: only a trusted proxy peer names the client; each client keeps its own budget, so one anonymous client cannot lock every operator out",
+          "kind": "it",
+          "tags": [
+            "FO-21-03",
+            "OPS-01",
+            "STRIDE-D"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 332,
+          "title": "[FO-21-03][OPS-01] failure injection: with the IdP unreachable the console still starts, shows sign-in as unavailable and every sign-in fails closed",
+          "kind": "it",
+          "tags": [
+            "FO-21-03",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/faults.test.ts",
+          "line": 228,
+          "title": "[FAULT:DLQ_FULL][FO-17-24.DLQ_FULL][OPS-01][DATA-01] consumption stops, the paging alarm fires and the source checkpoint is kept; nothing is dropped and the feed resumes from the checkpoint once the queue accepts",
+          "kind": "it",
+          "tags": [
+            "FO-17-24.DLQ_FULL",
+            "OPS-01",
+            "DATA-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/faults.test.ts",
+          "line": 294,
+          "title": "[FO-17-24.DLQ_FULL][OPS-01] control: with a writable dead-letter queue the keyless record is dead-lettered and the checkpoint advances in the same run",
+          "kind": "it",
+          "tags": [
+            "FO-17-24.DLQ_FULL",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/inbound-auth.test.ts",
+          "line": 140,
+          "title": "[AUTH-01][OPS-01] failure injection: with the issuer unreachable and the key cache cold, a valid token is refused (fail closed), never accepted",
+          "kind": "it",
+          "tags": [
+            "AUTH-01",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/no-dev-bypass.test.ts",
+          "line": 242,
+          "title": "[FO-14-53][OPS-01] failure injection: with the assertion key unusable in KMS (pending deletion) the signer fails closed (no fallback key)",
+          "kind": "it",
+          "tags": [
+            "FO-14-53",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/routing.test.ts",
+          "line": 46,
+          "title": "[FO-21-10][SAFE-02][SAFE-03][SAFE-04][OPS-01] adversarial: with every dial refused, request_safety_route and request_human_transfer report ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE with no transfer id; the safety evidence is still recorded and the guard port pages",
+          "kind": "it",
+          "tags": [
+            "FO-21-10",
+            "SAFE-02",
+            "SAFE-03",
+            "SAFE-04",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/telemetry.test.ts",
+          "line": 261,
+          "title": "[FO-03-30][OPS-01] failure injection: with the collector stopped, exports fail and are counted; the gateway keeps serving",
+          "kind": "it",
+          "tags": [
+            "FO-03-30",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/worker.test.ts",
+          "line": 89,
+          "title": "live outbox consumer on ElasticMQ [FO-21-10][OPS-01]",
+          "kind": "describe",
+          "tags": [
+            "FO-21-10",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/worker.test.ts",
+          "line": 108,
+          "title": "[OPS-01][FO-21-10] failure injection: a failing handler, an invalid envelope and a message without a consumer stay on the queue; the run fails, the failures are counted and the alarm fires",
+          "kind": "it",
+          "tags": [
+            "OPS-01",
+            "FO-21-10"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/worker.test.ts",
+          "line": 133,
+          "title": "[OPS-01][AUTH-02] failure injection: only unconsumable envelopes (malformed, or of a tenant this worker does not serve) fail the run as OUTBOX_UNCONSUMABLE (never reported as a success)",
+          "kind": "it",
+          "tags": [
+            "OPS-01",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/worker.test.ts",
+          "line": 145,
+          "title": "[OPS-01][FO-21-10] failure injection: an outbox queue that does not exist refuses every publish; outbox.dispatch fails, is counted and alarmed, readiness turns 503 after three runs; once the queue exists the message is published",
+          "kind": "it",
+          "tags": [
+            "OPS-01",
+            "FO-21-10"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/worker.test.ts",
+          "line": 199,
+          "title": "[OPS-01] readiness: three consecutive failing consume runs turn the worker's /health/ready to 503 with the loop's reason; a healthy run turns it back",
+          "kind": "it",
+          "tags": [
             "OPS-01"
           ],
           "status": "passed",
@@ -20000,7 +22197,7 @@
         }
       ],
       "counts": {
-        "passed": 225,
+        "passed": 266,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -21873,7 +24070,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 131,
+          "line": 153,
           "title": "[DATA-03][OPS-03][SPEC-13.metrics] the retention loop reports blocked classes, unverified copies, deletions and pending vendor requests as metrics",
           "kind": "it",
           "tags": [
@@ -21886,7 +24083,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 244,
+          "line": 303,
           "title": "[DATA-03][OPS-03] every loop runs bounded and green on the local composition; retention reports BLOCKED classes and deletes nothing; audit is shipped to the LOCAL FIXTURE sink",
           "kind": "it",
           "tags": [
@@ -21898,7 +24095,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 409,
+          "line": 515,
           "title": "[SPEC-8.salesforce][OPS-03][SPEC-15.worker] a business module without the retry sweep fails the loop closed and the worker is not ready",
           "kind": "it",
           "tags": [
@@ -22346,6 +24543,30 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/adapters/live/aws-clients.test.ts",
+          "line": 25,
+          "title": "createAwsClients [FO-14-53][OPS-04]",
+          "kind": "describe",
+          "tags": [
+            "FO-14-53",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/aws-clients.test.ts",
+          "line": 37,
+          "title": "[FO-14-53][OPS-04] adversarial: a sandbox override naming a non-emulator host (private IP, public name, look-alike, credentials in the URL) is refused before any client exists, one violation per service",
+          "kind": "it",
+          "tags": [
+            "FO-14-53",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/adapters/live/oidc-client.test.ts",
           "line": 332,
           "title": "[FO-05-07][OPS-04] a UUID-path issuer whose discovery URL the egress policy refuses is refused at construction (ConfigurationRejectedError OIDC_EGRESS_REFUSED, nothing sent)",
@@ -22605,7 +24826,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 113,
+          "line": 187,
           "title": "[OPS-04] the committed production config is rejected and the violation list is captured as evidence",
           "kind": "it",
           "tags": [
@@ -22616,7 +24837,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 173,
+          "line": 250,
           "title": "[OPS-04] explicit violations for fixture adapters, missing credentials, unapproved model, unknown policy version, permissive CORS, disabled audit and missing approvals",
           "kind": "it",
           "tags": [
@@ -22627,7 +24848,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 223,
+          "line": 300,
           "title": "[OPS-04] a hypothetical fully-correct config with correctly signed approvals passes (the guard is satisfiable)",
           "kind": "it",
           "tags": [
@@ -22638,7 +24859,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 235,
+          "line": 312,
           "title": "[OPS-04] expired, wrong-environment, unsigned, tampered and unverifiable approvals are rejected",
           "kind": "it",
           "tags": [
@@ -22649,7 +24870,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 270,
+          "line": 347,
           "title": "[OPS-04] property: removing any non-empty subset of required production approvals rejects the config",
           "kind": "it",
           "tags": [
@@ -22660,7 +24881,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 284,
+          "line": 361,
           "title": "[OPS-04] configuration cannot lower the environment's approval floor",
           "kind": "it",
           "tags": [
@@ -22671,7 +24892,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 293,
+          "line": 370,
           "title": "[OPS-04] static credential and session-binding exceptions need their own valid approvals",
           "kind": "it",
           "tags": [
@@ -22682,7 +24903,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 315,
+          "line": 392,
           "title": "[OPS-04] security-approved verification values, retention, signing keys and trust anchors are each enforced",
           "kind": "it",
           "tags": [
@@ -22693,7 +24914,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 338,
+          "line": 415,
           "title": "[OPS-04] live adapters need https, routable, non-placeholder endpoints and real authentication",
           "kind": "it",
           "tags": [
@@ -22704,7 +24925,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 384,
+          "line": 461,
           "title": "[OPS-04] staging config is rejected today",
           "kind": "it",
           "tags": [
@@ -22715,7 +24936,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 397,
+          "line": 474,
           "title": "[OPS-04][OPS-06][OPS-APPR-01] an unreviewed model listed with the approval id of a record for another model is rejected",
           "kind": "it",
           "tags": [
@@ -22728,7 +24949,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 413,
+          "line": 490,
           "title": "[OPS-04][OPS-06][OPS-APPR-01] a POLICY_RELEASE record for bundle v1 does not approve a config pinned to (and loading) bundle v2",
           "kind": "it",
           "tags": [
@@ -22741,7 +24962,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 429,
+          "line": 506,
           "title": "[OPS-04][OPS-06][OPS-APPR-01] knowledge snapshot, template catalogue and image approvals must name the digests actually served; unknown digests fail closed",
           "kind": "it",
           "tags": [
@@ -22754,7 +24975,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 451,
+          "line": 528,
           "title": "[OPS-04][OPS-APPR-01] a subject-bound approval without a signed subject never counts; subjects of another scope are refused",
           "kind": "it",
           "tags": [
@@ -22766,7 +24987,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 464,
+          "line": 541,
           "title": "[OPS-04][OPS-APPR-01] approvals signed by a role not allowed for the scope are rejected (vendor admin approving PHI, clinical scripts, security)",
           "kind": "it",
           "tags": [
@@ -22778,7 +24999,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 590,
+          "line": 676,
           "title": "[OPS-04] startup composition accepts local and refuses production",
           "kind": "it",
           "tags": [
@@ -22789,10 +25010,93 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 599,
+          "line": 685,
           "title": "[OPS-04] a structurally invalid config object is rejected rather than evaluated",
           "kind": "it",
           "tags": [
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 692,
+          "title": "[FO-00-30][OPS-04] a missing tenant input disables only its capability; the environment stays deployable and the report says which",
+          "kind": "it",
+          "tags": [
+            "FO-00-30",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 715,
+          "title": "[FO-19-06][OPS-04] adversarial: fixtures and missing mandatory data still refuse staging/production (a capability violation never masks them)",
+          "kind": "it",
+          "tags": [
+            "FO-19-06",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 766,
+          "title": "[AUTH-02][OPS-04] the audit exporter and verifier run under identities separate from the runtime and from each other",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 796,
+          "title": "[FO-03-49][OPS-04] workforce SSO problems disable identity.workforce and the console only",
+          "kind": "it",
+          "tags": [
+            "FO-03-49",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 831,
+          "title": "[OPS-04][STRIDE-D] gateway rate limiting cannot be switched off outside local/ci (gateway.http.rateLimit: null is refused); an absent block keeps the composition's default",
+          "kind": "it",
+          "tags": [
+            "OPS-04",
+            "STRIDE-D"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 869,
+          "title": "[OPS-04] the offline regression rule set has no activation map (fixtures are the regression composition) and reports the rules it ran",
+          "kind": "it",
+          "tags": [
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 880,
+          "title": "[FO-14-56][OPS-04] sandbox verifies approvals against a KMS key only: a repository PEM or local fixture trust reference is refused",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
             "OPS-04"
           ],
           "status": "passed",
@@ -22813,6 +25117,39 @@
           "file": "platform/src/config/loader.test.ts",
           "line": 42,
           "title": "[OPS-04] sandbox, staging and production use live kinds with placeholder references and no invented endpoints",
+          "kind": "it",
+          "tags": [
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/index.test.ts",
+          "line": 14,
+          "title": "guard rule registry [OPS-04]",
+          "kind": "describe",
+          "tags": [
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/index.test.ts",
+          "line": 15,
+          "title": "[OPS-04] every rule file is registered (or a declared helper); ids and files are unique; each rule applies somewhere",
+          "kind": "it",
+          "tags": [
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/rules/index.test.ts",
+          "line": 25,
+          "title": "[OPS-04] adversarial: the registry is frozen (a rule cannot be dropped or injected at run time)",
           "kind": "it",
           "tags": [
             "OPS-04"
@@ -22995,6 +25332,75 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 98,
+          "title": "audit exporter unit: refusals before any client [OPS-04]",
+          "kind": "describe",
+          "tags": [
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 99,
+          "title": "[OPS-04] an unknown mode, an offline environment or a configuration without infrastructure refuses the unit",
+          "kind": "it",
+          "tags": [
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 106,
+          "title": "audit exporter unit: the guard admits it exactly when it admits the gateway [FO-16-11][OPS-04]",
+          "kind": "describe",
+          "tags": [
+            "FO-16-11",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 139,
+          "title": "[FO-16-11][OPS-04] positive: with the unit's own inputs a complete staging configuration passes the full rule set (deployable, nothing blocking)",
+          "kind": "it",
+          "tags": [
+            "FO-16-11",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 151,
+          "title": "[OPS-04] the defect reproduced: the inputs the unit used to pass (no policy bundle, no catalogue digest) refuse staging and production",
+          "kind": "it",
+          "tags": [
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 159,
+          "title": "[OPS-04][OPS-APPR-01] production: policy, model, template and image subjects verify with the unit's inputs; the only blocker left is the served knowledge snapshot, unverifiable for every unit (fail closed)",
+          "kind": "it",
+          "tags": [
+            "OPS-04",
+            "OPS-APPR-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/main/console.test.ts",
           "line": 24,
           "title": "[SPEC-16.console][OPS-04] the console API runs over the same local composition: staff see the call started through the gateway; no token is refused",
@@ -23100,12 +25506,61 @@
         },
         {
           "file": "platform/src/main/infra-config.test.ts",
-          "line": 66,
+          "line": 76,
           "title": "[OPS-04][SPEC-8.oauth2] the config index exports loadInfrastructureEnv and gatewayConfigOf; PlatformConfig.gateway is typed and still re-validated",
           "kind": "it",
           "tags": [
             "OPS-04",
             "SPEC-8.oauth2"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-composition.test.ts",
+          "line": 52,
+          "title": "[FO-19-06][OPS-04] the committed configurations (no infrastructure yet) are refused before any database pool exists, and the business module is never built",
+          "kind": "it",
+          "tags": [
+            "FO-19-06",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 137,
+          "title": "guard inputs shared by every live unit [AUTH-02][OPS-04]",
+          "kind": "describe",
+          "tags": [
+            "AUTH-02",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 218,
+          "title": "[FO-14-56][AUTH-02][OPS-04] fail closed: a committed configuration whose environment does not parse, a file named after another environment than it declares, or a non-object file refuses the unit (COMMITTED_CONFIG_UNREADABLE@configDir.<name>) in BOTH cross-environment readers; it never drops out of the checks",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "AUTH-02",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 251,
+          "title": "[OPS-04][OPS-APPR-01] every unit hands the guard the loaded policy bundle, the committed catalogue digest, the template catalogue digest and the image digest",
+          "kind": "it",
+          "tags": [
+            "OPS-04",
+            "OPS-APPR-01"
           ],
           "status": "passed",
           "viaAlias": null
@@ -23355,6 +25810,168 @@
           "viaAlias": null
         },
         {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 118,
+          "title": "[FO-14-56][OPS-04] positive: an approval record signed with KMS Sign verifies against the KMS public key and satisfies the required scope; a record edited after signing does not count",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/approval-trust.test.ts",
+          "line": 149,
+          "title": "[FO-14-56][OPS-04] adversarial: an ENCRYPT_DECRYPT key is never a trust anchor (KeyUsage checked on GetPublicKey); the environment is refused",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/boot.test.ts",
+          "line": 59,
+          "title": "[FO-19-06][FO-16-11][FO-21-03][OPS-04] positive: the sandbox gateway starts from real adapters; /health/ready is 200 and lists every capability with its state",
+          "kind": "it",
+          "tags": [
+            "FO-19-06",
+            "FO-16-11",
+            "FO-21-03",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/boot.test.ts",
+          "line": 83,
+          "title": "[FO-00-30][FO-21-10][OPS-04] positive: the worker composes its live loops over the same container (outbox to SQS, durable deferred audit, route reconciler)",
+          "kind": "it",
+          "tags": [
+            "FO-00-30",
+            "FO-21-10",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/boot.test.ts",
+          "line": 190,
+          "title": "[FO-00-30][OPS-04] positive: a missing tenant input disables only its capability: without the connector profile connectors.runtime turns NOT_CONFIGURED with its reason, every other capability keeps its state and reasons, and the gateway still starts (readiness 200); without the OTP pepper only identity.caller's entry changes",
+          "kind": "it",
+          "tags": [
+            "FO-00-30",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/boot.test.ts",
+          "line": 308,
+          "title": "[OPS-04][FO-19-06] adversarial: missing mandatory substrate refuses the whole environment before anything is served (no outbox queue, no journal table, memory sessions, PGlite)",
+          "kind": "it",
+          "tags": [
+            "OPS-04",
+            "FO-19-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/boot.test.ts",
+          "line": 330,
+          "title": "[OPS-04][FO-16-11] failure injection: a database whose schema is behind the code refuses the unit (SCHEMA_MIGRATIONS_PENDING) and nothing is listening",
+          "kind": "it",
+          "tags": [
+            "OPS-04",
+            "FO-16-11"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 139,
+          "title": "[FO-21-03][FO-03-49][OPS-04] positive: the console boots in the sandbox profile; auth/config is served from the IdP's own discovery (SSO mode, no local fixture)",
+          "kind": "it",
+          "tags": [
+            "FO-21-03",
+            "FO-03-49",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 352,
+          "title": "[FO-21-03][OPS-04] adversarial: without its session sealer key the console refuses to start (operator.console NOT_CONFIGURED), while the gateway still starts",
+          "kind": "it",
+          "tags": [
+            "FO-21-03",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/faults.test.ts",
+          "line": 104,
+          "title": "[FAULT:AUTH_EXPIRY_MID_CALL][FO-17-24.AUTH_EXPIRY_MID_CALL][AUTH-02][OPS-04] the commit after expiry fails closed at the session step (before admission and any provider) while the DynamoDB session row still exists",
+          "kind": "it",
+          "tags": [
+            "FO-17-24.AUTH_EXPIRY_MID_CALL",
+            "AUTH-02",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/no-dev-bypass.test.ts",
+          "line": 95,
+          "title": "[FO-14-53][OPS-04] adversarial: the development signing key and local key references are refused by the guard in the sandbox profile",
+          "kind": "it",
+          "tags": [
+            "FO-14-53",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/no-dev-bypass.test.ts",
+          "line": 149,
+          "title": "[FO-14-53][OPS-04] adversarial: a non-emulator override receives ZERO requests (refused before any client exists); control: an emulator-host override does receive the signed GetPublicKey",
+          "kind": "it",
+          "tags": [
+            "FO-14-53",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/composition/telemetry.test.ts",
+          "line": 204,
+          "title": "[FO-03-30][DATA-01][OPS-04] adversarial: an OTLP endpoint that is not allowlisted, or allowlisted as a non-telemetry destination, refuses the environment",
+          "kind": "it",
+          "tags": [
+            "FO-03-30",
+            "DATA-01",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/test/integration/connectors/runtime.test.ts",
           "line": 399,
           "title": "[FO-06-11][OPS-04][ACT-03] a sandbox write runs only on a SANDBOX_WRITE profile: on a PRODUCTION_WRITE profile (admitted for staging, Secrets Manager references) the probe sends no write; on the sandbox profile the write is sent once and reconciled",
@@ -23414,7 +26031,7 @@
         }
       ],
       "counts": {
-        "passed": 95,
+        "passed": 130,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -23491,7 +26108,7 @@
       "tests": [
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 502,
+          "line": 579,
           "title": "[OPS-05] sandbox guard rejects live adapters without VENDOR_SANDBOX_INTEGRATION approval",
           "kind": "it",
           "tags": [
@@ -23502,7 +26119,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 520,
+          "line": 597,
           "title": "[OPS-05] an approval for another environment or scope does not authorize a sandbox integration",
           "kind": "it",
           "tags": [
@@ -23513,18 +26130,19 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 527,
-          "title": "[OPS-05] a live sandbox adapter with its own signed VENDOR_SANDBOX_INTEGRATION approval passes; fixtures remain allowed",
+          "line": 604,
+          "title": "[OPS-05][FO-19-06] a live sandbox adapter with its own signed VENDOR_SANDBOX_INTEGRATION approval passes; a DECLARED fixture is NOT_CONFIGURED, an INSTANTIATED fixture is refused",
           "kind": "it",
           "tags": [
-            "OPS-05"
+            "OPS-05",
+            "FO-19-06"
           ],
           "status": "passed",
           "viaAlias": null
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 536,
+          "line": 622,
           "title": "[OPS-05] PHI is impossible in sandbox: PHI_PROCESSING scopes and PHI endpoints are rejected",
           "kind": "it",
           "tags": [
@@ -23535,7 +26153,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 551,
+          "line": 637,
           "title": "[OPS-05] a live sandbox adapter still needs a real endpoint and credential reference",
           "kind": "it",
           "tags": [
@@ -23546,7 +26164,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 566,
+          "line": 652,
           "title": "[OPS-05] local and ci configs pass the offline rule set with labelled fixture adapters",
           "kind": "it",
           "tags": [
@@ -23557,10 +26175,34 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 576,
+          "line": 662,
           "title": "[OPS-05] local rejects live adapters and PHI scopes so no PHI or paid vendor traffic is reachable offline",
           "kind": "it",
           "tags": [
+            "OPS-05"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1023,
+          "title": "[FO-14-56][OPS-05] the sandbox rule set applies the same separation; the offline regression rule set (local fixture keys) does not run it",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
+            "OPS-05"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1176,
+          "title": "[FO-14-56][OPS-05] the sandbox rule set refuses a sandbox runtime whose assertion key is a committed staging approval anchor (the override case: staging's guard cannot see it)",
+          "kind": "it",
+          "tags": [
+            "FO-14-56",
             "OPS-05"
           ],
           "status": "passed",
@@ -23602,7 +26244,7 @@
         }
       ],
       "counts": {
-        "passed": 10,
+        "passed": 12,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -23710,7 +26352,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 397,
+          "line": 474,
           "title": "[OPS-04][OPS-06][OPS-APPR-01] an unreviewed model listed with the approval id of a record for another model is rejected",
           "kind": "it",
           "tags": [
@@ -23723,7 +26365,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 413,
+          "line": 490,
           "title": "[OPS-04][OPS-06][OPS-APPR-01] a POLICY_RELEASE record for bundle v1 does not approve a config pinned to (and loading) bundle v2",
           "kind": "it",
           "tags": [
@@ -23736,7 +26378,7 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 429,
+          "line": 506,
           "title": "[OPS-04][OPS-06][OPS-APPR-01] knowledge snapshot, template catalogue and image approvals must name the digests actually served; unknown digests fail closed",
           "kind": "it",
           "tags": [
@@ -29359,7 +32001,7 @@
         },
         {
           "file": "platform/src/main/infra-config.test.ts",
-          "line": 36,
+          "line": 46,
           "title": "[SPEC-8.oauth2] absent => null (committed files carry none); present => strictly parsed; malformed => ConfigInvalidError with paths only",
           "kind": "it",
           "tags": [
@@ -29370,7 +32012,7 @@
         },
         {
           "file": "platform/src/main/infra-config.test.ts",
-          "line": 66,
+          "line": 76,
           "title": "[OPS-04][SPEC-8.oauth2] the config index exports loadInfrastructureEnv and gatewayConfigOf; PlatformConfig.gateway is typed and still re-validated",
           "kind": "it",
           "tags": [
@@ -29952,7 +32594,20 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 167,
+          "line": 125,
+          "title": "[OPS-01][FO-21-10][SPEC-8.outbox] outbox.dispatch fails the run when any claimed message failed to publish or was dead-lettered, and counts it",
+          "kind": "it",
+          "tags": [
+            "OPS-01",
+            "FO-21-10",
+            "SPEC-8.outbox"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/worker/worker.test.ts",
+          "line": 189,
           "title": "[ACT-02][SPEC-8.outbox] dispatch -> consume runs the business consumer once per message (ConsumerDedup); redeliveries are skipped; failures retry with backoff then dead-letter",
           "kind": "it",
           "tags": [
@@ -29964,7 +32619,7 @@
         }
       ],
       "counts": {
-        "passed": 2,
+        "passed": 3,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -30422,7 +33077,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 353,
+          "line": 459,
           "title": "[SPEC-8.salesforce][ACT-02][SPEC-15.worker] with only the composed loops a failed sync is retried with backoff, never enqueued twice per attempt, and dead-lettered after the attempt budget",
           "kind": "it",
           "tags": [
@@ -30435,7 +33090,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 409,
+          "line": 515,
           "title": "[SPEC-8.salesforce][OPS-03][SPEC-15.worker] a business module without the retry sweep fails the loop closed and the worker is not ready",
           "kind": "it",
           "tags": [
@@ -30448,7 +33103,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 421,
+          "line": 527,
           "title": "[SPEC-8.salesforce][SPEC-15.worker] the sweep is bounded per tenant and reports a failing tenant by reason code without stopping the others",
           "kind": "it",
           "tags": [
@@ -33336,13 +35991,26 @@
         },
         {
           "file": "platform/src/console-api/safety-escalation.test.ts",
-          "line": 21,
+          "line": 22,
           "title": "[SPEC-10.stop-admin-work][SAFE-03][SAFE-HANDOFF-05] a SAFETY_PRIORITY transfer takes the safety route with a HUMAN_INTERVENTION signal and revokes the call's pending mutations",
           "kind": "it",
           "tags": [
             "SPEC-10.stop-admin-work",
             "SAFE-03",
             "SAFE-HANDOFF-05"
+          ],
+          "status": "passed",
+          "viaAlias": "SPEC-10.stop-admin-work"
+        },
+        {
+          "file": "platform/src/console-api/safety-escalation.test.ts",
+          "line": 81,
+          "title": "[SAFE-HANDOFF-05][SAFE-03][SPEC-10.stop-admin-work] a staff SAFETY escalation still takes the safety path and revokes the call's pending mutations; only the transfer is refused (503 TALKDESK_CONTROL_UNAVAILABLE), never claimed",
+          "kind": "it",
+          "tags": [
+            "SAFE-HANDOFF-05",
+            "SAFE-03",
+            "SPEC-10.stop-admin-work"
           ],
           "status": "passed",
           "viaAlias": "SPEC-10.stop-admin-work"
@@ -33497,7 +36165,7 @@
         }
       ],
       "counts": {
-        "passed": 17,
+        "passed": 18,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -36369,7 +39037,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 98,
+          "line": 101,
           "title": "[SPEC-13.metrics][SPEC-15.worker] MeteredLoop counts runs, errors and processed items and observes lag and duration per loop",
           "kind": "it",
           "tags": [
@@ -36381,7 +39049,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 131,
+          "line": 153,
           "title": "[DATA-03][OPS-03][SPEC-13.metrics] the retention loop reports blocked classes, unverified copies, deletions and pending vendor requests as metrics",
           "kind": "it",
           "tags": [
@@ -41901,7 +44569,7 @@
       "tests": [
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 364,
+          "line": 441,
           "title": "[SPEC-16.phi] PHI endpoints are not permitted while any prerequisite is missing",
           "kind": "it",
           "tags": [
@@ -45017,11 +47685,11 @@
         "platform.composition"
       ],
       "workPackage": "WP-07",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 5,
+      "localTests": "PASS"
     },
     {
       "id": "FO-00-27",
@@ -45090,12 +47758,12 @@
       "capabilityIds": [
         "platform.composition"
       ],
-      "workPackage": "WP-07",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 10,
+      "localTests": "PASS"
     },
     {
       "id": "FO-00-31",
@@ -45205,11 +47873,11 @@
         "platform.composition"
       ],
       "workPackage": "WP-07",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 1,
+      "localTests": "PASS"
     },
     {
       "id": "FO-00-37",
@@ -45340,7 +48008,7 @@
         "platform.composition"
       ],
       "workPackage": "WP-07",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 0,
@@ -46701,7 +49369,7 @@
       "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 33,
+      "taggedTests": 38,
       "localTests": "PASS"
     },
     {
@@ -47032,12 +49700,12 @@
       "capabilityIds": [
         "platform.composition"
       ],
-      "workPackage": "WP-07",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 18,
+      "localTests": "PASS"
     },
     {
       "id": "FO-03-31",
@@ -47362,11 +50030,11 @@
         "operator.console"
       ],
       "workPackage": "WP-07",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 5,
+      "localTests": "PASS"
     },
     {
       "id": "FO-03-49a",
@@ -49243,7 +51911,7 @@
       "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 6,
+      "taggedTests": 7,
       "localTests": "PASS"
     },
     {
@@ -57577,12 +60245,12 @@
         "platform.composition",
         "identity.workforce"
       ],
-      "workPackage": "WP-07",
-      "software": "IMPLEMENTED",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 23,
+      "localTests": "PASS"
     },
     {
       "id": "FO-14-54",
@@ -57636,12 +60304,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-07",
-      "software": "IMPLEMENTED",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 38,
+      "localTests": "PASS"
     },
     {
       "id": "FO-14-57",
@@ -58914,11 +61582,11 @@
         "platform.composition"
       ],
       "workPackage": "WP-07",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 9,
+      "localTests": "PASS"
     },
     {
       "id": "FO-16-12",
@@ -60422,8 +63090,8 @@
       "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 1,
+      "localTests": "PASS"
     },
     {
       "id": "FO-17-24.DELEGATION_REVOKED",
@@ -60737,11 +63405,11 @@
         "connectors.runtime"
       ],
       "workPackage": "WP-07",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 3,
+      "localTests": "PASS"
     },
     {
       "id": "FO-17-24.MODEL_REFUSAL",
@@ -62338,11 +65006,11 @@
         "platform.composition"
       ],
       "workPackage": "WP-07",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 15,
+      "localTests": "PASS"
     },
     {
       "id": "FO-19-07",
@@ -64877,11 +67545,11 @@
         "platform.composition"
       ],
       "workPackage": "WP-07",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 10,
+      "localTests": "PASS"
     },
     {
       "id": "FO-21-04",
@@ -65006,11 +67674,11 @@
         "platform.composition"
       ],
       "workPackage": "WP-07",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 25,
+      "localTests": "PASS"
     },
     {
       "id": "FO-21-11",
@@ -65614,7 +68282,7 @@
         "platform.composition"
       ],
       "workPackage": "WP-07",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 0,
@@ -65631,12 +68299,12 @@
       "capabilityIds": [
         "platform.composition"
       ],
-      "workPackage": "WP-07",
-      "software": "IMPLEMENTED",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 1,
+      "localTests": "PASS"
     },
     {
       "id": "FO-22-22",
@@ -66133,8 +68801,8 @@
       "title": "Caller identity and session assurance",
       "requirements": 37,
       "softwareCounts": {
-        "IMPLEMENTED": 9,
-        "VERIFIED_LOCAL": 28
+        "IMPLEMENTED": 8,
+        "VERIFIED_LOCAL": 29
       },
       "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
@@ -66145,8 +68813,8 @@
       "title": "Workforce identity and RBAC",
       "requirements": 13,
       "softwareCounts": {
-        "VERIFIED_LOCAL": 9,
-        "IMPLEMENTED": 4
+        "VERIFIED_LOCAL": 10,
+        "IMPLEMENTED": 3
       },
       "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
@@ -66171,8 +68839,8 @@
       "requirements": 34,
       "softwareCounts": {
         "VERIFIED_LOCAL": 13,
-        "IMPLEMENTED": 19,
-        "MISSING": 2
+        "IMPLEMENTED": 20,
+        "MISSING": 1
       },
       "software": "MISSING",
       "environment": "NOT_CONFIGURED",
@@ -66183,11 +68851,10 @@
       "title": "Live composition",
       "requirements": 18,
       "softwareCounts": {
-        "MISSING": 11,
-        "VERIFIED_LOCAL": 5,
-        "IMPLEMENTED": 2
+        "IMPLEMENTED": 9,
+        "VERIFIED_LOCAL": 9
       },
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN"
     },
@@ -66585,8 +69252,8 @@
       "title": "Operations console",
       "requirements": 37,
       "softwareCounts": {
-        "IMPLEMENTED": 15,
-        "MISSING": 17,
+        "IMPLEMENTED": 16,
+        "MISSING": 16,
         "VERIFIED_LOCAL": 5
       },
       "software": "MISSING",
@@ -68351,7 +71018,7 @@
           {
             "file": "platform/src/config/guard.test.ts",
             "title": "a live sandbox adapter with its own signed VENDOR_SANDBOX_INTEGRATION approval passes",
-            "line": 527,
+            "line": 604,
             "status": "passed"
           }
         ],
@@ -68362,7 +71029,7 @@
           {
             "file": "platform/src/config/guard.test.ts",
             "title": "PHI is impossible in sandbox: PHI_PROCESSING scopes and PHI endpoints are rejected",
-            "line": 536,
+            "line": 622,
             "status": "passed"
           }
         ],
@@ -68426,7 +71093,7 @@
           {
             "file": "platform/src/config/guard.test.ts",
             "title": "an unreviewed model listed with the approval id of a record for another model is rejected",
-            "line": 397,
+            "line": 474,
             "status": "passed"
           },
           {
@@ -68684,6 +71351,16 @@
           },
           {
             "faultId": "AUTH_EXPIRY_MID_CALL",
+            "file": "platform/test/integration/composition/faults.test.ts",
+            "line": 104,
+            "title": "[FAULT:AUTH_EXPIRY_MID_CALL][FO-17-24.AUTH_EXPIRY_MID_CALL][AUTH-02][OPS-04] the commit after expiry fails closed at the session step (before admission and any provider) while the DynamoDB session row still exists",
+            "seam": false,
+            "layer": "layer2",
+            "suite": "composition",
+            "status": "passed"
+          },
+          {
+            "faultId": "AUTH_EXPIRY_MID_CALL",
             "file": "platform/test/integration/identity/caller-identity.test.ts",
             "line": 311,
             "title": "[FAULT:AUTH_EXPIRY_MID_CALL seam][AUTH-04] the injected-clock seam drives the hard expiry on the live store: SESSION_EXPIRED while the record is untouched",
@@ -68703,7 +71380,7 @@
             "status": "passed"
           }
         ],
-        "layer2": "NOT_RUN",
+        "layer2": "PASS",
         "ledger": {
           "id": "FO-17-24.AUTH_EXPIRY_MID_CALL",
           "faultId": "AUTH_EXPIRY_MID_CALL",
@@ -69148,6 +71825,16 @@
           },
           {
             "faultId": "DLQ_FULL",
+            "file": "platform/test/integration/composition/faults.test.ts",
+            "line": 228,
+            "title": "[FAULT:DLQ_FULL][FO-17-24.DLQ_FULL][OPS-01][DATA-01] consumption stops, the paging alarm fires and the source checkpoint is kept; nothing is dropped and the feed resumes from the checkpoint once the queue accepts",
+            "seam": false,
+            "layer": "layer2",
+            "suite": "composition",
+            "status": "passed"
+          },
+          {
+            "faultId": "DLQ_FULL",
             "file": "platform/test/integration/substrate/sqs.test.ts",
             "line": 152,
             "title": "[FAULT:DLQ_FULL seam][OPS-03] a dead-letter queue that refuses the write (deleted, or a message over the size limit) is a typed DLQ_WRITE_REFUSED, never a silent drop",
@@ -69157,7 +71844,7 @@
             "status": "passed"
           }
         ],
-        "layer2": "NOT_RUN",
+        "layer2": "PASS",
         "ledger": {
           "id": "FO-17-24.DLQ_FULL",
           "faultId": "DLQ_FULL",
@@ -69171,7 +71858,7 @@
             "WP-06",
             "WP-07"
           ],
-          "softwareStatus": "MISSING"
+          "softwareStatus": "IMPLEMENTED"
         }
       },
       {
@@ -70622,13 +73309,13 @@
     "ledgerIssues": [],
     "summary": {
       "layer2": {
-        "PASS": 5,
+        "PASS": 7,
         "FAIL": 0,
         "INCONCLUSIVE": 0,
-        "NOT_RUN": 45
+        "NOT_RUN": 43
       },
-      "withLayer2Test": 5,
-      "seamOnly": 6,
+      "withLayer2Test": 7,
+      "seamOnly": 4,
       "layer1Only": 0
     }
   },
@@ -71046,6 +73733,39 @@
       ]
     },
     {
+      "tag": "FT-91",
+      "tests": [
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1194
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 1225
+        },
+        {
+          "file": "platform/src/config/rules/types.test.ts",
+          "line": 55
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 231
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 234
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 84
+        },
+        {
+          "file": "platform/test/integration/composition/secret-separation.test.ts",
+          "line": 126
+        }
+      ]
+    },
+    {
       "tag": "OPS-APPR-01",
       "tests": [
         {
@@ -71062,23 +73782,31 @@
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 397
+          "line": 474
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 413
+          "line": 490
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 429
+          "line": 506
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 451
+          "line": 528
         },
         {
           "file": "platform/src/config/guard.test.ts",
-          "line": 464
+          "line": 541
+        },
+        {
+          "file": "platform/src/main/audit-exporter.test.ts",
+          "line": 159
+        },
+        {
+          "file": "platform/src/main/live-modules.test.ts",
+          "line": 251
         }
       ]
     },
@@ -71374,11 +74102,23 @@
         },
         {
           "file": "platform/src/console-api/safety-escalation.test.ts",
-          "line": 21
+          "line": 22
         },
         {
           "file": "platform/src/console-api/safety-escalation.test.ts",
-          "line": 47
+          "line": 48
+        },
+        {
+          "file": "platform/src/console-api/safety-escalation.test.ts",
+          "line": 81
+        },
+        {
+          "file": "platform/src/console-api/safety-escalation.test.ts",
+          "line": 96
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 160
         },
         {
           "file": "platform/test/journeys/safety-handoff-regressions.test.ts",
@@ -71426,31 +74166,31 @@
       "tests": [
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 66
+          "line": 69
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 98
+          "line": 101
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 122
+          "line": 144
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 285
+          "line": 391
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 353
+          "line": 459
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 409
+          "line": 515
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 421
+          "line": 527
         }
       ]
     },
@@ -71512,6 +74252,14 @@
       "tag": "STRIDE-D",
       "tests": [
         {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 831
+        },
+        {
+          "file": "platform/src/config/guard.test.ts",
+          "line": 846
+        },
+        {
           "file": "platform/src/console-api/break-glass.test.ts",
           "line": 1612
         },
@@ -71530,6 +74278,34 @@
         {
           "file": "platform/src/console-api/sso.test.ts",
           "line": 413
+        },
+        {
+          "file": "platform/src/main/live-console.test.ts",
+          "line": 11
+        },
+        {
+          "file": "platform/src/main/live-console.test.ts",
+          "line": 21
+        },
+        {
+          "file": "platform/src/shared/cidr.test.ts",
+          "line": 19
+        },
+        {
+          "file": "platform/src/shared/cidr.test.ts",
+          "line": 39
+        },
+        {
+          "file": "platform/src/shared/cidr.test.ts",
+          "line": 55
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 279
+        },
+        {
+          "file": "platform/test/integration/composition/console.test.ts",
+          "line": 302
         },
         {
           "file": "platform/test/integration/identity/recovery.test.ts",
@@ -71576,7 +74352,7 @@
         },
         {
           "file": "platform/src/worker/worker.test.ts",
-          "line": 316
+          "line": 422
         }
       ]
     },
@@ -72077,7 +74853,7 @@
   "issues": [],
   "summary": {
     "requirements": 168,
-    "taggedTests": 3084,
+    "taggedTests": 3325,
     "localTests": {
       "PASS": 149,
       "FAIL": 0,
@@ -72088,9 +74864,9 @@
     "followOn": {
       "requirements": 1170,
       "software": {
-        "MISSING": 562,
-        "IMPLEMENTED": 438,
-        "VERIFIED_LOCAL": 170
+        "MISSING": 550,
+        "IMPLEMENTED": 445,
+        "VERIFIED_LOCAL": 175
       },
       "environment": {
         "NOT_CONFIGURED": 1170
@@ -72103,8 +74879,8 @@
     "capabilities": {
       "count": 56,
       "software": {
-        "IMPLEMENTED": 6,
-        "MISSING": 50
+        "IMPLEMENTED": 7,
+        "MISSING": 49
       },
       "environment": {
         "NOT_CONFIGURED": 56
