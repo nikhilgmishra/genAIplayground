@@ -99,7 +99,7 @@ and PRQ-011 (on-call roster and paging).
 | `cd platform && npx tsx src/workflows/generate-asl.ts --check` | Exists |
 | `node talkdesk/tools/drift-check.mjs`, `node talkdesk/tools/validate-package.mjs` | Exist (offline); live tenant comparison BLOCKED |
 | `bash scripts/fetch-tools.sh` (pinned OPA and Terraform) | Exists |
-| `pnpm policy:test`, `pnpm policy:build` (`scripts/policy.sh`) | Exist; `pnpm policy:test` passes offline (225 Rego tests in `evidence/test-reports/opa-vsp.json`) |
+| `pnpm policy:test`, `pnpm policy:build` (`scripts/policy.sh`) | Exist; `pnpm policy:test` passes offline (235 Rego tests in `evidence/test-reports/opa-vsp.json`) |
 | `pnpm evidence` (`platform/src/evaluation/cli.ts`) | Exists (LOCAL FIXTURE evidence only) |
 | Console actions: inspect journey, cancel uncommitted work, retry reconciled operation, DLQ repair, staff safety escalation | Exist (offline, `platform/src/console-api`, `console/`); legal hold has no console endpoint |
 | Retention legal hold (`LegalHoldStorePg`, `platform/src/retention`) | Exists (offline); no console endpoint |

@@ -2,18 +2,19 @@
   "traceabilityVersion": "traceability.v2",
   "catalogVersion": "2026-10-19.1",
   "catalogDigest": "07907c3c9d6fb15a475ebe4b890100dcf76133473282a70ac12e90632160eb76",
-  "generatedAt": "2026-10-20T10:10:18.130Z",
+  "generatedAt": "2026-10-21T03:58:31.272Z",
   "resultSources": [
     "evidence/test-reports/vitest-platform.json",
     "evidence/test-reports/vitest-console.json",
     "evidence/test-reports/vitest-contract-docs-journey.json",
+    "evidence/test-reports/vitest-integration.json",
     "evidence/test-reports/opa-vsp.json",
     "evidence/test-reports/opa-terraform.json"
   ],
   "followOnSources": {
     "requirements": "14a34ba86065ba71415eb11e03d9dfe1fed9aa534328cb02f5595defef6c38a6",
-    "gapLedger": "bad69ef275d392ebaf1bb083a03143661ecc58635d05184f278d0a61037d6047",
-    "capabilities": "237aacf24cd5883e70a3b5aedeea5099bf1ebaec7617bbaec441dc11272334df",
+    "gapLedger": "c9e935f9477b2b32e5cdd344de8178464baf31c6508a16ee0b3673c677ed06e1",
+    "capabilities": "1597d3cadcb148ae051fa1e7d4728b53dcb9038c81d4f6830e78937c2e268dd3",
     "activationRegister": "fe1ffb59b6a70d3edcf80fadc7c15146109bcb3afc3b743700a229e5d1068ef6",
     "asOf": "2026-10-19"
   },
@@ -32,6 +33,30 @@
         "adversarial"
       ],
       "tests": [
+        {
+          "file": "platform/src/adapters/live/oidc-client.test.ts",
+          "line": 296,
+          "title": "[FO-05-07][AUTH-01] fetches the issuer metadata over the egress-classified transport, requires issuer equality and pins the https endpoints",
+          "kind": "it",
+          "tags": [
+            "FO-05-07",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/oidc-client.test.ts",
+          "line": 494,
+          "title": "[FO-05-09][AUTH-01] nonce mismatch, a stale authentication, an issuer mix-up and a wrong at_hash are refused after the exchange",
+          "kind": "it",
+          "tags": [
+            "FO-05-09",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
         {
           "file": "platform/src/adapters/local/identity-directory.test.ts",
           "line": 14,
@@ -62,6 +87,55 @@
           "kind": "it",
           "tags": [
             "SPEC-7.no-enumeration",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/auth.test.ts",
+          "line": 298,
+          "title": "[FO-05-41][AUTH-01] the DEFAULT MFA rule (no tenant override) needs `mfa` or two distinct RFC 8176 factor classes: a single-factor amr is refused",
+          "kind": "it",
+          "tags": [
+            "FO-05-41",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 51,
+          "title": "[FO-05-09][FO-05-10][AUTH-01] the browser gets an opaque console session; IdP tokens, state and nonce never leave the backend; roles come from IdP groups",
+          "kind": "it",
+          "tags": [
+            "FO-05-09",
+            "FO-05-10",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 121,
+          "title": "[FO-05-41][AUTH-01] MFA amr is required and an unknown managed group refuses sign-in (directory drift fails closed)",
+          "kind": "it",
+          "tags": [
+            "FO-05-41",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 195,
+          "title": "[FO-05-19][AUTH-01] a refresh that returns a different subject is never adopted: the family is revoked",
+          "kind": "it",
+          "tags": [
+            "FO-05-19",
             "AUTH-01"
           ],
           "status": "passed",
@@ -110,6 +184,30 @@
           "kind": "it",
           "tags": [
             "AUTH-02",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/identity/session-idle.test.ts",
+          "line": 115,
+          "title": "[FO-05-19][FO-22-05][AUTH-01] the same caller re-verifies to A2; a different person cannot silently take over the call; an explicit account switch allows it",
+          "kind": "it",
+          "tags": [
+            "FO-05-19",
+            "FO-22-05",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/identity/session-idle.test.ts",
+          "line": 221,
+          "title": "[FAULT:IDP_UNAVAILABLE seam][AUTH-01] the binding fails closed with IDP_UNAVAILABLE, assurance stays A0 and no weaker method is substituted",
+          "kind": "it",
+          "tags": [
             "AUTH-01"
           ],
           "status": "passed",
@@ -195,7 +293,84 @@
             "FO-16-13",
             "AUTH-01"
           ],
-          "status": "not_run",
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/caller-identity.test.ts",
+          "line": 248,
+          "title": "[FO-05-04][AUTH-01] a password-only real IdP login (amr [pwd], the account's own subject) cannot complete the secure link: MFA_REQUIRED, nothing bound, the transaction closed",
+          "kind": "it",
+          "tags": [
+            "FO-05-04",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/caller-identity.test.ts",
+          "line": 267,
+          "title": "[FO-22-05][FO-05-19][AUTH-01] a different person's real IdP login cannot complete another account's secure link: ACTOR_MISMATCH, nothing bound",
+          "kind": "it",
+          "tags": [
+            "FO-22-05",
+            "FO-05-19",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/caller-identity.test.ts",
+          "line": 323,
+          "title": "[FAULT:IDP_UNAVAILABLE][FO-05-30][AUTH-01][SAFE-02] the caller IdP is unreachable during secure-link approval: assurance stays A0, no protected read succeeds, no weaker method is substituted, the caller reaches a person",
+          "kind": "it",
+          "tags": [
+            "FO-05-30",
+            "AUTH-01",
+            "SAFE-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso-adversarial.test.ts",
+          "line": 345,
+          "title": "[FO-05-41][AUTH-01] the default MFA rule on Keycloak: a login whose amr carries a single factor value is refused STAFF_MFA_REQUIRED (the pwd + otp login of the main suite passes)",
+          "kind": "it",
+          "tags": [
+            "FO-05-41",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso.test.ts",
+          "line": 196,
+          "title": "[FO-05-09][FO-05-10][FO-05-41][FO-14-02][AUTH-01] backend PKCE exchange yields an opaque console session; roles come from the IdP groups; the IdP tokens stay sealed server side",
+          "kind": "it",
+          "tags": [
+            "FO-05-09",
+            "FO-05-10",
+            "FO-05-41",
+            "FO-14-02",
+            "AUTH-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso.test.ts",
+          "line": 233,
+          "title": "[FO-05-41][AUTH-01] MFA amr is required (password-only refused) and an unknown managed group refuses sign-in",
+          "kind": "it",
+          "tags": [
+            "FO-05-41",
+            "AUTH-01"
+          ],
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -236,12 +411,12 @@
         }
       ],
       "counts": {
-        "passed": 16,
+        "passed": 31,
         "failed": 0,
         "skipped": 0,
-        "not_run": 1
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": {
         "reason": "Real IdP account linking and registered-channel data",
         "prerequisites": [
@@ -251,6 +426,7 @@
       },
       "evidence": [
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -507,7 +683,7 @@
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 74,
+          "line": 140,
           "title": "[AUTH-02] missing, expired, wrong-audience, wrong-issuer, untrusted-key and over-long tokens fail closed with 401",
           "kind": "it",
           "tags": [
@@ -518,7 +694,7 @@
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 203,
+          "line": 282,
           "title": "[AUTH-02] a token that is not yet valid (nbf in the future) is refused",
           "kind": "it",
           "tags": [
@@ -529,11 +705,48 @@
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 209,
+          "line": 288,
           "title": "[AUTH-02] required claims (jti, auth_time, amr) and the algorithm allowlist are enforced; an unsigned token is refused",
           "kind": "it",
           "tags": [
             "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 92,
+          "title": "[FO-05-45][AUTH-02] a request grants nothing; self-approval is refused; an independent approval issues a time-bound grant; first use opens one review that neither holder nor approver can complete",
+          "kind": "it",
+          "tags": [
+            "FO-05-45",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 245,
+          "title": "[FO-14-51][AUTH-02] two admins and the holder register a custodian key (never self-approved, never before the holder's proof); activation needs two different custodians' signatures and yields a short RECOVERY session that works while the IdP is down and opens an access review",
+          "kind": "it",
+          "tags": [
+            "FO-14-51",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 343,
+          "title": "[FO-14-51][AUTH-02][AUTH-03] enrollment is bound to the holder at the IdP: a fabricated holder, roles the directory does not grant, a key only the proposer holds, a non-holder confirmation and a recovery session's confirmation are all refused (probe P2)",
+          "kind": "it",
+          "tags": [
+            "FO-14-51",
+            "AUTH-02",
+            "AUTH-03"
           ],
           "status": "passed",
           "viaAlias": null
@@ -552,7 +765,7 @@
         },
         {
           "file": "platform/src/console-api/rbac.test.ts",
-          "line": 199,
+          "line": 223,
           "title": "[AUTH-02] deny by default: with no loadable policy bundle every authenticated endpoint is refused (POLICY_ENGINE_ERROR)",
           "kind": "it",
           "tags": [
@@ -588,7 +801,7 @@
         {
           "file": "platform/src/console-api/views.test.ts",
           "line": 213,
-          "title": "[AUTH-02] the OIDC code exchange is BLOCKED (no workforce client) and refuses rather than inventing an IdP flow",
+          "title": "[AUTH-02] without a wired workforce SSO client the OIDC endpoints refuse rather than inventing an IdP flow",
           "kind": "it",
           "tags": [
             "AUTH-02"
@@ -683,7 +896,7 @@
         },
         {
           "file": "platform/src/policy/catalogue.test.ts",
-          "line": 71,
+          "line": 101,
           "title": "[AUTH-02] unknown keys in the catalogue are rejected (strict schema)",
           "kind": "it",
           "tags": [
@@ -717,7 +930,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 61,
+          "line": 63,
           "title": "[AUTH-02] unknown action is denied by default",
           "kind": "it",
           "tags": [
@@ -728,7 +941,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 68,
+          "line": 70,
           "title": "[AUTH-02] raw SQL, broad search and generic update are not catalogue actions",
           "kind": "it",
           "tags": [
@@ -739,7 +952,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 74,
+          "line": 76,
           "title": "[AUTH-02] every protected allow carries a decision id, version and timestamp that validate",
           "kind": "it",
           "tags": [
@@ -750,7 +963,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 82,
+          "line": 84,
           "title": "[AUTH-02] human-boundary actions always deny with REQUIRE_HUMAN",
           "kind": "it",
           "tags": [
@@ -761,11 +974,71 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 259,
+          "line": 262,
           "title": "[AUTH-02] multiple deny reasons are all reported",
           "kind": "it",
           "tags": [
             "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 389,
+          "title": "[AUTH-02][FAULT:POLICY_ENGINE_ERROR seam] tighten-only, field mask: a decorated mask inside the catalogue but wider than the loaded decision's is refused",
+          "kind": "it",
+          "tags": [
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 538,
+          "title": "[AUTH-02][OPS-06][FAULT:POLICY_ENGINE_ERROR seam] tighten-only: a decoration can never allow what the loaded policy denies, widen the field mask or drop an obligation",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 606,
+          "title": "[AUTH-02][OPS-06] the tighten-only rule binds ANY substituted evaluator, including one swapped in without the seam",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 623,
+          "title": "[AUTH-02][AUTH-04][OPS-06][FAULT:POLICY_ENGINE_ERROR seam] input isolation: a decoration that rewrites the input it is handed (assurance, revocation, tenant) never turns the loaded policy's deny into an allow",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "AUTH-04",
+            "OPS-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 697,
+          "title": "[AUTH-02][OPS-06] a decoration cannot alter the loaded evaluator it is handed: `inner` is frozen and the rule consults a private copy",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-06"
           ],
           "status": "passed",
           "viaAlias": null
@@ -814,7 +1087,56 @@
             "FO-05-56",
             "AUTH-02"
           ],
-          "status": "not_run",
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/break-glass.test.ts",
+          "line": 91,
+          "title": "[FO-05-45][AUTH-02] a request grants nothing until a different admin approves; self-decision is refused by the service and by the database",
+          "kind": "it",
+          "tags": [
+            "FO-05-45",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/break-glass.test.ts",
+          "line": 136,
+          "title": "[FO-05-45][AUTH-02] the review is completed only by a third person; the database refuses a self-review written around the service",
+          "kind": "it",
+          "tags": [
+            "FO-05-45",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/recovery.test.ts",
+          "line": 278,
+          "title": "[FO-14-51][AUTH-04][AUTH-02] a RECOVERY session is bound to the identity it was activated with: revoking it ends the session although the holder keeps another ACTIVE identity; revoking the other one does not",
+          "kind": "it",
+          "tags": [
+            "FO-14-51",
+            "AUTH-04",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/recovery.test.ts",
+          "line": 332,
+          "title": "[FO-14-51][AUTH-02] the database binds enrollment and suspension to the holder: no approval before the holder's proof, and a confirmation or suspension written in another actor's transaction is refused (app_console, row-level security and trigger)",
+          "kind": "it",
+          "tags": [
+            "FO-14-51",
+            "AUTH-02"
+          ],
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -827,7 +1149,7 @@
             "FO-03-21",
             "AUTH-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -925,16 +1247,17 @@
         }
       ],
       "counts": {
-        "passed": 51,
+        "passed": 65,
         "failed": 0,
         "skipped": 0,
-        "not_run": 2
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": null,
       "evidence": [
         "evidence/test-reports/vitest-console.json",
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -1013,6 +1336,30 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/adapters/live/oidc-client.test.ts",
+          "line": 470,
+          "title": "[FO-05-09][AUTH-03] exchanges the code with the verifier and validates the ID token: claims, groups, amr, hashed nonce and sid",
+          "kind": "it",
+          "tags": [
+            "FO-05-09",
+            "AUTH-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/oidc-client.test.ts",
+          "line": 585,
+          "title": "[FO-05-19][AUTH-03] a refreshed ID token for another subject is refused, never adopted",
+          "kind": "it",
+          "tags": [
+            "FO-05-19",
+            "AUTH-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/audit/schema.test.ts",
           "line": 113,
           "title": "[AUTH-03] rejects non-opaque actor and subject references",
@@ -1025,10 +1372,69 @@
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 57,
+          "line": 123,
           "title": "[AUTH-03] a request body cannot set roles or identity: unknown fields are rejected and roles come only from the directory",
           "kind": "it",
           "tags": [
+            "AUTH-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 343,
+          "title": "[FO-14-51][AUTH-02][AUTH-03] enrollment is bound to the holder at the IdP: a fabricated holder, roles the directory does not grant, a key only the proposer holds, a non-holder confirmation and a recovery session's confirmation are all refused (probe P2)",
+          "kind": "it",
+          "tags": [
+            "FO-14-51",
+            "AUTH-02",
+            "AUTH-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/login-state.test.ts",
+          "line": 102,
+          "title": "[AUTH-03] the MAC subkey is per purpose: a tag for one purpose never verifies for another, and no purpose outside the grammar is accepted",
+          "kind": "it",
+          "tags": [
+            "AUTH-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso-config.test.ts",
+          "line": 167,
+          "title": "[AUTH-03] a sealed refresh token opens only for its own session (AAD) and key; rotation keeps old keys readable",
+          "kind": "it",
+          "tags": [
+            "AUTH-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 206,
+          "title": "[FO-05-19][AUTH-03] defence in depth: even a port that skips its own subject check cannot switch the actor on refresh",
+          "kind": "it",
+          "tags": [
+            "FO-05-19",
+            "AUTH-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 279,
+          "title": "[FO-05-19][AUTH-03] an active-state answer about another subject is never adopted: the family is revoked",
+          "kind": "it",
+          "tags": [
+            "FO-05-19",
             "AUTH-03"
           ],
           "status": "passed",
@@ -1260,7 +1666,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 290,
+          "line": 293,
           "title": "[AUTH-03] a model-proposed field such as callerClaimedRole makes the input invalid",
           "kind": "it",
           "tags": [
@@ -1271,7 +1677,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 295,
+          "line": 298,
           "title": "[AUTH-03] extra fields inside auth, resource, tool or a relationship fact are rejected",
           "kind": "it",
           "tags": [
@@ -1282,7 +1688,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 303,
+          "line": 306,
           "title": "[AUTH-03] a caller-stated relationship without an authoritative fact establishes nothing",
           "kind": "it",
           "tags": [
@@ -1293,7 +1699,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 308,
+          "line": 311,
           "title": "[AUTH-03] malformed values (bad enum, bad id, oversized) are invalid, never interpreted",
           "kind": "it",
           "tags": [
@@ -1583,7 +1989,7 @@
             "FO-16-13",
             "AUTH-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -1595,7 +2001,7 @@
             "FO-16-13",
             "AUTH-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -1607,7 +2013,7 @@
             "FO-16-13",
             "AUTH-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -1669,12 +2075,12 @@
         }
       ],
       "counts": {
-        "passed": 56,
+        "passed": 66,
         "failed": 0,
         "skipped": 0,
-        "not_run": 3
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": {
         "reason": "Vendor session binding outside model-controlled arguments (TB-01)",
         "prerequisites": [
@@ -1683,6 +2089,7 @@
       },
       "evidence": [
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -1798,6 +2205,18 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/adapters/live/oidc-client.test.ts",
+          "line": 550,
+          "title": "[FO-05-19][AUTH-04] same-subject refresh rotates the refresh token; a replayed refresh token is refused and revokes the family",
+          "kind": "it",
+          "tags": [
+            "FO-05-19",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/adapters/live/salesforce-rest.contract.test.ts",
           "line": 171,
           "title": "[AUTH-04] cached token expires by the client-side bound (or a shorter advertised expires_in) and is re-requested",
@@ -1849,10 +2268,213 @@
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 91,
+          "line": 157,
           "title": "[AUTH-04] logout revokes the session server-side in the same transaction as its audit event; the token then fails closed",
           "kind": "it",
           "tags": [
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 411,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] offboarding at the IdP reaches recovery: a disabled custodian's identities are SUSPENDED and their RECOVERY session ends at the next check, activation is refused, and only a new SSO sign-in with the roles reinstates them (probe P1)",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 669,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] logout decides at once with the IdP's answer, whatever refresh of the row is in flight (probe R): active keeps the custodian, and a refresh the logout's revocation then refuses decides nothing more; an inactive token or no answer suspends, with a fresh or a stale refresh claim; after a reinstatement the closed family never suspends again",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 809,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] a refresh the IdP refuses is a terminal path: a disabled custodian and an employed one whose token is past its known expiry are both suspended (no expiry explanation, fail closed); a second refresh of a row in flight is refused SESSION_ROTATED (retryable) without reaching the IdP, inside the in-flight window and not after it; an outage releases the claim",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 918,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] a request's active check that lost a refresh race on a live family is refused SESSION_ROTATED (retryable) and decides nothing, also 5 s into the in-flight window; a claim older than the window decides at once (suspended), and so does a fresh one once it lapses",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 997,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] the refresh-token replay closure asks the IdP about the family's live row (probe Q1): a disabled custodian who presents their own superseded bearer is suspended CUSTODIAN_OFFBOARDED and cannot activate, through refresh or a request; an employed one keeps the identity; no answer suspends; a replay raced between a logout's own answer and its decision decides once (probe Q2)",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 1070,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] an idle or absolute expiry closure is a terminal path too: the sweep and a request ask the IdP before they close an expired session, so a custodian disabled since the last active check is suspended, an employed one is not, and an unreachable IdP suspends (CUSTODIAN_EVIDENCE_LOST)",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 1128,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] an expiry closure is never subject to the refresh-race exception: a disabled custodian whose row carries a fresh refresh claim (5 s old) and idles out is closed SESSION_IDLE_EXPIRED and suspended CUSTODIAN_OFFBOARDED at once, by the sweep and by a request presenting the bearer, and so is one whose session reaches its absolute expiry",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 1203,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] only a new SSO sign-in reinstates a SUSPENDED identity: the positive answers of an active check, a refresh and a logout never do, nor do roles that come back at an active check or a refresh; an ACTIVE answer on a family another path already closed still suspends what its roles no longer cover (verifier probes N3, N4, N5, P1, P2)",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 1281,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] the refresh-race exception is narrow: an answer about the person suspends at once although a refresh of the row is in flight; a family another path closed meanwhile is no race (SESSION_REVOKED, not retryable); a logout that finds its family closed asks the IdP nothing; a replay whose family has no live row left suspends (no answer)",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 1343,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] a refresh still running beyond REFRESH_IN_FLIGHT_SECONDS (a paused process) lets a second refresh of the row reach the IdP; the one presenting the token the IdP already redeemed is refused, the family closes and the custodian is suspended: availability only, never fail open (verifier probe P3)",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso-config.test.ts",
+          "line": 143,
+          "title": "[FO-05-18][AUTH-04] session verdict and sealed refresh tokens",
+          "kind": "describe",
+          "tags": [
+            "FO-05-18",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso-config.test.ts",
+          "line": 155,
+          "title": "[FO-05-18][AUTH-04] idle, absolute, revoked, rotated and replayed bearers are refused on every use",
+          "kind": "it",
+          "tags": [
+            "FO-05-18",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 136,
+          "title": "[FO-05-18][AUTH-04] idle and absolute expiry, enforced on every use",
+          "kind": "describe",
+          "tags": [
+            "FO-05-18",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 137,
+          "title": "[FO-05-18][AUTH-04] use within the idle window keeps the session; idle beyond it ends the session (revoked, not resumable)",
+          "kind": "it",
+          "tags": [
+            "FO-05-18",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 222,
+          "title": "[FO-14-52][AUTH-04] a user disabled at the IdP loses the session at the next active-state check, with or without a request; role changes in the IdP take effect",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 247,
+          "title": "[FO-14-52][FO-19-07][AUTH-04] a user removed from every managed group (account still enabled, groups claim ABSENT) loses the session at the next check and in the sweep",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-19-07",
             "AUTH-04"
           ],
           "status": "passed",
@@ -1979,6 +2601,78 @@
           "kind": "it",
           "tags": [
             "FO-03-22",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/identity/session-idle.test.ts",
+          "line": 40,
+          "title": "[FO-05-18][AUTH-04] idle expiry of verified caller privileges",
+          "kind": "describe",
+          "tags": [
+            "FO-05-18",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/identity/session-idle.test.ts",
+          "line": 41,
+          "title": "[FO-05-18][AUTH-04] use inside the idle window keeps A2; idle beyond it refuses SESSION_IDLE_EXPIRED once, drops privileges and fences the generation while the record still exists",
+          "kind": "it",
+          "tags": [
+            "FO-05-18",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/identity/session-idle.test.ts",
+          "line": 66,
+          "title": "[FO-05-18][AUTH-04] the hard expiry still applies and wins over activity",
+          "kind": "it",
+          "tags": [
+            "FO-05-18",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/identity/session-idle.test.ts",
+          "line": 81,
+          "title": "[FAULT:AUTH_EXPIRY_IDLE][FO-05-18][AUTH-07][AUTH-04] read FIRST after the idle limit, the gate is closed, the privileges are dropped and the generation is fenced; reading the gate is not activity",
+          "kind": "it",
+          "tags": [
+            "FO-05-18",
+            "AUTH-07",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/identity/session-idle.test.ts",
+          "line": 97,
+          "title": "[FAULT:AUTH_EXPIRY_IDLE][FO-05-05][AUTH-04] a step-up completed after the idle limit is refused: lapsed A2 is no base for A3",
+          "kind": "it",
+          "tags": [
+            "FO-05-05",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/identity/session-idle.test.ts",
+          "line": 200,
+          "title": "[FAULT:AUTH_EXPIRY_MID_CALL seam][AUTH-04] the seam moves only time: the next reader refuses SESSION_EXPIRED (hard) or SESSION_IDLE_EXPIRED (idle) while the record is unchanged in the store",
+          "kind": "it",
+          "tags": [
             "AUTH-04"
           ],
           "status": "passed",
@@ -2137,7 +2831,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 205,
+          "line": 208,
           "title": "[AUTH-04] expired session fails closed before TTL cleanup",
           "kind": "it",
           "tags": [
@@ -2148,7 +2842,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 210,
+          "line": 213,
           "title": "[AUTH-04] revoked session fails closed",
           "kind": "it",
           "tags": [
@@ -2159,7 +2853,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 214,
+          "line": 217,
           "title": "[AUTH-04] non-canonical but valid timestamps are normalized before evaluation",
           "kind": "it",
           "tags": [
@@ -2170,11 +2864,24 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 403,
+          "line": 418,
           "title": "[AUTH-04] TypeScript guard turns an allow for an expired session into a deny",
           "kind": "it",
           "tags": [
             "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 623,
+          "title": "[AUTH-02][AUTH-04][OPS-06][FAULT:POLICY_ENGINE_ERROR seam] input isolation: a decoration that rewrites the input it is handed (assurance, revocation, tenant) never turns the loaded policy's deny into an allow",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "AUTH-04",
+            "OPS-06"
           ],
           "status": "passed",
           "viaAlias": null
@@ -2212,7 +2919,7 @@
             "FO-15-26",
             "AUTH-04"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -2224,7 +2931,235 @@
             "FO-06-03",
             "AUTH-04"
           ],
-          "status": "not_run",
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/caller-identity.test.ts",
+          "line": 185,
+          "title": "[FAULT:AUTH_EXPIRY_IDLE][FO-05-18][FO-05-19][AUTH-04][SAFE-02] after the idle limit a protected read fails closed and is audited while the DynamoDB record still exists; speech prepared before the expiry is never spoken; a person stays reachable without re-authentication; only the same actor re-verifies",
+          "kind": "it",
+          "tags": [
+            "FO-05-18",
+            "FO-05-19",
+            "AUTH-04",
+            "SAFE-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/caller-identity.test.ts",
+          "line": 232,
+          "title": "[FAULT:AUTH_EXPIRY_IDLE][AUTH-07][AUTH-04] read FIRST after the idle limit, the Talkdesk auth gate is closed and fences the generation; the next protected read is refused and audited",
+          "kind": "it",
+          "tags": [
+            "AUTH-07",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/caller-identity.test.ts",
+          "line": 311,
+          "title": "[FAULT:AUTH_EXPIRY_MID_CALL seam][AUTH-04] the injected-clock seam drives the hard expiry on the live store: SESSION_EXPIRED while the record is untouched",
+          "kind": "it",
+          "tags": [
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/recovery.test.ts",
+          "line": 278,
+          "title": "[FO-14-51][AUTH-04][AUTH-02] a RECOVERY session is bound to the identity it was activated with: revoking it ends the session although the holder keeps another ACTIVE identity; revoking the other one does not",
+          "kind": "it",
+          "tags": [
+            "FO-14-51",
+            "AUTH-04",
+            "AUTH-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/recovery.test.ts",
+          "line": 354,
+          "title": "[FO-14-51][AUTH-04] race, revocation first: the identity is revoked after the activation read it but before the activation transaction; nothing is issued",
+          "kind": "it",
+          "tags": [
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/recovery.test.ts",
+          "line": 374,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] race, activation first, IdP offboarding signal second: the suspension waits for the activation's identity lock and then ends the session it created; suspension first: the activation is refused",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/recovery.test.ts",
+          "line": 418,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] race, the CO-SIGNER's suspension first: an IdP offboarding signal about the co-signer commits after the activation read both identities but before its transaction; the activation is refused inside it and nothing is issued",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/recovery.test.ts",
+          "line": 439,
+          "title": "[FO-14-51][AUTH-04] race, activation first: the revocation waits for the activation's identity lock and then revokes the session it created",
+          "kind": "it",
+          "tags": [
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/recovery.test.ts",
+          "line": 468,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] two terminal paths of ONE session family racing on two PostgreSQL connections decide once: both reach the decision while a third connection holds the family's rows; the row lock of closeFamily serializes them, the first closes the family and decides, the second finds it closed (one revocation, one audit event, the custodian state the first one's answer gives)",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso-adversarial.test.ts",
+          "line": 258,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] a custodian who logged out of one browser and is then disabled at Keycloak is offboarded through the OTHER browser's session: the sweep suspends the identity (CUSTODIAN_OFFBOARDED) and recovery activation is refused (verifier probe A)",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso-adversarial.test.ts",
+          "line": 353,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] on Keycloak, logout and refresh of one session decide with Keycloak's answer, fail closed (verifier probe R): a disabled custodian's refused refresh suspends them; a logout during a refresh held before Keycloak is asked suspends a disabled custodian at once and keeps an employed one, and the refresh Keycloak then refuses decides nothing more; a logout after Keycloak redeemed the token suspends even an employed custodian (reinstated by the next sign-in) and the successor tokens are inactive at Keycloak",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso-adversarial.test.ts",
+          "line": 451,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] on Keycloak, the refresh-token replay closure decides with Keycloak's answer about the family's live row (verifier probe Q1): refreshed once, disabled at Keycloak, the superseded bearer presented: SUSPENDED CUSTODIAN_OFFBOARDED, the sweep changes nothing, activation refused; an employed custodian's replay keeps the identity",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso-adversarial.test.ts",
+          "line": 489,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] on Keycloak, only a new sign-in reinstates a SUSPENDED identity: a client role removed at Keycloak suspends the identity carrying it (CUSTODIAN_ROLES_REDUCED) at the next refresh; with the role given back, Keycloak's positive answers at the next refresh, the active checks and the logout leave it suspended, and the next MFA sign-in reinstates it (verifier probes N3-N5)",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso-adversarial.test.ts",
+          "line": 533,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] on Keycloak, the sweep's idle expiry closure asks Keycloak before it closes (sweep ordering): a custodian disabled after the last active check whose session then idles out is suspended; an employed one is not",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso.test.ts",
+          "line": 240,
+          "title": "[FO-05-18][AUTH-04] idle expiry is enforced on every use against the stored activity, independent of the IdP session",
+          "kind": "it",
+          "tags": [
+            "FO-05-18",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso.test.ts",
+          "line": 266,
+          "title": "[FO-14-52][AUTH-04] an operator disabled at the IdP loses the session at the next active-state check and cannot sign in again",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso.test.ts",
+          "line": 278,
+          "title": "[FO-14-52][FO-19-07][AUTH-04] an operator removed from every managed group (account still enabled) loses the session at the next active check and in the sweep",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-19-07",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso.test.ts",
+          "line": 323,
+          "title": "[FO-14-52][FO-14-51][AUTH-04] an operator who is a recovery custodian and is disabled at Keycloak loses the recovery path: the sweep suspends their identity, ends their RECOVERY session, and activation is refused",
+          "kind": "it",
+          "tags": [
+            "FO-14-52",
+            "FO-14-51",
+            "AUTH-04"
+          ],
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -2237,7 +3172,7 @@
             "FO-15-50",
             "AUTH-04"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -2250,7 +3185,7 @@
             "FO-15-50",
             "AUTH-04"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -2262,7 +3197,7 @@
             "FO-07-16",
             "AUTH-04"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -2277,7 +3212,7 @@
             "FO-07-19",
             "AUTH-04"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -2289,7 +3224,7 @@
             "FO-03-22",
             "AUTH-04"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -2300,7 +3235,7 @@
           "tags": [
             "AUTH-04"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -2312,7 +3247,7 @@
             "AUTH-04",
             "FO-02-04"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -2324,7 +3259,7 @@
             "AUTH-04",
             "FO-02-04"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -2336,7 +3271,7 @@
             "AUTH-04",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -2404,15 +3339,16 @@
         }
       ],
       "counts": {
-        "passed": 46,
+        "passed": 99,
         "failed": 0,
         "skipped": 0,
-        "not_run": 11
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": null,
       "evidence": [
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -3001,7 +3937,7 @@
         },
         {
           "file": "platform/src/console-api/rbac.test.ts",
-          "line": 213,
+          "line": 237,
           "title": "[AUTH-05] tenant isolation: staff of another tenant never see this tenant's calls, support requests or switches",
           "kind": "it",
           "tags": [
@@ -3152,7 +4088,7 @@
         },
         {
           "file": "platform/src/policy/catalogue.test.ts",
-          "line": 41,
+          "line": 71,
           "title": "[AUTH-05] a PHI action reachable without a relationship or below A2 is rejected",
           "kind": "it",
           "tags": [
@@ -3163,7 +4099,7 @@
         },
         {
           "file": "platform/src/policy/catalogue.test.ts",
-          "line": 57,
+          "line": 87,
           "title": "[AUTH-05] partner paths must stay organization-scoped and paths cannot widen action lists",
           "kind": "it",
           "tags": [
@@ -3185,7 +4121,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 91,
+          "line": 94,
           "title": "[AUTH-05] provider with a treating relationship reads only that client's appointment facts",
           "kind": "it",
           "tags": [
@@ -3196,7 +4132,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 96,
+          "line": 99,
           "title": "[AUTH-05] provider cannot read an unrelated client even when the identifiers are known",
           "kind": "it",
           "tags": [
@@ -3207,7 +4143,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 101,
+          "line": 104,
           "title": "[AUTH-05] treating provider gets no invoice, claim or clinical record of the client",
           "kind": "it",
           "tags": [
@@ -3218,7 +4154,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 108,
+          "line": 111,
           "title": "[AUTH-05] partner is denied an unrelated client's records and any individual record",
           "kind": "it",
           "tags": [
@@ -3229,7 +4165,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 120,
+          "line": 123,
           "title": "[AUTH-05] an employer partner never gains treatment status through an organization case",
           "kind": "it",
           "tags": [
@@ -3240,7 +4176,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 125,
+          "line": 128,
           "title": "[AUTH-05] expired proxy authority is denied and routed to a human",
           "kind": "it",
           "tags": [
@@ -3251,7 +4187,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 132,
+          "line": 135,
           "title": "[AUTH-05] minor confidentiality review forces REQUIRE_HUMAN",
           "kind": "it",
           "tags": [
@@ -3262,7 +4198,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 137,
+          "line": 140,
           "title": "[AUTH-05] custody dispute forces REQUIRE_HUMAN",
           "kind": "it",
           "tags": [
@@ -3273,7 +4209,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 142,
+          "line": 145,
           "title": "[AUTH-05] practice delegation reaches exactly its organization",
           "kind": "it",
           "tags": [
@@ -3588,6 +4524,18 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/adapters/live/oidc-client.test.ts",
+          "line": 607,
+          "title": "[DATA-01][AUTH-06] the code exchange is classified VERIFICATION_SECRET: a destination not approved for secrets refuses before any socket opens",
+          "kind": "it",
+          "tags": [
+            "DATA-01",
+            "AUTH-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/adapters/local/notification-fixture.test.ts",
           "line": 21,
           "title": "[AUTH-06] every approved template is neutral (no services, clinical words or account facts)",
@@ -3782,7 +4730,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 251,
+          "line": 254,
           "title": "[AUTH-06] verification secrets never flow through tools",
           "kind": "it",
           "tags": [
@@ -3824,17 +4772,17 @@
             "FO-19-07a",
             "AUTH-06"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         }
       ],
       "counts": {
-        "passed": 21,
+        "passed": 23,
         "failed": 0,
         "skipped": 0,
-        "not_run": 1
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": {
         "reason": "Isolated DTMF capture must be proven on the vendor path (TB-03)",
         "prerequisites": [
@@ -3842,6 +4790,7 @@
         ]
       },
       "evidence": [
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -3973,6 +4922,30 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/identity/session-idle.test.ts",
+          "line": 80,
+          "title": "[FAULT:AUTH_EXPIRY_IDLE][AUTH-07] the Talkdesk auth gate applies the idle limit",
+          "kind": "describe",
+          "tags": [
+            "AUTH-07"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/identity/session-idle.test.ts",
+          "line": 81,
+          "title": "[FAULT:AUTH_EXPIRY_IDLE][FO-05-18][AUTH-07][AUTH-04] read FIRST after the idle limit, the gate is closed, the privileges are dropped and the generation is fenced; reading the gate is not activity",
+          "kind": "it",
+          "tags": [
+            "FO-05-18",
+            "AUTH-07",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/identity/session-service.test.ts",
           "line": 33,
           "title": "[AUTH-07] initial session is A0, generation 1, and its Auth Gate value is literally false",
@@ -4070,10 +5043,22 @@
           ],
           "status": "passed",
           "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/caller-identity.test.ts",
+          "line": 232,
+          "title": "[FAULT:AUTH_EXPIRY_IDLE][AUTH-07][AUTH-04] read FIRST after the idle limit, the Talkdesk auth gate is closed and fences the generation; the next protected read is refused and audited",
+          "kind": "it",
+          "tags": [
+            "AUTH-07",
+            "AUTH-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
         }
       ],
       "counts": {
-        "passed": 17,
+        "passed": 20,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -4086,6 +5071,7 @@
         ]
       },
       "evidence": [
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -4185,6 +5171,18 @@
           "tags": [
             "DATA-01",
             "DP-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/oidc-client.test.ts",
+          "line": 607,
+          "title": "[DATA-01][AUTH-06] the code exchange is classified VERIFICATION_SECRET: a destination not approved for secrets refuses before any socket opens",
+          "kind": "it",
+          "tags": [
+            "DATA-01",
+            "AUTH-06"
           ],
           "status": "passed",
           "viaAlias": null
@@ -5443,7 +6441,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 415,
+          "line": 430,
           "title": "[DATA-01] TypeScript guard rejects a field mask wider than the catalogue",
           "kind": "it",
           "tags": [
@@ -5829,7 +6827,7 @@
             "FO-03-21",
             "DATA-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -5891,12 +6889,12 @@
         }
       ],
       "counts": {
-        "passed": 150,
+        "passed": 152,
         "failed": 0,
         "skipped": 0,
-        "not_run": 1
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": {
         "reason": "BAA coverage and approved observability export",
         "prerequisites": [
@@ -5907,6 +6905,7 @@
       "evidence": [
         "evidence/test-reports/vitest-console.json",
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -6149,17 +7148,17 @@
             "FO-07-17",
             "DATA-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         }
       ],
       "counts": {
-        "passed": 12,
+        "passed": 13,
         "failed": 0,
         "skipped": 0,
-        "not_run": 1
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": {
         "reason": "Reviewed data-flow inventory covering vendor audio paths",
         "prerequisites": [
@@ -6168,6 +7167,7 @@
       },
       "evidence": [
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -6330,7 +7330,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 224,
+          "line": 227,
           "title": "[DATA-03] consent declined leaves only safety, human, public and intake (policy default pending counsel)",
           "kind": "it",
           "tags": [
@@ -6341,7 +7341,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 232,
+          "line": 235,
           "title": "[DATA-03] consent UNKNOWN is never consent for protected work",
           "kind": "it",
           "tags": [
@@ -6702,7 +7702,7 @@
             "DATA-03",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -6732,12 +7732,12 @@
         }
       ],
       "counts": {
-        "passed": 44,
+        "passed": 45,
         "failed": 0,
         "skipped": 0,
-        "not_run": 1
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": {
         "reason": "Approved consent wording and retention schedule",
         "prerequisites": [
@@ -6747,6 +7747,7 @@
       },
       "evidence": [
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -7898,7 +8899,7 @@
         },
         {
           "file": "platform/src/policy/catalogue.test.ts",
-          "line": 50,
+          "line": 80,
           "title": "[ACT-01] a mutation that escapes the writes switch, confirmation or digest is rejected",
           "kind": "it",
           "tags": [
@@ -7909,7 +8910,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 268,
+          "line": 271,
           "title": "[ACT-01] commit requires the prepared-action digest and carries REQUIRE_CONFIRMATION",
           "kind": "it",
           "tags": [
@@ -7920,7 +8921,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 273,
+          "line": 276,
           "title": "[ACT-01] A3 step-up counts only for the digest it verified and only until it expires",
           "kind": "it",
           "tags": [
@@ -7931,7 +8932,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 281,
+          "line": 284,
           "title": "[ACT-01] billing review never implies a refund: confirmation required and no refund field disclosed",
           "kind": "it",
           "tags": [
@@ -7959,6 +8960,19 @@
           "kind": "it",
           "tags": [
             "FO-04-22",
+            "ACT-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/caller-identity.test.ts",
+          "line": 284,
+          "title": "[FO-05-05][FO-05-11][ACT-01] step-up with a fresh real IdP login is bound to one action digest, single use and short-lived",
+          "kind": "it",
+          "tags": [
+            "FO-05-05",
+            "FO-05-11",
             "ACT-01"
           ],
           "status": "passed",
@@ -8101,7 +9115,7 @@
         }
       ],
       "counts": {
-        "passed": 75,
+        "passed": 76,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -8115,6 +9129,7 @@
       },
       "evidence": [
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -9458,7 +10473,7 @@
             "FO-16-21",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9470,7 +10485,7 @@
             "FO-16-16",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9482,7 +10497,7 @@
             "FO-16-16",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9494,7 +10509,7 @@
             "FO-16-16",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9506,7 +10521,7 @@
             "FO-16-16",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9518,7 +10533,7 @@
             "FO-16-16",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9530,7 +10545,7 @@
             "FO-06-09",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9542,7 +10557,7 @@
             "FO-06-09",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9554,7 +10569,7 @@
             "FO-06-09",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9566,7 +10581,7 @@
             "FO-06-09",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9578,7 +10593,7 @@
             "FO-06-09",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9591,7 +10606,7 @@
             "ACT-02",
             "ACT-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9605,7 +10620,7 @@
             "ACT-02",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9618,7 +10633,7 @@
             "ACT-02",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9631,7 +10646,7 @@
             "FO-15-50",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9643,7 +10658,7 @@
             "FO-07-18",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9655,7 +10670,7 @@
             "FO-07-18",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9668,7 +10683,7 @@
             "FO-16-41",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9681,7 +10696,7 @@
             "FO-10-43",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9693,7 +10708,7 @@
             "FO-07-20",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9706,7 +10721,7 @@
             "FO-10-43",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9719,7 +10734,7 @@
             "FO-11-13",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9731,7 +10746,7 @@
             "FO-11-13",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9743,7 +10758,7 @@
             "FO-11-13",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9755,7 +10770,7 @@
             "FO-10-43",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9767,7 +10782,7 @@
             "FO-10-43",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9779,7 +10794,7 @@
             "FO-11-13",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9791,7 +10806,7 @@
             "FO-03-22",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9803,7 +10818,7 @@
             "FO-03-22",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9815,7 +10830,7 @@
             "FO-06-10",
             "ACT-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -9929,12 +10944,12 @@
         }
       ],
       "counts": {
-        "passed": 117,
+        "passed": 147,
         "failed": 0,
         "skipped": 0,
-        "not_run": 30
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": {
         "reason": "Provider idempotency semantics for real business systems",
         "prerequisites": [
@@ -9944,6 +10959,7 @@
       "evidence": [
         "evidence/test-reports/vitest-console.json",
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -10276,6 +11292,18 @@
           "title": "[ACT-03] an in-doubt (UNKNOWN) action blocks other commits on the same record until it is reconciled",
           "kind": "it",
           "tags": [
+            "ACT-03"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/oidc-client.test.ts",
+          "line": 510,
+          "title": "[FO-05-09][ACT-03] a lost answer after the code was sent is OIDC_PROVIDER_OUTCOME_UNKNOWN (never retried); an unreachable provider is NOT_STARTED",
+          "kind": "it",
+          "tags": [
+            "FO-05-09",
             "ACT-03"
           ],
           "status": "passed",
@@ -11063,7 +12091,7 @@
             "FO-06-08",
             "ACT-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -11075,7 +12103,7 @@
             "FO-06-08",
             "ACT-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -11088,7 +12116,7 @@
             "ACT-02",
             "ACT-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -11099,7 +12127,7 @@
           "tags": [
             "ACT-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -11112,7 +12140,7 @@
             "OPS-04",
             "ACT-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -11230,12 +12258,12 @@
         }
       ],
       "counts": {
-        "passed": 98,
+        "passed": 104,
         "failed": 0,
         "skipped": 0,
-        "not_run": 5
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": {
         "reason": "Authoritative lookup-by-key in real business systems",
         "prerequisites": [
@@ -11245,6 +12273,7 @@
       "evidence": [
         "evidence/test-reports/vitest-console.json",
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -13318,7 +14347,7 @@
         },
         {
           "file": "platform/src/policy/catalogue.test.ts",
-          "line": 34,
+          "line": 64,
           "title": "[SAFE-02] an exemption cannot be granted to any other action through data",
           "kind": "it",
           "tags": [
@@ -13340,7 +14369,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 163,
+          "line": 166,
           "title": "[SAFE-02] ${action} is allowed at A0 with no role or actor",
           "kind": "it",
           "tags": [
@@ -13351,7 +14380,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 167,
+          "line": 170,
           "title": "[SAFE-02] ${action} is allowed with a revoked and expired session",
           "kind": "it",
           "tags": [
@@ -13362,7 +14391,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 172,
+          "line": 175,
           "title": "[SAFE-02] ${action} is allowed when the caller declined recording and processing",
           "kind": "it",
           "tags": [
@@ -13373,7 +14402,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 177,
+          "line": 180,
           "title": "[SAFE-02] ${action} is allowed with every kill switch engaged",
           "kind": "it",
           "tags": [
@@ -13384,7 +14413,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 181,
+          "line": 184,
           "title": "[SAFE-02] [SAFE-03] ${action} survives every failure at once (tenant, risk, A3 tool, secret classification, production)",
           "kind": "it",
           "tags": [
@@ -13396,7 +14425,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 197,
+          "line": 200,
           "title": "[SAFE-02] the safety route creates a restricted record and discloses only routing fields",
           "kind": "it",
           "tags": [
@@ -13559,6 +14588,33 @@
           "viaAlias": null
         },
         {
+          "file": "platform/test/integration/identity/caller-identity.test.ts",
+          "line": 185,
+          "title": "[FAULT:AUTH_EXPIRY_IDLE][FO-05-18][FO-05-19][AUTH-04][SAFE-02] after the idle limit a protected read fails closed and is audited while the DynamoDB record still exists; speech prepared before the expiry is never spoken; a person stays reachable without re-authentication; only the same actor re-verifies",
+          "kind": "it",
+          "tags": [
+            "FO-05-18",
+            "FO-05-19",
+            "AUTH-04",
+            "SAFE-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/caller-identity.test.ts",
+          "line": 323,
+          "title": "[FAULT:IDP_UNAVAILABLE][FO-05-30][AUTH-01][SAFE-02] the caller IdP is unreachable during secure-link approval: assurance stays A0, no protected read succeeds, no weaker method is substituted, the caller reaches a person",
+          "kind": "it",
+          "tags": [
+            "FO-05-30",
+            "AUTH-01",
+            "SAFE-02"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/test/invariants/policy-engine-error.fault.test.ts",
           "line": 121,
           "title": "[FAULT:POLICY_ENGINE_ERROR][AUTH-02][ACT-01][SAFE-02][OPS-03] ${mode}: protected reads and actions fail closed with POLICY_ENGINE_ERROR, nothing is disclosed, prepared or committed; safety and human routes stay available; each denial is audited",
@@ -13682,7 +14738,7 @@
         }
       ],
       "counts": {
-        "passed": 82,
+        "passed": 84,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -13696,6 +14752,7 @@
       },
       "evidence": [
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -14274,7 +15331,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 181,
+          "line": 184,
           "title": "[SAFE-02] [SAFE-03] ${action} survives every failure at once (tenant, risk, A3 tool, secret classification, production)",
           "kind": "it",
           "tags": [
@@ -16037,7 +17094,7 @@
             "FO-06-20",
             "SAFE-05"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -16049,7 +17106,7 @@
             "FO-06-20",
             "SAFE-05"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -16062,7 +17119,7 @@
             "FO-06-20",
             "SAFE-05"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -16153,16 +17210,17 @@
         }
       ],
       "counts": {
-        "passed": 35,
+        "passed": 38,
         "failed": 0,
         "skipped": 0,
-        "not_run": 3
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": null,
       "evidence": [
         "evidence/test-reports/vitest-console.json",
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -17666,6 +18724,57 @@
           "viaAlias": null
         },
         {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 165,
+          "title": "[FO-05-45][OPS-01] when the post-use review cannot be opened the restricted access is refused (fail closed)",
+          "kind": "it",
+          "tags": [
+            "FO-05-45",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 1370,
+          "title": "[FO-05-19][FO-14-52][OPS-01] a terminal path whose audit write fails still closes, without its audit events, and appends them on their own: a replayed bearer revokes the family (the successor is refused after the audit store recovers) and suspends a disabled custodian; with the audit store down entirely the active check's revocation still closes and suspends, and both failures are logged; on a family another path closed, an answer about the person still suspends and no revocation is recorded for it (verifier probe N2)",
+          "kind": "it",
+          "tags": [
+            "FO-05-19",
+            "FO-14-52",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 1481,
+          "title": "[FO-05-19][FO-14-52][OPS-01] a terminal path whose closure the database refuses on both attempts (not an audit failure) answers the original error: a logout is not reported done (503 DB_UNAVAILABLE), an active check of a disabled custodian and a replay closure are not answered 401; nothing is revoked or suspended, no session or custodian event is appended and no unaudited closure is logged; once the database is back the same path closes and suspends (verifier probes DB-1, F2)",
+          "kind": "it",
+          "tags": [
+            "FO-05-19",
+            "FO-14-52",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 1612,
+          "title": "[FO-14-51][OPS-01][STRIDE-D] the challenge endpoint consumes nothing for anonymous requests: no proof, a wrong key, a stale or replayed proof are refused with nothing written, and the custodian's own signed request still gets a challenge (probe P4)",
+          "kind": "it",
+          "tags": [
+            "FO-14-51",
+            "OPS-01",
+            "STRIDE-D"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
           "file": "platform/src/console-api/kill-switches.test.ts",
           "line": 46,
           "title": "[OPS-01] engaging AI_ADMISSION and WRITES writes state, history and a console audit event in one transaction; the response names that event",
@@ -17695,6 +18804,43 @@
           "tags": [
             "SAFE-05",
             "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 312,
+          "title": "[FAULT:IDP_UNAVAILABLE seam][OPS-01] sign-in fails closed as unavailable (never as a bad password); live sessions keep working only within the staleness bound",
+          "kind": "it",
+          "tags": [
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 342,
+          "title": "[FO-05-10][OPS-01][STRIDE-D] an anonymous flood of sign-in starts stores nothing and cannot lock operators out: a legitimate sign-in started DURING the flood succeeds; forged, altered, foreign and replayed states are refused without an audit event per request; the sweeper purges used states after expiry",
+          "kind": "it",
+          "tags": [
+            "FO-05-10",
+            "OPS-01",
+            "STRIDE-D"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 413,
+          "title": "[FO-05-10][OPS-01][STRIDE-D] anonymous exchange refusals cannot grow the audit log: N start + bad-exchange rounds (wrong verifier, garbage code the IdP refuses) write a bounded number of events, the next window carries the suppressed count (probe P8)",
+          "kind": "it",
+          "tags": [
+            "FO-05-10",
+            "OPS-01",
+            "STRIDE-D"
           ],
           "status": "passed",
           "viaAlias": null
@@ -18272,7 +19418,7 @@
             "FO-16-21",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18284,7 +19430,43 @@
             "FO-16-21",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/break-glass.test.ts",
+          "line": 110,
+          "title": "[FO-05-45][OPS-01] two connections racing on the first use open exactly one review and commit exactly one first-use audit event",
+          "kind": "it",
+          "tags": [
+            "FO-05-45",
+            "OPS-01"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/recovery.test.ts",
+          "line": 305,
+          "title": "[FO-14-51][OPS-01][STRIDE-D] the unauthenticated challenge endpoint is bounded per identity and only the key holder can consume the bound: anonymous, wrong-key and replayed requests write nothing; 3 signed pending challenges, then refused (retryable)",
+          "kind": "it",
+          "tags": [
+            "FO-14-51",
+            "OPS-01",
+            "STRIDE-D"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso.test.ts",
+          "line": 372,
+          "title": "[FAULT:IDP_UNAVAILABLE][OPS-01] workforce IdP unreachable: sign-in fails closed as unavailable; a live session keeps working only within the staleness bound",
+          "kind": "it",
+          "tags": [
+            "OPS-01"
+          ],
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18298,7 +19480,7 @@
             "ACT-02",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18311,7 +19493,7 @@
             "ACT-02",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18325,7 +19507,7 @@
             "FO-07-19",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18337,7 +19519,7 @@
             "FO-07-17",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18349,7 +19531,7 @@
             "FO-06-97",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18364,7 +19546,7 @@
             "FO-22-08",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18377,7 +19559,7 @@
             "FO-15-42",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18390,7 +19572,7 @@
             "FO-15-42",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18403,7 +19585,7 @@
             "FO-15-40",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18415,7 +19597,7 @@
             "FO-15-41",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18429,7 +19611,7 @@
             "OPS-01",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18441,7 +19623,7 @@
             "FO-15-41",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18453,7 +19635,7 @@
             "FO-15-41",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18465,7 +19647,7 @@
             "FO-15-41",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18478,7 +19660,7 @@
             "FO-15-45",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18491,7 +19673,7 @@
             "FO-15-37",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18504,7 +19686,7 @@
             "FO-15-45",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18516,7 +19698,7 @@
             "FO-15-45",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18530,7 +19712,7 @@
             "FO-15-44",
             "FO-15-33"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18543,7 +19725,7 @@
             "FO-15-42",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18556,7 +19738,7 @@
             "FO-16-03",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18570,7 +19752,7 @@
             "FO-15-45",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18583,7 +19765,7 @@
             "FO-16-41",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18595,7 +19777,7 @@
             "FO-15-45",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18608,7 +19790,7 @@
             "FO-15-45",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18621,7 +19803,7 @@
             "OPS-01",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18636,7 +19818,7 @@
             "OPS-01",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18649,7 +19831,7 @@
             "OPS-01",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18662,7 +19844,7 @@
             "OPS-01",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18675,7 +19857,7 @@
             "FO-15-45",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18688,7 +19870,7 @@
             "FO-15-48",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18701,7 +19883,7 @@
             "FO-06-10",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18713,7 +19895,7 @@
             "FO-06-10",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18725,7 +19907,7 @@
             "FO-06-10",
             "OPS-01"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -18818,12 +20000,12 @@
         }
       ],
       "counts": {
-        "passed": 179,
+        "passed": 225,
         "failed": 0,
         "skipped": 0,
-        "not_run": 36
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": {
         "reason": "Separately administered audit account with Object Lock",
         "prerequisites": [
@@ -18833,6 +20015,7 @@
       },
       "evidence": [
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -19088,7 +20271,7 @@
             "FO-15-45",
             "OPS-02"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -19107,12 +20290,12 @@
         }
       ],
       "counts": {
-        "passed": 16,
+        "passed": 17,
         "failed": 0,
         "skipped": 0,
-        "not_run": 1
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": {
         "reason": "Staffed capacity, quotas and continuity arrangement",
         "prerequisites": [
@@ -19123,6 +20306,7 @@
       },
       "evidence": [
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -20526,7 +21710,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 453,
+          "line": 739,
           "title": "[OPS-03] canonical form or null; calendar rollovers rejected",
           "kind": "it",
           "tags": [
@@ -20789,7 +21973,7 @@
             "FO-06-11",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -20801,7 +21985,7 @@
             "FO-06-97",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -20815,7 +21999,7 @@
             "DATA-03",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -20827,7 +22011,7 @@
             "FO-15-40",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -20841,7 +22025,7 @@
             "OPS-01",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -20853,7 +22037,7 @@
             "AUTH-04",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -20865,7 +22049,7 @@
             "FO-19-07a",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -20878,7 +22062,7 @@
             "OPS-01",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -20893,7 +22077,7 @@
             "OPS-01",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -20906,7 +22090,7 @@
             "OPS-01",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -20919,7 +22103,7 @@
             "OPS-01",
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -20930,7 +22114,7 @@
           "tags": [
             "OPS-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -21030,15 +22214,16 @@
         }
       ],
       "counts": {
-        "passed": 142,
+        "passed": 154,
         "failed": 0,
         "skipped": 0,
-        "not_run": 12
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": null,
       "evidence": [
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -21155,6 +22340,18 @@
           "title": "[OPS-04] the local picker is not offered outside local/ci, even if a backend claims fixture mode",
           "kind": "it",
           "tags": [
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/adapters/live/oidc-client.test.ts",
+          "line": 332,
+          "title": "[FO-05-07][OPS-04] a UUID-path issuer whose discovery URL the egress policy refuses is refused at construction (ConfigurationRejectedError OIDC_EGRESS_REFUSED, nothing sent)",
+          "kind": "it",
+          "tags": [
+            "FO-05-07",
             "OPS-04"
           ],
           "status": "passed",
@@ -21707,18 +22904,19 @@
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 119,
-          "title": "[OPS-04] local sign-in routes are absent in a production-config registration and answer 404 LOCAL_FIXTURE_DISABLED",
+          "line": 185,
+          "title": "[OPS-04][FO-14-02] production registration needs live workforce SSO: local sign-in routes are absent, raw JWT bearers and fixture tokens are refused",
           "kind": "it",
           "tags": [
-            "OPS-04"
+            "OPS-04",
+            "FO-14-02"
           ],
           "status": "passed",
           "viaAlias": null
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 144,
+          "line": 223,
           "title": "[OPS-04] registration fails closed when local fixture identity components are configured outside local/ci",
           "kind": "it",
           "tags": [
@@ -21729,7 +22927,7 @@
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 153,
+          "line": 232,
           "title": "[OPS-04] the configuration guard rejects a local_fixture workforce IdP or console local sign-in outside local/ci",
           "kind": "it",
           "tags": [
@@ -21740,10 +22938,35 @@
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 219,
+          "line": 322,
           "title": "[OPS-04] a live verifier refuses LOCAL FIXTURE tokens even when they carry an MFA amr",
           "kind": "it",
           "tags": [
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso-config.test.ts",
+          "line": 45,
+          "title": "[FO-05-13][FO-05-18][OPS-04] the guard refuses a missing SSO config, emulator issuers and unapproved session parameters outside local/ci",
+          "kind": "it",
+          "tags": [
+            "FO-05-13",
+            "FO-05-18",
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 462,
+          "title": "[FO-05-07][OPS-04] an IdP URL the egress policy refuses is a configuration refusal for the console (503 OIDC_EGRESS_REFUSED, not retryable), never a phantom IdP outage",
+          "kind": "it",
+          "tags": [
+            "FO-05-07",
             "OPS-04"
           ],
           "status": "passed",
@@ -21891,6 +23114,17 @@
           "file": "platform/src/outbox/sqs-publisher.contract.test.ts",
           "line": 109,
           "title": "[OPS-04] construction rejects malformed queue URLs and FIFO mismatches",
+          "kind": "it",
+          "tags": [
+            "OPS-04"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 524,
+          "title": "[OPS-04][FAULT:POLICY_ENGINE_ERROR seam] the seam is local/ci only: refused for a deployed environment, and on an engine loaded for one whatever the caller claims",
           "kind": "it",
           "tags": [
             "OPS-04"
@@ -22130,7 +23364,7 @@
             "OPS-04",
             "ACT-03"
           ],
-          "status": "not_run",
+          "status": "passed",
           "viaAlias": null
         },
         {
@@ -22180,12 +23414,12 @@
         }
       ],
       "counts": {
-        "passed": 90,
+        "passed": 95,
         "failed": 0,
         "skipped": 0,
-        "not_run": 1
+        "not_run": 0
       },
-      "latestResult": "NOT_RUN",
+      "latestResult": "PASS",
       "externalBlock": {
         "reason": "Trusted approval signing key",
         "prerequisites": [
@@ -22195,6 +23429,7 @@
       "evidence": [
         "evidence/test-reports/vitest-console.json",
         "evidence/test-reports/vitest-contract-docs-journey.json",
+        "evidence/test-reports/vitest-integration.json",
         "evidence/test-reports/vitest-platform.json"
       ],
       "followOnIds": [
@@ -22894,7 +24129,7 @@
         },
         {
           "file": "platform/src/policy/catalogue.test.ts",
-          "line": 77,
+          "line": 107,
           "title": "[OPS-06] the pinned WASM capabilities match the installed opa-wasm SDK builtins",
           "kind": "it",
           "tags": [
@@ -22927,7 +24162,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 319,
+          "line": 322,
           "title": "[OPS-06] engine reports the bundle revision from policy/VERSION and the sha256 of bundle.tar.gz",
           "kind": "it",
           "tags": [
@@ -22938,7 +24173,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 326,
+          "line": 329,
           "title": "[OPS-06] pinned version and digest are enforced at load",
           "kind": "it",
           "tags": [
@@ -22949,7 +24184,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 333,
+          "line": 336,
           "title": "[OPS-06] accepts the policy/ directory and resolves its build/ subdirectory",
           "kind": "it",
           "tags": [
@@ -22960,7 +24195,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 347,
+          "line": 350,
           "title": "[OPS-06] bundle.sha256 not matching the archive",
           "kind": "it",
           "tags": [
@@ -22971,7 +24206,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 354,
+          "line": 357,
           "title": "[OPS-06] extracted policy.wasm that differs from the archive",
           "kind": "it",
           "tags": [
@@ -22982,7 +24217,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 361,
+          "line": 364,
           "title": "[OPS-06] corrupted archive",
           "kind": "it",
           "tags": [
@@ -22993,7 +24228,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 371,
+          "line": 374,
           "title": "[OPS-06] missing bundle yields a fail-closed engine instead of an open one",
           "kind": "it",
           "tags": [
@@ -23004,7 +24239,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 386,
+          "line": 401,
           "title": "[OPS-06] engine error -> deny POLICY_ENGINE_ERROR, never a throw",
           "kind": "it",
           "tags": [
@@ -23015,7 +24250,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 397,
+          "line": 412,
           "title": "[OPS-06] malformed or empty result sets deny",
           "kind": "it",
           "tags": [
@@ -23026,7 +24261,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 420,
+          "line": 435,
           "title": "[OPS-06] a broken clock fails closed; a throwing metrics sink never changes a decision",
           "kind": "it",
           "tags": [
@@ -23037,7 +24272,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 430,
+          "line": 445,
           "title": "[OPS-06] reason lists longer than the protocol bound are truncated, never dropped silently",
           "kind": "it",
           "tags": [
@@ -23048,7 +24283,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 438,
+          "line": 453,
           "title": "[OPS-06] the catalogue is validated even for an injected evaluator",
           "kind": "it",
           "tags": [
@@ -23059,7 +24294,78 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 443,
+          "line": 459,
+          "title": "[FAULT:POLICY_ENGINE_ERROR seam][OPS-06] the default engine has no decoration; a throwing or undefined decoration of the loaded WASM evaluator denies with POLICY_ENGINE_ERROR and removal restores identical decisions",
+          "kind": "it",
+          "tags": [
+            "OPS-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 512,
+          "title": "[OPS-06] one decoration at a time; a decoration that changes the entrypoints is refused",
+          "kind": "it",
+          "tags": [
+            "OPS-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 538,
+          "title": "[AUTH-02][OPS-06][FAULT:POLICY_ENGINE_ERROR seam] tighten-only: a decoration can never allow what the loaded policy denies, widen the field mask or drop an obligation",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 606,
+          "title": "[AUTH-02][OPS-06] the tighten-only rule binds ANY substituted evaluator, including one swapped in without the seam",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 623,
+          "title": "[AUTH-02][AUTH-04][OPS-06][FAULT:POLICY_ENGINE_ERROR seam] input isolation: a decoration that rewrites the input it is handed (assurance, revocation, tenant) never turns the loaded policy's deny into an allow",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "AUTH-04",
+            "OPS-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 697,
+          "title": "[AUTH-02][OPS-06] a decoration cannot alter the loaded evaluator it is handed: `inner` is frozen and the rule consults a private copy",
+          "kind": "it",
+          "tags": [
+            "AUTH-02",
+            "OPS-06"
+          ],
+          "status": "passed",
+          "viaAlias": null
+        },
+        {
+          "file": "platform/src/policy/engine.test.ts",
+          "line": 729,
           "title": "[OPS-06] decisions are counted with allowlisted labels only",
           "kind": "it",
           "tags": [
@@ -23260,7 +24566,7 @@
         }
       ],
       "counts": {
-        "passed": 72,
+        "passed": 78,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -24528,7 +25834,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 149,
+          "line": 152,
           "title": "[SPEC-4.single-role] a multi-role user's privileges are never combined",
           "kind": "it",
           "tags": [
@@ -25083,7 +26389,7 @@
         },
         {
           "file": "platform/src/console-api/rbac.test.ts",
-          "line": 224,
+          "line": 248,
           "title": "[SPEC-6.no-phi-url] path parameters must be opaque references: a phone number or name in the URL is refused without echoing it",
           "kind": "it",
           "tags": [
@@ -25094,7 +26400,7 @@
         },
         {
           "file": "platform/src/console-api/schemas.test.ts",
-          "line": 144,
+          "line": 165,
           "title": "[SPEC-6.no-phi-url] audit search accepts metadata filters only and bounds the limit",
           "kind": "it",
           "tags": [
@@ -26599,7 +27905,7 @@
         "FO-05-11"
       ],
       "axes": {
-        "software": "IMPLEMENTED",
+        "software": "VERIFIED_LOCAL",
         "environment": "NOT_CONFIGURED",
         "qualification": "NOT_RUN"
       }
@@ -26663,7 +27969,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 236,
+          "line": 239,
           "title": "[SPEC-7.risk] fraud review and account recovery deny protected actions; safety escalation revokes mutations",
           "kind": "it",
           "tags": [
@@ -26942,7 +28248,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 220,
+          "line": 223,
           "title": "[SPEC-7.organization-isolation] tenant mismatch denies",
           "kind": "it",
           "tags": [
@@ -26988,7 +28294,7 @@
         {
           "file": "console/src/api/contract.test.ts",
           "line": 71,
-          "title": "[SPEC-7.staff] least privilege: the auditor reaches only read endpoints (audit, releases, me) and can mutate nothing",
+          "title": "[SPEC-7.staff] least privilege: the auditor reaches only read endpoints (audit, releases, access reviews, own break-glass requests, me) and can mutate nothing",
           "kind": "it",
           "tags": [
             "SPEC-7.staff"
@@ -27032,9 +28338,11 @@
         {
           "file": "console/src/auth/login.test.tsx",
           "line": 68,
-          "title": "[SPEC-7.staff-sso] OIDC authorization code + PKCE: redirect carries S256 challenge; callback exchange sends verifier and nonce via the backend",
+          "title": "[FO-05-09][FO-05-10][SPEC-7.staff-sso] backend-run authorization code + PKCE: the backend starts the login with our S256 challenge and redeems the code; IdP tokens never reach the browser",
           "kind": "it",
           "tags": [
+            "FO-05-09",
+            "FO-05-10",
             "SPEC-7.staff-sso"
           ],
           "status": "passed",
@@ -27042,7 +28350,7 @@
         },
         {
           "file": "console/src/auth/login.test.tsx",
-          "line": 104,
+          "line": 140,
           "title": "[SPEC-7.staff-sso] a callback with an unknown state is refused and nothing is exchanged",
           "kind": "it",
           "tags": [
@@ -27065,7 +28373,7 @@
         {
           "file": "console/src/auth/pkce.test.ts",
           "line": 31,
-          "title": "[SPEC-7.staff-sso] sessions use a 43-character verifier and high-entropy state and nonce",
+          "title": "[SPEC-7.staff-sso] sessions use a fresh 43-character verifier with its S256 challenge; state and nonce are the backend's",
           "kind": "it",
           "tags": [
             "SPEC-7.staff-sso"
@@ -27075,19 +28383,8 @@
         },
         {
           "file": "console/src/auth/pkce.test.ts",
-          "line": 40,
-          "title": "[SPEC-7.staff-sso] the authorization URL requires a configured HTTPS endpoint and always requests openid with S256",
-          "kind": "it",
-          "tags": [
-            "SPEC-7.staff-sso"
-          ],
-          "status": "passed",
-          "viaAlias": "SPEC-7.staff-sso"
-        },
-        {
-          "file": "console/src/auth/pkce.test.ts",
-          "line": 49,
-          "title": "[SPEC-7.staff-sso] transient PKCE state is single-use, bound to state and expires after ten minutes",
+          "line": 61,
+          "title": "[SPEC-7.staff-sso] the transient PKCE verifier is single-use, bound to the backend state and expires after ten minutes",
           "kind": "it",
           "tags": [
             "SPEC-7.staff-sso"
@@ -27219,7 +28516,7 @@
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 40,
+          "line": 106,
           "title": "[SPEC-7.staff-sso] local sign-in issues a short-lived MFA token for a SYNTHETIC staff member; identity and roles are server-established",
           "kind": "it",
           "tags": [
@@ -27230,7 +28527,7 @@
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 65,
+          "line": 131,
           "title": "[SPEC-7.staff-sso] no MFA rejected: a token whose amr lacks an MFA method is refused on every authenticated endpoint",
           "kind": "it",
           "tags": [
@@ -27241,7 +28538,7 @@
         },
         {
           "file": "platform/src/console-api/auth.test.ts",
-          "line": 106,
+          "line": 172,
           "title": "[SPEC-7.staff-separation] a role removed in the staff directory stops working on the next request (roles are not cached in the token)",
           "kind": "it",
           "tags": [
@@ -27275,7 +28572,7 @@
         },
         {
           "file": "platform/src/console-api/rbac.test.ts",
-          "line": 109,
+          "line": 133,
           "title": "[SPEC-7.staff-separation] auditor cannot mutate: every mutating endpoint refuses the auditor role, and the auditor taint wins even with a mutating role",
           "kind": "it",
           "tags": [
@@ -27286,7 +28583,7 @@
         },
         {
           "file": "platform/src/console-api/rbac.test.ts",
-          "line": 148,
+          "line": 172,
           "title": "[SPEC-7.break-glass] restricted records need a valid break-glass grant from someone else: missing, expired and not-yet-valid grants are refused",
           "kind": "it",
           "tags": [
@@ -27297,7 +28594,7 @@
         },
         {
           "file": "platform/src/console-api/rbac.test.ts",
-          "line": 178,
+          "line": 202,
           "title": "[SPEC-7.break-glass] self-granted break-glass is rejected: the database refuses the record, and a self-approved grant denies every endpoint",
           "kind": "it",
           "tags": [
@@ -27343,7 +28640,7 @@
         },
         {
           "file": "platform/src/policy/catalogue.test.ts",
-          "line": 64,
+          "line": 94,
           "title": "[SPEC-7.staff-separation] auditor on a mutating console action or roles on a prohibited one are rejected",
           "kind": "it",
           "tags": [
@@ -27431,7 +28728,7 @@
         }
       ],
       "counts": {
-        "passed": 40,
+        "passed": 39,
         "failed": 0,
         "skipped": 0,
         "not_run": 0
@@ -35820,7 +37117,7 @@
         "FO-19-82"
       ],
       "axes": {
-        "software": "MISSING",
+        "software": "IMPLEMENTED",
         "environment": "NOT_CONFIGURED",
         "qualification": "NOT_RUN"
       }
@@ -36715,7 +38012,7 @@
         },
         {
           "file": "platform/src/console-api/rbac.test.ts",
-          "line": 77,
+          "line": 101,
           "title": "[SPEC-13.console] RBAC matrix: every authenticated endpoint x every staff role; denials are 403 with a reason code and audited",
           "kind": "it",
           "tags": [
@@ -36748,7 +38045,7 @@
         },
         {
           "file": "platform/src/console-api/schemas.test.ts",
-          "line": 138,
+          "line": 159,
           "title": "[SPEC-13.console] the kill-switch confirmation phrase is typed and bounded",
           "kind": "it",
           "tags": [
@@ -36894,7 +38191,7 @@
         },
         {
           "file": "platform/src/console-api/rbac.test.ts",
-          "line": 128,
+          "line": 152,
           "title": "[SPEC-13.kill-switch] support_agent cannot engage any kill switch; deployment_operator only the model/voice version switches",
           "kind": "it",
           "tags": [
@@ -37142,7 +38439,7 @@
         },
         {
           "file": "platform/src/policy/engine.test.ts",
-          "line": 243,
+          "line": 246,
           "title": "[SPEC-13.kill-switch] AI admission, writes, intent and integration switches",
           "kind": "it",
           "tags": [
@@ -42886,7 +44183,7 @@
         },
         {
           "file": "platform/src/console-api/schemas.test.ts",
-          "line": 95,
+          "line": 116,
           "title": "[SPEC-16.console] ENDPOINT_SCHEMAS covers every endpoint in CONSOLE_ENDPOINTS and nothing else",
           "kind": "it",
           "tags": [
@@ -42897,7 +44194,7 @@
         },
         {
           "file": "platform/src/console-api/schemas.test.ts",
-          "line": 103,
+          "line": 124,
           "title": "[SPEC-16.console] response schemas are strict: a transcript or task-token field is rejected, never passed through",
           "kind": "it",
           "tags": [
@@ -42908,7 +44205,7 @@
         },
         {
           "file": "platform/src/console-api/schemas.test.ts",
-          "line": 131,
+          "line": 152,
           "title": "[SPEC-16.console] operator reasons are reason codes only: free text and digit runs are rejected",
           "kind": "it",
           "tags": [
@@ -42952,7 +44249,7 @@
         },
         {
           "file": "platform/src/console-api/views.test.ts",
-          "line": 221,
+          "line": 229,
           "title": "[SPEC-16.console] a dependency that returns an extra (content) field cannot leak it: the response is refused, not passed through",
           "kind": "it",
           "tags": [
@@ -44152,12 +45449,12 @@
       "capabilityIds": [
         "identity.workforce"
       ],
-      "workPackage": "WP-05",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 5,
+      "localTests": "PASS"
     },
     {
       "id": "FO-01-10",
@@ -44231,7 +45528,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 2,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-01-14",
@@ -44359,7 +45656,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 21,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-01-20",
@@ -44585,11 +45882,11 @@
         "identity.caller"
       ],
       "workPackage": "WP-05",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 2,
+      "localTests": "PASS"
     },
     {
       "id": "FO-01-32",
@@ -44645,7 +45942,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 8,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-02-01",
@@ -44717,7 +46014,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 2,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-02-05",
@@ -45581,7 +46878,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 3,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-03-22",
@@ -45599,7 +46896,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 6,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-03-23",
@@ -45635,7 +46932,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 1,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-03-25",
@@ -45698,12 +46995,12 @@
       "capabilityIds": [
         "identity.workforce"
       ],
-      "workPackage": "WP-05",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 2,
+      "localTests": "PASS"
     },
     {
       "id": "FO-03-29",
@@ -45721,7 +47018,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 2,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-03-30",
@@ -46986,12 +48283,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-05",
-      "software": "IMPLEMENTED",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 1,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-04",
@@ -47004,12 +48301,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-05",
-      "software": "IMPLEMENTED",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 3,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-05",
@@ -47023,12 +48320,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-05",
-      "software": "IMPLEMENTED",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 2,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-06",
@@ -47041,12 +48338,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-05",
-      "software": "IMPLEMENTED",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 1,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-07",
@@ -47059,12 +48356,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-05",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 17,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-08",
@@ -47095,12 +48392,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-05",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 13,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-10",
@@ -47111,12 +48408,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-05",
-      "software": "IMPLEMENTED",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 16,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-11",
@@ -47129,12 +48426,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-05",
-      "software": "IMPLEMENTED",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 7,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-12",
@@ -47151,8 +48448,8 @@
       "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 2,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-13",
@@ -47163,12 +48460,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-05",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 9,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-14",
@@ -47255,12 +48552,12 @@
       "capabilityIds": [
         "identity.workforce"
       ],
-      "workPackage": "WP-05",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 14,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-19",
@@ -47271,12 +48568,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-05",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 16,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-20",
@@ -47330,8 +48627,8 @@
       "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 4,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-23",
@@ -47472,12 +48769,12 @@
       "capabilityIds": [
         "identity.caller"
       ],
-      "workPackage": "WP-05",
-      "software": "IMPLEMENTED",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 1,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-31",
@@ -47673,12 +48970,12 @@
       "capabilityIds": [
         "identity.workforce"
       ],
-      "workPackage": "WP-05",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 13,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-42",
@@ -47743,12 +49040,12 @@
       "capabilityIds": [
         "identity.workforce"
       ],
-      "workPackage": "WP-05",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 9,
+      "localTests": "PASS"
     },
     {
       "id": "FO-05-46",
@@ -47947,7 +49244,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 6,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-01",
@@ -48005,7 +49302,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 11,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-04",
@@ -48024,7 +49321,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 19,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-05",
@@ -48043,7 +49340,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 15,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-06",
@@ -48061,7 +49358,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 12,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-07",
@@ -48081,7 +49378,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 25,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-08",
@@ -48101,7 +49398,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 17,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-09",
@@ -48119,7 +49416,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 15,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-10",
@@ -48140,7 +49437,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 5,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-11",
@@ -48159,7 +49456,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 12,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-12",
@@ -48197,7 +49494,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 7,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-14",
@@ -48293,7 +49590,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 11,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-19",
@@ -48332,7 +49629,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 30,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-21",
@@ -49816,7 +51113,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 5,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-98",
@@ -49835,7 +51132,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 7,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-06-99",
@@ -50199,7 +51496,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 9,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-07-17",
@@ -50218,7 +51515,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 8,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-07-18",
@@ -50236,7 +51533,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 8,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-07-19",
@@ -50255,7 +51552,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 4,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-07-20",
@@ -50274,7 +51571,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 3,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-07-21",
@@ -50293,7 +51590,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 3,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-07-22",
@@ -50312,7 +51609,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 3,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-07-23",
@@ -53241,7 +54538,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 6,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-10-44",
@@ -53681,7 +54978,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 4,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-11-14",
@@ -55302,11 +56599,11 @@
         "identity.workforce"
       ],
       "workPackage": "WP-05",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 3,
+      "localTests": "PASS"
     },
     {
       "id": "FO-14-03",
@@ -56243,11 +57540,11 @@
         "identity.workforce"
       ],
       "workPackage": "WP-05",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 31,
+      "localTests": "PASS"
     },
     {
       "id": "FO-14-52",
@@ -56262,11 +57559,11 @@
         "identity.workforce"
       ],
       "workPackage": "WP-05",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 36,
+      "localTests": "PASS"
     },
     {
       "id": "FO-14-53",
@@ -56840,7 +58137,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 10,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-27",
@@ -56875,7 +58172,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 1,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-29",
@@ -56966,7 +58263,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 2,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-34",
@@ -57042,7 +58339,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 2,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-38",
@@ -57060,7 +58357,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 7,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-39",
@@ -57098,7 +58395,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 13,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-41",
@@ -57117,7 +58414,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 17,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-42",
@@ -57136,7 +58433,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 8,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-43",
@@ -57173,7 +58470,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 2,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-45",
@@ -57193,7 +58490,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 47,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-46",
@@ -57212,7 +58509,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 1,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-47",
@@ -57250,7 +58547,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 7,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-49",
@@ -57286,7 +58583,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 9,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-15-51",
@@ -57473,7 +58770,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 3,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-16-04",
@@ -57658,7 +58955,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 4,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-16-14",
@@ -57676,7 +58973,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 7,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-16-15",
@@ -57713,7 +59010,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 11,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-16-17",
@@ -57804,7 +59101,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 5,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-16-22",
@@ -57982,7 +59279,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 2,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-16-32",
@@ -58163,7 +59460,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 5,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-16-42",
@@ -59083,7 +60380,7 @@
         "identity.caller"
       ],
       "workPackage": "WP-05",
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 0,
@@ -61061,12 +62358,12 @@
       "capabilityIds": [
         "identity.workforce"
       ],
-      "workPackage": "WP-05",
-      "software": "MISSING",
+      "workPackage": null,
+      "software": "VERIFIED_LOCAL",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 2,
+      "localTests": "PASS"
     },
     {
       "id": "FO-19-07a",
@@ -61087,7 +62384,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 5,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-19-08",
@@ -62455,7 +63752,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 3,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-19-83",
@@ -64046,8 +65343,8 @@
       "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
-      "taggedTests": 0,
-      "localTests": "NO_TEST"
+      "taggedTests": 3,
+      "localTests": "PASS"
     },
     {
       "id": "FO-22-06",
@@ -64104,7 +65401,7 @@
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN",
       "taggedTests": 4,
-      "localTests": "NOT_RUN"
+      "localTests": "PASS"
     },
     {
       "id": "FO-22-09",
@@ -64836,11 +66133,10 @@
       "title": "Caller identity and session assurance",
       "requirements": 37,
       "softwareCounts": {
-        "IMPLEMENTED": 14,
-        "VERIFIED_LOCAL": 17,
-        "MISSING": 6
+        "IMPLEMENTED": 9,
+        "VERIFIED_LOCAL": 28
       },
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN"
     },
@@ -64849,11 +66145,10 @@
       "title": "Workforce identity and RBAC",
       "requirements": 13,
       "softwareCounts": {
-        "MISSING": 9,
-        "VERIFIED_LOCAL": 3,
-        "IMPLEMENTED": 1
+        "VERIFIED_LOCAL": 9,
+        "IMPLEMENTED": 4
       },
-      "software": "MISSING",
+      "software": "IMPLEMENTED",
       "environment": "NOT_CONFIGURED",
       "qualification": "NOT_RUN"
     },
@@ -65571,7 +66866,7 @@
           {
             "file": "platform/src/console-api/rbac.test.ts",
             "title": "deny by default: with no loadable policy bundle every authenticated endpoint is refused",
-            "line": 199,
+            "line": 223,
             "status": "passed"
           }
         ],
@@ -66053,7 +67348,7 @@
           {
             "file": "platform/src/policy/engine.test.ts",
             "title": "consent declined leaves only safety, human, public and intake",
-            "line": 224,
+            "line": 227,
             "status": "passed"
           }
         ],
@@ -66064,7 +67359,7 @@
           {
             "file": "platform/src/policy/engine.test.ts",
             "title": "consent UNKNOWN is never consent for protected work",
-            "line": 232,
+            "line": 235,
             "status": "passed"
           }
         ],
@@ -67223,10 +68518,10 @@
             "seam": false,
             "layer": "layer2",
             "suite": "substrate",
-            "status": "not_run"
+            "status": "passed"
           }
         ],
-        "layer2": "NOT_RUN",
+        "layer2": "PASS",
         "ledger": {
           "id": "FO-17-24.AUDIT_OUTAGE",
           "faultId": "AUDIT_OUTAGE",
@@ -67293,16 +68588,56 @@
         "tests": [
           {
             "faultId": "AUTH_EXPIRY_IDLE",
+            "file": "platform/src/identity/session-idle.test.ts",
+            "line": 81,
+            "title": "[FAULT:AUTH_EXPIRY_IDLE][FO-05-18][AUTH-07][AUTH-04] read FIRST after the idle limit, the gate is closed, the privileges are dropped and the generation is fenced; reading the gate is not activity",
+            "seam": false,
+            "layer": "layer1",
+            "suite": null,
+            "status": "passed"
+          },
+          {
+            "faultId": "AUTH_EXPIRY_IDLE",
+            "file": "platform/src/identity/session-idle.test.ts",
+            "line": 97,
+            "title": "[FAULT:AUTH_EXPIRY_IDLE][FO-05-05][AUTH-04] a step-up completed after the idle limit is refused: lapsed A2 is no base for A3",
+            "seam": false,
+            "layer": "layer1",
+            "suite": null,
+            "status": "passed"
+          },
+          {
+            "faultId": "AUTH_EXPIRY_IDLE",
+            "file": "platform/test/integration/identity/caller-identity.test.ts",
+            "line": 185,
+            "title": "[FAULT:AUTH_EXPIRY_IDLE][FO-05-18][FO-05-19][AUTH-04][SAFE-02] after the idle limit a protected read fails closed and is audited while the DynamoDB record still exists; speech prepared before the expiry is never spoken; a person stays reachable without re-authentication; only the same actor re-verifies",
+            "seam": false,
+            "layer": "layer2",
+            "suite": "identity",
+            "status": "passed"
+          },
+          {
+            "faultId": "AUTH_EXPIRY_IDLE",
+            "file": "platform/test/integration/identity/caller-identity.test.ts",
+            "line": 232,
+            "title": "[FAULT:AUTH_EXPIRY_IDLE][AUTH-07][AUTH-04] read FIRST after the idle limit, the Talkdesk auth gate is closed and fences the generation; the next protected read is refused and audited",
+            "seam": false,
+            "layer": "layer2",
+            "suite": "identity",
+            "status": "passed"
+          },
+          {
+            "faultId": "AUTH_EXPIRY_IDLE",
             "file": "platform/test/integration/substrate/seams.test.ts",
             "line": 105,
             "title": "[FAULT:AUTH_EXPIRY_IDLE seam] an idle session (never touched after start) expires by the injected clock while DynamoDB still holds the item; resolve fails closed",
             "seam": true,
             "layer": "layer2",
             "suite": "substrate",
-            "status": "not_run"
+            "status": "passed"
           }
         ],
-        "layer2": "NOT_RUN",
+        "layer2": "PASS",
         "ledger": {
           "id": "FO-17-24.AUTH_EXPIRY_IDLE",
           "faultId": "AUTH_EXPIRY_IDLE",
@@ -67316,7 +68651,7 @@
           "postconditionPackages": [
             "WP-05"
           ],
-          "softwareStatus": "MISSING"
+          "softwareStatus": "IMPLEMENTED"
         }
       },
       {
@@ -67339,13 +68674,33 @@
         "tests": [
           {
             "faultId": "AUTH_EXPIRY_MID_CALL",
+            "file": "platform/src/identity/session-idle.test.ts",
+            "line": 200,
+            "title": "[FAULT:AUTH_EXPIRY_MID_CALL seam][AUTH-04] the seam moves only time: the next reader refuses SESSION_EXPIRED (hard) or SESSION_IDLE_EXPIRED (idle) while the record is unchanged in the store",
+            "seam": true,
+            "layer": "layer1",
+            "suite": null,
+            "status": "passed"
+          },
+          {
+            "faultId": "AUTH_EXPIRY_MID_CALL",
+            "file": "platform/test/integration/identity/caller-identity.test.ts",
+            "line": 311,
+            "title": "[FAULT:AUTH_EXPIRY_MID_CALL seam][AUTH-04] the injected-clock seam drives the hard expiry on the live store: SESSION_EXPIRED while the record is untouched",
+            "seam": true,
+            "layer": "layer2",
+            "suite": "identity",
+            "status": "passed"
+          },
+          {
+            "faultId": "AUTH_EXPIRY_MID_CALL",
             "file": "platform/test/integration/substrate/dynamo.test.ts",
             "line": 101,
             "title": "[AUTH-04][FO-02-04][FAULT:AUTH_EXPIRY_MID_CALL seam] failure injection: the clock passes expiry mid-call; DynamoDB still holds the item; every read fails closed; revocation fails closed at once",
             "seam": true,
             "layer": "layer2",
             "suite": "substrate",
-            "status": "not_run"
+            "status": "passed"
           }
         ],
         "layer2": "NOT_RUN",
@@ -67558,7 +68913,7 @@
             "seam": true,
             "layer": "layer2",
             "suite": "substrate",
-            "status": "not_run"
+            "status": "passed"
           },
           {
             "faultId": "CONCURRENT_SAME_ACCOUNT",
@@ -67568,7 +68923,7 @@
             "seam": true,
             "layer": "layer2",
             "suite": "substrate",
-            "status": "not_run"
+            "status": "passed"
           }
         ],
         "layer2": "NOT_RUN",
@@ -67689,7 +69044,7 @@
             "seam": true,
             "layer": "layer2",
             "suite": "substrate",
-            "status": "not_run"
+            "status": "passed"
           },
           {
             "faultId": "CRASH_AFTER_COMMIT",
@@ -67699,7 +69054,7 @@
             "seam": true,
             "layer": "layer2",
             "suite": "substrate",
-            "status": "not_run"
+            "status": "passed"
           }
         ],
         "layer2": "NOT_RUN",
@@ -67799,7 +69154,7 @@
             "seam": true,
             "layer": "layer2",
             "suite": "substrate",
-            "status": "not_run"
+            "status": "passed"
           }
         ],
         "layer2": "NOT_RUN",
@@ -67863,7 +69218,7 @@
             "seam": false,
             "layer": "layer2",
             "suite": "ingress",
-            "status": "not_run"
+            "status": "passed"
           },
           {
             "faultId": "DUPLICATE_WEBHOOK",
@@ -67873,7 +69228,7 @@
             "seam": false,
             "layer": "layer2",
             "suite": "ingress",
-            "status": "not_run"
+            "status": "passed"
           },
           {
             "faultId": "DUPLICATE_WEBHOOK",
@@ -67883,10 +69238,10 @@
             "seam": false,
             "layer": "layer2",
             "suite": "ingress",
-            "status": "not_run"
+            "status": "passed"
           }
         ],
-        "layer2": "NOT_RUN",
+        "layer2": "PASS",
         "ledger": {
           "id": "FO-17-24.DUPLICATE_WEBHOOK",
           "faultId": "DUPLICATE_WEBHOOK",
@@ -67981,8 +69336,49 @@
         "layer2Owner": "WP-05",
         "localDriver": "IN_PROCESS_FIXTURE_INJECTION",
         "reachRules": 1,
-        "tests": [],
-        "layer2": "NOT_RUN",
+        "tests": [
+          {
+            "faultId": "IDP_UNAVAILABLE",
+            "file": "platform/src/console-api/sso.test.ts",
+            "line": 312,
+            "title": "[FAULT:IDP_UNAVAILABLE seam][OPS-01] sign-in fails closed as unavailable (never as a bad password); live sessions keep working only within the staleness bound",
+            "seam": true,
+            "layer": "layer1",
+            "suite": null,
+            "status": "passed"
+          },
+          {
+            "faultId": "IDP_UNAVAILABLE",
+            "file": "platform/src/identity/session-idle.test.ts",
+            "line": 221,
+            "title": "[FAULT:IDP_UNAVAILABLE seam][AUTH-01] the binding fails closed with IDP_UNAVAILABLE, assurance stays A0 and no weaker method is substituted",
+            "seam": true,
+            "layer": "layer1",
+            "suite": null,
+            "status": "passed"
+          },
+          {
+            "faultId": "IDP_UNAVAILABLE",
+            "file": "platform/test/integration/identity/caller-identity.test.ts",
+            "line": 323,
+            "title": "[FAULT:IDP_UNAVAILABLE][FO-05-30][AUTH-01][SAFE-02] the caller IdP is unreachable during secure-link approval: assurance stays A0, no protected read succeeds, no weaker method is substituted, the caller reaches a person",
+            "seam": false,
+            "layer": "layer2",
+            "suite": "identity",
+            "status": "passed"
+          },
+          {
+            "faultId": "IDP_UNAVAILABLE",
+            "file": "platform/test/integration/identity/workforce-sso.test.ts",
+            "line": 372,
+            "title": "[FAULT:IDP_UNAVAILABLE][OPS-01] workforce IdP unreachable: sign-in fails closed as unavailable; a live session keeps working only within the staleness bound",
+            "seam": false,
+            "layer": "layer2",
+            "suite": "identity",
+            "status": "passed"
+          }
+        ],
+        "layer2": "PASS",
         "ledger": {
           "id": "FO-17-24.IDP_UNAVAILABLE",
           "faultId": "IDP_UNAVAILABLE",
@@ -68125,7 +69521,7 @@
             "seam": true,
             "layer": "layer2",
             "suite": "substrate",
-            "status": "not_run"
+            "status": "passed"
           },
           {
             "faultId": "LOCAL_PERSISTENCE_FAILURE",
@@ -68135,7 +69531,7 @@
             "seam": true,
             "layer": "layer2",
             "suite": "substrate",
-            "status": "not_run"
+            "status": "passed"
           },
           {
             "faultId": "LOCAL_PERSISTENCE_FAILURE",
@@ -68145,7 +69541,7 @@
             "seam": true,
             "layer": "layer2",
             "suite": "substrate",
-            "status": "not_run"
+            "status": "passed"
           }
         ],
         "layer2": "NOT_RUN",
@@ -68410,6 +69806,56 @@
             "layer": "layer1",
             "suite": null,
             "status": "not_run"
+          },
+          {
+            "faultId": "POLICY_ENGINE_ERROR",
+            "file": "platform/src/policy/engine.test.ts",
+            "line": 389,
+            "title": "[AUTH-02][FAULT:POLICY_ENGINE_ERROR seam] tighten-only, field mask: a decorated mask inside the catalogue but wider than the loaded decision's is refused",
+            "seam": true,
+            "layer": "layer1",
+            "suite": null,
+            "status": "passed"
+          },
+          {
+            "faultId": "POLICY_ENGINE_ERROR",
+            "file": "platform/src/policy/engine.test.ts",
+            "line": 459,
+            "title": "[FAULT:POLICY_ENGINE_ERROR seam][OPS-06] the default engine has no decoration; a throwing or undefined decoration of the loaded WASM evaluator denies with POLICY_ENGINE_ERROR and removal restores identical decisions",
+            "seam": true,
+            "layer": "layer1",
+            "suite": null,
+            "status": "passed"
+          },
+          {
+            "faultId": "POLICY_ENGINE_ERROR",
+            "file": "platform/src/policy/engine.test.ts",
+            "line": 524,
+            "title": "[OPS-04][FAULT:POLICY_ENGINE_ERROR seam] the seam is local/ci only: refused for a deployed environment, and on an engine loaded for one whatever the caller claims",
+            "seam": true,
+            "layer": "layer1",
+            "suite": null,
+            "status": "passed"
+          },
+          {
+            "faultId": "POLICY_ENGINE_ERROR",
+            "file": "platform/src/policy/engine.test.ts",
+            "line": 538,
+            "title": "[AUTH-02][OPS-06][FAULT:POLICY_ENGINE_ERROR seam] tighten-only: a decoration can never allow what the loaded policy denies, widen the field mask or drop an obligation",
+            "seam": true,
+            "layer": "layer1",
+            "suite": null,
+            "status": "passed"
+          },
+          {
+            "faultId": "POLICY_ENGINE_ERROR",
+            "file": "platform/src/policy/engine.test.ts",
+            "line": 623,
+            "title": "[AUTH-02][AUTH-04][OPS-06][FAULT:POLICY_ENGINE_ERROR seam] input isolation: a decoration that rewrites the input it is handed (assurance, revocation, tenant) never turns the loaded policy's deny into an allow",
+            "seam": true,
+            "layer": "layer1",
+            "suite": null,
+            "status": "passed"
           },
           {
             "faultId": "POLICY_ENGINE_ERROR",
@@ -68933,7 +70379,7 @@
             "seam": true,
             "layer": "layer2",
             "suite": "connectors",
-            "status": "not_run"
+            "status": "passed"
           },
           {
             "faultId": "SCHEMA_DRIFT",
@@ -68943,7 +70389,7 @@
             "seam": true,
             "layer": "layer2",
             "suite": "connectors",
-            "status": "not_run"
+            "status": "passed"
           }
         ],
         "layer2": "NOT_RUN",
@@ -69176,13 +70622,13 @@
     "ledgerIssues": [],
     "summary": {
       "layer2": {
-        "PASS": 1,
+        "PASS": 5,
         "FAIL": 0,
         "INCONCLUSIVE": 0,
-        "NOT_RUN": 49
+        "NOT_RUN": 45
       },
-      "withLayer2Test": 3,
-      "seamOnly": 7,
+      "withLayer2Test": 5,
+      "seamOnly": 6,
       "layer1Only": 0
     }
   },
@@ -70063,6 +71509,52 @@
       ]
     },
     {
+      "tag": "STRIDE-D",
+      "tests": [
+        {
+          "file": "platform/src/console-api/break-glass.test.ts",
+          "line": 1612
+        },
+        {
+          "file": "platform/src/console-api/login-state.test.ts",
+          "line": 22
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 341
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 342
+        },
+        {
+          "file": "platform/src/console-api/sso.test.ts",
+          "line": 413
+        },
+        {
+          "file": "platform/test/integration/identity/recovery.test.ts",
+          "line": 305
+        },
+        {
+          "file": "platform/test/integration/identity/workforce-sso-adversarial.test.ts",
+          "line": 322
+        }
+      ]
+    },
+    {
+      "tag": "STRIDE-T",
+      "tests": [
+        {
+          "file": "platform/src/console-api/login-state.test.ts",
+          "line": 53
+        },
+        {
+          "file": "platform/src/console-api/login-state.test.ts",
+          "line": 68
+        }
+      ]
+    },
+    {
       "tag": "TB-01",
       "tests": [
         {
@@ -70585,20 +72077,20 @@
   "issues": [],
   "summary": {
     "requirements": 168,
-    "taggedTests": 2921,
+    "taggedTests": 3084,
     "localTests": {
-      "PASS": 134,
+      "PASS": 149,
       "FAIL": 0,
-      "NOT_RUN": 15,
+      "NOT_RUN": 0,
       "NO_TEST": 19
     },
     "externallyBlocked": 98,
     "followOn": {
       "requirements": 1170,
       "software": {
-        "MISSING": 577,
-        "IMPLEMENTED": 440,
-        "VERIFIED_LOCAL": 153
+        "MISSING": 562,
+        "IMPLEMENTED": 438,
+        "VERIFIED_LOCAL": 170
       },
       "environment": {
         "NOT_CONFIGURED": 1170
@@ -70611,8 +72103,8 @@
     "capabilities": {
       "count": 56,
       "software": {
-        "IMPLEMENTED": 4,
-        "MISSING": 52
+        "IMPLEMENTED": 6,
+        "MISSING": 50
       },
       "environment": {
         "NOT_CONFIGURED": 56
