@@ -2,9 +2,25 @@
   "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ApprovalRecord.json",
   "title": "ApprovalRecord",
   "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "approval-record.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "causationId": "causationId",
+    "occurredAt": "grantedAt",
+    "expiresAt": "expiresAt",
+    "provenance": "approver"
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "approval-record.v1"
+    },
+    "causationId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
     "approvalId": {
       "type": "string",
       "pattern": "^apr_[A-Za-z0-9_-]{8,64}$"

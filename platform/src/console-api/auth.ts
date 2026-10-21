@@ -7,12 +7,16 @@
  *   (bounded token lifetime), `auth_time`, a `jti` (for logout revocation) and
  *   an MFA `amr` value. Tokens without MFA are refused (STAFF_MFA_REQUIRED).
  *   Keys come from a `JWTVerifyGetKey`: the LOCAL FIXTURE workforce IdP's JWKS
- *   offline, or the workforce issuer's JWKS URL (`createRemoteJWKSet`) when the
- *   workforce SSO client exists (BLOCKED: PRQ-036, VQ-IDP-08).
+ *   offline, the issuer's DISCOVERED JWKS through the egress-classified
+ *   transport (`WorkforceTokenVerifier.withKeys` over OidcDiscovery, live), or a
+ *   configured JWKS URL (`remoteJwks`). In live composition the verifier checks
+ *   the ID token of the backend code exchange (sso.ts) as a second, independent
+ *   policy check (audience = the console client id, MFA amr, jti, lifetime).
  * - Staff identity and roles are resolved server-side from a `StaffDirectory`
- *   by (issuer, subject); nothing in a request body or query can set them.
- *   The live directory / role-group mapping is BLOCKED (VQ-IDP-08); only the
- *   LOCAL FIXTURE directory of SYNTHETIC staff exists.
+ *   by (issuer, subject[, groups]); nothing in a request body or query can set
+ *   them. Live: `OidcGroupStaffDirectory` (oidc-staff-directory.ts, exact IdP
+ *   group -> role mapping, unknown managed groups refused). Offline: the LOCAL
+ *   FIXTURE directory of SYNTHETIC staff.
  * - The server keeps no browser storage assumptions: the bearer is presented on
  *   every request and logout revokes its `jti` server-side.
  * - `LocalWorkforceSignInFixture` (local/ci ONLY) issues tokens for SYNTHETIC
@@ -26,14 +30,46 @@ import { IDP, STAFF, TENANT_ID } from "../fixtures/synthetic-world.js";
 import type { Environment, StaffRole } from "../protocol/index.js";
 import { sha256Hex } from "../shared/canonical.js";
 import type { Clock } from "../shared/clock.js";
-import { ConfigurationRejectedError, ValidationError } from "../shared/errors.js";
+import { ConfigurationRejectedError, DependencyError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
 import { STAFF_ROLES } from "./contract.js";
 import type { LocalStaffOption } from "./contract.js";
 import { ConsoleHttpError, unauthenticated } from "./errors.js";
 
-/** RFC 8176 values (plus `fido`) accepted as multi-factor; same set as the identity module. `pwd` alone never is. */
-export const DEFAULT_MFA_AMR_VALUES = ["mfa", "hwk", "swk", "otp", "fido", "pop"] as const;
+/**
+ * RFC 8176 authentication-method values and the factor class each one proves. Values that name no factor of their
+ * own (mca, rba, geo, user, wia, mfa) are absent: `mfa` is handled by `amrSatisfiesMfa` itself.
+ */
+export const AMR_FACTOR_CLASS: Readonly<Record<string, "knowledge" | "possession" | "inherence">> = {
+  pwd: "knowledge",
+  pin: "knowledge",
+  kba: "knowledge",
+  otp: "possession",
+  sms: "possession",
+  tel: "possession",
+  hwk: "possession",
+  swk: "possession",
+  sc: "possession",
+  pop: "possession",
+  face: "inherence",
+  fpt: "inherence",
+  iris: "inherence",
+  retina: "inherence",
+  vbm: "inherence",
+};
+
+/**
+ * Whether an `amr` claim proves multi-factor authentication. With a tenant override (`accepted`, AIN-13) any one of
+ * its values suffices (`pwd` is never one: the schemas refuse it). Without one, the DEFAULT rule: the IdP asserts
+ * `mfa`, or the values name at least two DISTINCT factor classes (RFC 8176), e.g. pwd + otp or hwk + pin. A single
+ * possession value (otp, swk, hwk, pop, sms alone) proves one factor and is never MFA by itself.
+ */
+export function amrSatisfiesMfa(amr: readonly string[], accepted: readonly string[] | null): boolean {
+  if (accepted !== null) return amr.some((a) => a !== "pwd" && accepted.includes(a));
+  if (amr.includes("mfa")) return true;
+  const classes = new Set(amr.map((a) => (Object.hasOwn(AMR_FACTOR_CLASS, a) ? AMR_FACTOR_CLASS[a] : undefined)).filter((c) => c !== undefined));
+  return classes.size >= 2;
+}
 /** amr marker carried by tokens from the LOCAL FIXTURE workforce IdP; refused outside local/ci. */
 export const LOCAL_FIXTURE_AMR = "local_fixture";
 export const OFFLINE_ENVIRONMENTS: readonly Environment[] = ["local", "ci"];
@@ -50,7 +86,8 @@ export const WorkforceTokenPolicy = z.strictObject({
   clockToleranceSeconds: z.number().int().min(0).max(60),
   /** exp - iat may not exceed this (short-lived console sessions). */
   maxTokenLifetimeSeconds: z.number().int().min(60).max(43_200),
-  acceptedMfaAmr: z.array(z.string().regex(/^[a-z][a-z0-9_]{1,31}$/)).min(1).max(16),
+  /** Tenant override of the accepted MFA amr values (AIN-13); null: the default rule of `amrSatisfiesMfa`. */
+  acceptedMfaAmr: z.array(z.string().regex(/^[a-z][a-z0-9_]{1,31}$/)).min(1).max(16).nullable(),
   /** True only in local/ci: accept the LOCAL FIXTURE amr marker. */
   allowLocalFixtureAmr: z.boolean(),
 });
@@ -98,7 +135,7 @@ export class WorkforceTokenVerifier {
     const parsed = WorkforceTokenPolicy.safeParse(opts.policy);
     if (!parsed.success) throw new ValidationError("WORKFORCE_TOKEN_POLICY_INVALID");
     if (opts.kind === "live" && parsed.data.allowLocalFixtureAmr) throw new ValidationError("WORKFORCE_TOKEN_POLICY_INVALID");
-    if (parsed.data.acceptedMfaAmr.includes(LOCAL_FIXTURE_AMR) || parsed.data.acceptedMfaAmr.includes("pwd")) throw new ValidationError("WORKFORCE_TOKEN_POLICY_INVALID");
+    if (parsed.data.acceptedMfaAmr?.includes(LOCAL_FIXTURE_AMR) || parsed.data.acceptedMfaAmr?.includes("pwd")) throw new ValidationError("WORKFORCE_TOKEN_POLICY_INVALID");
     this.kind = opts.kind;
     this.policy = parsed.data;
     this.keys = opts.keys;
@@ -122,18 +159,40 @@ export class WorkforceTokenVerifier {
         algorithms: ["ES256"],
         clockToleranceSeconds: 5,
         maxTokenLifetimeSeconds: opts.maxTokenLifetimeSeconds ?? 3600,
-        acceptedMfaAmr: [...DEFAULT_MFA_AMR_VALUES],
+        acceptedMfaAmr: null,
         allowLocalFixtureAmr: true,
       },
     });
   }
 
   /**
-   * LIVE verifier against the workforce issuer's published JWKS (https only).
-   * BLOCKED until the identity owner issues the workforce OIDC client, its JWKS
-   * URI and the MFA amr values it emits (PRQ-036, VQ-IDP-08).
+   * LIVE verifier over an injected key resolver, normally the workforce issuer's discovered JWKS
+   * (`OidcDiscovery.keyResolver()`, adapters/live/oidc-discovery.ts) fetched through the
+   * egress-classified transport. The audience is the console's OIDC client id (the ID token of the
+   * backend exchange) unless a dedicated console audience is configured.
    */
-  static remoteJwks(opts: { issuer: string; audience: string; jwksUrl: string; clock: Clock; acceptedMfaAmr?: readonly string[]; algorithms?: (typeof WORKFORCE_TOKEN_ALGORITHMS)[number][] }): WorkforceTokenVerifier {
+  static withKeys(opts: { issuer: string; audience: string; keys: JWTVerifyGetKey; clock: Clock; acceptedMfaAmr?: readonly string[] | null; algorithms?: (typeof WORKFORCE_TOKEN_ALGORITHMS)[number][]; maxTokenLifetimeSeconds?: number }): WorkforceTokenVerifier {
+    return new WorkforceTokenVerifier({
+      kind: "live",
+      clock: opts.clock,
+      keys: opts.keys,
+      policy: {
+        issuer: opts.issuer,
+        audience: opts.audience,
+        algorithms: opts.algorithms ?? ["RS256", "ES256"],
+        clockToleranceSeconds: 5,
+        maxTokenLifetimeSeconds: opts.maxTokenLifetimeSeconds ?? 3600,
+        acceptedMfaAmr: opts.acceptedMfaAmr ? [...opts.acceptedMfaAmr] : null,
+        allowLocalFixtureAmr: false,
+      },
+    });
+  }
+
+  /**
+   * LIVE verifier against a configured JWKS URL (https only, jose remote key set). Prefer `withKeys`
+   * over discovery: the JWKS URI then comes from the issuer's own metadata.
+   */
+  static remoteJwks(opts: { issuer: string; audience: string; jwksUrl: string; clock: Clock; acceptedMfaAmr?: readonly string[] | null; algorithms?: (typeof WORKFORCE_TOKEN_ALGORITHMS)[number][] }): WorkforceTokenVerifier {
     if (!/^https:\/\/[A-Za-z0-9.-]{1,253}(:\d{2,5})?\/[A-Za-z0-9._~/%-]*$/.test(opts.jwksUrl)) throw new ValidationError("WORKFORCE_JWKS_URL_INVALID");
     return new WorkforceTokenVerifier({
       kind: "live",
@@ -145,7 +204,7 @@ export class WorkforceTokenVerifier {
         algorithms: opts.algorithms ?? ["RS256", "ES256"],
         clockToleranceSeconds: 5,
         maxTokenLifetimeSeconds: 3600,
-        acceptedMfaAmr: [...(opts.acceptedMfaAmr ?? DEFAULT_MFA_AMR_VALUES)],
+        acceptedMfaAmr: opts.acceptedMfaAmr ? [...opts.acceptedMfaAmr] : null,
         allowLocalFixtureAmr: false,
       },
     });
@@ -191,7 +250,7 @@ export class WorkforceTokenVerifier {
     if (claims.auth_time > nowS + tolerance || claims.auth_time > claims.iat + tolerance) throw unauthenticated("STAFF_AUTH_TIME_INVALID");
     const fixtureMarked = claims.amr.includes(LOCAL_FIXTURE_AMR);
     if (fixtureMarked && !this.policy.allowLocalFixtureAmr) throw unauthenticated("LOCAL_FIXTURE_TOKEN_REJECTED");
-    if (!claims.amr.some((a) => this.policy.acceptedMfaAmr.includes(a))) throw unauthenticated("STAFF_MFA_REQUIRED");
+    if (!amrSatisfiesMfa(claims.amr, this.policy.acceptedMfaAmr)) throw unauthenticated("STAFF_MFA_REQUIRED");
     return {
       issuer: claims.iss,
       subject: claims.sub,
@@ -207,6 +266,8 @@ export class WorkforceTokenVerifier {
 
 function mapJoseError(err: unknown): ConsoleHttpError {
   if (err instanceof ConsoleHttpError) return err;
+  // The discovered key set could not be fetched (IdP down): a dependency failure, never "invalid token".
+  if (err instanceof DependencyError) return new ConsoleHttpError(503, "WORKFORCE_IDP_KEYS_UNAVAILABLE", true);
   const code = typeof err === "object" && err !== null ? (err as { code?: unknown }).code : undefined;
   const claim = typeof err === "object" && err !== null ? (err as { claim?: unknown }).claim : undefined;
   if (code === "ERR_JWT_EXPIRED") return unauthenticated(claim === "iat" ? "SESSION_LIFETIME_EXCEEDED" : "SESSION_EXPIRED");
@@ -235,7 +296,11 @@ export interface StaffRecord {
  */
 export interface StaffDirectory {
   readonly kind: "local_fixture" | "live";
-  resolve(identity: { issuer: string; subject: string }): Promise<StaffRecord | null>;
+  /**
+   * `groups`: the verified group claim of the IdP (ID token or introspection), when the directory maps
+   * IdP groups to roles (live). A directory that keeps its own role records ignores it.
+   */
+  resolve(identity: { issuer: string; subject: string; groups?: readonly string[] | null }): Promise<StaffRecord | null>;
 }
 
 const STAFF_LABELS: Readonly<Record<keyof typeof STAFF, string>> = {
@@ -294,20 +359,6 @@ export class LocalStaffDirectoryFixture implements StaffDirectory {
   subjectFor(staffId: string): string | null {
     for (const s of this.bySubject.values()) if (s.staffId === staffId && s.active) return s.idpSubject;
     return null;
-  }
-}
-
-/**
- * LIVE workforce staff directory: BLOCKED. The identity owner has not supplied
- * the workforce group-to-StaffRole mapping or a directory API (PRQ-036,
- * VQ-IDP-08). Every resolution fails closed (503) instead of guessing roles.
- */
-export class BlockedWorkforceStaffDirectory implements StaffDirectory {
-  readonly kind = "live" as const;
-  readonly capabilityStatus = "BLOCKED" as const;
-  readonly prerequisites = ["PRQ-036", "VQ-IDP-08"] as const;
-  async resolve(): Promise<StaffRecord | null> {
-    throw new ConsoleHttpError(503, "WORKFORCE_DIRECTORY_BLOCKED", false);
   }
 }
 

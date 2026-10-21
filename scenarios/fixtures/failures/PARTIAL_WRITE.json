@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "PARTIAL_WRITE",
-  "version": 2,
+  "version": 3,
   "title": "Dependency reports a partial write",
   "description": "The dependency applies the first step of a multi-step write (the booking, recorded under the provider idempotency key) and then fails the confirmation step, reporting PARTIAL_WRITE (UNKNOWN).",
   "category": "dependency",
@@ -61,5 +61,31 @@
   "appliesToIntents": [
     "appointment_reschedule"
   ],
-  "notes": "Version 2: the plan is afterExternalCommit, so the reconciled commit may end RESOLVED (only with reconciliation_recorded and commit receipts); INFORMATION_PROVIDED / DECLINED_BY_POLICY (the action silently dropped) stay excluded. The LOCAL FIXTURE scheduling system records the booking under the key before raising the error (platform/src/adapters/local/scheduling-fixture.ts)."
+  "notes": "Version 2: the plan is afterExternalCommit, so the reconciled commit may end RESOLVED (only with reconciliation_recorded and commit receipts); INFORMATION_PROVIDED / DECLINED_BY_POLICY (the action silently dropped) stay excluded. The LOCAL FIXTURE scheduling system records the booking under the key before raising the error (platform/src/adapters/local/scheduling-fixture.ts).",
+  "registry": {
+    "requirementId": "FO-17-24.PARTIAL_WRITE",
+    "origin": "registry",
+    "injectionPoint": "reference business API applies the first step of a multi-step write then fails",
+    "injectionPointPackages": [
+      "WP-23"
+    ],
+    "postconditionPackages": [
+      "WP-23"
+    ],
+    "layer2Owner": "WP-23",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "ambiguous_commit_with_effect",
+      "tools": [
+        "commit_appointment_change"
+      ]
+    }
+  ],
+  "postconditions": [
+    "The first step of the multi-step write exists in the system of record and the commit result is UNKNOWN",
+    "Reconciliation finds exactly one external effect by the provider idempotency key",
+    "An operator-visible reconciliation item exists; a silently dropped action is never reported"
+  ]
 }

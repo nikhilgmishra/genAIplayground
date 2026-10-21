@@ -34,6 +34,20 @@ Status: **IMPLEMENTED_OFFLINE**. No policy release is approved (PRQ-031).
   expired session, tenant mismatch, AI-admission switch, writes switch on a WRITE action,
   `VERIFICATION_SECRET` resource, uncatalogued action or a field mask wider than the catalogue
   becomes `POLICY_ENGINE_ERROR`. Safety/human routes are exempt from the guard.
+* Fault-injection seam (`decorateEvaluator(decorate, { environment })`, FO-17-24.POLICY_ENGINE_ERROR, used
+  only by `platform/src/evaluation/policy-fault.ts`): refused (`POLICY_EVALUATOR_SEAM_NOT_ALLOWED`) unless the
+  caller states local or ci AND the engine was not loaded for a deployed environment
+  (`EngineOptions.environment`; the composition should pass it). Tighten-only for ANY evaluator other than the
+  loaded one: a decorated allow is accepted only when the loaded evaluator also allows the same input, with a
+  field mask that is a subset and every loaded obligation kept (the loaded reason codes are used); otherwise
+  deny `POLICY_ENGINE_ERROR` (detail `POLICY_EVALUATOR_DECORATION_WIDENED`). A decorated throw, malformed
+  result or deny can only deny. A loaded engine has no decoration (`evaluatorDecorated` false).
+  Input isolation: "the same input" is the engine's own normalised input, which a substituted evaluator never
+  sees. It receives a deep-frozen structured clone (rewriting, say, `auth.assurance` in place throws; a
+  rewritten copy only changes what the decoration itself asks), while the loaded evaluator and the invariant
+  guard read the pristine original. `inner` is a frozen view of the loaded evaluator captured at construction in
+  an ECMAScript private field, so neither a decoration nor a cast-based field swap can replace what the
+  tighten-only rule consults (`engine.test.ts` input-isolation cases, both entrypoints).
 * More than 16 reason codes: the first 15 (sorted) plus `REASON_CODES_TRUNCATED`; still a deny.
 * Logs are content-free (`action`, `allow`, first reason code, decision id, version); metric
   `vsp_policy_decisions_total{allow,consequential}`. Measured locally: about 0.25 ms per decision.

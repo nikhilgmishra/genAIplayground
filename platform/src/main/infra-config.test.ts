@@ -10,10 +10,13 @@ import type { GatewayConfig, PlatformConfig } from "../config/index.js";
 
 describe("infrastructure environment variables", () => {
   it("[OPS-04][SPEC-12.write-fence] VSP_ENVIRONMENT is required and strict; the write fence defaults closed outside local/ci; PORT is validated", () => {
-    expect(loadInfrastructureEnv({ VSP_ENVIRONMENT: "local" })).toEqual({ environment: "local", mutationsEnabled: true, port: 8080 });
-    expect(loadInfrastructureEnv({ VSP_ENVIRONMENT: "production" })).toMatchObject({ mutationsEnabled: false });
-    expect(loadInfrastructureEnv({ VSP_ENVIRONMENT: "production", VSP_MUTATIONS_ENABLED: "true", PORT: "8080" })).toEqual({ environment: "production", mutationsEnabled: true, port: 8080 });
-    expect(loadInfrastructureEnv({ VSP_ENVIRONMENT: "ci", VSP_MUTATIONS_ENABLED: "false" }, { defaultPort: 8081 })).toEqual({ environment: "ci", mutationsEnabled: false, port: 8081 });
+    expect(loadInfrastructureEnv({ VSP_ENVIRONMENT: "local" })).toEqual({ environment: "local", mutationsEnabled: true, port: 8080, listenHost: "127.0.0.1", releaseImageDigest: null });
+    expect(loadInfrastructureEnv({ VSP_ENVIRONMENT: "production" })).toMatchObject({ mutationsEnabled: false, listenHost: "0.0.0.0" });
+    expect(loadInfrastructureEnv({ VSP_ENVIRONMENT: "production", VSP_MUTATIONS_ENABLED: "true", PORT: "8080" })).toEqual({ environment: "production", mutationsEnabled: true, port: 8080, listenHost: "0.0.0.0", releaseImageDigest: null });
+    expect(loadInfrastructureEnv({ VSP_ENVIRONMENT: "ci", VSP_MUTATIONS_ENABLED: "false" }, { defaultPort: 8081 })).toEqual({ environment: "ci", mutationsEnabled: false, port: 8081, listenHost: "127.0.0.1", releaseImageDigest: null });
+    // WP-07: a live unit on a developer host listens on loopback only; local/ci can never widen to every interface.
+    expect(loadInfrastructureEnv({ VSP_ENVIRONMENT: "sandbox", VSP_LISTEN_HOST: "127.0.0.1" }).listenHost).toBe("127.0.0.1");
+    expect(loadInfrastructureEnv({ VSP_ENVIRONMENT: "local", VSP_LISTEN_HOST: "0.0.0.0" }).listenHost).toBe("127.0.0.1");
     const reason = (env: Record<string, string>) => {
       try {
         loadInfrastructureEnv(env);
@@ -27,6 +30,13 @@ describe("infrastructure environment variables", () => {
     expect(reason({ VSP_ENVIRONMENT: "local", VSP_MUTATIONS_ENABLED: "1" })).toBe("INFRA_ENV_BOOLEAN_INVALID:VSP_MUTATIONS_ENABLED");
     expect(reason({ VSP_ENVIRONMENT: "local", PORT: "70000" })).toBe("INFRA_ENV_PORT_INVALID:PORT");
     expect(reason({ VSP_ENVIRONMENT: "local", PORT: "0" })).toBe("INFRA_ENV_PORT_INVALID:PORT");
+    expect(reason({ VSP_ENVIRONMENT: "sandbox", VSP_LISTEN_HOST: "192.0.2.10" })).toBe("INFRA_ENV_LISTEN_HOST_INVALID:VSP_LISTEN_HOST");
+    // OPS-APPR-01: the running image digest is strict (a tag or a truncated digest is refused, never ignored).
+    const digest = `sha256:${"c".repeat(64)}`;
+    expect(loadInfrastructureEnv({ VSP_ENVIRONMENT: "production", VSP_RELEASE_IMAGE_DIGEST: digest }).releaseImageDigest).toBe(digest);
+    for (const bad of ["latest", `sha256:${"c".repeat(63)}`, `SHA256:${"c".repeat(64)}`, `sha256:${"C".repeat(64)}`]) {
+      expect(reason({ VSP_ENVIRONMENT: "production", VSP_RELEASE_IMAGE_DIGEST: bad })).toBe("INFRA_ENV_RELEASE_IMAGE_DIGEST_INVALID:VSP_RELEASE_IMAGE_DIGEST");
+    }
   });
 });
 

@@ -158,7 +158,47 @@ every non-permitted actor kind escalates.
 * Pure `transferTransition`: forward path REQUESTED → (QUEUED optional) → RECEIVER_ACCEPTED →
   BRIDGED → CALLER_CONFIRMED_CONNECTED → COMPLETED; failure events TIMEOUT, RECEIVER_UNAVAILABLE,
   BRIDGE_DROPPED, CALLER_DISCONNECTED, DIAL_FAILED; duplicates ignored; out-of-order/invalid events
-  rejected without state change; terminal attempt states absorb.
+  rejected without state change; terminal attempt states absorb. The pure function is unchanged by
+  the deferral below (its SAFE-04 property test keeps its meaning).
+* Out-of-order vendor events ([ADR-0017](../../../docs/adr/ADR-0017-out-of-order-transfer-events.md);
+  corpus cause OUT_OF_ORDER_TRANSFER_EVENT_DROPPED: an early `CALLER_CONFIRMED_CONNECTED` used to be
+  rejected and lost, so a connected caller was timed out, given the update prompt and re-dialled).
+  Events are at least once and their order is not guaranteed (TB-07). In `applyEvent`, only after the
+  unknown-attempt, `SUPERSEDED`, `yieldsToSafety` and stale-attempt checks, a BRIDGED,
+  CALLER_CONFIRMED_CONNECTED or COMPLETE that the pure function rejects `TRANSFER_EVENT_OUT_OF_ORDER`
+  is **held** on the journey (`deferredEvents`, decision `deferred`, reason
+  `TRANSFER_EVENT_AWAITING_PREDECESSOR`, audited `transfer.event_deferred` PENDING):
+  * nothing about the attempt changes: no state, history, `connectedAt` or `appliedEventIds` entry,
+    and the timeout clock (the attempt's last history entry) is not refreshed, so a missing
+    predecessor still times out exactly at `attemptTimeoutMs` and fails over as before;
+  * idempotent per (transferId, event) and per eventId; at most 3 held events per attempt
+    (`TRANSFER_DEFERRED_EVENTS_FULL` beyond that, unreachable with valid input);
+  * after each applied progress transition the attempt's held events are drained in progression
+    order, each through `transferTransition` again (so CALLER_CONFIRMED_CONNECTED still applies only
+    from BRIDGED), stopping at the first one still waiting. The history entry keeps the event's
+    original vendor source (`telephony.local_fixture`, `webhook.local_fixture`), the event id is
+    remembered at drain time (a later redelivery is a duplicate), and the application is its own
+    `transfer.state_changed` entry carrying the same opaque event reference
+    (`transfer_event:tev_<digest>`; the vendor id itself is never written to audit);
+  * held events are discarded (audited `transfer.deferred_events_discarded`, INVALIDATED) when their
+    attempt reaches a terminal or failover state or CALLER_DISCONNECTED (`TRANSFER_ATTEMPT_CLOSED`),
+    the journey ends on a caller disconnect between attempts (`CALLER_DISCONNECTED`), a new attempt
+    starts (`TRANSFER_ATTEMPT_REPLACED`) or the journey is superseded (`SUPERSEDED_BY_SAFETY_ROUTE`).
+    A held CALLER_CONFIRMED_CONNECTED never connects a timed-out attempt or the next attempt;
+  * each drained entry of a STANDARD journey is a STANDARD routing step and yields first
+    (`yieldsToSafety`, SAFE-03): a safety route that starts in the predecessor's write window, after
+    the event's own check, stops the drain even when its supersede write failed, so a held
+    CALLER_CONFIRMED_CONNECTED never connects a STANDARD journey of a call with an active SAFETY
+    journey. The entry stays held until the supersede (retried by the sweep) discards it;
+  * a drain whose write loses a version race leaves the event held in the store (`applyEvent`
+    throws `ConflictError` although the predecessor was written). The sweep drains it before its
+    timeout check, but the sweep visits only `ROUTING` journeys: a held COMPLETE on a `CONNECTED`
+    journey whose drain write lost stays held until a later event of that attempt (the journey stays
+    CONNECTED and the outcome stays TRANSFERRED; COMPLETED is not recorded meanwhile). A SAFETY journey's swallowed non-conflict store error
+    can lose a held event; behaviour then falls back to timeout and failover (fail-safe);
+  * residual (TB-07, owner decision): a predecessor that never arrives still times the attempt out
+    and dials the next route although the vendor may show the caller connected. BRIDGED is never
+    inferred from CALLER_CONFIRMED_CONNECTED; the complete fix needs a vendor transfer-state query.
 * Outcome is `TRANSFERRED` only once `CALLER_CONFIRMED_CONNECTED` was reached (cleared again if the
   bridge drops). A successful dial is never a transfer (SAFE-04).
 * Journey status: `ROUTING` whenever an attempt is in flight or awaiting a retry (the sweep's work
@@ -230,6 +270,7 @@ every non-permitted actor kind escalates.
 | Deploying the generated state machines; worker / human-task bridge against real Step Functions + SQS (`SendTaskSuccess`, heartbeats, KMS-encrypted SFN token storage) | Requires real AWS resources and billable execution | AWS sandbox account, reviewed Terraform plan, cost estimate, approval (spec section 5) |
 | Live `TransferStore` (DynamoDB conditional writes, incl. a per-call index for `listForCall`) and live TelephonyControl events | Transfer events export (TB-07) and webhook authentication (TB-09) are UNKNOWN | Talkdesk sandbox + documented transfer event API; without TB-07 outcomes stay OUTCOME_UNKNOWN and humans reconcile |
 | Withdrawing a STANDARD dial already in flight at the vendor when a safety route supersedes it | The `TelephonyControl` port has no cancel operation; the superseded journey is only never retried or failed over | Talkdesk documented transfer-cancel capability (TB-07) |
+| Reconciling with the vendor's transfer state before failing over an accepted or bridged attempt whose predecessor event was truly lost (ADR-0017 residual) | The `TelephonyControl` port has no transfer-state query; BRIDGED is never inferred from CALLER_CONFIRMED_CONNECTED, so the attempt times out and the next route is dialled | Talkdesk documented transfer state/event API (TB-07); safety lead and telephony owner decision |
 | Production deadlines, retry budgets, attempt timeouts, continuity attempt cap, task-token TTL | Operational/security commitments, not engineering facts | Support operations and security approval |
 | Approved update template content (`updateTemplateIds`) and safety disconnect / after-hours procedures | Clinical and legal scripts | Clinical safety lead approval (spec section 5) |
 | Live recheck hook (OPA decision + consent / representation / account-state lookups) | Owned by policy and identity modules | Those modules' live implementations |
@@ -241,8 +282,8 @@ every non-permitted actor kind escalates.
 |---|---|---|
 | ACT-04 | `outcome.ts`; audit outcome PENDING for nonterminal | `engine.test.ts`, `definitions.test.ts` (`[ACT-04]`) |
 | ACT-02 | dedupe keys + unique index; single-use tasks; no CANCEL after commit submission | `[ACT-02]` tests |
-| SAFE-03 | safety journeys cycle routes forever (also after a bridge drop); route timing; audit/store gaps tolerated; SAFETY supersedes STANDARD journeys of the call, also under concurrent writes (conflict retry, STANDARD steps yield, sweep re-supersedes) | `transfer.test.ts` `[SAFE-03]`, `[SAFE-HANDOFF-01]`, `[SAFE-HANDOFF-02]`; `transfer.supersede-race.test.ts` `[SAFE-03][SAFE-HANDOFF-02]` (forced interleavings + exhaustive microtask grid) |
-| SAFE-04 | `transferTransition`, `journeyOutcome` | `[SAFE-04]` incl. property test |
+| SAFE-03 | safety journeys cycle routes forever (also after a bridge drop); route timing; audit/store gaps tolerated; SAFETY supersedes STANDARD journeys of the call, also under concurrent writes (conflict retry, STANDARD steps yield, sweep re-supersedes) | `transfer.test.ts` `[SAFE-03]`, `[SAFE-HANDOFF-01]`, `[SAFE-HANDOFF-02]`; `transfer.supersede-race.test.ts` `[SAFE-03][SAFE-HANDOFF-02]` (forced interleavings + exhaustive microtask grid); `transfer.out-of-order.test.ts` `[SAFE-03][SAFE-HANDOFF-02]` (a held event's drain yields to a safety route that started in the predecessor's write window, also when its supersede write fails) |
+| SAFE-04 | `transferTransition`, `journeyOutcome`; early progress events held and re-checked by `transferTransition` before they apply (ADR-0017) | `[SAFE-04]` incl. property test; `transfer.out-of-order.test.ts` (coordinator property under permutation and duplication, timeout/failover at `attemptTimeoutMs` for STANDARD and SAFETY, discard on close/replace/supersede, out-of-order-only delivery through `LocalTelephonyDeliveryLoop`) |
 | SAFE-05 | `looksLikeDialTarget`, allowlist, `validateDestinations` | `[SAFE-05]` incl. property test |
 | OPS-01 | audit in the transition transaction; fail closed | `[OPS-01]` |
 | OPS-02 | continuity routing; never ends call; audit outage tolerated for transfers | `[OPS-02]` |

@@ -1,0 +1,84 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "BUDGET_EXHAUSTED",
+  "version": 1,
+  "title": "The spend ledger reaches a ceiling mid-call",
+  "description": "The spend ledger reaches a tenant, cohort or model ceiling during a call; nonessential AI work is refused while safety and human routes stay available and the caller is never silently terminated.",
+  "category": "capacity",
+  "target": {
+    "components": [
+      "platform/src/ops",
+      "platform/src/models"
+    ],
+    "dependency": "spend_ledger"
+  },
+  "trigger": {
+    "kind": "AT_TURN",
+    "tool": null,
+    "turnIndex": 1,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "BUDGET_EXHAUSTED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller is connected to a person or the non-AI route; no silent hang-up.",
+  "backendEvidence": [
+    "Admission refusal BUDGET_EXHAUSTED for nonessential work",
+    "Safety and human tools served"
+  ],
+  "requirementIds": [
+    "SPEC-12.budget-cutoff",
+    "SAFE-03"
+  ],
+  "appliesToIntents": [
+    "human_request",
+    "safety_disclosure_self",
+    "faq_hours"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:BUDGET_EXHAUSTED] owned by WP-42 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.BUDGET_EXHAUSTED",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the spend ledger reaches a tenant/cohort/model ceiling mid-call",
+    "injectionPointPackages": [
+      "WP-42"
+    ],
+    "postconditionPackages": [
+      "WP-15",
+      "WP-42"
+    ],
+    "layer2Owner": "WP-42",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [
+    {
+      "source": "tool_response",
+      "tools": null,
+      "statuses": [
+        "POLICY_DENIED",
+        "RETRYABLE_FAILURE",
+        "PERMANENT_FAILURE"
+      ],
+      "reasonCodes": [
+        "BUDGET_EXHAUSTED"
+      ],
+      "sessionStates": null
+    }
+  ],
+  "postconditions": [
+    "Nonessential AI work is refused at the ceiling",
+    "Safety and human routes are exempt and still served",
+    "The budget event is recorded"
+  ]
+}

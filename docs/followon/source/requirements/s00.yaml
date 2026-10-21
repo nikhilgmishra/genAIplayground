@@ -1,0 +1,1032 @@
+# Follow-on requirement source records, prompt section 0. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '0'
+requirements:
+- id: FO-00-01
+  section: '0'
+  kind: software
+  text: Upgrade the existing repository into a complete, configurable, deployable product, preserving useful working code; do not deliver another presentation, scaffold, scripted chatbot, fixture-only vertical slice or backlog that leaves the product to a later team.
+  acceptance: A sandbox/staging/production configuration composes and starts the gateway, worker and console from live adapters; the release bundle starts with documented commands; end-to-end journeys pass against emulators over real protocols.
+  originalIds:
+  - SPEC-16.offline-first
+  - SPEC-15.offline-slice
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/main/container.ts:308-313 (every non-local environment refused: LIVE_COMPOSITION_NOT_IMPLEMENTED)'
+  - platform/src/adapters/live/blocked-set.ts:22-47 (every business/Talkdesk slot is a BLOCKED stub)
+  - platform/config/production.json:2 (placeholder config expected to be rejected)
+  gap: Only the local/ci fixture composition exists; every deployed environment is refused before any port binds.
+  remediation: Write a live composition root (PgPoolDb, DynamoKvStore, SqsPublisher, S3ObjectLockAuditSink, KmsAssertionSigner, JwtAccessTokenAuthenticator, JwksOidcVerifier, real connectors) that the configuration guard can accept, plus a Docker-compose integration environment.
+  size: XL
+  environmentDependency: none for software; tenant credentials and approvals only for activation (docs/prerequisites.yaml)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+- id: FO-00-02
+  section: '0'
+  kind: software
+  text: Hold natural, responsive telephone conversations.
+  acceptance: A local PSTN/SIP or WebRTC call through the media runtime completes a multi-turn conversation with measured turn latency, barge-in and endpointing.
+  originalIds:
+  - SPEC-11.barge-in
+  - SPEC-11.endpointing
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/package.json (no LiveKit, ASR, TTS or model SDK dependency)
+  - platform/src/voice/speech-queue.ts:15-16 (LOCAL FIXTURE, in-process)
+  - docs/adr/ADR-0006-fallback-speech-runtime.md:33-34 (no speech runtime implemented)
+  gap: No media, ASR, TTS or conversational runtime exists.
+  remediation: Build the controllable LiveKit-based voice runtime (section 10) with cascade and native modes.
+  size: XL
+  environmentDependency: ASR/TTS/model provider credentials and BAA for PHI; none for local open-weight models
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+- id: FO-00-03
+  section: '0'
+  kind: software
+  text: Achieve verified administrative support outcomes for clients, providers and authorized partners.
+  acceptance: Each supported intent records RESOLVED only with its contract's success evidence from the system of record, verified independently of the write response.
+  originalIds:
+  - SPEC-4.outcomes
+  - SPEC-4.resolution-contracts
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/common.ts:99-108 (Outcome enum)
+  - platform/src/protocol/contracts.ts:9-29 (ResolutionContract.successEvidence)
+  - platform/src/gateway/call-state.ts (CallOutcomeTracker)
+  - platform/test/journeys/outcomes.test.ts
+  gap: Outcomes are evidenced only against local fixtures; domain adapters are BLOCKED stubs; there is no EffectVerification step.
+  remediation: 'Per supported intent: (1) a live domain connector over its real protocol (configurable connector framework, section 6) with an emulator in docker-compose; (2) an EffectVerification step in platform/src/actions that re-reads the system of record by a separate read path after commit and stores {receiptId, verifiedAt, observedVersion, matches} before CallOutcomeTracker may record RESOLVED; (3) a journey per intent that fails when the emulator acknowledges the write but the read-back differs.'
+  size: L
+  environmentDependency: domain system API access per tenant
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-00-04
+  section: '0'
+  kind: software
+  text: Handle investigation during calls (deeper backend work while the conversation continues).
+  acceptance: A journey in which a bounded investigation runs authorized reads in parallel while the responsive loop keeps the caller informed, with one speaker.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/local-driver.ts (scripted test driver, not a runtime)
+  - no investigation loop in platform/src
+  gap: No investigation loop or specialist orchestration exists.
+  remediation: Implement the bounded investigation graph (section 9) behind the trusted gateway.
+  size: L
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-00-05
+  section: '0'
+  kind: software
+  text: Handle multiple issues per call.
+  acceptance: A journey resolves or escalates two distinct issues in one call, each with its own support request, outcome and audit trail.
+  originalIds:
+  - SPEC-8.salesforce-model
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0300_support_requests.sql:22-32 (one interaction per call, several issues)
+  - platform/src/protocol/support.ts:36-67 (interactionExternalId + issueExternalId)
+  gap: Data model supports it; no conversational issue agenda and no dedicated multi-issue journey test found.
+  remediation: Add an issue agenda to conversation state and a multi-issue journey test.
+  size: M
+  environmentDependency: none
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+- id: FO-00-06
+  section: '0'
+  kind: software
+  text: Handle repeat contact.
+  acceptance: 'Repeat-caller journey: verified caller hears permitted recap; unverified shared-phone caller gets none.'
+  originalIds:
+  - SPEC-16.journey-9
+  - SPEC-9.memory
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/journeys/j9-repeat-caller.test.ts:26
+  - platform/src/memory/support-memory.ts
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Recap draws only on limited structured memory, not on a permissioned timeline.
+  remediation: Feed recaps from the canonical timeline once the context engine exists (section 7).
+  size: M
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-00-07
+  section: '0'
+  kind: software
+  text: Handle work lasting days or months (long-horizon orchestration).
+  acceptance: A durable workflow survives restarts and runs to completion on Step Functions (Step Functions Local in tests) with task tokens and heartbeats.
+  originalIds:
+  - SPEC-9.workflow
+  - SPEC-3.workflow-engine
+  derivedFrom: []
+  capabilityIds:
+  - workflows.durable
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/engine.ts:367 (PgWorkflowEngine)
+  - infra/stepfunctions/*.asl.json (7 generated state machines)
+  - platform/src/workflows/README.md:270,329 (Step Functions worker bridge not implemented)
+  gap: 'No Step Functions client or worker bridge exists in platform/src; durable work runs only in the local PG engine. MISSING: the production path (Step Functions) has no code; the local PG engine is the regression environment only.'
+  remediation: Implement the SFN adapter (StartExecution, SendTaskSuccess/Failure/Heartbeat) and test it against Step Functions Local.
+  size: L
+  environmentDependency: AWS account for live Step Functions
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 2): IMPLEMENTED -> MISSING: the acceptance requires running on Step Functions; no Step Functions client or worker bridge exists and the generated ASL waits on task tokens nothing consumes, so the production path is not real code'
+    repairStatusFrom: IMPLEMENTED
+  workPackage: WP-26
+- id: FO-00-08
+  section: '0'
+  kind: constraint
+  text: A ticket is not a resolution.
+  acceptance: Scorer and outcome tracker never record RESOLVED from case creation or workflow acceptance.
+  originalIds:
+  - ACT-04
+  - SPEC-11.ack-not-resolution
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/scorer.test.ts and aggregate.test.ts (RESOLVED without reconciled commit receipts fails; an accepted request is not resolution)
+  - 'targeted run: 40 files / 472 tests passed'
+  gap: none locally
+  remediation: Re-run scorer mutation checks after fix wave 5.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    repair:
+    - VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1); evidence lines added
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
+- id: FO-00-09
+  section: '0'
+  kind: software
+  text: Personalize by combining permitted historical context with recent events and fresh source-of-truth information.
+  acceptance: ContextSnapshot for a turn shows facts from timeline, event projections and live reads, each with source watermark and freshness.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no ContextSnapshot/ContextFact/SourceWatermark/timeline code in platform/src
+  - platform/src/adapters/support-record-cache.ts:27-30 (fetchedAt only for Salesforce case reads)
+  gap: No context engine, timeline, event-fed projections or freshness model.
+  remediation: 'Create platform/src/context: tables support_timeline_events (permissioned, provenance-labelled), source_watermarks (per source stream: offset/time, lag) and current-state projections fed from the event inbox. Add a ContextSnapshotAssembler that applies identity, purpose and ACL filters and returns ContextFacts with SourceWatermark and freshness, plus live-read hooks for volatile facts. Tests on the PostgreSQL container with stale-watermark and ACL-denied cases.'
+  size: XL
+  environmentDependency: tenant event streams/APIs for activation
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-00-10
+  section: '0'
+  kind: software
+  text: The operator connects existing systems through documented configuration without rewriting core application code.
+  acceptance: A new tenant connector is configured from a ConnectorProfile (transport, auth, mapping) and passes qualification without code changes.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/config/schema.ts:36 (AdapterConfigSchema: endpoint + secret refs only)'
+  - platform/src/adapters/live/business-systems-blocked.ts (no transports)
+  gap: No configurable connector framework or mapping layer.
+  remediation: Implement configurable connectors (section 6).
+  size: XL
+  environmentDependency: tenant system access
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-00-11
+  section: '0'
+  kind: software
+  text: The operator supplies operational policies and credentials, qualifies the deployment and activates eligible workflows.
+  acceptance: Console/CLI activation flow produces an ActivationReport per workflow from qualification evidence and approvals.
+  originalIds:
+  - SPEC-15.pilot-promotion
+  derivedFrom: []
+  capabilityIds:
+  - activation.qualification
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/guard.ts (approval checks only)
+  - console/src/pages (no onboarding/activation page)
+  - no ActivationReport contract
+  gap: Activation exists only as a guard refusal; no qualification commands or activation workflow.
+  remediation: Add qualification CLI, ActivationReport and console activation screens (section 14).
+  size: L
+  environmentDependency: tenant approvals and credentials
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+- id: FO-00-12
+  section: '0'
+  kind: software
+  text: 'Publicly observable Sierra breadth: fast conversation plus deeper reasoning.'
+  acceptance: Responsive and investigation loops both run in a journey with measured latency.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/package.json (no model SDK)
+  gap: No model harness.
+  remediation: Model harness and two-loop runtime (sections 9-10).
+  size: XL
+  environmentDependency: model provider access (or local open-weight model)
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-00-13
+  section: '0'
+  kind: software
+  text: 'Sierra breadth: controlled actions.'
+  acceptance: Prepare/confirm/commit/reconcile property and fault tests pass.
+  originalIds:
+  - SPEC-8.prepare-commit
+  - ACT-01
+  - ACT-02
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.ts
+  - platform/src/actions/action-service.property.test.ts:143
+  - platform/test/journeys/faults.test.ts:247
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Verified on PGlite with fixture providers only.
+  remediation: Run the same tests on PostgreSQL and real connectors against emulators.
+  size: M
+  environmentDependency: domain APIs for activation
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-00-14
+  section: '0'
+  kind: software
+  text: 'Sierra breadth: durable memory.'
+  acceptance: Memory and timeline entries are permissioned, provenance-labelled and survive across contacts.
+  originalIds:
+  - SPEC-9.memory
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/support-memory.ts:1-30
+  - platform/migrations/0700_support_memory.sql
+  gap: Limited structured memory only; no permissioned historical timeline.
+  remediation: Extend to timeline + projections (section 7/8).
+  size: M
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-00-15
+  section: '0'
+  kind: software
+  text: 'Sierra breadth: agent configuration (operator studio).'
+  acceptance: Operator edits agent configuration (intents, tools, policies, voice) in a versioned studio with review and publication.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - operator.studio
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/ai-agent-config.yaml (vendor-side config document only)
+  - console/src/pages (no studio)
+  gap: No agent configuration studio.
+  remediation: Build onboarding/studio (section 14).
+  size: XL
+  environmentDependency: none
+  workPackage: WP-33
+  provenance:
+    origin: extraction
+- id: FO-00-16
+  section: '0'
+  kind: evaluation
+  text: 'Sierra breadth: simulation.'
+  acceptance: Model-driven simulated callers (text and audio) run against the real runtime with scored results.
+  originalIds:
+  - SPEC-14.intent-corpus
+  - SPEC-14.risk-corpus
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/local-driver.ts (scripted driver)
+  - scenarios/ (549 scenarios, 522 risk drafts; docs/TEST_EVIDENCE.md:55)
+  gap: Simulation is a scripted keyword driver over fixtures; no model-driven or audio simulation.
+  remediation: 'Add platform/src/evaluation/simulator: a SimulatedCaller that uses a pinned open-weight model on CPU (or a recorded-response provider in CI) with a persona and goal from ScenarioDefinition. A text mode drives the gateway over MCP/HTTP. An audio mode synthesizes caller speech with local TTS into a LiveKit room or a SIP client (baresip/SIPp) against the media runtime. Results use a new executionMode ''local_emulator'' (see FO-04-37). Keep SimulatedCoordinator as the deterministic regression driver.'
+  size: L
+  environmentDependency: model access for simulated callers
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-00-17
+  section: '0'
+  kind: software
+  text: 'Sierra breadth: monitors.'
+  acceptance: Calibrated conversation/outcome monitors with measured precision/recall against labelled samples, wired to alerts.
+  originalIds:
+  - SPEC-13.dashboards
+  - SPEC-13.slo-definitions
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/metrics.ts (operational metrics)
+  - infra/terraform/modules/observability (alarms)
+  gap: Operational metrics/alarms exist; no calibrated quality monitors.
+  remediation: Implement monitors (section 17).
+  size: L
+  environmentDependency: none
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+- id: FO-00-18
+  section: '0'
+  kind: software
+  text: 'Sierra breadth: investigation by operators.'
+  acceptance: Console investigation shows call, context freshness, actions, receipts and audit for one interaction.
+  originalIds:
+  - SPEC-13.console
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/pages/CallInvestigationPage.tsx
+  - console/src/pages/SupportTracePage.tsx
+  - console/src/pages/AuditSearchPage.tsx
+  gap: Fixture-backed only; no context-freshness or audio evidence views.
+  remediation: Extend console investigation once runtime/context exist.
+  size: M
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-00-19
+  section: '0'
+  kind: software
+  text: 'Sierra breadth: controlled improvement.'
+  acceptance: ChangeProposal lifecycle with evaluation evidence and human approval before publication.
+  originalIds:
+  - SPEC-15.no-self-promotion
+  derivedFrom: []
+  capabilityIds:
+  - improvement.pipeline
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0900_console.sql (console_release_submissions for policy/knowledge only)
+  - no ChangeProposal contract
+  gap: No improvement loop.
+  remediation: Implement controlled self-improvement (section 18).
+  size: L
+  environmentDependency: none
+  workPackage: WP-36
+  provenance:
+    origin: extraction
+- id: FO-00-20
+  section: '0'
+  kind: software
+  text: 'Differentiator: portable deployment, measurable.'
+  acceptance: Reference deployment runs outside the AWS managed services (e.g. Docker/Kubernetes with self-hosted media) from the same release bundle.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules (AWS only)
+  - platform/Dockerfile:10-11 (image never built)
+  gap: No portable reference deployment; image never built.
+  remediation: Add container-compose/Helm reference deployment and build the image.
+  size: L
+  environmentDependency: none
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-00-21
+  section: '0'
+  kind: software
+  text: 'Differentiator: explicit authority and effect receipts.'
+  acceptance: Every consequential action exposes policy decision, confirmation, commit receipt and effect verification refs.
+  originalIds:
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/actions.ts:99-116 (CommitReceipt)
+  - platform/src/protocol/tools.ts:129-139 (policyDecisionId, auditEventId on ToolResult)
+  gap: No EffectVerification receipt.
+  remediation: Add EffectVerification and surface the receipt chain.
+  size: M
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-00-22
+  section: '0'
+  kind: software
+  text: 'Differentiator: inspectable context freshness.'
+  acceptance: Every fact used in a turn shows source, watermark and age in console and audit.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no SourceWatermark in platform/src
+  gap: Absent.
+  remediation: Context engine with watermarks (section 7).
+  size: L
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+- id: FO-00-23
+  section: '0'
+  kind: software
+  text: 'Differentiator: independently verifiable outcomes.'
+  acceptance: An outcome can be re-verified from independent audit export plus a fresh system-of-record read.
+  originalIds:
+  - OPS-01
+  - SPEC-13.audit-integrity
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/audit/verifier.ts
+  - platform/src/audit/chain.ts
+  gap: Audit integrity is verifiable; outcome re-verification against the system of record is absent.
+  remediation: Add outcome verification job using EffectVerification.
+  size: M
+  environmentDependency: independent audit account
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-00-24
+  section: '0'
+  kind: constraint
+  text: Do not claim to reproduce Sierra's private implementation or outperform it without a matched evaluation.
+  acceptance: Docs and release notes contain no such claims unless a matched evaluation artifact exists.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - repository grep for 'sierra' in *.md/*.ts finds no claim (2026-10-19)
+  gap: No docs check rejects comparative, reproduction or superiority claims about Sierra; today the absence of such claims is a manual grep result.
+  remediation: Add a docs check for comparative claims.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (planner open question 1): NOT_APPLICABLE -> MISSING: documents exist, so the trigger has occurred; no check rejects comparative or superiority claims (WP-44 docs-pack check)'
+    repairStatusFrom: NOT_APPLICABLE
+  workPackage: WP-44
+- id: FO-00-25
+  section: '0'
+  kind: software
+  text: When information is missing, create typed configuration, validation, emulators, operator setup screens and executable qualification commands instead of waiting.
+  acceptance: Each external dependency has typed config, an emulator used by tests, a setup screen and a qualification command.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/salesforce-emulator.fixture.ts (only emulator)
+  - platform/src/adapters/live/business-systems-blocked.ts (blocked instead of emulated)
+  gap: Only Salesforce has an emulator; no qualification commands or setup screens.
+  remediation: Per-connector emulators, qualification CLI and console setup screens.
+  size: L
+  environmentDependency: none
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-00-26
+  section: '0'
+  kind: constraint
+  text: Missing credentials are not a reason to leave a live adapter NotImplemented or to keep a blanket refusal of non-local composition.
+  acceptance: No live adapter class throws a permanent not-implemented error; non-local composition succeeds when config and approvals are valid.
+  originalIds:
+  - OPS-03
+  - SPEC-16.integration-records
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/not-configured.ts guard ports
+  - composition/boot.test.ts registry and port scans (68/68 x9)
+  gap: The BLOCKED stub files are still exported by the WP-06-owned adapters/index.ts and integration-inventory.ts.
+  remediation: Replace blocked stubs with real transports; keep execution disabled by configuration/approval rather than missing code.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-07
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-00-27
+  section: '0'
+  kind: constraint
+  text: Engineering autonomy never grants permission to access patient data, spend money, place calls, send notifications, change routing, mutate production, publish releases, accept contracts or sign approvals; implement the code and automation, leave execution disabled until scoped authority exists.
+  acceptance: Guard refuses each such execution without a signed scoped approval; automation for each exists and is tested with execution disabled.
+  originalIds:
+  - OPS-05
+  - SPEC-5.prerequisite-register
+  derivedFrom: []
+  capabilityIds:
+  - activation.qualification
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/guard.test.ts:502-536 [OPS-05]
+  - approvals/ (no approval records)
+  - platform/src/ops/notification-gate.ts (notification kill switch)
+  gap: Refusal side is in place; the execution automation (deploy, PSTN test calls, notification sends) is largely unwritten.
+  remediation: Write the disabled-by-default automation for each action class.
+  size: M
+  environmentDependency: scoped human approvals (approvals/)
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+- id: FO-00-28
+  section: '0'
+  kind: document
+  text: Record all missing external inputs in one activation register and continue building.
+  acceptance: One register keyed by capability with environment-axis status, owner and evidence; tests check it is complete.
+  originalIds:
+  - SPEC-5.prerequisite-register
+  derivedFrom: []
+  capabilityIds:
+  - activation.qualification
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/ACTIVATION_REGISTER.md and docs/followon/activation-register.yaml (one register of external inputs, AIN-NN ids mapped to PRQ ids and to capabilities)
+  - docs/prerequisites.yaml (55 PRQ entries, PRQ-001..055)
+  - talkdesk/vendor-questions.md
+  - platform/test/docs/prerequisites.test.ts
+  gap: Inputs are split across the PRQ register and vendor questions; not keyed to capabilities or the new environment axis; no ActivationReport.
+  remediation: Consolidate into an activation register with capability keys and Environment status.
+  size: M
+  environmentDependency: none
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+    plannerUpdate: 'evidence added: activation register written (Phase A planner output).'
+    repair:
+    - 'evidence refreshed: activation ids renamed AIN-NN and keyed to capabilities (critic gaps 7 and 9)'
+- id: FO-00-29
+  section: '0'
+  kind: document
+  text: 'Use two independent status axes per capability (Software: MISSING/IMPLEMENTED/VERIFIED_LOCAL/RELEASE_PACKAGE_VERIFIED; Environment: NOT_CONFIGURED/CONFIGURED/VERIFIED_SANDBOX/APPROVED_PILOT/VERIFIED_PRODUCTION) plus qualification NOT_RUN/FAIL/INCONCLUSIVE/PASS with evidence.'
+  acceptance: Status documents, traceability generator, ReleaseManifest and ActivationReport carry both axes and qualification per capability.
+  originalIds:
+  - SPEC-16.status-vocabulary
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/traceability.ts
+  - traceability.test.ts [FO-00-29]
+  gap: ReleaseManifest and ActivationReport still carry one status axis (WP-40/WP-44/WP-45).
+  remediation: Migrate protocol enums, traceability generator and docs to the two axes plus qualification.
+  size: M
+  environmentDependency: none
+  workPackage: WP-01
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-00-30
+  section: '0'
+  kind: constraint
+  text: A missing BAA is not missing code and an adapter stub is not a missing BAA; never hide the latter behind the former.
+  acceptance: Every capability lists software gaps and external inputs separately.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - composition/boot.test.ts 'only its capability' and the ingress software gap
+  - unchanged this round; passes 68/68 x9 and from a fresh worktree
+  gap: None for the acceptance; the ingress plugin itself is still a software gap (INGRESS_PLUGIN_NOT_COMPOSED).
+  remediation: Implement code; keep only activation inputs in the register.
+  size: M
+  environmentDependency: none
+  regressionPackage: WP-07
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-00-31
+  section: '0'
+  kind: constraint
+  text: '''Battle hardened'' requires executed evidence, not file or scenario counts.'
+  acceptance: No readiness label without executed qualification evidence.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/IMPLEMENTATION_STATUS.md:8 (disclaims production readiness)
+  - platform/test/docs/docs-pack.test.ts ([OPS-03] the pack never claims compliance or production readiness affirmatively)
+  gap: The docs check covers production-readiness and HIPAA-compliance phrasing only; "battle hardened", readiness labels and completion percentages are not checked (WP-44).
+  remediation: Keep a docs lint for readiness labels.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (planner open question 1): NOT_APPLICABLE -> IMPLEMENTED: the trigger (status documents) has occurred; platform/test/docs/docs-pack.test.ts ([OPS-03]) rejects affirmative production-readiness claims, but no check covers "battle hardened" or other readiness labels'
+    repairStatusFrom: NOT_APPLICABLE
+  workPackage: WP-44
+- id: FO-00-32
+  section: '0'
+  kind: constraint
+  text: 'Administrative support platform, not an AI therapist: no clinical treatment, diagnosis, medication advice, clinical screening, autonomous medical decisions or unrestricted patient-record browsing.'
+  acceptance: Clinical-boundary tests pass on every speech path, including generated speech once a model speaks.
+  originalIds:
+  - SAFE-01
+  - SPEC-10.no-clinical-advice
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  - safety.routing
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/clinical-boundary.ts
+  - platform/src/voice/registry.test.ts:117
+  - platform/src/business/handoff.test.ts:124
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: 'Holds because speech is template-only; generated speech will need pre-release output checks. IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: it holds only because all speech is template-rendered; no generated speech exists, so the clinical-boundary check has never run on a model-spoken path (WP-10 output validator).'
+  remediation: Add output classifiers to the model harness and audio release gate.
+  size: M
+  environmentDependency: clinical safety approval of scripts (PRQ-008, PRQ-028)
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: it holds only because all speech is template-rendered; no generated speech exists, so the clinical-boundary check has never run on a model-spoken path (WP-10 output validator).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-10
+- id: FO-00-33
+  section: '0'
+  kind: constraint
+  text: Support every request with a verified supported resolution or an accountable escalation; do not promise autonomous resolution of every issue.
+  acceptance: Every scenario ends in RESOLVED with evidence or a recorded owner/queue escalation.
+  originalIds:
+  - SPEC-4.outcomes
+  - SPEC-10.transfer
+  derivedFrom: []
+  capabilityIds:
+  - workflows.families
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/common.ts:99-108
+  - platform/src/business/handoff.ts
+  - platform/src/protocol/support.ts:36-67 (ownerQueue)
+  gap: Accountable escalation depends on Salesforce/Talkdesk live paths that are blocked.
+  remediation: Real case and queue connectors.
+  size: M
+  environmentDependency: staffed queues for activation
+  workPackage: WP-30
+  provenance:
+    origin: extraction
+- id: FO-00-34
+  section: '0'
+  kind: software
+  text: 'Precedence: build the controllable speech runtime and bounded agent harness now (supersedes the earlier deferral).'
+  acceptance: Runtime and harness exist, are composed, and pass local audio journeys.
+  originalIds:
+  - SPEC-3.vendor-capability-gate
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/adr/ADR-0006-fallback-speech-runtime.md:3-5 (Proposed, conditional on TB-04/TB-05)
+  - docs/adr/ADR-0001-default-architecture.md:87 (direct runtime rejected)
+  gap: Runtime deferred by ADR; nothing built.
+  remediation: Supersede ADR-0006/ADR-0001 row and build the runtime (sections 9-10).
+  size: XL
+  environmentDependency: none
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-00-35
+  section: '0'
+  kind: constraint
+  text: Keep the existing AWS control plane and transaction invariants.
+  acceptance: Existing ledger/outbox/audit tests keep passing through the follow-on changes.
+  originalIds:
+  - ACT-01
+  - ACT-02
+  - ACT-03
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions
+  - platform/src/outbox
+  - platform/src/audit
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: None today; regression risk during follow-on work.
+  remediation: Keep the suites as release gates.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-43
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-00-36
+  section: '0'
+  kind: operations
+  text: The earlier offline phase becomes a regression environment, not the delivery endpoint.
+  acceptance: Local composition runs in CI as regression; delivery is the release bundle with live composition.
+  originalIds:
+  - SPEC-15.offline-slice
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - main/container.ts REGRESSION_COMPOSITION_OFFLINE_ONLY
+  - live-container.ts LIVE_COMPOSITION_OFFLINE_ENVIRONMENT
+  gap: The release bundle that pins the live composition belongs to WP-39/WP-40.
+  remediation: 'Keep buildContainer(local|ci) unchanged as the regression composition. Add buildLiveContainer for sandbox, staging and production, using PgPoolDb, DynamoKvStore, SqsPublisher, S3ObjectLockAuditSink, KmsAssertionSigner, JwtAccessTokenAuthenticator and JwksOidcVerifier plus configured connectors. Add a ''docker'' integration profile that runs it against PostgreSQL+pgvector, DynamoDB Local, ElasticMQ, MinIO and a containerised IdP. CI runs both: local as the regression gate, docker as the delivery gate.'
+  size: M
+  environmentDependency: none
+  workPackage: WP-07
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-00-37
+  section: '0'
+  kind: document
+  text: The 27 invariant IDs retain their meaning; other changes are identified in section 22.
+  acceptance: Follow-on requirements map to the original ids without redefining them.
+  originalIds:
+  - AUTH-01
+  - AUTH-02
+  - AUTH-03
+  - AUTH-04
+  - AUTH-05
+  - AUTH-06
+  - AUTH-07
+  - DATA-01
+  - DATA-02
+  - DATA-03
+  - DATA-04
+  - ACT-01
+  - ACT-02
+  - ACT-03
+  - ACT-04
+  - ACT-05
+  - SAFE-01
+  - SAFE-02
+  - SAFE-03
+  - SAFE-04
+  - SAFE-05
+  - OPS-01
+  - OPS-02
+  - OPS-03
+  - OPS-04
+  - OPS-05
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - traceability.test.ts [FO-00-37]
+  - test/docs suites pass (main and fresh copy)
+  gap: The committed traceability report must be regenerated from committed CI reports by the coordinator.
+  remediation: Write the FO-to-original mapping.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - evidence
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the FO-to-original mapping now exists and docs/tools/followon/generate.py --check resolves every originalId and covers all 168 catalog ids, but no test in the suite enforces it (WP-01 traceability generator check).'
+    - 'gap refreshed: requirements.yaml now exists (critic gap 3)'
+    repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-00-38
+  section: '0'
+  kind: operations
+  text: 'Use maintained dependencies and ordinary local tooling: no unmaintained or end-of-life runtime or library; dependency vulnerabilities are gated; build inputs (actions, base images) are pinned immutably and kept current.'
+  acceptance: CI fails on critical and high advisories without a recorded exception. Every GitHub Action is pinned by commit SHA and the base image by digest. Dependabot covers npm, docker and github-actions. A test fails when a runtime dependency is deprecated on the registry or the Node major is past end of life.
+  originalIds:
+  - SPEC-14.supply-chain
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - .github/workflows/ci.yml:215-221 (pnpm audit blocks on critical only; high is non-blocking)
+  - .github/workflows/ci.yml:5-8,33,37 (actions pinned by tag; SHA pinning deferred as a 'PREREQUISITE')
+  - .github/dependabot.yml
+  - platform/Dockerfile:13-18 (base image by tag)
+  - .nvmrc (22.22.0, maintenance LTS)
+  gap: Audit gating stops at critical, actions and the base image are not immutably pinned, and there is no deprecation or end-of-life check.
+  remediation: Resolve and pin action SHAs and the node:22.22.0-bookworm-slim digest (both now reachable), make `pnpm audit --audit-level=high` blocking with an exceptions file, and add scripts/ci/deprecations.mjs that queries the npm registry for deprecated versions in pnpm-lock.yaml and checks the Node release schedule.
+  size: S
+  environmentDependency: none
+  workPackage: WP-40
+  provenance:
+    origin: challenge-missed
+- id: FO-00-39
+  section: '0'
+  kind: evaluation
+  text: 'Make the differentiators measurable: portable deployment, explicit authority and effect receipts, inspectable context freshness and independently verifiable outcomes each have a defined metric and are reported from executed evaluations.'
+  acceptance: 'The evaluation aggregate reports, per run set: the share of consequential actions with a complete receipt chain (policy decision, confirmation, commit receipt, effect verification); the share of facts used in turns that carry a watermark within its freshness budget; the share of RESOLVED outcomes re-verified from audit export plus a fresh system-of-record read; and the deployment profiles (AWS managed, self-hosted reference) the same release bundle passed. Thresholds are gated in the release preflight.'
+  originalIds: []
+  derivedFrom:
+  - ORIGINAL-SPEC-15 (evaluation phase; no catalog id)
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'evidence/evaluation/corpus-local-20261018w4.summary.json (totals, slices, gates: no receipt-chain, freshness, re-verification or portability metric)'
+  - platform/src/evaluation/aggregate.ts (aggregate.v1 fields)
+  gap: c1 lists each differentiator as a capability (FO-00-20..23) but nothing defines or reports how it is measured.
+  remediation: Add the four metrics to the evaluation aggregate (aggregate.v2) and to ReleaseManifest testEvidence, computed from the ledger, audit and ContextSnapshot records of each run. Add gates in the release preflight and a docs page that defines each metric.
+  size: M
+  environmentDependency: none
+  workPackage: WP-34
+  provenance:
+    origin: challenge-missed

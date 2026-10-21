@@ -1,0 +1,250 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/IdentityLink.json",
+  "title": "IdentityLink",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "identity-link.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "subjectRef": "personRef",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "expiresAt": "expiresAt",
+    "versions": "canonicalIdVersion",
+    "provenance": "basis"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "identity-link.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "expiresAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "linkId": {
+      "type": "string",
+      "pattern": "^idl_[A-Za-z0-9_-]{16,64}$"
+    },
+    "personRef": {
+      "type": "string",
+      "pattern": "^per_[A-Za-z0-9_-]{16,64}$"
+    },
+    "canonicalIdVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "linked": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "IDP_SUBJECT",
+            "DIRECTORY_ACCOUNT",
+            "CRM_CONTACT",
+            "BUSINESS_SYSTEM_RECORD",
+            "CDP_PROFILE"
+          ]
+        },
+        "system": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,40}$"
+        },
+        "issuer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^https:\\/\\/[A-Za-z0-9.-]{1,253}(:\\d{2,5})?(\\/[A-Za-z0-9._~/-]*)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "externalRefDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "kind",
+        "system",
+        "issuer",
+        "externalRefDigest"
+      ],
+      "additionalProperties": false
+    },
+    "basis": {
+      "type": "string",
+      "enum": [
+        "DETERMINISTIC_ENROLLMENT",
+        "VERIFIED_IDP_LOGIN",
+        "AUTHORITATIVE_SOURCE_LINK",
+        "STAFF_REVIEWED_MERGE",
+        "ANALYTICS_ALIAS_SIGNAL",
+        "PROBABILISTIC_MATCH"
+      ]
+    },
+    "authorizationEligible": {
+      "type": "boolean"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "ACTIVE",
+        "QUARANTINED_AMBIGUOUS",
+        "SUPERSEDED",
+        "SPLIT",
+        "REVOKED"
+      ]
+    },
+    "verifiedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "verificationSource": {
+      "type": "string",
+      "enum": [
+        "identity_provider",
+        "enrollment_system",
+        "directory",
+        "source_system",
+        "staff_review",
+        "analytics"
+      ]
+    },
+    "reviewEvidenceRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "validFrom": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "validUntil": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lineage": {
+      "type": "object",
+      "properties": {
+        "supersedes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^idl_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mergedFrom": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^per_[A-Za-z0-9_-]{16,64}$"
+          }
+        },
+        "splitFrom": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^per_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "supersedes",
+        "mergedFrom",
+        "splitFrom"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "occurredAt",
+    "causationId",
+    "expiresAt",
+    "linkId",
+    "personRef",
+    "canonicalIdVersion",
+    "linked",
+    "basis",
+    "authorizationEligible",
+    "state",
+    "verifiedAt",
+    "verificationSource",
+    "reviewEvidenceRef",
+    "validFrom",
+    "validUntil",
+    "lineage"
+  ],
+  "additionalProperties": false
+}

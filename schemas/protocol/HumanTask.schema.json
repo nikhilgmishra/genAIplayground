@@ -1,0 +1,166 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/HumanTask.json",
+  "title": "HumanTask",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "human-task.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "workflowId": "workflowId",
+    "caseId": "caseId",
+    "actorRef": "decidedBy",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "expiresAt": "expiresAt",
+    "outcome": "decision"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "human-task.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "workflowId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "caseId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "taskId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "taskType": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.]{2,63}$"
+    },
+    "requiredStaffRoles": {
+      "minItems": 1,
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "support_agent",
+          "supervisor",
+          "safety_responder",
+          "auditor",
+          "knowledge_editor",
+          "policy_approver",
+          "deployment_operator",
+          "security_admin"
+        ]
+      }
+    },
+    "ownerQueue": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^q_[a-z0-9_]{2,40}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "OPEN",
+        "COMPLETED",
+        "EXPIRED",
+        "CANCELLED"
+      ]
+    },
+    "decision": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "APPROVE",
+            "REJECT"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decidedBy": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decidedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "workflowId",
+    "occurredAt",
+    "expiresAt",
+    "caseId",
+    "causationId",
+    "taskId",
+    "taskType",
+    "requiredStaffRoles",
+    "ownerQueue",
+    "status",
+    "decision",
+    "decidedBy",
+    "decidedAt"
+  ],
+  "additionalProperties": false
+}

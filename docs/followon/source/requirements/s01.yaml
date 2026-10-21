@@ -1,0 +1,952 @@
+# Follow-on requirement source records, prompt section 1. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '1'
+requirements:
+- id: FO-01-01
+  section: '1'
+  kind: operations
+  text: Reinspect the actual working tree and branch before changing it; the reviewed-cut observations are source review, not fresh runtime tests.
+  acceptance: Current branch, ancestry and uncommitted work are recorded before edits.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'git: branch claude/spec-prompt-implementation-l9zicg at 8c0f5a0 (fix wave 5 merged); origin/main = 4b0a5f9 (the reviewed commit); local main ref stale at f50b2ab'
+  - docs/followon/gap-ledger.yaml baseCommit 8c0f5a0; docs/followon/CONTINUATION.md (environment facts and in-flight work)
+  gap: Recorded for Phase A at 8c0f5a0; docs/INVENTORY.md is still the 2026-10-17 original-scope snapshot (FO-19-01).
+  remediation: Re-run this inventory after fix wave 5 commits.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    repair:
+    - 'Phase A repair (planner open question 1): NOT_APPLICABLE -> IMPLEMENTED: an operations requirement whose trigger occurred; the Phase A ledger records branch, base commit and working-tree state, but docs/INVENTORY.md is not refreshed'
+    repairStatusFrom: NOT_APPLICABLE
+  workPackage: WP-44
+- id: FO-01-02
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 1: TypeScript/Fastify control plane, thin MCP interface, OPA WASM policy, strict schemas, prepare/confirm/commit/reconcile actions, SQL outbox/audit, workflow definitions, safety/voice templates and React console exist.'
+  acceptance: Each component exists and its suite passes.
+  originalIds:
+  - SPEC-8.tool-surface
+  - SPEC-8.ledger
+  - SPEC-8.outbox
+  - SPEC-13.console
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/http/app.ts; platform/src/gateway/mcp.ts (@modelcontextprotocol/sdk 1.32.1)
+  - platform/src/policy/engine.ts; policy/build/policy.wasm
+  - platform/src/actions/action-service.ts; platform/migrations/0110_outbox.sql, 0201_audit_evidence.sql
+  - platform/src/voice/templates/en-US.json, es-US.json; console/src/pages
+  - 'schemas drift check: 27 protocol schemas checked 2026-10-19'
+  gap: Current truth confirmed; existence does not imply live operation.
+  remediation: None beyond live composition.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-07
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-01-03
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 2a: local composition uses PGlite, memory sessions, synthetic identity and business adapters; non-local composition is explicitly refused.'
+  acceptance: Non-local composition builds from live adapters (see FO-00-01).
+  originalIds:
+  - OPS-04
+  - SPEC-16.prod-guard
+  derivedFrom: []
+  capabilityIds:
+  - platform.composition
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - composition/boot.test.ts live substrate on emulators
+  gap: Caller identity and business adapters are guard ports until WP-19/WP-23.
+  remediation: Write platform/src/main/live-container.ts that composes PgPoolDb, DynamoKvStore (sessions, replay, throttles), SqsPublisher, S3ObjectLockAuditSink, KmsAssertionSigner, JwtAccessTokenAuthenticator (remote JWKS), JwksOidcVerifier and the configured connectors from PlatformConfig. Remove the LIVE_COMPOSITION_NOT_IMPLEMENTED refusal (container.ts:308-313) so the guard decides. Add docker-compose.integration.yml (postgres:16 + pgvector, amazon/dynamodb-local, softwaremill/elasticmq, minio with object lock, localstack KMS, Keycloak) and a CI job that boots gateway and worker against it.
+  size: XL
+  environmentDependency: none
+  workPackage: WP-07
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    repair:
+    - gap text refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-01-04
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 2b: no real conversational LLM powers the local driver.'
+  acceptance: A model harness drives conversations through the gateway with pinned model versions; local tests can use an open-weight model on CPU.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/local-driver.ts (scripted)
+  - platform/package.json (no model SDK)
+  gap: Still true.
+  remediation: Model harness (section 9).
+  size: XL
+  environmentDependency: model provider credentials/BAA for PHI; Hugging Face reachable for local models
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-01-05
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 2c: the speech queue and turn tracker are local fixtures.'
+  acceptance: Turn/generation fencing and the speech queue run inside the media runtime and gate real audio frames.
+  originalIds:
+  - ACT-05
+  - SPEC-11.barge-in
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/speech-queue.ts:15-16
+  - platform/src/voice/turns.ts:9-13 (InMemoryTurnTracker, LOCAL FIXTURE)
+  gap: Still true.
+  remediation: Move fencing into the media runtime with AudioReleaseReceipt.
+  size: L
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-01-06
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 3: recount the eighteen tools and seven workflow definitions; a catalogue entry alone does not prove an operational capability.'
+  acceptance: Each catalogued tool and workflow has a capability row with both status axes.
+  originalIds:
+  - SPEC-8.tool-surface
+  - SPEC-4.workflow-catalogue
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - schemas/tools/catalog.json (18 tools; catalog.check ok, digest a4d479dd...1cc4, 2026-10-19)
+  - platform/src/workflows/definitions/*.ts (7 definitions); infra/stepfunctions (7 ASL + manifest.json)
+  gap: Counts unchanged (18/7); protected reads and commits resolve to BLOCKED live adapters, so none is operational outside fixtures.
+  remediation: 'Generate docs/followon/capabilities.yaml (and a rendered table) from schemas/tools/catalog.json and platform/src/workflows/definitions: one row per tool and per workflow with software status, environment status, qualification, the adapter slot it resolves to in the live registry and the evidence path. Add a test that fails when a catalogued tool or workflow has no row or when a row claims more than its adapter''s kind allows.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-01-07
+  section: '1'
+  kind: evaluation
+  text: 'Baseline bullet 4: the committed corpus (2,711 runs: 2,386 PASS, 305 FAIL, 20 INCONCLUSIVE) is historical offline evidence, not a new run or production evidence.'
+  acceptance: Corpus results are labelled local_fixture/historical; a fresh run follows scorer fixes and is never cited as production evidence.
+  originalIds:
+  - OPS-03
+  - SPEC-14.aggregation
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: FAIL
+  qualificationEvidence: 'evidence/evaluation/corpus-local-20261018w4.summary.json: gates.local FAIL (CRITICAL_FAILURES 7, FAILING_RESULTS 305, INCONCLUSIVE_RESULTS 20; executionMode local_fixture; historical w4 run that predates fix wave 5 at 8c0f5a0)'
+  evidence:
+  - corpus-local-20261019w5.provenance.md
+  - corpus-local-20261019w5.rescore-check-r4.json
+  gap: w5 used a snapshot plus overlay (sourceCommit null), and the local gate FAILs.
+  remediation: Re-run the corpus after fix wave 5 and record it as a new historical run.
+  size: M
+  environmentDependency: none
+  workPackage: WP-01
+  provenance:
+    origin: extraction
+    repair:
+    - gap and qualification evidence refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-01-08
+  section: '1'
+  kind: environment
+  text: 'Baseline bullet 5a: AWS infrastructure is plan-only.'
+  acceptance: Terraform validated and module-tested; sandbox apply automated behind approval; environment status recorded.
+  originalIds:
+  - SPEC-3.ingress
+  - SPEC-15.rollback
+  derivedFrom: []
+  capabilityIds:
+  - operations.commands
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules (14 modules), envs/{sandbox,staging,production,production-dr}
+  - docs/TEST_EVIDENCE.md:57 (fmt/validate, 64/0 Terraform tests with mock providers)
+  gap: Never applied; Environment NOT_CONFIGURED.
+  remediation: Sandbox apply job gated by approval; record plan digests.
+  size: L
+  environmentDependency: AWS sandbox account and approval (OPS-05)
+  workPackage: WP-41
+  provenance:
+    origin: extraction
+- id: FO-01-09
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 5b: workforce SSO needs completion.'
+  acceptance: Console signs in through the workforce IdP (code + PKCE exchanged by the backend), maps groups to roles and passes tests against a local OIDC provider container.
+  originalIds:
+  - SPEC-7.workforce-separation
+  derivedFrom: []
+  capabilityIds:
+  - identity.workforce
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - identity L2 42/42 x3 (workforce-sso.test.ts PKCE + roles)
+  - src/console-api sso.test.ts
+  gap: Live composition wiring and the sweep schedule are WP-07; the tenant IdP is an activation input (AIN-12).
+  remediation: Implement exchange, discovery, group-role mapping; test against a local OIDC provider (e.g. Keycloak/Dex container).
+  size: L
+  environmentDependency: workforce OIDC client (PRQ-036)
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-01-10
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 5c: actual call takeover (a human taking over a live AI call) needs completion.'
+  acceptance: A live call (SIP reference route) is taken over by a staffed agent with receiver acceptance and verified connection.
+  originalIds:
+  - SAFE-04
+  - SPEC-10.transfer
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/local/telephony-fixture.ts (only implementation)
+  - platform/src/adapters/live/talkdesk-blocked.ts (TalkdeskTelephonyLive BLOCKED)
+  gap: Transfers exist only against the fixture.
+  remediation: SIP/LiveKit transfer and Talkdesk documented transfer adapter.
+  size: L
+  environmentDependency: carrier/Talkdesk routing authority
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-01-11
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 5d: live IdP integration needs completion.'
+  acceptance: Secure-link verification runs against a real OIDC provider (container) with a live identity directory adapter.
+  originalIds:
+  - SPEC-7.secure-link-binding
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - caller-identity.test.ts (L2, 3 runs)
+  gap: No live IdentityDirectory adapter exists; account linking runs over the labelled stand-in.
+  remediation: Live IdentityDirectory connector, discovery, composition.
+  size: L
+  environmentDependency: client/provider IdP clients and directory API (PRQ-005, PRQ-030)
+  workPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: MISSING
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-01-12
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 5e: vendor events need completion.'
+  acceptance: Authenticated carrier/Talkdesk events ingested with documented signature scheme, ordering and dedup into an event inbox.
+  originalIds:
+  - SPEC-8.webhook-auth
+  derivedFrom:
+  - TB-07
+  - TB-09
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/http/webhook-routes.ts:34-39 (LOCAL FIXTURE HMAC scheme, local/ci only)
+  gap: Only a synthetic fixture scheme.
+  remediation: CarrierEvent contract, LiveKit/SIP webhooks, Talkdesk adapter per documented scheme.
+  size: L
+  environmentDependency: documented vendor event scheme (PRQ-019, PRQ-021)
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+- id: FO-01-13
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 5f: independent audit export needs completion and qualification.'
+  acceptance: Audit shipper writes Object-Lock objects to an S3-compatible emulator and the verifier proves completeness.
+  originalIds:
+  - OPS-01
+  - SPEC-13.audit-integrity
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - substrate/audit-export.test.ts [FO-01-13] Object-Lock export, separate verifier PASS (60/60 x3)
+  - substrate/faults.test.ts [FAULT:AUDIT_OUTAGE] export + verifier PASS after recovery
+  gap: Not run against the AWS audit account (AIN-01, AIN-03); the exporter entry point and task identity belong to WP-07/WP-39.
+  remediation: Test against MinIO with Object Lock; compose live.
+  size: M
+  environmentDependency: independent audit account (PRQ-037, PRQ-040)
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-01-14
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 5g: domain effects (scheduling, billing, claims, provider systems) need completion.'
+  acceptance: Domain connectors execute reads/writes over their real protocols against emulators with idempotency and effect verification.
+  originalIds:
+  - SPEC-8.commit-recheck
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/business-systems-blocked.ts (Scheduling/Billing/Claims/Provider BLOCKED)
+  gap: No domain transports.
+  remediation: Configurable domain connectors (section 6).
+  size: XL
+  environmentDependency: tenant domain APIs
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+- id: FO-01-15
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 5h (software part): calls over a SIP trunk reach the runtime (a PSTN-capable SIP route); qualification is FO-01-15a.'
+  acceptance: In Layer 2 an INVITE over a trunk profile reaches the media runtime, RTP flows both ways and the trunk profile supports a PSTN carrier (digest or mTLS, signalling allowlist).
+  originalIds:
+  - SPEC-12.load-test
+  derivedFrom: []
+  capabilityIds:
+  - telephony.pstn
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/evaluation.ts:43 (channel 'pstn' declared, no executor)
+  gap: No PSTN/SIP path.
+  remediation: SIP reference route with trunk profiles (WP-12).
+  size: L
+  environmentDependency: none for software; SIP trunk/number and PSTN_TEST_CALLS approval for qualification (FO-01-15a)
+  workPackage: WP-12
+  provenance:
+    origin: extraction
+    repair:
+    - 'split (critic gap 6i): software part moved WP-45 -> WP-12; qualification is FO-01-15a (WP-45)'
+- id: FO-01-15a
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 5h (qualification part): PSTN behaviour is qualified with recorded audio, latency and transfer evidence on a contracted carrier trunk.'
+  acceptance: A PSTN qualification run under its PSTN_TEST_CALLS approval records audio, handset latency and transfer-leg evidence.
+  originalIds:
+  - SPEC-12.load-test
+  derivedFrom: []
+  capabilityIds:
+  - telephony.pstn
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/evaluation.ts:43 (channel 'pstn' declared, no executor)
+  - no PSTN qualification job definition
+  gap: No PSTN qualification job.
+  remediation: PSTN qualification job definition and qualify-tenant suite (WP-45), executed only under its approval.
+  size: L
+  environmentDependency: SIP trunk/number, PSTN_TEST_CALLS approval
+  provenance:
+    origin: repair-split
+    splitFrom: FO-01-15
+    repair:
+    - 'Phase A repair (critic gap 6i): qualification part split from FO-01-15 and kept in WP-45'
+  workPackage: WP-45
+- id: FO-01-16
+  section: '1'
+  kind: constraint
+  text: 'Baseline bullet 5i: draft templates are not approved live scripts.'
+  acceptance: Only APPROVED templates render outside local/ci.
+  originalIds:
+  - SPEC-11.opening-disclosure
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts:11-13
+  - platform/src/voice/gate.test.ts
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  gap: Templates remain DRAFT/PENDING (environment input).
+  remediation: Approval workflow for scripts.
+  size: S
+  environmentDependency: clinical/privacy script approval (CLINICAL_SCRIPTS)
+  regressionPackage: WP-14
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-01-17
+  section: '1'
+  kind: operations
+  text: 'Baseline bullet 6a: PR #1 merged to main; PR #2''s KMS grant narrowing merged into the feature branch, not main. Inspect ancestry and reconcile intended hardening.'
+  acceptance: 'Main contains the KMS CreateGrant restriction after PR #26 merges.'
+  originalIds:
+  - SPEC-14.supply-chain
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'git log: origin/main = 4b0a5f9; 7d7ccfc/e480fae reachable only from claude/spec-prompt-implementation-l9zicg via 1f9d210'
+  gap: Main still lacks 7d7ccfc.
+  remediation: 'Merge via PR #26 after review.'
+  size: S
+  environmentDependency: 'repository owner merge of PR #26'
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: NOT_APPLICABLE
+- id: FO-01-18
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 6b: review remaining policy-editor authority.'
+  acceptance: No principal other than a controlled deploy/break-glass role can rewrite key policies; Terraform tests assert it.
+  originalIds:
+  - SPEC-14.supply-chain
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - '["infra/terraform/modules/kms/main.tf:14-30 (key admins keep kms:Put*, which includes kms:PutKeyPolicy: an admin can rewrite the policy and re-grant CreateGrant or usage)", "platform/src/console-api/contract.ts:404 and plugin.ts:1114 (policy bundles need policy_approver distinct from submitter)", "infra/terraform/modules/iam_ci/main.tf:175-183,270-338", "infra/terraform/README.md:271-280 (residual risk VSP-INF-02, already documented: kms:PutKeyPolicy, s3:PutBucketPolicy, sqs:SetQueueAttributes and secretsmanager:PutResourcePolicy remain with the apply role; closing them needs an AWS Organizations data perimeter, ''NOT in place and NOT verified here'')", "infra/terraform/policy/terraform_test.rego:776-784 (asserts the apply role keeps kms:PutKeyPolicy by design)", "infra/terraform/modules/stack/main.tf:12 (key admins = configured roles + gha-apply)"]'
+  gap: PutKeyPolicy remains with every key administrator, so the CreateGrant narrowing can be undone by a key admin.
+  remediation: '(1) Add infra/terraform/modules/org_perimeter (disabled by default, applied by the AWS organization admin): resource control policies or SCPs that restrict kms, s3, sqs, secretsmanager, sns and logs resource policies to aws:PrincipalOrgID / aws:ResourceOrgID, plus an OPA plan rule and tftest. (2) Narrow key_admin_role_arns to the apply role plus a break-glass role (validation in modules/kms/variables.tf:40-47) and test that no other principal matches kms:PutKeyPolicy. (3) Add CODEOWNERS for infra/terraform/modules/{kms,audit} and infra/terraform/policy. (4) Add an activation-register entry for the organization admin.'
+  size: M
+  environmentDependency: none
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - evidence
+    - remediation
+- id: FO-01-19
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 7a: emergency-route audit deferral is process-local.'
+  acceptance: Deferred route evidence survives a process crash (durable deferral store) and a crash test proves it.
+  originalIds:
+  - OPS-01
+  - SAFE-03
+  derivedFrom:
+  - ADR-0011
+  capabilityIds:
+  - audit.independent
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/audit/journal.test.ts [FO-01-19] order, bounded-flush, same-instant and clock-skew tests
+  - substrate/route-audit-crash.test.ts [FO-01-19] SIGKILL, cross-journal order, forged-time quarantine
+  gap: container.ts (WP-07) still builds the process-local DeferredAuditQueue, and the WP-25 handoff does not call appendOrDeferIn.
+  remediation: Durable deferral journal (DynamoDB/SQS or fsynced local journal) with crash-restart test.
+  size: M
+  environmentDependency: none
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - evidence
+    repair:
+    - evidence and gap refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-01-20
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 7b: retention declarations need direct review.'
+  acceptance: Every dataset declares class, duration source and deletion verifier; null durations block non-local start.
+  originalIds:
+  - DATA-03
+  - SPEC-6.data-classes
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/retention/datasets.test.ts:87 (datasets registered with their data classes), :120 (no approved duration: BLOCKED_RETENTION_UNSET)'
+  - platform/src/retention/retention.test.ts:101,123 (no duration without an approval)
+  - platform/src/config/guard.test.ts:131,315 (null retention is a RETENTION_UNSET violation outside local/ci)
+  - platform/config/production.json:255 (retention null)
+  gap: Durations are null pending counsel; new datasets (audio, timelines, model logs) not yet declared.
+  remediation: Declare new datasets as they are added.
+  size: S
+  environmentDependency: counsel retention schedule (RETENTION_SCHEDULE)
+  regressionPackage: WP-22
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+- id: FO-01-21
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 7c: release checks need direct review.'
+  acceptance: Release workflow builds, scans, signs, attests and emits a manifest; executed at least once against the real image.
+  originalIds:
+  - SPEC-16.release-manifest
+  - SPEC-14.supply-chain
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/manifest.ts
+  - .github/workflows/release.yml:31-131 (Trivy, cosign keyless, SBOM attest, manifest)
+  - platform/Dockerfile:12-17 (base image not digest-pinned)
+  gap: Never executed; image never built.
+  remediation: Build image locally (Docker available), pin base digest, dry-run release job.
+  size: M
+  environmentDependency: GitHub Actions + registry for execution
+  workPackage: WP-40
+  provenance:
+    origin: extraction
+- id: FO-01-22
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 7d: transfer event ordering needs direct review.'
+  acceptance: Out-of-order and duplicate transfer events are deferred/deduplicated and applied once in order.
+  originalIds:
+  - SAFE-04
+  derivedFrom:
+  - ADR-0017
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/adr/ADR-0017-out-of-order-transfer-events.md
+  - platform/src/workflows/transfer.out-of-order.test.ts
+  - platform/test/journeys/faults.test.ts:143
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Verified only with fixture events.
+  remediation: Repeat with CarrierEvent ingestion from the SIP runtime.
+  size: S
+  environmentDependency: vendor ordering semantics (PRQ-019)
+  regressionPackage: WP-28
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-01-23
+  section: '1'
+  kind: evaluation
+  text: 'Baseline bullet 7e: scorer truthfulness needs direct review.'
+  acceptance: Mutation tests show the scorer fails runs with missing evidence; INCONCLUSIVE never counts as PASS.
+  originalIds:
+  - OPS-03
+  - SPEC-14.hard-gates
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scorer.mutation.test.ts MUTATION evidence.fault_plans_present
+  - scorer.test.ts [FO-17-11] verifier probe p1
+  gap: None locally.
+  remediation: Verify after fix wave 5; add scorer mutation suite.
+  size: M
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    repair:
+    - evidence and gap refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-01-24
+  section: '1'
+  kind: constraint
+  text: 'Lesson 1: authenticated in-app chat does not authenticate an arbitrary phone caller.'
+  acceptance: Phone caller reaches A2 only by binding an MFA portal session to the same call and generation.
+  originalIds:
+  - AUTH-01
+  - SPEC-7.secure-link-binding
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/verification-service.ts (completeSecureLink binds call + generation)
+  - platform/src/identity/verification-service.test.ts:358-372
+  - platform/src/identity/enumeration-resistance.integration.test.ts
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  - platform/src/identity/verification-service.test.ts:106 (only an OIDC secure link or OTP raises assurance)
+  - platform/src/identity/verification-service.test.ts:225 ([SPEC-14.FIXATION] completing after a session-generation change fails)
+  gap: Verified with fixture IdP only.
+  remediation: Repeat against a containerised OIDC provider.
+  size: S
+  environmentDependency: live IdP (PRQ-005)
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1); evidence lines added
+- id: FO-01-25
+  section: '1'
+  kind: software
+  text: 'Lesson 2: read-oriented client support and provider-approved scheduling/messaging actions may exist separately; reuse domain APIs behind common contracts; provider authority does not transfer to client support.'
+  acceptance: Provider action family exists behind the same action contracts with separate policy; role switch never carries authority.
+  originalIds:
+  - SPEC-4.audience-permissions
+  - SPEC-4.role-selection
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/session-service.ts:198 (selectRole drops privileges on change)
+  - schemas/tools/catalog.json (provider tools are PROTECTED_READ only)
+  gap: Separation holds; provider-approved scheduling/messaging actions and shared domain contracts do not exist.
+  remediation: Add provider action kinds over common domain contracts.
+  size: L
+  environmentDependency: provider domain APIs
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+- id: FO-01-26
+  section: '1'
+  kind: software
+  text: 'Lesson 3: provider actions use immutable proposals, exact approval digests, leases, idempotency and reconciliation; staff approval is not client consent.'
+  acceptance: Digest-bound confirmations, commit slots and reconciliation tested; staff retry needs fresh authorization and never substitutes caller confirmation.
+  originalIds:
+  - ACT-01
+  - ACT-02
+  - ACT-03
+  - SPEC-8.prepare-commit
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/actions.ts:57-97
+  - platform/src/actions/action-service.ts:12-13,188-192 (commit slot; confirmations only from telephony_control/portal)
+  - platform/src/console-api/reconciled-retry.ts; platform/src/console-api/reconciliation.test.ts:26-138
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Verified for client actions; no provider-side action path to apply it to.
+  remediation: Reuse the ledger for provider actions.
+  size: M
+  environmentDependency: none
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-01-27
+  section: '1'
+  kind: software
+  text: 'Lesson 4: separate call/turn transport, conversation, durable case and action authority; a long-lived task outlives a socket without inheriting unlimited call access.'
+  acceptance: Durable grants are bounded to listed actions and TTL and rechecked; transport/conversation layers are distinct components.
+  originalIds:
+  - SPEC-9.task-tokens
+  - SPEC-9.recheck
+  derivedFrom: []
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/grants.ts; platform/migrations/0402_durable_action_grants.sql
+  - platform/src/protocol/auth.ts:147 (durable_action_grant purpose, max 8 actions)
+  - platform/src/business/recheck.ts:1-40
+  gap: Case/action authority separated; transport and conversation layers do not exist yet; no CallBinding contract.
+  remediation: Define CallBinding/TurnEnvelope and the runtime layers.
+  size: M
+  environmentDependency: none
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-01-28
+  section: '1'
+  kind: software
+  text: 'Lesson 5: judging text after speech is observational; judge generated audio before release; safety/error audio stays usable if the generative speaker or judge fails.'
+  acceptance: Pre-release audio judge in the controlled path; pre-rendered safety/error audio plays when TTS or judge fails (fault test).
+  originalIds:
+  - ACT-05
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts:24-26 (free paraphrase not implemented; templates only)
+  - no audio assets or TTS path in repository
+  gap: No audio generation, judge or fallback audio.
+  remediation: Audio release gate with judge and pre-rendered fallback clips.
+  size: L
+  environmentDependency: none
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+- id: FO-01-29
+  section: '1'
+  kind: constraint
+  text: 'Lesson 6: a mock CRM returning TEST identifiers is not a Case integration; HTTP success, app usage reports, CI success and deployment truth are distinct evidence.'
+  acceptance: Case connector verified over its protocol against an emulator; evidence kinds are typed and distinct in manifests.
+  originalIds:
+  - OPS-03
+  - SPEC-8.salesforce-model
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/adapters/live/salesforce-rest-support-records.ts; salesforce-rest.contract.test.ts (127.0.0.1 HTTP emulator: salesforce-emulator.fixture.ts:1-22)'
+  - platform/src/adapters/live/blocked-set.ts:31-45 (live registry keeps Salesforce in BLOCKED schema state)
+  - platform/src/protocol/release.ts:118-123 (EvidenceRef.kind free string)
+  gap: Adapter is real but not composed; evidence kinds are untyped strings.
+  remediation: Compose the adapter live; type evidence kinds.
+  size: M
+  environmentDependency: Salesforce org (PRQ-006)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-01-30
+  section: '1'
+  kind: constraint
+  text: 'Lesson 7: memory is not verified clinical truth; program membership is not an authoritative referral, authorization, claim or eligibility-status service.'
+  acceptance: Memory rejects clinical/identity facts; eligibility/authorization facts come only from authoritative connectors.
+  originalIds:
+  - DATA-04
+  - SPEC-9.memory
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/support-memory.ts:1-30
+  - platform/src/identity/session-service.test.ts:411 [DATA-04]
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Memory part verified; no eligibility/referral/authorization connector ports exist.
+  remediation: Add authoritative eligibility/authorization ports in the connector framework.
+  size: M
+  environmentDependency: authoritative eligibility/authorization APIs
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-01-31
+  section: '1'
+  kind: software
+  text: 'Lesson 8: token refresh, idle expiry, session-generation fencing, duplicate events and accepted human handoffs are cross-component requirements.'
+  acceptance: Cross-component tests cover refresh, idle expiry, fencing, duplicate events and accepted handoff end to end.
+  originalIds:
+  - AUTH-04
+  - SAFE-04
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - break-glass.test.ts refresh-race and claim cases
+  - workforce-sso.test.ts refresh/idle (L2)
+  gap: Duplicate events and accepted handoff are not run end to end through the composed container (WP-07).
+  remediation: Implement idle expiry and same-actor refresh; add cross-component tests.
+  size: L
+  environmentDependency: none
+  workPackage: WP-05
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-01-32
+  section: '1'
+  kind: document
+  text: Produce a gap ledger linking each observation to actual code, remediation, tests and capability status.
+  acceptance: docs/followon/gap-ledger.yaml exists, covers every section-1 bullet/lesson and is validated by a test.
+  originalIds:
+  - SPEC-16.progress-handoff
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/tools/followon/generate.py (committed generator; --check fails when docs/followon/*.yaml, docs/GAP_CLOSURE.md or docs/ACTIVATION_REGISTER.md drift from docs/followon/source/)
+  - docs/followon/gap-ledger.yaml and docs/GAP_CLOSURE.md (Phase A, regenerated by the committed generator)
+  - docs/followon/CONTINUATION.md:12-14 (references requirements.yaml, gap-ledger.yaml, GAP_CLOSURE.md)
+  gap: Generated and drift-checked by the committed generator, but the --check is not yet run in CI or by a docs test (WP-44 adds it); statuses must be updated as work packages land.
+  remediation: Generate the ledger from the FO requirement extraction.
+  size: M
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+    statusChangedFrom: MISSING
+    repair:
+    - 'stays IMPLEMENTED: the committed generator with --check now exists (planner open question 2 resolved)'
+- id: FO-01-33
+  section: '1'
+  kind: document
+  text: Remove obsolete claims only after verifying their replacement.
+  acceptance: Superseding ADRs reference the verifying evidence before old statements are removed.
+  originalIds:
+  - SPEC-16.decisions
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/adr/ADR-0006-fallback-speech-runtime.md (no runtime)
+  - docs/adr/ADR-0001-default-architecture.md:87
+  - docs/ARCHITECTURE.md:1-30 (Talkdesk-native only, IMPLEMENTED_OFFLINE scope)
+  gap: Obsolete statements remain because replacements are not built.
+  remediation: Supersede each when its replacement is verified.
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-01-34
+  section: '1'
+  kind: software
+  text: 'Baseline bullet 7a (residual): an emergency or human route whose tool execution is detached by the tool timeout must still leave durable route evidence or a durable ''not recorded'' marker if the process stops before its audit append.'
+  acceptance: 'Fault test: a request_safety_route execution exceeds its tool timeout, the process receives SIGTERM before the handoff completes, and after restart the audit chain contains the route event or an audit.route.not_recorded marker linked to the safety_events row. No route is ever silently unaudited.'
+  originalIds:
+  - OPS-01
+  - OPS-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/audit/route-reconciler.test.ts [FO-01-34] decoys close no intent
+  - substrate/route-audit-crash.test.ts [FO-01-34] detached safety route -> one not_recorded marker
+  gap: The request_safety_route timeout and SIGTERM path needs gateway intents (WP-14) and the handoff wiring (WP-25).
+  remediation: 'Write an intent row (route_audit_intents: routeId, safety_event_id, started_at) in the same transaction that starts the handoff, mark it on audit append, and add a worker sweep that turns unmatched intents older than the timeout into audit.route.not_recorded events. Share the durable journal with FO-01-19.'
+  size: M
+  environmentDependency: none
+  workPackage: WP-04
+  provenance:
+    origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED

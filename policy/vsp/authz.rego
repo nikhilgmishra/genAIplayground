@@ -48,6 +48,7 @@ human_reasons := {
 	"AUTHORIZATION_EXPIRED",
 	"CONSENT_DECLINED_ALTERNATIVE_ROUTE",
 	"CUSTODY_DISPUTE",
+	"HIGH_RISK_HUMAN_ONLY",
 	"HUMAN_BOUNDARY",
 	"MINOR_CONFIDENTIALITY_REVIEW",
 	"RISK_VERIFICATION_ABUSE",
@@ -90,6 +91,10 @@ mutation if def.class in mutation_classes
 risk_flags := lib.string_set(input.auth.riskFlags)
 
 human_boundary if def.class == "HUMAN_BOUNDARY"
+
+# High-risk changes go to a person whatever the assurance tier (FO-05-06): the catalogue list holds even
+# if an action's class were changed.
+high_risk_human_only if input.action in catalogue.highRisk.humanOnlyActions
 
 # ---------------------------------------------------------------------------
 # Session, tenant, role.
@@ -144,7 +149,27 @@ effective_rank := 2 if {
 	not step_up_bound
 }
 
-effective_rank := session_rank if input.auth.assurance != "A3"
+# A1 (approved possession verification) counts as A1 only for an operation the tenant approved for it
+# (catalogue assuranceA1, with an approval record); otherwise it counts as A0 (FO-05-03).
+a1_approved if {
+	is_string(catalogue.assuranceA1.approvalRef)
+	input.action in catalogue.assuranceA1.operations
+}
+
+effective_rank := 1 if {
+	input.auth.assurance == "A1"
+	a1_approved
+}
+
+effective_rank := 0 if {
+	input.auth.assurance == "A1"
+	not a1_approved
+}
+
+effective_rank := session_rank if {
+	input.auth.assurance != "A3"
+	input.auth.assurance != "A1"
+}
 
 tool_rank := 0 if input.tool == null
 
@@ -405,6 +430,12 @@ deny contains "RESOURCE_TYPE_NOT_PERMITTED" if {
 
 deny contains "HUMAN_BOUNDARY" if human_boundary
 
+deny contains "HIGH_RISK_HUMAN_ONLY" if {
+	known
+	not exempt
+	high_risk_human_only
+}
+
 deny contains "PARTNER_NO_INDIVIDUAL_ACCESS" if {
 	known
 	not exempt
@@ -464,6 +495,17 @@ deny contains "ASSURANCE_INSUFFICIENT" if {
 	not exempt
 	not human_boundary
 	not effective_rank
+}
+
+# An A1 session asked for an operation the tenant did not approve for A1 (reported with the denial).
+deny contains "A1_OPERATION_NOT_APPROVED" if {
+	known
+	not exempt
+	not human_boundary
+	not grant
+	input.auth.assurance == "A1"
+	not a1_approved
+	needed_rank == 1
 }
 
 step_up_present if is_string(input.auth.stepUpDigest)

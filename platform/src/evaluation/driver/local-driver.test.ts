@@ -14,15 +14,17 @@
  * run (run-corpus.ts) uses every scenario's own repetitions.
  */
 import { describe, expect, it } from "vitest";
+import type { PgSupportRequestService } from "../../business/support/support-request-service.js";
 import { CATALOG_FILE, loadPinnedCatalogFile } from "../../gateway/catalog.js";
 import type { EvaluationResult, ScenarioDefinition } from "../../protocol/index.js";
 import { loadCorpus } from "../corpus.js";
+import type { FaultPlan } from "../fault-plan.js";
 import { runScenarios } from "../runner.js";
-import type { CallEvidence } from "../runner.js";
+import type { CallEvidence, CallHandle, StartCallInput } from "../runner.js";
 import { LocalConversationDriver } from "./local-driver.js";
-import type { CompletedCall } from "./local-driver.js";
-import type { ToolTransport } from "./local-stack.js";
-import { migrationsDigest } from "./evidence.js";
+import type { CompletedCall, LocalDriverOptions } from "./local-driver.js";
+import type { LocalStack, ToolTransport } from "./local-stack.js";
+import { attemptHistoryInOrder, migrationsDigest } from "./evidence.js";
 
 const corpus = loadCorpus();
 const scenario = (id: string): ScenarioDefinition => {
@@ -37,15 +39,22 @@ interface Run {
   call: CompletedCall;
 }
 
-async function run(s: ScenarioDefinition, transport: ToolTransport = "http"): Promise<Run> {
+interface RunOpts {
+  faultPlans?: ReadonlyMap<string, FaultPlan>;
+  /** A driver subclass (mutation runs); defaults to the LocalConversationDriver. */
+  driver?: (opts: LocalDriverOptions) => LocalConversationDriver;
+}
+
+async function run(s: ScenarioDefinition, transport: ToolTransport = "http", ro: RunOpts = {}): Promise<Run> {
   const calls: CompletedCall[] = [];
   const evidence: (CallEvidence | null)[] = [];
-  const driver = new LocalConversationDriver({ transport, onCallComplete: (c) => void calls.push(c) });
+  const opts: LocalDriverOptions = { transport, onCallComplete: (c) => void calls.push(c) };
+  const driver = ro.driver ? ro.driver(opts) : new LocalConversationDriver(opts);
   try {
     const out = await runScenarios(driver, [s], {
       executionMode: "local_fixture",
       environment: "local",
-      faultPlans: corpus.faultPlans,
+      faultPlans: ro.faultPlans ?? corpus.faultPlans,
       runId: "run_localdrivertest01",
       sink: { append: (_r, e) => void evidence.push(e) },
     });
@@ -60,7 +69,75 @@ async function run(s: ScenarioDefinition, transport: ToolTransport = "http"): Pr
 
 const tools = (r: Run) => r.call.tools.map((t) => `${t.name}:${t.status}`);
 const ledgerStates = (r: Run) => r.call.details.ledger.map((l) => `${l.kind}:${l.state}`);
+const assertion = (r: Run, id: string) => r.result.assertions.find((a) => a.assertionId === id);
+const hardFailures = (r: Run) => r.result.assertions.filter((a) => a.hardGate && a.verdict === "FAIL").map((a) => a.assertionId);
+const callerTurns = (s: ScenarioDefinition) => s.script.flatMap((t, i) => (t.speaker === "caller" ? [i] : []));
 const TIMEOUT = 120_000;
+
+/**
+ * MUTATION driver: replaces the container's TransferCoordinator.applyEvent for every call with `mutate(original)`
+ * (what the telephony delivery loop calls), to show that a broken event dedup / ordering is detected by the
+ * evidence and the scorer. Test-only; never used for corpus evidence.
+ */
+class TransferEventMutantDriver extends LocalConversationDriver {
+  constructor(
+    opts: LocalDriverOptions,
+    private readonly mutate: (stack: LocalStack, original: LocalStack["container"]["transfers"]["applyEvent"]) => LocalStack["container"]["transfers"]["applyEvent"],
+  ) {
+    super(opts);
+  }
+  override async startCall(input: StartCallInput): Promise<CallHandle> {
+    const h = await super.startCall(input);
+    const stack = (this as unknown as { calls: Map<string, { stack: LocalStack }> }).calls.get(h.callRef)?.stack;
+    if (!stack) throw new Error("mutant driver: call not found");
+    const transfers = stack.container.transfers;
+    Object.defineProperty(transfers, "applyEvent", { value: this.mutate(stack, transfers.applyEvent.bind(transfers)), configurable: true, writable: true });
+    return h;
+  }
+}
+
+/** MUTATION driver: runs `patch(stack)` on every call's local stack right after the call starts. Test-only. */
+class StackMutantDriver extends LocalConversationDriver {
+  constructor(
+    opts: LocalDriverOptions,
+    private readonly patch: (stack: LocalStack) => void,
+  ) {
+    super(opts);
+  }
+  override async startCall(input: StartCallInput): Promise<CallHandle> {
+    const h = await super.startCall(input);
+    const stack = (this as unknown as { calls: Map<string, { stack: LocalStack }> }).calls.get(h.callRef)?.stack;
+    if (!stack) throw new Error("mutant driver: call not found");
+    this.patch(stack);
+    return h;
+  }
+}
+
+/**
+ * A support-request service whose creation key no longer deduplicates the first handoff record of `kind`: it is
+ * created a second time with a fresh key and a different summary slot (a broken business dedup). Test-only.
+ */
+function duplicateFirstHandoffRecord(kind: "safety.route" | "human.request") {
+  return (stack: LocalStack) => {
+    // The business module's support-request service instance (the handoff service creates its records through it).
+    const support = stack.container.business.supportRequests as PgSupportRequestService;
+    const original = support.createRecord.bind(support);
+    let done = false;
+    const createRecord: typeof original = async (input, tx) => {
+      const first = await original(input, tx);
+      if (!done && input.attempted.includes(kind)) {
+        done = true;
+        const slots: Record<string, string> =
+          kind === "safety.route"
+            ? { signalSource: input.summarySlots.signalSource === "MUTANT_SOURCE" ? "MUTANT_SOURCE_B" : "MUTANT_SOURCE" }
+            : { ...input.summarySlots, issueCategory: input.summarySlots.issueCategory === "general_question" ? "portal_login_help" : "general_question" };
+        await original({ ...input, summarySlots: slots, creationKey: input.creationKey === null ? null : `${input.creationKey.slice(0, 56)}00000000` }, tx);
+      }
+      return first;
+    };
+    Object.defineProperty(support, "createRecord", { value: createRecord, configurable: true, writable: true });
+  };
+}
 
 describe("LocalConversationDriver — the nine demonstration journeys on the local stack", () => {
   it(
@@ -257,10 +334,19 @@ describe("LocalConversationDriver — injected faults (deterministic fault plans
     async () => {
       const r = await run(scenario("scn_journey_1_client_reschedule_conflict__auth_expiry_mid_call"));
       expect(r.evidence.faultsInjected).toEqual(["AUTH_EXPIRY_MID_CALL"]);
-      expect(r.call.tools.find((t) => t.name === "commit_appointment_change")).toMatchObject({ status: "POLICY_DENIED", reasonCode: "SESSION_EXPIRED", sessionState: "expired" });
+      const commit = r.call.tools.find((t) => t.name === "commit_appointment_change");
+      expect(commit).toMatchObject({ status: "POLICY_DENIED", reasonCode: "SESSION_EXPIRED", sessionState: "expired" });
       expect(r.evidence.committedActions).toEqual([]);
       expect(r.call.details.ledger.every((l) => l.effectCount === 0)).toBe(true);
       expect(r.result.authenticationResult).toBe("PASS");
+      // Re-verification by a person (SF-11c), connected and verified (SAFE-04).
+      expect(r.evidence.outcome).toBe("TRANSFERRED");
+      expect(r.evidence.transfer?.connectionVerified).toBe(true);
+      expect(r.result.verdict).toBe("PASS");
+      // Caller-visible (fault plan callerVisible "offered re-verification or a person"): after the denial the caller
+      // hears the approved verification-failed notice, then Studio's connecting prompt for the session-less route.
+      const after = r.call.spoken.filter((l) => l.turnIndex >= (commit?.turnIndex ?? Number.POSITIVE_INFINITY) && l.source !== "confirmation_prompt");
+      expect(after.map((l) => `${l.source}:${l.templateId}:${l.gate}`)).toEqual(["coordinator:verification.failed_generic:RENDERED", "studio:transfer.in_progress:RENDERED"]);
     },
     TIMEOUT,
   );
@@ -290,6 +376,452 @@ describe("LocalConversationDriver — injected faults (deterministic fault plans
   );
 });
 
+describe("LocalConversationDriver — faults the regenerated scripts reach (development drafts)", () => {
+  it(
+    "[ACT-02] [ACT-03] crash after the external commit on the slot-conflict flow: the conflict consumes the first commit, the fault lands on the second, one effect, reconciled",
+    async () => {
+      const r = await run(scenario("scn_risk_crash_after_commit_013"));
+      expect(r.evidence.faultsInjected).toEqual(["CRASH_AFTER_COMMIT"]);
+      expect(r.call.details.ledger.map((l) => `${l.kind}:${l.state}:${l.effectCount}`)).toEqual(["appointment.reschedule:FAILED:0", "appointment.reschedule:COMMITTED:1"]);
+      expect(r.evidence.committedActions).toEqual([expect.objectContaining({ effectCount: 1, reconciled: true })]);
+      expect(hardFailures(r)).toEqual([]);
+      expect(r.result.verdict).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[ACT-03] scheduling timeout after the external commit on the slot-conflict flow: the second commit is UNKNOWN, reconciled to one effect",
+    async () => {
+      const r = await run(scenario("scn_risk_crash_after_commit_015"));
+      expect(r.evidence.faultsInjected).toEqual(["SCHEDULING_TIMEOUT_AFTER_COMMIT"]);
+      expect(r.call.tools.filter((t) => t.name === "commit_appointment_change").map((t) => t.status)).toEqual(["SUCCESS", "UNKNOWN_OUTCOME"]);
+      expect(r.evidence.committedActions).toEqual([expect.objectContaining({ effectCount: 1, reconciled: true })]);
+      expect(r.result.verdict).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[ACT-02] partial write on the slot-conflict flow with the caller hanging up: the fault is injected and no hard gate fails (the call-end outcome is the PRQ-033 owner decision, not asserted)",
+    async () => {
+      const r = await run(scenario("scn_risk_crash_after_commit_018"));
+      expect(r.evidence.faultsInjected).toEqual(["PARTIAL_WRITE"]);
+      expect(r.evidence.committedActions).toEqual([expect.objectContaining({ effectCount: 1, reconciled: true })]);
+      expect(hardFailures(r)).toEqual([]);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[AUTH-01] [AUTH-05] an unverified payer never reaches get_claim_status: the identity-provider outage is the fault the script reaches",
+    async () => {
+      const r = await run(scenario("scn_payer_claim_inquiry__dependency_failure"));
+      expect(r.evidence.faultsInjected).toEqual(["IDP_UNAVAILABLE"]);
+      expect(r.call.tools.map((t) => t.name)).toEqual(["begin_verification", "request_human_transfer"]);
+      expect(r.evidence.disclosedProtectedFields).toBe(false);
+      expect(r.result.verdict).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+});
+
+describe("LocalConversationDriver — redelivered vendor webhooks on the transfer path", () => {
+  const dupCheck = (r: Run) => assertion(r, "fault.duplicate_webhook.no_duplicate_effect");
+
+  it(
+    "[ACT-02] [SAFE-04] DUPLICATE_WEBHOOK on a safety-route draft: every transfer event delivered twice, one dial, an in-order attempt history, one safety record; injected only once a duplicate was delivered",
+    async () => {
+      const r = await run(scenario("scn_risk_duplicate_webhook_021"));
+      expect(r.evidence.faultsInjected).toEqual(["DUPLICATE_WEBHOOK"]);
+      const notes = (r.evidence.committedState?.driverNotes ?? []) as string[];
+      expect(notes.find((n) => n.startsWith("TELEPHONY_DUPLICATE_EVENTS_"))).toMatch(/^TELEPHONY_DUPLICATE_EVENTS_[1-9]\d*$/);
+      expect(r.call.details.transfers).toEqual([
+        expect.objectContaining({ priority: "SAFETY", status: "CONNECTED", unattributedDials: 0, attempts: [expect.objectContaining({ destinationId: "dst_safety_priority", dials: 1 })] }),
+      ]);
+      expect(r.call.details.transfers.flatMap((t) => t.attempts).every((a) => attemptHistoryInOrder(a.states))).toBe(true);
+      expect(r.call.details.handoffRecords).toEqual({ standard: 0, safety: 1, duplicated: 0 });
+      expect(dupCheck(r)).toMatchObject({ verdict: "PASS", hardGate: true });
+      expect(r.result.verdict).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[ACT-02] [SAFE-04] DUPLICATE_WEBHOOK on a standard human-transfer draft: one dial, in-order history, connected; PASS",
+    async () => {
+      const r = await run(scenario("scn_risk_duplicate_webhook_019"));
+      expect(r.evidence.faultsInjected).toEqual(["DUPLICATE_WEBHOOK"]);
+      expect(r.call.details.transfers.map((t) => t.attempts.map((a) => `${a.destinationId}:${a.dials}`))).toEqual([["dst_support_general:1"]]);
+      expect(r.call.details.handoffRecords.duplicated).toBe(0);
+      expect(r.evidence.transfer?.connectionVerified).toBe(true);
+      expect(r.result.verdict).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[OPS-03] [SPEC-16.fault-injection] DUPLICATE_WEBHOOK on a script with neither a consequential tool nor a transfer is reported not injected (INCONCLUSIVE), never PASS",
+    async () => {
+      const base = scenario("scn_portal_login_help__baseline");
+      const s: ScenarioDefinition = { ...base, scenarioId: "scn_test_duplicate_webhook_unreached", initialState: { ...base.initialState, faults: ["DUPLICATE_WEBHOOK"] } };
+      const r = await run(s);
+      expect(r.evidence.transfer?.attempted).toBe(false);
+      expect(r.evidence.faultsInjected).toEqual([]);
+      expect((r.evidence.committedState?.driverNotes ?? []) as string[]).toContain("TELEPHONY_DUPLICATE_EVENTS_0");
+      expect(assertion(r, "evidence.faults_injected")?.verdict).toBe("INCONCLUSIVE");
+      expect(r.result.verdict).not.toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[ACT-02] MUTATION: a transfer coordinator that dials again for every redelivered event FAILS no_duplicate_effect (transfer:attempt_redialled)",
+    async () => {
+      const r = await run(scenario("scn_risk_duplicate_webhook_019"), "http", {
+        driver: (o) =>
+          new TransferEventMutantDriver(o, (stack, original) => async (raw) => {
+            const res = await original(raw);
+            const a = res.journey.attempts.find((x) => x.transferId === raw.transferId);
+            if (res.decision.kind === "duplicate" && a) {
+              await stack.container.fixtures.telephony.requestTransfer({ callId: res.journey.callId, destinationId: a.destinationId, handoffId: res.journey.handoffId, priority: res.journey.priority });
+            }
+            return res;
+          }),
+      });
+      expect(r.call.details.transfers[0]?.attempts[0]?.dials).toBeGreaterThan(1);
+      expect(dupCheck(r)).toMatchObject({ verdict: "FAIL", hardGate: true, detail: expect.stringContaining("transfer:attempt_redialled") });
+      expect(r.result.verdict).toBe("FAIL");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[SAFE-04] MUTATION: a transfer coordinator that applies redelivered events without dedup or ordering FAILS no_duplicate_effect (transfer:attempt_history_regressed)",
+    async () => {
+      const STATE_FOR: Record<string, string> = { QUEUED: "QUEUED", RECEIVER_ACCEPTED: "RECEIVER_ACCEPTED", BRIDGED: "BRIDGED", CALLER_CONFIRMED_CONNECTED: "CALLER_CONFIRMED_CONNECTED", COMPLETE: "COMPLETED" };
+      const r = await run(scenario("scn_risk_duplicate_webhook_019"), "http", {
+        driver: (o) =>
+          new TransferEventMutantDriver(o, (stack, original) => async (raw) => {
+            const res = await original(raw);
+            const state = STATE_FOR[String(raw.event)];
+            const j = res.decision.kind === "duplicate" && state ? await stack.container.transferStore.get(res.journey.handoffId) : null;
+            if (j && state) {
+              const at = stack.container.clock.now().toISOString();
+              const attempts = j.attempts.map((a) => (a.transferId === raw.transferId ? { ...a, state: state as typeof a.state, history: [...a.history, { state: state as typeof a.state, at, source: "mutant.no_dedup" }] } : a));
+              await stack.container.transferStore.put({ ...j, attempts, version: j.version + 1 }, j.version);
+            }
+            return res;
+          }),
+      });
+      expect(r.call.details.transfers.flatMap((t) => t.attempts).some((a) => !attemptHistoryInOrder(a.states))).toBe(true);
+      expect(dupCheck(r)).toMatchObject({ verdict: "FAIL", hardGate: true, detail: expect.stringContaining("transfer:attempt_history_regressed") });
+      expect(r.result.verdict).toBe("FAIL");
+    },
+    TIMEOUT,
+  );
+
+  // The transfer coordinator's own routing steps, reached by the mutants below to re-dial through a NEW attempt.
+  type RoutingSteps = { startAttempt: (j: unknown, idx: number) => Promise<unknown>; failover: (j: unknown, cause: string) => Promise<void> };
+  const FAILURE_EVENTS = new Set(["RECEIVER_UNAVAILABLE", "TIMEOUT", "BRIDGE_DROPPED", "DIAL_FAILED"]);
+  const withReceiverUnavailable = (): ScenarioDefinition => {
+    const base = scenario("scn_risk_duplicate_webhook_019");
+    return { ...base, scenarioId: "scn_test_duplicate_webhook_receiver_unavailable", initialState: { ...base.initialState, faults: ["DUPLICATE_WEBHOOK", "RECEIVER_UNAVAILABLE"] } };
+  };
+
+  it(
+    "[ACT-02] [SAFE-04] MUTATION: a second handoff record for the same business creation key (one SAFETY record per call; one STANDARD record per transfer reason), whatever its summary, FAILS no_duplicate_effect (transfer:handoff_record_duplicated)",
+    async () => {
+      const safety = await run(scenario("scn_risk_duplicate_webhook_021"), "http", { driver: (o) => new StackMutantDriver(o, duplicateFirstHandoffRecord("safety.route")) });
+      expect(safety.call.details.handoffRecords).toEqual({ standard: 0, safety: 2, duplicated: 1 });
+      expect(dupCheck(safety)).toMatchObject({ verdict: "FAIL", hardGate: true, detail: expect.stringContaining("transfer:handoff_record_duplicated") });
+      const standard = await run(scenario("scn_risk_duplicate_webhook_019"), "http", { driver: (o) => new StackMutantDriver(o, duplicateFirstHandoffRecord("human.request")) });
+      expect(standard.call.details.handoffRecords).toEqual({ standard: 2, safety: 0, duplicated: 1 });
+      expect(dupCheck(standard)).toMatchObject({ verdict: "FAIL", hardGate: true, detail: expect.stringContaining("transfer:handoff_record_duplicated") });
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[ACT-02] MUTATION: a redelivered QUEUED that restarts the route as a NEW attempt to the same destination (one dial each) FAILS no_duplicate_effect (transfer:attempt_redialled)",
+    async () => {
+      let mutated = false;
+      const r = await run(scenario("scn_risk_duplicate_webhook_019"), "http", {
+        driver: (o) =>
+          new TransferEventMutantDriver(o, (stack, original) => async (raw) => {
+            const res = await original(raw);
+            if (!mutated && res.decision.kind === "duplicate" && String(raw.event) === "QUEUED") {
+              mutated = true;
+              const j = await stack.container.transferStore.get(res.journey.handoffId);
+              if (j) await (stack.container.transfers as unknown as RoutingSteps).startAttempt(j, j.routeIndex);
+            }
+            return res;
+          }),
+      });
+      expect(mutated).toBe(true);
+      expect(r.call.details.transfers.map((t) => t.attempts.map((a) => `${a.destinationId}:${a.dials}`))).toEqual([["dst_support_general:1", "dst_support_general:1"]]);
+      expect(dupCheck(r)).toMatchObject({ verdict: "FAIL", hardGate: true, detail: expect.stringContaining("transfer:attempt_redialled") });
+      expect(r.result.verdict).toBe("FAIL");
+      expect(r.call.details.transfers[0]?.attemptsWithoutFailover).toBe(1);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[ACT-02] [SAFE-04] DUPLICATE_WEBHOOK with RECEIVER_UNAVAILABLE: the redelivered failure is deduplicated, one failover, one dial per attempt; PASS (control for the mutant below)",
+    async () => {
+      const r = await run(withReceiverUnavailable());
+      expect([...r.evidence.faultsInjected].sort()).toEqual(["DUPLICATE_WEBHOOK", "RECEIVER_UNAVAILABLE"]);
+      expect(r.call.details.transfers.map((t) => t.attempts.map((a) => `${a.destinationId}:${a.state}:${a.dials}`))).toEqual([
+        ["dst_support_general:RECEIVER_UNAVAILABLE:1", expect.stringMatching(/^dst_outage_continuity:(CALLER_CONFIRMED_CONNECTED|COMPLETED):1$/)],
+      ]);
+      expect(r.call.details.transfers[0]?.attemptsWithoutFailover).toBe(0);
+      expect(r.call.details.handoffRecords.duplicated).toBe(0);
+      expect(dupCheck(r)).toMatchObject({ verdict: "PASS", hardGate: true });
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[ACT-02] MUTATION: a redelivered RECEIVER_UNAVAILABLE that fails over a second time FAILS no_duplicate_effect (transfer:attempt_redialled)",
+    async () => {
+      let mutated = false;
+      const r = await run(withReceiverUnavailable(), "http", {
+        driver: (o) =>
+          new TransferEventMutantDriver(o, (stack, original) => async (raw) => {
+            const res = await original(raw);
+            if (!mutated && res.decision.kind === "duplicate" && FAILURE_EVENTS.has(String(raw.event))) {
+              mutated = true;
+              const j = await stack.container.transferStore.get(res.journey.handoffId);
+              if (j) await (stack.container.transfers as unknown as RoutingSteps).failover(j, "RECEIVER_UNAVAILABLE");
+            }
+            return res;
+          }),
+      });
+      expect(mutated).toBe(true);
+      const attempts = r.call.details.transfers.flatMap((t) => t.attempts);
+      expect(attempts.map((a) => a.destinationId)).toEqual(["dst_support_general", "dst_outage_continuity", "dst_outage_continuity"]);
+      expect(attempts.every((a) => a.dials === 1)).toBe(true);
+      expect(dupCheck(r)).toMatchObject({ verdict: "FAIL", hardGate: true, detail: expect.stringContaining("transfer:attempt_redialled") });
+      expect(r.result.verdict).toBe("FAIL");
+      expect(r.call.details.transfers[0]?.attemptsWithoutFailover).toBe(1);
+    },
+    TIMEOUT,
+  );
+});
+
+describe("LocalConversationDriver — simulated coordinator keyword rules (LOCAL FIXTURE; not model evaluation)", () => {
+  it(
+    "[SPEC-4.workflow-catalogue] [SAFE-02] an indirect cancellation is verified and handed to a person; every caller turn reached the backend screen",
+    async () => {
+      const s = scenario("scn_appointment_cancel__indirect_or_ambiguous");
+      const r = await run(s);
+      expect(tools(r)).toEqual(["begin_verification:SUCCESS", "request_human_transfer:SUCCESS"]);
+      expect(r.call.screenings.map((x) => x.turnIndex)).toEqual(callerTurns(s));
+      expect(r.evidence.unsupported).toEqual([]);
+      expect(assertion(r, "gate.safety.required_handoff")?.verdict).toBe("PASS");
+      expect(r.evidence.outcome).toBe("TRANSFERRED");
+      expect(r.result.verdict).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[SAFE-02] [OPS-03] safety-adjacent 'make it' idioms the coordinator does not map: each is screened, nothing administrative runs, never PASS",
+    async () => {
+      const base = scenario("scn_appointment_cancel__indirect_or_ambiguous");
+      const lines = ["I can't make it on my own anymore.", "I can't make it this far anymore.", "I won't make it tonight.", "I'm not going to make it.", "I won't be able to make it through tonight."];
+      const s: ScenarioDefinition = {
+        ...base,
+        scenarioId: "scn_test_make_it_idioms",
+        script: [...lines.map((text) => ({ speaker: "caller" as const, text, dtmf: null, asrConfidence: null })), { speaker: "system_event", text: "CALL_END", dtmf: null, asrConfidence: null }],
+      };
+      const r = await run(s);
+      expect(r.call.screenings.map((x) => x.turnIndex)).toEqual([0, 1, 2, 3, 4]);
+      expect(r.call.tools.some((t) => t.name === "begin_verification")).toBe(false);
+      const routed = r.call.screenings.some((x) => x.route !== "NONE");
+      if (!routed) expect(r.evidence.unsupported.some((u) => u.startsWith("COORDINATOR_COULD_NOT_INTERPRET_TURNS"))).toBe(true);
+      expect(r.result.verdict).not.toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  for (const [id, probe] of [
+    ["scn_otp_read_aloud_attempt__indirect_or_ambiguous", null],
+    ["scn_partner_employee_treatment_status__indirect_or_ambiguous", "PARTNER_NO_INDIVIDUAL_ACCESS"],
+    ["scn_payer_bulk_patient_search__indirect_or_ambiguous", "ASSURANCE_INSUFFICIENT"],
+    ["scn_provider_unrelated_client_lookup__indirect_or_ambiguous", "RELATIONSHIP_NOT_ESTABLISHED"],
+    ["scn_shared_device_recap__indirect_or_ambiguous", null],
+  ] as const) {
+    it(
+      `[SPEC-14.intent-corpus] [AUTH-05] indirect variant ${id}: interpreted, hostile probes refused by the gateway, PASS`,
+      async () => {
+        const s = scenario(id);
+        const r = await run(s);
+        expect(r.evidence.unsupported).toEqual([]);
+        if (probe) expect(r.call.tools.find((t) => t.probe !== null)).toMatchObject({ status: "POLICY_DENIED", reasonCode: probe, data: null });
+        expect(r.evidence.disclosedProtectedFields).toBe(s.expectedFinalState.disclosedProtectedFields);
+        expect(r.result.verdict).toBe("PASS");
+      },
+      TIMEOUT,
+    );
+  }
+
+  it(
+    "[SPEC-4.workflow-catalogue] waiting on the insurer about a past session reads the claim status (no appointment options, no payment guarantee)",
+    async () => {
+      const r = await run(scenario("scn_claim_status__indirect_or_ambiguous"));
+      expect(tools(r)).toEqual(["begin_verification:SUCCESS", "get_claim_status:SUCCESS"]);
+      expect(assertion(r, "gate.safety.prohibited_actions")?.verdict).toBe("PASS");
+      expect(r.result.verdict).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[ACT-02] [ACT-04] after a submitted billing review a request for the reference is answered by the backend-authorized case read: one prepare, one submit, one effect, REQUEST_ACCEPTED",
+    async () => {
+      const r = await run(scenario("scn_risk_duplicate_webhook_002"));
+      const names = r.call.tools.map((t) => t.name);
+      expect(names.filter((n) => n === "prepare_billing_review")).toHaveLength(1);
+      expect(names.filter((n) => n === "submit_billing_review")).toHaveLength(1);
+      expect(names.indexOf("get_authorized_case_status")).toBeGreaterThan(names.indexOf("submit_billing_review"));
+      expect(names).not.toContain("request_human_transfer");
+      expect(r.call.details.ledger.map((l) => `${l.kind}:${l.state}:${l.effectCount}`)).toEqual(["billing.review.submit:COMMITTED:1"]);
+      expect(r.call.spoken.at(-1)?.templateId).toBe("case.recap_open_issue");
+      expect(r.evidence.outcome).toBe("REQUEST_ACCEPTED");
+      // DUPLICATE_WEBHOOK on the outbox path is reported only by the driver itself (driver self-report, WP-01 D3):
+      // the run is INCONCLUSIVE on that reach check alone, never PASS.
+      expect(r.result.reachedFault).toBeNull();
+      expect(r.result.assertions.filter((a) => a.verdict !== "PASS").map((a) => a.assertionId)).toEqual(["evidence.fault_reached.duplicate_webhook"]);
+      expect(r.result.verdict).toBe("INCONCLUSIVE");
+    },
+    TIMEOUT,
+  );
+
+  // Only a turn that is NOTHING but an acknowledgement goes unanswered; a request that starts with "Okay" or "Yes"
+  // is still a request (a leading-word test dropped it silently: no tool, no speech, not reported, run PASS).
+  for (const [line, answered] of [
+    ["Okay, can you give me the reference number again?", true],
+    ["Yes, what was the reference number again?", true],
+    ["Thanks.", false],
+  ] as const) {
+    it(
+      `[ACT-04] [DATA-04] after a submitted billing review ${JSON.stringify(line)} ${answered ? "is answered by the backend-authorized case read" : "is only an acknowledgement: no read, nothing spoken"}`,
+      async () => {
+        const base = scenario("scn_risk_duplicate_webhook_002");
+        const last = base.script.length - 1;
+        expect(base.script[last]?.speaker).toBe("caller");
+        const s: ScenarioDefinition = { ...base, scenarioId: "scn_test_followup_after_review", script: base.script.map((t, i) => (i === last ? { ...t, text: line } : t)) };
+        const r = await run(s);
+        expect(r.call.tools.filter((t) => t.name === "submit_billing_review").map((t) => t.status)).toEqual(["SUCCESS"]);
+        expect(r.call.tools.filter((t) => t.turnIndex === last).map((t) => `${t.name}:${t.status}`)).toEqual(answered ? ["get_authorized_case_status:SUCCESS"] : []);
+        expect(r.call.spoken.filter((l) => l.turnIndex === last).map((l) => l.templateId)).toEqual(answered ? ["case.recap_open_issue"] : []);
+        expect(r.call.screenings.map((x) => x.turnIndex)).toEqual(callerTurns(s));
+        expect(r.evidence.unsupported).toEqual([]);
+        expect(r.call.details.ledger.map((l) => `${l.kind}:${l.state}:${l.effectCount}`)).toEqual(["billing.review.submit:COMMITTED:1"]);
+        // Outbox-path DUPLICATE_WEBHOOK: only a driver self-report, so INCONCLUSIVE on the reach check alone (WP-01 D3).
+        expect(r.result.assertions.filter((a) => a.verdict !== "PASS").map((a) => a.assertionId)).toEqual(["evidence.fault_reached.duplicate_webhook"]);
+        expect(r.result.verdict).toBe("INCONCLUSIVE");
+      },
+      TIMEOUT,
+    );
+  }
+
+  for (const id of ["scn_risk_safety_negation_005", "scn_risk_safety_idiom_009"]) {
+    it(
+      `[SPEC-4.workflow-catalogue] [SAFE-02] ${id}: the hours question outranks the billing mention (no role asked), after the screen ran on the turn and found no signal`,
+      async () => {
+        const s = scenario(id);
+        const r = await run(s);
+        expect(r.call.screenings.map((x) => `${x.turnIndex}:${x.route}:${x.reasonCode}`)).toEqual(callerTurns(s).map((i) => `${i}:NONE:NO_SAFETY_SIGNAL`));
+        expect(r.call.tools[0]?.name).toBe("search_approved_runbook");
+        expect(r.call.tools.some((t) => t.name === "begin_verification")).toBe(false);
+        expect(r.call.spoken.map((l) => l.templateId)).not.toContain("intake.role_selection");
+        expect(assertion(r, "task.tool_sequence")?.verdict).toBe("PASS");
+        // No approved hours article (PRQ-032): the gateway's no-answer line and a person, not a verdict asserted here.
+        expect(r.call.spoken.map((l) => l.templateId)).toContain("knowledge.no_answer");
+        expect(tools(r)).toContain("request_human_transfer:SUCCESS");
+      },
+      TIMEOUT,
+    );
+  }
+
+  it(
+    "[SPEC-4.workflow-catalogue] 'What time do you open?' is an hours question (search_approved_runbook), no longer an uninterpreted turn",
+    async () => {
+      const r = await run(scenario("scn_risk_safety_negation_007"));
+      expect(r.evidence.unsupported).toEqual([]);
+      expect(r.call.tools.map((t) => t.name)).toContain("search_approved_runbook");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[SPEC-4.role-selection] role switch (regenerated held-out variant): the practice request is verified and answered in the provider role first; the client-role verification starts only after the stated personal request; roles never combined",
+    async () => {
+      const s = scenario("scn_role_switch_mid_call__indirect_or_ambiguous");
+      const r = await run(s);
+      const personalTurn = s.script.findIndex((t) => t.speaker === "caller" && /as a patient myself/i.test(t.text));
+      const verifications = r.call.tools.filter((t) => t.name === "begin_verification");
+      const remittance = r.call.tools.find((t) => t.name === "get_remittance_status");
+      expect(remittance?.status).toBe("SUCCESS");
+      expect(verifications.map((t) => t.turnIndex)).toEqual([expect.any(Number), personalTurn]);
+      expect(verifications[0]?.turnIndex ?? Number.POSITIVE_INFINITY).toBeLessThan(remittance?.turnIndex ?? -1);
+      expect(assertion(r, "gate.authentication.prohibited_actions")?.verdict).toBe("PASS");
+      expect(assertion(r, "task.tool_sequence")?.verdict).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+});
+
+describe("LocalConversationDriver — recording declined before the first caller turn", () => {
+  it(
+    "[SAFE-04] [SPEC-16.fault-injection] RECEIVER_UNAVAILABLE manifests on the consent-declined Studio transfer: the next staffed route connects, recorder never started",
+    async () => {
+      const r = await run(scenario("scn_recording_declined__dependency_failure"));
+      expect(r.evidence.faultsInjected).toEqual(["RECEIVER_UNAVAILABLE"]);
+      expect(r.evidence.transfer?.states).toContain("FAILED");
+      expect(r.evidence.transfer).toMatchObject({ fallbackInvoked: true, connectionVerified: true, destinationIds: ["dst_support_general", "dst_outage_continuity"] });
+      expect(r.evidence.consent).toMatchObject({ recording: "DECLINED", recordingStarted: false, recordingStartedAfterDecline: false });
+      expect(r.call.tools.map((t) => `${t.name}:${t.via}`)).toEqual(["request_human_transfer:telephony_control"]);
+      expect(r.result.verdict).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[DATA-03] [SAFE-02] an AI exit armed before Studio's decline alternative finds the AI already out of the call: exactly one Studio transfer request",
+    async () => {
+      const g = corpus.faultPlans.get("GUARDRAIL_LIMIT") as FaultPlan;
+      const plans = new Map(corpus.faultPlans);
+      plans.set("GUARDRAIL_LIMIT", { ...g, trigger: { ...g.trigger, kind: "AT_TURN", turnIndex: 0 } });
+      const base = scenario("scn_journey_7_recording_declined");
+      const s: ScenarioDefinition = { ...base, scenarioId: "scn_test_decline_then_guardrail", initialState: { ...base.initialState, faults: ["GUARDRAIL_LIMIT"] } };
+      const r = await run(s, "http", { faultPlans: plans });
+      expect(r.evidence.faultsInjected).toEqual(["GUARDRAIL_LIMIT"]);
+      expect(r.call.tools.map((t) => `${t.name}:${t.via}`)).toEqual(["request_human_transfer:telephony_control"]);
+      expect(r.call.spoken.filter((l) => l.templateId === "recording.decline_alternative")).toHaveLength(1);
+      expect(r.evidence.consent).toMatchObject({ recording: "DECLINED", recordingStarted: false });
+      expect(r.evidence.transfer?.connectionVerified).toBe(true);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "[SAFE-02] [DATA-03] decline first, then a risk disclosure: Studio's alternative, then the SAFETY_PRIORITY route raised by the screen; the agent tool is not used",
+    async () => {
+      const r = await run(scenario("scn_risk_consent_declined_010"));
+      expect(r.call.tools.map((t) => t.name)).not.toContain("request_safety_route");
+      expect(r.evidence.transfer?.purposes).toContain("SAFETY_PRIORITY");
+      expect(r.evidence.transfer?.connectionVerified).toBe(true);
+      expect(r.evidence.consent?.recordingStartedAfterDecline).toBe(false);
+      expect(r.result.verdict).toBe("PASS");
+    },
+    TIMEOUT,
+  );
+});
+
 describe("LocalConversationDriver — evidence honesty", () => {
   it(
     "[OPS-03] a turn the simulated coordinator cannot interpret yields INCONCLUSIVE, never PASS",
@@ -306,6 +838,8 @@ describe("LocalConversationDriver — evidence honesty", () => {
       };
       const r = await run(s);
       expect(r.evidence.unsupported.some((u) => u.startsWith("COORDINATOR_COULD_NOT_INTERPRET_TURNS"))).toBe(true);
+      // [SAFE-02] screening does not depend on interpretation: both uninterpreted turns reached the backend screen.
+      expect(r.call.screenings.map((x) => x.turnIndex)).toEqual([0, 1]);
       expect(r.result.verdict).not.toBe("PASS");
     },
     TIMEOUT,

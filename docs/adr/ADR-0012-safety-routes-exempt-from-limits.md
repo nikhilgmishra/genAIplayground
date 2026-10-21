@@ -66,11 +66,17 @@ IMPLEMENTED_OFFLINE.
 
 * A tenant's routine tool traffic can no longer starve a safety or human-route call at the
   gateway, and one call can no longer exhaust the integration's tool budget.
-* The gateway places no limit on safety-class calls. They remain bounded by the batch cap and by
-  the edge WAF rate-based rule (`infra/terraform/modules/ingress`), which counts per source IP,
-  does not classify tools and uses an ILLUSTRATIVE limit; if that rule trips it blocks safety
-  calls through the gateway too. The independent Studio human route stays outside the gateway
-  (T-19).
+* The gateway places no limit on safety-class calls. They remain bounded by the batch cap. The
+  edge WAF rate-based rule (`infra/terraform/modules/ingress`, per source IP, ILLUSTRATIVE limit)
+  blocks only outside the tool-caller paths `/mcp` and `/telephony/`. On those paths a Count rule
+  with the same limit only counts and feeds the `<prefix>-waf-tool-path-rate-observed` alarm
+  (plans only), so the edge does not rate-block a safety or human-route call. The OPA `WAF-RATE`
+  gate refuses a plan in which a blocking rate rule (Block, Captcha or Challenge), a label chain,
+  a custom rule group or a `rule {}` block could rate-block those paths. Residuals
+  (`infra/terraform/README.md`): until the Talkdesk egress allowlist exists, one source can send
+  unlimited requests to those paths (the gateway still authenticates each one; T-19); the managed
+  rule groups were not evaluated against Talkdesk MCP traffic. The independent Studio human route
+  stays outside the gateway (T-19).
 * The exemption follows the tool actually invoked: naming a safety tool only ever runs that
   safety tool.
 * Buckets are in memory per gateway process (as is the generic limiter's local store), so the

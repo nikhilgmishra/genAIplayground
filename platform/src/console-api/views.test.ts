@@ -210,10 +210,18 @@ describe("release review, budgets, destinations and audit search", () => {
     expect(freeText.statusCode).toBe(400);
   });
 
-  it("[AUTH-02] the OIDC code exchange is BLOCKED (no workforce client) and refuses rather than inventing an IdP flow", async () => {
-    const r = await h.call("auth.oidcExchange", { body: { code: "synthetic-code-0000", codeVerifier: "v".repeat(43), redirectUri: "https://console.example.com/auth/callback", nonce: "n".repeat(16) } });
+  it("[AUTH-02] without a wired workforce SSO client the OIDC endpoints refuse rather than inventing an IdP flow", async () => {
+    const r = await h.call("auth.oidcExchange", { body: { code: "synthetic-code-0000", state: "s".repeat(43), codeVerifier: "v".repeat(43), redirectUri: "https://console.example.com/auth/callback" } });
     expect(r.statusCode).toBe(503);
     expect(errorOf(r.body)).toMatchObject({ reasonCode: "OIDC_NOT_CONFIGURED", retryable: false });
+    const start = await h.call("auth.oidcStart", { body: { redirectUri: "https://console.example.com/auth/callback", codeChallenge: "c".repeat(43), codeChallengeMethod: "S256" } });
+    expect(start.statusCode).toBe(503);
+    expect(errorOf(start.body).reasonCode).toBe("OIDC_NOT_CONFIGURED");
+    const refresh = await h.call("auth.refresh", { headers: { authorization: `Bearer vcs_${"A".repeat(43)}` } });
+    expect(refresh.statusCode).toBe(503);
+    // The legacy body shape (nonce from the browser, no state) is not accepted.
+    const legacy = await h.call("auth.oidcExchange", { body: { code: "synthetic-code-0000", codeVerifier: "v".repeat(43), redirectUri: "https://console.example.com/auth/callback", nonce: "n".repeat(16) } });
+    expect(legacy.statusCode).toBe(400);
   });
 });
 

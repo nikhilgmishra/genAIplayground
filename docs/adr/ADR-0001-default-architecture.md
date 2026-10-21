@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | **Accepted for engineering** (offline implementation). Use with PHI, live vendors or production: **Pending human approval** (PRQ-001, PRQ-002, PRQ-004) |
+| Status | **Accepted for engineering** (offline implementation). Use with PHI, live vendors or production: **Pending human approval** (PRQ-001, PRQ-002, PRQ-004). Amended 2026-10-19: [ADR-0018](ADR-0018-followon-product-architecture.md) supersedes this record's speech-layer and agent-framework parts ("no custom speech layer", "no LangGraph or any agent-orchestration framework"); the rest stands |
 | Date | 2026-10-17 |
 | Decided by | Principal engineer (coding agent) for the engineering scope only |
 | Approval needed from | Executive sponsor (scope), privacy counsel (processor coverage), security leadership (architecture review) |

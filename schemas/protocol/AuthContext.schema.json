@@ -2,9 +2,26 @@
   "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/AuthContext.json",
   "title": "AuthContext",
   "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "auth-context.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "interactionId": "callId",
+    "actorRef": "actorId",
+    "subjectRef": "subjectId",
+    "sessionGeneration": "sessionGeneration",
+    "expiresAt": "expiresAt",
+    "dataClassification": "dataClassification",
+    "versions": "policyVersion",
+    "provenance": "verificationMethod"
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "auth-context.v1"
+    },
     "tenantId": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
@@ -384,6 +401,613 @@
         "authMethod"
       ],
       "additionalProperties": false
+    },
+    "processingBasis": {
+      "type": "object",
+      "properties": {
+        "basis": {
+          "type": "string",
+          "enum": [
+            "PUBLIC_INFORMATION",
+            "INDIVIDUAL_REQUEST",
+            "HIPAA_TREATMENT_PAYMENT_OPERATIONS",
+            "HIPAA_AUTHORIZATION",
+            "PART2_WRITTEN_CONSENT",
+            "PERSONAL_REPRESENTATIVE_AUTHORITY",
+            "DELEGATED_ADMINISTRATION",
+            "PARTNER_CONTRACT_PURPOSE",
+            "SAFETY_ROUTING",
+            "LEGAL_REQUIREMENT",
+            "UNKNOWN"
+          ]
+        },
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "support_administration",
+            "identity_verification",
+            "safety_routing",
+            "human_handoff",
+            "case_follow_up",
+            "notification_delivery",
+            "quality_assurance",
+            "evaluation",
+            "model_improvement",
+            "security_audit",
+            "legal_obligation",
+            "analytics_aggregate",
+            "marketing"
+          ]
+        },
+        "jurisdiction": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z]{2}(-[A-Z0-9]{1,3})?$"
+            },
+            {
+              "type": "string",
+              "const": "UNKNOWN"
+            }
+          ]
+        },
+        "approvalRef": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^apr_[A-Za-z0-9_-]{8,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "establishedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "identity_service",
+            "consent_registry",
+            "delegation_registry",
+            "policy_matrix"
+          ]
+        }
+      },
+      "required": [
+        "basis",
+        "purpose",
+        "jurisdiction",
+        "approvalRef",
+        "establishedAt",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "consentProfile": {
+      "type": "object",
+      "properties": {
+        "recording": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "enum": [
+                "GRANTED",
+                "DECLINED",
+                "UNKNOWN",
+                "EXPIRED",
+                "NOT_REQUIRED"
+              ]
+            },
+            "expiresAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedBy": {
+              "type": "string",
+              "enum": [
+                "studio_flow",
+                "human_agent",
+                "portal",
+                "companion",
+                "preference_center",
+                "none"
+              ]
+            },
+            "templateVersion": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceRef": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 256,
+                  "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "value",
+            "expiresAt",
+            "capturedAt",
+            "capturedBy",
+            "templateVersion",
+            "evidenceRef"
+          ],
+          "additionalProperties": false
+        },
+        "transcriptionAiProcessing": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "enum": [
+                "GRANTED",
+                "DECLINED",
+                "UNKNOWN",
+                "EXPIRED",
+                "NOT_REQUIRED"
+              ]
+            },
+            "expiresAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedBy": {
+              "type": "string",
+              "enum": [
+                "studio_flow",
+                "human_agent",
+                "portal",
+                "companion",
+                "preference_center",
+                "none"
+              ]
+            },
+            "templateVersion": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceRef": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 256,
+                  "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "value",
+            "expiresAt",
+            "capturedAt",
+            "capturedBy",
+            "templateVersion",
+            "evidenceRef"
+          ],
+          "additionalProperties": false
+        },
+        "supportPurpose": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "enum": [
+                "GRANTED",
+                "DECLINED",
+                "UNKNOWN",
+                "EXPIRED",
+                "NOT_REQUIRED"
+              ]
+            },
+            "expiresAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedBy": {
+              "type": "string",
+              "enum": [
+                "studio_flow",
+                "human_agent",
+                "portal",
+                "companion",
+                "preference_center",
+                "none"
+              ]
+            },
+            "templateVersion": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceRef": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 256,
+                  "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "value",
+            "expiresAt",
+            "capturedAt",
+            "capturedBy",
+            "templateVersion",
+            "evidenceRef"
+          ],
+          "additionalProperties": false
+        },
+        "disclosureAuthority": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "enum": [
+                "GRANTED",
+                "DECLINED",
+                "UNKNOWN",
+                "EXPIRED",
+                "NOT_REQUIRED"
+              ]
+            },
+            "expiresAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedBy": {
+              "type": "string",
+              "enum": [
+                "studio_flow",
+                "human_agent",
+                "portal",
+                "companion",
+                "preference_center",
+                "none"
+              ]
+            },
+            "templateVersion": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceRef": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 256,
+                  "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "value",
+            "expiresAt",
+            "capturedAt",
+            "capturedBy",
+            "templateVersion",
+            "evidenceRef"
+          ],
+          "additionalProperties": false
+        },
+        "notificationSubscription": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "enum": [
+                "GRANTED",
+                "DECLINED",
+                "UNKNOWN",
+                "EXPIRED",
+                "NOT_REQUIRED"
+              ]
+            },
+            "expiresAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedBy": {
+              "type": "string",
+              "enum": [
+                "studio_flow",
+                "human_agent",
+                "portal",
+                "companion",
+                "preference_center",
+                "none"
+              ]
+            },
+            "templateVersion": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceRef": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 256,
+                  "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "value",
+            "expiresAt",
+            "capturedAt",
+            "capturedBy",
+            "templateVersion",
+            "evidenceRef"
+          ],
+          "additionalProperties": false
+        },
+        "marketing": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string",
+              "enum": [
+                "GRANTED",
+                "DECLINED",
+                "UNKNOWN",
+                "EXPIRED",
+                "NOT_REQUIRED"
+              ]
+            },
+            "expiresAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capturedBy": {
+              "type": "string",
+              "enum": [
+                "studio_flow",
+                "human_agent",
+                "portal",
+                "companion",
+                "preference_center",
+                "none"
+              ]
+            },
+            "templateVersion": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceRef": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 256,
+                  "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "value",
+            "expiresAt",
+            "capturedAt",
+            "capturedBy",
+            "templateVersion",
+            "evidenceRef"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "recording",
+        "transcriptionAiProcessing",
+        "supportPurpose",
+        "disclosureAuthority",
+        "notificationSubscription",
+        "marketing"
+      ],
+      "additionalProperties": false
+    },
+    "dataClassification": {
+      "type": "string",
+      "enum": [
+        "PUBLIC",
+        "INTERNAL",
+        "PHI",
+        "PHI_RESTRICTED",
+        "FINANCIAL"
+      ]
     }
   },
   "required": [

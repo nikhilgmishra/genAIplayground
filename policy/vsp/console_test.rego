@@ -114,7 +114,8 @@ role_matrix := [
 	["deployment:deploy", "deployment_operator", "security_admin"],
 	["deployment:rollback", "deployment_operator", "supervisor"],
 	["budget:define", "deployment_operator", "support_agent"],
-	["access_review:perform", "security_admin", "supervisor"],
+	["recovery_identity:propose", "security_admin", "supervisor"],
+	["recovery_identity:revoke", "security_admin", "auditor"],
 	["secret:rotate", "security_admin", "deployment_operator"],
 	["break_glass:request", "support_agent", "auditor"],
 	["operations:overview", "safety_responder", "auditor"],
@@ -141,7 +142,10 @@ test_each_console_action_denied_for_other_role if {
 	}
 }
 
-# Dedicated console read actions (least privilege; none mutates, so the auditor taint never applies).
+# Every console read action (least privilege; none mutates, so the auditor taint never applies) with the exact role
+# set a plain staff request (MFA, no break-glass grant) is allowed for. An empty set: no role may read it that way
+# (restricted_record:view needs a break-glass grant, tested in its own tests; secret:view and
+# transcript:download_unrestricted are granted to no role).
 console_read_role_sets := {
 	"console:session": {"auditor", "deployment_operator", "knowledge_editor", "policy_approver", "safety_responder", "security_admin", "support_agent", "supervisor"},
 	"operations:overview": {"deployment_operator", "safety_responder", "security_admin", "support_agent", "supervisor"},
@@ -149,21 +153,40 @@ console_read_role_sets := {
 	"kill_switch:view": {"deployment_operator", "security_admin", "supervisor"},
 	"reconciliation:view": {"supervisor"},
 	"human_task:view": {"support_agent", "supervisor"},
+	"journey:inspect": {"safety_responder", "support_agent", "supervisor"},
+	"pending_action:review": {"support_agent", "supervisor"},
+	"safety_event:view": {"safety_responder", "supervisor"},
 	"release:view": {"auditor", "knowledge_editor", "policy_approver", "security_admin"},
+	"access_review:view": {"auditor", "security_admin"},
+	"recovery_identity:view": {"security_admin"},
+	"audit:search": {"auditor", "security_admin"},
+	"audit:verify_integrity": {"auditor", "security_admin"},
+	"policy:review": {"auditor", "policy_approver", "security_admin"},
+	"restricted_record:view": set(),
+	"secret:view": set(),
+	"transcript:download_unrestricted": set(),
 }
 
 role_allowed(set, r) if r in set
 
 role_allowed(set, r) := false if not r in set
 
-test_console_read_actions_exact_role_sets if {
-	every action, allowed_roles in console_read_role_sets {
-		data.vsp.catalogue.console.actions[action].mutates == false
-		every r, _ in staff_ids {
-			d := decide(creq(action, staff(r)))
-			expected := role_allowed(allowed_roles, r)
-			d.allow == expected
-		}
+# The table pins EVERY read action of the production catalogue, and nothing else: a read action added to the
+# catalogue without a pinned role set, or an entry dropped from the table, fails here (no decisions evaluated).
+test_console_read_role_sets_cover_every_catalogue_read_action if {
+	{a | some a, d in data.vsp.catalogue.console.actions; d.mutates == false} == {a | some a, _ in console_read_role_sets}
+}
+
+# Every read action allows exactly its role set and nothing mutates. ONE data-driven test over the whole table: each
+# action is its own case (opa test reports a PASS or FAIL line per action), so no table entry can lack its assertion
+# and no part of the table can lose its test on its own. It evaluates 144 decisions (about 2.6 s, more under load):
+# scripts/policy.sh runs opa test with an explicit 60 s per-test deadline instead of OPA's default 5 s.
+test_console_read_role_set[action] if {
+	some action, allowed_roles in console_read_role_sets
+	data.vsp.catalogue.console.actions[action].mutates == false
+	every r, _ in staff_ids {
+		d := decide(creq(action, staff(r)))
+		d.allow == role_allowed(allowed_roles, r)
 	}
 }
 
@@ -271,6 +294,43 @@ test_break_glass_approval_never_self if {
 	denied(x, ["SELF_APPROVAL_PROHIBITED"])
 	y := with_resource(creq("break_glass:approve", staff("security_admin")), {"initiatorStaffId": staff_ids.supervisor})
 	allowed(y, ["ALLOW_STAFF_ROLE"], ["AUDIT_ADMIN_ACTION"])
+	denied(creq("break_glass:approve", staff("security_admin")), ["INITIATOR_REQUIRED"])
+}
+
+# WP-05: the holder never reviews their own emergency access; recovery identities need a second admin.
+test_access_review_and_recovery_identity_approval_never_self if {
+	every action in ["access_review:perform", "recovery_identity:approve"] {
+		denied(with_resource(creq(action, staff("security_admin")), {"initiatorStaffId": staff_ids.security_admin}), ["SELF_APPROVAL_PROHIBITED"])
+		allowed(with_resource(creq(action, staff("security_admin")), {"initiatorStaffId": staff_ids.supervisor}), ["ALLOW_STAFF_ROLE"], ["AUDIT_ADMIN_ACTION"])
+		denied(creq(action, staff("security_admin")), ["INITIATOR_REQUIRED"])
+		d := decide(with_resource(creq(action, staff("supervisor")), {"initiatorStaffId": staff_ids.security_admin}))
+		d.allow == false
+		"ROLE_NOT_PERMITTED" in d.reasonCodes
+	}
+
+	# The auditor reads reviews but never completes one (role and read-only taint).
+	a := decide(with_resource(creq("access_review:perform", staff("auditor")), {"initiatorStaffId": staff_ids.supervisor}))
+	a.allow == false
+	"ROLE_NOT_PERMITTED" in a.reasonCodes
+}
+
+# WP-05 round 2: only the holder named by a recovery identity confirms it (proof of possession in their own SSO
+# session); no role reaches it otherwise, and an unassigned identity is confirmed by nobody.
+test_recovery_identity_confirm_only_by_the_named_holder if {
+	every role in ["security_admin", "supervisor", "safety_responder"] {
+		own := with_resource(creq("recovery_identity:confirm", staff(role)), {"assignedStaffId": staff_ids[role]})
+		allowed(own, ["ALLOW_ASSIGNED_STAFF"], ["AUDIT_ADMIN_ACTION"])
+	}
+	every role in ["security_admin", "supervisor", "safety_responder", "auditor", "support_agent"] {
+		other := with_resource(creq("recovery_identity:confirm", staff(role)), {"assignedStaffId": staff_ids.deployment_operator})
+		d := decide(other)
+		d.allow == false
+	}
+	denied(creq("recovery_identity:confirm", staff("security_admin")), ["ROLE_NOT_PERMITTED"])
+
+	# A holder whose roles hold no recovery role cannot confirm even their own assignment.
+	d := decide(with_resource(creq("recovery_identity:confirm", staff("support_agent")), {"assignedStaffId": staff_ids.support_agent}))
+	d.allow == false
 }
 
 # --------------------------------------------------------------- break-glass ----

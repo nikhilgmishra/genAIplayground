@@ -48,6 +48,8 @@ export interface CompletedCall {
   persona: { personKey: string | null; role: string | null };
   spoken: CallSession["spoken"];
   tools: CallSession["tools"];
+  /** One backend utterance screening per caller turn, whatever the coordinator made of the turn. */
+  screenings: CallSession["screenings"];
   details: CallBackendDetails;
   coordinator: SimulatedCoordinator["notes"];
 }
@@ -99,6 +101,10 @@ interface DriverCall {
   atEnd: (() => Promise<void>)[];
   /** Checks run at collection time for transfer-state faults (injected only if the scripted state occurred). */
   transferFaults: { faultId: string; state: string }[];
+  /** Faults that count as injected once a duplicate telephony transfer event of this call was delivered. */
+  duplicateTransferFaults: string[];
+  /** Recording declined before the first caller turn: the decline STATE is set in startCall, Studio's alternative is requested at the first step. */
+  consentAlternativePending: boolean;
   unsupported: string[];
   notes: string[];
   idpAvailable: boolean;
@@ -247,6 +253,8 @@ export class LocalConversationDriver implements ConversationDriver {
         restoreBeforeEnd: [],
         atEnd: [],
         transferFaults: [],
+        duplicateTransferFaults: [],
+        consentAlternativePending: false,
         unsupported: [],
         notes,
         idpAvailable: true,
@@ -262,7 +270,14 @@ export class LocalConversationDriver implements ConversationDriver {
         scenario.script.some((t) => isEvent(t, "CALLER_ID_PRESENTED")),
       );
       if (!started) call.unsupported.push("CALL_START_REFUSED");
-      if (declinedAtStart) await call.coordinator.consentDeclinedAlternative();
+      if (declinedAtStart) {
+        // The decline is recorded server-side (TC-01 above, the recorder never starts) and the AI is out of the
+        // call from now on. Only Studio's approved alternative (speech + SF-13 request) waits for the first step,
+        // so faults the runner arms right after startCall (ON_TRANSFER_STATE, AT_CALL_START, AT_TURN 0) apply to
+        // that transfer, while no fault in between can find the AI active and request a second Studio route.
+        call.coordinator.markConsentDeclined();
+        call.consentAlternativePending = true;
+      }
       await stack.drain();
       this.calls.set(ref, call);
       return { callRef: ref };
@@ -287,6 +302,7 @@ export class LocalConversationDriver implements ConversationDriver {
     const s = call.session;
     s.turnIndex = index;
     const started = performance.now();
+    await this.requestPendingConsentAlternative(call);
     if (turn.speaker === "caller") {
       await call.coordinator.onCallerTurn(turn.text, turn.asrConfidence, index);
     } else {
@@ -480,6 +496,15 @@ export class LocalConversationDriver implements ConversationDriver {
         });
         return { accepted: true };
       case "DUPLICATE_WEBHOOK":
+        // Vendor webhook redelivery on the transfer path: every telephony lifecycle event of this call's
+        // transfers is delivered twice with the same event id (the fixture's DUPLICATE_DELIVERY, at-least-once
+        // like a vendor webhook; TB-07). Counted as injected only once a duplicate event was actually delivered
+        // (collectEvidence); no_duplicate_effect then also checks the transfer path (dials per attempt, attempts
+        // started without a failover, state history, handoff records per creation key; driver/evidence.ts
+        // transferPathFindings).
+        faults.inject({ integrationId: "talkdesk-telephony", operation: "requestTransfer", kind: "DUPLICATE_DELIVERY", mode: "persistent" });
+        call.duplicateTransferFaults.push(id);
+        // Outbox redelivery after the first consequential tool (consumer dedup by message id).
         onTool("after", null, async () => {
           c.publisher.setDuplicateDelivery(true);
           call.atEnd.push(async () => {
@@ -587,8 +612,17 @@ export class LocalConversationDriver implements ConversationDriver {
     const call = this.call(h);
     try {
       const transferStates = new Set<string>();
-      for (const d of call.stack.container.fixtures.telephony.delivered) if (d.callId === call.session.callId) transferStates.add(d.state);
+      let duplicateEvents = 0;
+      for (const d of call.stack.container.fixtures.telephony.delivered) {
+        if (d.callId !== call.session.callId) continue;
+        transferStates.add(d.state);
+        if (d.delivery.duplicate) duplicateEvents += 1;
+      }
       for (const tf of call.transferFaults) if (transferStates.has(tf.state)) call.faultsInjected.add(tf.faultId);
+      if (call.duplicateTransferFaults.length > 0) {
+        call.notes.push(`TELEPHONY_DUPLICATE_EVENTS_${Math.min(duplicateEvents, 99)}`);
+        if (duplicateEvents > 0) for (const f of call.duplicateTransferFaults) call.faultsInjected.add(f);
+      }
       const { evidence, details } = await collectCallEvidence({
         stack: call.stack,
         session: call.session,
@@ -605,6 +639,7 @@ export class LocalConversationDriver implements ConversationDriver {
         persona: { personKey: call.persona.personKey, role: call.persona.role },
         spoken: call.session.spoken,
         tools: call.session.tools,
+        screenings: call.session.screenings,
         details,
         coordinator: call.coordinator.notes,
       });
@@ -621,6 +656,7 @@ export class LocalConversationDriver implements ConversationDriver {
   private async finishCall(call: DriverCall, reason: "CALLER_HANGUP" | null): Promise<void> {
     const s = call.session;
     if (s.ended) return;
+    await this.requestPendingConsentAlternative(call); // a script with no step after the decline
     for (const r of call.restoreBeforeEnd.splice(0)) await r().catch(() => call.notes.push("RESTORE_FAILED"));
     await call.stack.drain(3_000);
     if (reason) {
@@ -634,6 +670,13 @@ export class LocalConversationDriver implements ConversationDriver {
       if (j && (j.status === "CONNECTED" || j.status === "COMPLETED")) connected = true;
     }
     await s.end(connected ? "TRANSFERRED" : "FLOW_COMPLETED");
+  }
+
+  /** Studio's approved alternative for a decline before the first caller turn (SF-04), once. */
+  private async requestPendingConsentAlternative(call: DriverCall): Promise<void> {
+    if (!call.consentAlternativePending) return;
+    call.consentAlternativePending = false;
+    await call.coordinator.consentDeclinedAlternative();
   }
 
   private hooksFor(call: DriverCall): ToolHooks {

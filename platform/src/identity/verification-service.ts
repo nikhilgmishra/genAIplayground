@@ -13,17 +13,20 @@ import type { IdentityDirectory, NotificationSender, OidcClaims, OidcVerifier, R
 import type { Clock } from "../shared/clock.js";
 import { addMs, iso } from "../shared/clock.js";
 import { constantTimeEqualHex, hmacHex, sha256Hex } from "../shared/canonical.js";
-import { AccessDeniedError, ConflictError, PlatformError, SessionInvalidError, ValidationError } from "../shared/errors.js";
+import { AccessDeniedError, ConflictError, DependencyError, PlatformError, SessionInvalidError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
 import type { Logger, Metrics } from "../observability/ports.js";
 import { silentLogger } from "../observability/logger.js";
 import { noopMetrics } from "../observability/metrics.js";
-import type { BeginVerificationInput, GenericVerificationResponse, KvStore, VerificationCompletion, VerificationService } from "./ports.js";
+import { FAIL_CLOSED_SNAPSHOT } from "../ops/kill-switches.js";
+import { notificationBlock } from "../ops/notification-gate.js";
+import type { KillSwitchSnapshot } from "../ops/ports.js";
+import type { BeginVerificationInput, GenericVerificationResponse, KvStore, VerificationCompletion, VerificationService, VerificationUnavailableReason } from "./ports.js";
 import type { VerificationConfig } from "./config.js";
 import { VerificationAbuseMonitor } from "./abuse-monitor.js";
 import { bindingRefFromHash, epochSeconds, hourWindow, kvKeys, sessionRefHash } from "./keys.js";
 import { MATCH_CODE_PATTERN, newMatchCode } from "./match-code.js";
-import { addRiskFlag, lifecycleProblem } from "./session-store.js";
+import { addRiskFlag, lifecycleProblem, privilegesIdleExpired } from "./session-store.js";
 import type { SessionRecord } from "./session-store.js";
 import type { TrustedSessionService } from "./session-service.js";
 
@@ -53,6 +56,18 @@ import type { TrustedSessionService } from "./session-service.js";
  * OTP_ABUSE_SUSPECTED, which would turn the flag into a different tool result).
  * Session flags are set only by controls every caller triggers identically: too many
  * begins on the call, a locked challenge, the session OTP failure budget.
+ *
+ * Notifications switched off (OPS-KS-01, caller-facing): every begin (secure link, OTP,
+ * step-up) first reads the kill-switch snapshot (`notificationSwitches`). While
+ * OUTBOUND_NOTIFICATIONS or INTEGRATION <notification sender> is engaged, or the state is
+ * unreadable, the composed KillSwitchGatedNotificationSender refuses every ROUTINE send, so
+ * no link or code could arrive: the begin answers VERIFICATION_UNAVAILABLE_USE_HUMAN (human
+ * route) BEFORE the per-session begin counter, any account lookup, any account or
+ * destination throttle and any stored transaction. The switch state is global, so the answer
+ * is identical for zero, one or many matches and spends no counter that only real accounts
+ * have. The reason code (`unavailableReason`) is audit evidence only. A switch engaged
+ * between this check and the send is still stopped by the gated sender (the caller then
+ * hears the generic "if eligible" answer for that one request).
  *
  * Secrets: OTP codes exist in plaintext only on the way to the NotificationSender;
  * the store holds HMAC-SHA256(pepper, challengeId:code). Nonces are stored only as
@@ -156,6 +171,15 @@ export interface VerificationServiceDeps {
   metrics?: Metrics;
   /** Account-keyed abuse monitoring store (AUTH-ENUM-01); defaults to one over `kv`. */
   abuseMonitor?: VerificationAbuseMonitor;
+  /**
+   * OPS-KS-01 (caller-facing): reads the current kill-switch snapshot for the deployment's tenant
+   * (`KillSwitchService.snapshot`, the same reader the KillSwitchGatedNotificationSender is composed
+   * with). Consulted before any account lookup; a throw, a rejection or a malformed snapshot counts
+   * as "switched off" (fail closed, like the gated sender). The INTEGRATION target is
+   * `notifications.integrationId`. Required: without it a refused send would still be answered with the
+   * generic "if eligible" response (README, integration contract item 0).
+   */
+  notificationSwitches: () => Promise<KillSwitchSnapshot>;
 }
 
 const STORE_GRACE_SECONDS = 3600;
@@ -198,12 +222,18 @@ export class SecureVerificationService implements VerificationService {
 
   // =========================== secure link (preferred) ===========================
 
-  async beginSecureLink(ctx: AuthContext, input: BeginVerificationInput): Promise<{ transactionId: string; matchCode: string; response: GenericVerificationResponse }> {
+  async beginSecureLink(
+    ctx: AuthContext,
+    input: BeginVerificationInput,
+  ): Promise<{ transactionId: string; matchCode: string; response: GenericVerificationResponse; unavailableReason?: VerificationUnavailableReason }> {
     const req = this.parseBegin(input);
     const { hash, rec } = await this.currentSession(ctx);
     this.assertRole(rec, req.role);
     const transactionId = newId("vtx", 24);
     const matchCode = newMatchCode();
+    // OPS-KS-01: decided before any counter or lookup (global state: identical for every caller).
+    const switchedOff = await this.notificationsSwitchedOff(hash, "secure_link");
+    if (switchedOff) return { transactionId, matchCode, response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", unavailableReason: switchedOff };
 
     if (!(await this.sessionBeginAllowed(hash, rec))) return { transactionId, matchCode, response: "VERIFICATION_UNAVAILABLE_USE_HUMAN" };
 
@@ -307,8 +337,12 @@ export class SecureVerificationService implements VerificationService {
       const problem = this.bindingPreconditions(rec, tx, now);
       if (problem) return { abort: problem };
       if (rec.actorId !== null && rec.actorId !== actorId) return { abort: "ACCOUNT_ALREADY_BOUND" };
+      // Same-actor re-verification after idle expiry (FO-05-19): never a silent switch of person.
+      if (typeof rec.lapsedActorId === "string" && rec.lapsedActorId !== actorId) return { abort: "SESSION_ACTOR_MISMATCH" };
       return {
         ...rec,
+        lapsedActorId: null,
+        lastActivityAt: iso(now),
         actorId,
         accountId,
         selectedRole: tx.role,
@@ -329,13 +363,16 @@ export class SecureVerificationService implements VerificationService {
 
   // =========================== OTP fallback ===========================
 
-  async beginOtp(ctx: AuthContext, input: BeginVerificationInput): Promise<{ challengeId: string; response: GenericVerificationResponse }> {
+  async beginOtp(ctx: AuthContext, input: BeginVerificationInput): Promise<{ challengeId: string; response: GenericVerificationResponse; unavailableReason?: VerificationUnavailableReason }> {
     const req = this.parseBegin(input);
     const { hash, rec } = await this.currentSession(ctx);
     this.assertRole(rec, req.role);
     const challengeId = newId("otc", 24);
     // OTP stays off until TB-03 (isolated DTMF capture) is evidenced; the response is identical for every caller.
     if (!this.cfg.otpEnabled) return { challengeId, response: "VERIFICATION_UNAVAILABLE_USE_HUMAN" };
+    // OPS-KS-01: before the session counters and the account lookup (no code could be delivered).
+    const switchedOff = await this.notificationsSwitchedOff(hash, "otp");
+    if (switchedOff) return { challengeId, response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", unavailableReason: switchedOff };
     if (!(await this.sessionBeginAllowed(hash, rec))) return { challengeId, response: "VERIFICATION_UNAVAILABLE_USE_HUMAN" };
 
     let candidate: Candidate | null;
@@ -499,8 +536,11 @@ export class SecureVerificationService implements VerificationService {
       if (problem) return { abort: problem };
       if (rec.actorId !== null && rec.actorId !== actorId) return { abort: "ACCOUNT_ALREADY_BOUND" };
       if (rec.actorId === actorId && meetsAssurance(rec.assurance, "A1")) return rec; // never downgrade an existing binding
+      if (typeof rec.lapsedActorId === "string" && rec.lapsedActorId !== actorId) return { abort: "SESSION_ACTOR_MISMATCH" };
       return {
         ...rec,
+        lapsedActorId: null,
+        lastActivityAt: iso(now),
         actorId,
         accountId,
         selectedRole: ch.role,
@@ -522,11 +562,14 @@ export class SecureVerificationService implements VerificationService {
 
   // =========================== step-up (A3, one action digest) ===========================
 
-  async beginStepUp(ctx: AuthContext, actionDigest: string): Promise<{ transactionId: string; response: GenericVerificationResponse }> {
+  async beginStepUp(ctx: AuthContext, actionDigest: string): Promise<{ transactionId: string; response: GenericVerificationResponse; unavailableReason?: VerificationUnavailableReason }> {
     if (!Sha256Hex.safeParse(actionDigest).success) throw new ValidationError("ACTION_DIGEST_INVALID");
     const { hash, rec } = await this.currentSession(ctx);
     if (!meetsAssurance(rec.assurance, "A2") || !rec.actorId || !rec.accountId || !rec.selectedRole) throw new AccessDeniedError("STEP_UP_REQUIRES_A2");
     const transactionId = newId("vtx", 24);
+    // OPS-KS-01: no step-up link could be delivered; the human route instead (before the account lookup).
+    const switchedOff = await this.notificationsSwitchedOff(hash, "step_up");
+    if (switchedOff) return { transactionId, response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", unavailableReason: switchedOff };
     let channel: RegisteredChannel | null = null;
     try {
       if ((await this.deps.directory.accountState(rec.accountId)) === "ACTIVE") {
@@ -580,6 +623,9 @@ export class SecureVerificationService implements VerificationService {
     const bound = await this.deps.sessions.store.mutate(tx.sessionRefHash, (rec, now) => {
       const problem = this.bindingPreconditions(rec, tx, now);
       if (problem) return { abort: problem };
+      // The A2 a step-up builds on must still be live: privileges idle beyond the limit (not yet dropped by
+      // a reader) are not a base for A3 (FO-05-18, AUTH-04).
+      if (privilegesIdleExpired(rec, now, this.deps.sessions.config)) return { abort: "SESSION_IDLE_EXPIRED" };
       if (rec.actorId !== actorId || !meetsAssurance(rec.assurance, "A2")) return { abort: "STEP_UP_REQUIRES_A2" };
       return {
         ...rec,
@@ -620,6 +666,27 @@ export class SecureVerificationService implements VerificationService {
     if (n <= this.cfg.maxVerificationBeginsPerSession) return true;
     await this.flagSession(hash, "ENUMERATION_SUSPECTED");
     return false;
+  }
+
+  /**
+   * OPS-KS-01: the reason ROUTINE notifications are switched off right now, or null. Uses the same pure
+   * decision as the KillSwitchGatedNotificationSender (`notificationBlock`, purpose ROUTINE, INTEGRATION
+   * target = the sender's integration id). Unreadable or malformed state fails closed. Reads nothing
+   * account-related and touches no counter.
+   */
+  private async notificationsSwitchedOff(hash: string, method: "secure_link" | "otp" | "step_up"): Promise<VerificationUnavailableReason | null> {
+    let snapshot: KillSwitchSnapshot | null = null;
+    try {
+      const s = await this.deps.notificationSwitches();
+      if (s && typeof s.outboundNotifications === "boolean" && Array.isArray(s.integrations)) snapshot = s;
+    } catch {
+      snapshot = null; // unreadable: fail closed
+    }
+    const block = notificationBlock(snapshot ?? FAIL_CLOSED_SNAPSHOT, "ROUTINE", this.deps.notifications.integrationId);
+    if (!block) return null;
+    const reasonCode: VerificationUnavailableReason = snapshot === null ? "KILL_SWITCH_STATE_UNAVAILABLE" : block;
+    this.logger.warn("identity.verification.notifications_switched_off", { sessionBindingRef: bindingRefFromHash(hash), reasonCode, method });
+    return reasonCode;
   }
 
   /** Exactly one ACTIVE candidate holding the role, with a verified channel of an allowed kind; otherwise null. */
@@ -749,6 +816,12 @@ export class SecureVerificationService implements VerificationService {
     try {
       claims = await this.deps.oidc.verifyIdToken(idToken, { nonce, maxAuthAgeSeconds });
     } catch (err) {
+      // IDP_UNAVAILABLE (discovery or key set unreachable): the binding fails closed with one uniform reason,
+      // assurance stays where it was and no weaker method is substituted; the caller is routed to a person.
+      if (err instanceof DependencyError) {
+        this.logger.warn("identity.verification.idp_unavailable", { reasonCode: err.reasonCode });
+        return { reason: "IDP_UNAVAILABLE" };
+      }
       return { reason: err instanceof PlatformError ? err.reasonCode : "OIDC_TOKEN_INVALID" };
     }
     if (!claims.amr.some((m) => this.cfg.acceptedAmr.includes(m))) return { reason: "MFA_REQUIRED" };

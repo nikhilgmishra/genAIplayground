@@ -2,7 +2,10 @@
  * Append-only evaluation results (spec section 14 "Scorecard and release evidence").
  *
  * Layout: <evidenceRoot>/runs/<runId>/
+ *   run.json             run lineage: command, rerunOf / supersedes with a reason (written once at creation)
  *   results.jsonl        one EvaluationResult per line (canonical JSON), append-only
+ *   result-context.jsonl per result: seed, rerun command, expected scope, initial world digest, every requested
+ *                        fault with its independent reach observation, observed tools, errors (result-context.ts)
  *   call-evidence.jsonl  the driver evidence each result was scored from
  *   summary.json         aggregate (written once by finalize)
  *   report.md            human-readable report (written once by finalize)
@@ -13,11 +16,12 @@
  * repository checkout; production-derived evidence belongs in the approved
  * restricted evidence store (PRQ-003).
  */
-import { appendFileSync, closeSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { EvaluationResult } from "../protocol/index.js";
 import { canonicalJson } from "../shared/canonical.js";
 import { newId } from "../shared/ids.js";
+import { RUN_LINEAGE_VERSION, ResultContext, RunLineage } from "./result-context.js";
 import type { CallEvidence, ResultSink } from "./runner.js";
 
 export class ResultsWriterError extends Error {
@@ -33,6 +37,11 @@ export interface RunWriterOptions {
   refPrefix?: string;
   runId?: string;
   idSource?: () => string;
+  /**
+   * Lineage written to `run.json` when the run is created (FO-17-12): the command, the runs it reruns and the
+   * aggregates it supersedes, with a reason. Omitted: a first run with no predecessor is recorded.
+   */
+  lineage?: Omit<RunLineage, "lineageVersion" | "runId" | "createdAt" | "sourceTree"> & { createdAt?: string; sourceTree?: string | null };
 }
 
 const RUN_ID = /^run_[A-Za-z0-9_-]{8,64}$/;
@@ -59,7 +68,20 @@ export class RunResultWriter implements ResultSink {
     } catch {
       throw new ResultsWriterError("RUN_ALREADY_EXISTS");
     }
-    for (const f of ["results.jsonl", "call-evidence.jsonl"]) closeSync(openSync(join(dir, f), "wx"));
+    for (const f of ["results.jsonl", "call-evidence.jsonl", "result-context.jsonl"]) closeSync(openSync(join(dir, f), "wx"));
+    const lineage = RunLineage.parse({
+      lineageVersion: RUN_LINEAGE_VERSION,
+      runId,
+      createdAt: opts.lineage?.createdAt ?? new Date().toISOString(),
+      command: opts.lineage?.command ?? "unspecified (library call)",
+      rerunOf: opts.lineage?.rerunOf ?? [],
+      supersedes: opts.lineage?.supersedes ?? [],
+      reason: opts.lineage?.reason ?? null,
+      sourceCommit: opts.lineage?.sourceCommit ?? null,
+      sourceTree: opts.lineage?.sourceTree ?? null,
+      corpusDigest: opts.lineage?.corpusDigest ?? null,
+    });
+    writeFileSync(join(dir, "run.json"), `${JSON.stringify(lineage, null, 2)}\n`, { flag: "wx" });
     return new RunResultWriter(runId, dir, `${opts.refPrefix ?? "evidence"}/runs/${runId}`);
   }
 
@@ -74,12 +96,20 @@ export class RunResultWriter implements ResultSink {
   /** Reference stored in EvaluationResult.evidenceRef for a scenario repetition. */
   evidenceRefFor = (scenarioId: string, repetition: number): string => `${this.refPrefix}/call-evidence.jsonl#${scenarioId}/${repetition}`;
 
-  append(result: EvaluationResult, evidence: CallEvidence | null): void {
+  append(result: EvaluationResult, evidence: CallEvidence | null, context?: ResultContext): void {
     if (this.finalized) throw new ResultsWriterError("RUN_FINALIZED");
     const parsed = EvaluationResult.safeParse(result);
     if (!parsed.success) throw new ResultsWriterError("RESULT_SCHEMA_INVALID");
     if (parsed.data.runId !== this.runId) throw new ResultsWriterError("RESULT_RUN_ID_MISMATCH");
+    let ctx: ResultContext | null = null;
+    if (context !== undefined) {
+      const c = ResultContext.safeParse(context);
+      if (!c.success) throw new ResultsWriterError("RESULT_CONTEXT_SCHEMA_INVALID");
+      if (c.data.runId !== this.runId || c.data.scenarioId !== parsed.data.scenarioId || c.data.repetition !== parsed.data.repetition) throw new ResultsWriterError("RESULT_CONTEXT_MISMATCH");
+      ctx = c.data;
+    }
     appendFileSync(this.resultsPath, `${canonicalJson(parsed.data)}\n`, { flag: "a" });
+    if (ctx) appendFileSync(join(this.dir, "result-context.jsonl"), `${canonicalJson(ctx)}\n`, { flag: "a" });
     appendFileSync(
       join(this.dir, "call-evidence.jsonl"),
       `${canonicalJson({ scenarioId: parsed.data.scenarioId, repetition: parsed.data.repetition, evidence })}\n`,
@@ -116,4 +146,20 @@ export function readRunResults(runDir: string): EvaluationResult[] {
       }
       return EvaluationResult.parse(value);
     });
+}
+
+/** Reads a run's result-context.jsonl (empty for runs written before the context existed). */
+export function readRunContexts(runDir: string): ResultContext[] {
+  const path = join(runDir, "result-context.jsonl");
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8")
+    .split("\n")
+    .filter((l) => l.trim().length > 0)
+    .map((line) => ResultContext.parse(JSON.parse(line)));
+}
+
+/** Reads a run's lineage (null for runs written before lineage existed). */
+export function readRunLineage(runDir: string): RunLineage | null {
+  const path = join(runDir, "run.json");
+  return existsSync(path) ? RunLineage.parse(JSON.parse(readFileSync(path, "utf8"))) : null;
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Environment, IntegrationIdentity, OpaqueId, Role, VersionLabel } from "../protocol/index.js";
+import { Environment, IntegrationIdentity, Jurisdiction, OpaqueId, ProcessingBasisKind, ProcessingPurpose, Role, VersionLabel } from "../protocol/index.js";
 import { ValidationError } from "../shared/errors.js";
 
 /**
@@ -33,6 +33,23 @@ export const SessionConfigSchema = z.strictObject({
   consentChannels: z.array(Channel).min(1).max(6),
   /** Bounded optimistic-concurrency retries for every session update. */
   casMaxAttempts: z.number().int().min(1).max(20),
+  /**
+   * Idle limit of VERIFIED privileges (FO-05-18): when no request used the session for this long, the next
+   * use is refused SESSION_IDLE_EXPIRED and the privileges are dropped (generation fenced); the call
+   * continues at A0 and the same actor may verify again. Engineering default pending AIN-15 approval.
+   */
+  privilegeIdleTimeoutSeconds: z.number().int().min(60).max(7_200),
+  /** Bounded write rate of lastActivityAt (the idle check is exact to this interval). */
+  activityWriteIntervalSeconds: z.number().int().min(0).max(300),
+  /** Jurisdiction of the deployment for the processing basis (UNKNOWN until counsel confirms it). */
+  jurisdiction: Jurisdiction,
+  /**
+   * Counsel-approved processing bases per selected role (FO-05-22). Empty until the jurisdiction/purpose
+   * matrix is approved: verified sessions then carry the honest basis UNKNOWN.
+   */
+  approvedProcessingBases: z
+    .array(z.strictObject({ role: Role, basis: ProcessingBasisKind, purpose: ProcessingPurpose, approvalRef: z.string().regex(/^apr_[A-Za-z0-9_-]{8,64}$/) }))
+    .max(32),
 });
 export type SessionConfig = z.infer<typeof SessionConfigSchema>;
 
@@ -111,6 +128,10 @@ export const DEFAULT_SESSION_CONFIG: Omit<SessionConfig, "tenantId" | "environme
   startCallChannels: ["telephony_control"],
   consentChannels: ["telephony_control", "portal"],
   casMaxAttempts: 5,
+  privilegeIdleTimeoutSeconds: 900,
+  activityWriteIntervalSeconds: 30,
+  jurisdiction: "UNKNOWN",
+  approvedProcessingBases: [],
 };
 
 export const DEFAULT_VERIFICATION_CONFIG: VerificationConfig = {

@@ -1,0 +1,423 @@
+{
+  "realm": "vsp-workforce",
+  "displayName": "SYNTHETIC workforce IdP (local)",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "bruteForceProtected": true,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 28800,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "roles": {
+    "client": {
+      "vsp-console": [
+        {
+          "name": "support-agent",
+          "description": "SYNTHETIC console staff role (granted through the /vsp/support-agent group)"
+        },
+        {
+          "name": "supervisor",
+          "description": "SYNTHETIC console staff role (granted through the /vsp/supervisor group)"
+        },
+        {
+          "name": "safety-responder",
+          "description": "SYNTHETIC console staff role (granted through the /vsp/safety-responder group)"
+        },
+        {
+          "name": "auditor",
+          "description": "SYNTHETIC console staff role (granted through the /vsp/auditor group)"
+        },
+        {
+          "name": "knowledge-editor",
+          "description": "SYNTHETIC console staff role (granted through the /vsp/knowledge-editor group)"
+        },
+        {
+          "name": "policy-approver",
+          "description": "SYNTHETIC console staff role (granted through the /vsp/policy-approver group)"
+        },
+        {
+          "name": "deployment-operator",
+          "description": "SYNTHETIC console staff role (granted through the /vsp/deployment-operator group)"
+        },
+        {
+          "name": "security-admin",
+          "description": "SYNTHETIC console staff role (granted through the /vsp/security-admin group)"
+        }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "vsp-console",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "__VSP_SYNTH_CLIENT_SECRET__",
+      "redirectUris": [
+        "http://localhost:5173/auth/callback"
+      ],
+      "webOrigins": [],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "use.refresh.tokens": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "true",
+            "claim.name": "groups",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "vsp-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "config": {
+            "usermodel.clientRoleMapping.clientId": "vsp-console",
+            "claim.name": "vsp_roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "synthetic-support-agent",
+      "enabled": true,
+      "email": "synthetic-support-agent@synthetic.example.test",
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "SupportAgent",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__VSP_SYNTH_PASSWORD__",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "synthetic",
+          "secretData": "{\"value\":\"__VSP_SYNTH_TOTP_SECRET__\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ],
+      "groups": [
+        "/vsp/support-agent"
+      ]
+    },
+    {
+      "username": "synthetic-supervisor",
+      "enabled": true,
+      "email": "synthetic-supervisor@synthetic.example.test",
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "Supervisor",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__VSP_SYNTH_PASSWORD__",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "synthetic",
+          "secretData": "{\"value\":\"__VSP_SYNTH_TOTP_SECRET__\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ],
+      "groups": [
+        "/vsp/supervisor"
+      ]
+    },
+    {
+      "username": "synthetic-safety-responder",
+      "enabled": true,
+      "email": "synthetic-safety-responder@synthetic.example.test",
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "SafetyResponder",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__VSP_SYNTH_PASSWORD__",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "synthetic",
+          "secretData": "{\"value\":\"__VSP_SYNTH_TOTP_SECRET__\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ],
+      "groups": [
+        "/vsp/safety-responder"
+      ]
+    },
+    {
+      "username": "synthetic-auditor",
+      "enabled": true,
+      "email": "synthetic-auditor@synthetic.example.test",
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "Auditor",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__VSP_SYNTH_PASSWORD__",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "synthetic",
+          "secretData": "{\"value\":\"__VSP_SYNTH_TOTP_SECRET__\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ],
+      "groups": [
+        "/vsp/auditor"
+      ]
+    },
+    {
+      "username": "synthetic-knowledge-editor",
+      "enabled": true,
+      "email": "synthetic-knowledge-editor@synthetic.example.test",
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "KnowledgeEditor",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__VSP_SYNTH_PASSWORD__",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "synthetic",
+          "secretData": "{\"value\":\"__VSP_SYNTH_TOTP_SECRET__\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ],
+      "groups": [
+        "/vsp/knowledge-editor"
+      ]
+    },
+    {
+      "username": "synthetic-policy-approver",
+      "enabled": true,
+      "email": "synthetic-policy-approver@synthetic.example.test",
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "PolicyApprover",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__VSP_SYNTH_PASSWORD__",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "synthetic",
+          "secretData": "{\"value\":\"__VSP_SYNTH_TOTP_SECRET__\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ],
+      "groups": [
+        "/vsp/policy-approver"
+      ]
+    },
+    {
+      "username": "synthetic-deployment-operator",
+      "enabled": true,
+      "email": "synthetic-deployment-operator@synthetic.example.test",
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "DeploymentOperator",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__VSP_SYNTH_PASSWORD__",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "synthetic",
+          "secretData": "{\"value\":\"__VSP_SYNTH_TOTP_SECRET__\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ],
+      "groups": [
+        "/vsp/deployment-operator"
+      ]
+    },
+    {
+      "username": "synthetic-security-admin",
+      "enabled": true,
+      "email": "synthetic-security-admin@synthetic.example.test",
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "SecurityAdmin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__VSP_SYNTH_PASSWORD__",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "synthetic",
+          "secretData": "{\"value\":\"__VSP_SYNTH_TOTP_SECRET__\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ],
+      "groups": [
+        "/vsp/security-admin"
+      ]
+    },
+    {
+      "username": "synthetic-second-security-admin",
+      "enabled": true,
+      "email": "synthetic-second-security-admin@synthetic.example.test",
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "SecondSecurityAdmin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__VSP_SYNTH_PASSWORD__",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "synthetic",
+          "secretData": "{\"value\":\"__VSP_SYNTH_TOTP_SECRET__\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ],
+      "groups": [
+        "/vsp/security-admin"
+      ]
+    },
+    {
+      "username": "synthetic-password-only",
+      "enabled": true,
+      "email": "synthetic-password-only@synthetic.example.test",
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "PasswordOnly",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__VSP_SYNTH_PASSWORD__",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/vsp/supervisor"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "name": "vsp",
+      "subGroups": [
+        {
+          "name": "support-agent",
+          "clientRoles": {
+            "vsp-console": [
+              "support-agent"
+            ]
+          }
+        },
+        {
+          "name": "supervisor",
+          "clientRoles": {
+            "vsp-console": [
+              "supervisor"
+            ]
+          }
+        },
+        {
+          "name": "safety-responder",
+          "clientRoles": {
+            "vsp-console": [
+              "safety-responder"
+            ]
+          }
+        },
+        {
+          "name": "auditor",
+          "clientRoles": {
+            "vsp-console": [
+              "auditor"
+            ]
+          }
+        },
+        {
+          "name": "knowledge-editor",
+          "clientRoles": {
+            "vsp-console": [
+              "knowledge-editor"
+            ]
+          }
+        },
+        {
+          "name": "policy-approver",
+          "clientRoles": {
+            "vsp-console": [
+              "policy-approver"
+            ]
+          }
+        },
+        {
+          "name": "deployment-operator",
+          "clientRoles": {
+            "vsp-console": [
+              "deployment-operator"
+            ]
+          }
+        },
+        {
+          "name": "security-admin",
+          "clientRoles": {
+            "vsp-console": [
+              "security-admin"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

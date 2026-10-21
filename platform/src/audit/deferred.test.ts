@@ -21,10 +21,13 @@ import { PgAuditWriter } from "./writer.js";
 const START = "2026-10-18T10:00:00.000Z";
 let db: PgliteDb;
 let clock: FakeClock;
+/** Creating and migrating an embedded PostgreSQL can take long on a contended shared machine. */
+const PGLITE_SETUP_TIMEOUT_MS = 120_000;
+
 beforeEach(async () => {
   db = await createAuditTestDb();
   clock = new FakeClock(START);
-});
+}, PGLITE_SETUP_TIMEOUT_MS);
 afterEach(async () => {
   await db.close();
 });

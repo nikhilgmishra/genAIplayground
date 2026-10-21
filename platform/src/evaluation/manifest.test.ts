@@ -8,7 +8,21 @@ import { migrationsDigest } from "../db/migrate.js";
 import { sha256Hex } from "../shared/canonical.js";
 import { FakeClock } from "../shared/clock.js";
 import { corpusDigest } from "./corpus.js";
-import { boundEvidence, buildReleaseManifest, main as manifestMain, MAX_TEST_EVIDENCE, parseManifestArgs, requiredApprovalsFor, UNPINNED_DIGEST, writeReleaseManifest } from "./manifest.js";
+import {
+  boundEvidence,
+  buildReleaseManifest,
+  main as manifestMain,
+  MAX_TEST_EVIDENCE,
+  parseManifestArgs,
+  requiredApprovalsFor,
+  SCORER_MUTATION_SUITE,
+  SCORER_SOURCES,
+  scorerDigest,
+  scorerVersionEvidence,
+  UNPINNED_DIGEST,
+  writeReleaseManifest,
+} from "./manifest.js";
+import { SCORER_GATES } from "./scorer.js";
 import { main as cliMain } from "./cli.js";
 import type { GitReader } from "./manifest.js";
 import { REPO_ROOT, repoPaths } from "./paths.js";
@@ -108,7 +122,10 @@ describe("release manifest builder", () => {
     writeFileSync(join(ev, "runs/run_localOnly0001/summary.json"), summary);
     writeFileSync(join(ev, "runs/run_localOnly0001/results.jsonl"), "");
     const prod = base({ evidenceDir: ev });
-    expect(prod.manifest.testEvidence).toEqual([{ kind: "evaluation_run", ref: expect.stringContaining("runs/run_localOnly0001/summary.json"), digest: sha256Hex(summary), status: "BLOCKED" }]);
+    expect(prod.manifest.testEvidence).toEqual([
+      { kind: "evaluation_run", ref: expect.stringContaining("runs/run_localOnly0001/summary.json"), digest: sha256Hex(summary), status: "BLOCKED" },
+      { kind: "scorer_version", ref: expect.stringContaining("SCORER_GATES"), digest: scorerDigest(REPO_ROOT), status: "NOT_RUN" },
+    ]);
     expect(prod.blockers.map((b) => b.code)).toContain("ELIGIBLE_EVALUATION_EVIDENCE_MISSING");
     const local = base({ targetEnvironment: "local", evidenceDir: ev });
     expect(local.manifest.testEvidence[0]?.status).toBe("PASS");
@@ -247,5 +264,65 @@ describe("release manifest builder", () => {
       expect(other.manifest.sourceCommit).toBe(HEAD);
       expect(other.manifest.status).toBe("BLOCKED");
     });
+  });
+});
+
+describe("[FO-19-04][OPS-06] the release manifest records the scorer it is gated with", () => {
+  const report = (statuses: string[], success = true) => ({
+    success,
+    testResults: [
+      { name: "/ws/platform/src/evaluation/aggregate.test.ts", assertionResults: [{ status: "failed" }] },
+      { name: `/ws/${SCORER_MUTATION_SUITE}`, assertionResults: statuses.map((status) => ({ status })) },
+    ],
+  });
+  const withReport = (r: unknown) => {
+    const ev = tmp();
+    mkdirSync(join(ev, "test-reports"), { recursive: true });
+    writeFileSync(join(ev, "test-reports/vitest-platform.json"), JSON.stringify(r));
+    return ev;
+  };
+
+  it("[FO-19-04][OPS-06] the scorer version is the digest of the verdict-deciding sources, recomputed independently here", () => {
+    const expected = sha256Hex(SCORER_SOURCES.map((f) => `${f}:${sha256Hex(readFileSync(join(REPO_ROOT, f)))}`).join("\n"));
+    expect(scorerDigest(REPO_ROOT)).toBe(expected);
+    expect(SCORER_SOURCES).toContain("platform/src/evaluation/scorer.ts");
+    expect(SCORER_SOURCES).toContain("platform/src/evaluation/fault-reach.ts");
+    // A changed scorer source is a different scorer version; an unreadable one is no version at all.
+    const root = tmp();
+    for (const f of SCORER_SOURCES) {
+      mkdirSync(join(root, f, ".."), { recursive: true });
+      writeFileSync(join(root, f), readFileSync(join(REPO_ROOT, f)));
+    }
+    expect(scorerDigest(root)).toBe(expected);
+    writeFileSync(join(root, "platform/src/evaluation/fault-reach.ts"), `${readFileSync(join(REPO_ROOT, "platform/src/evaluation/fault-reach.ts"), "utf8")}\n// changed\n`);
+    expect(scorerDigest(root)).not.toBe(expected);
+    rmSync(join(root, "platform/src/evaluation/unknown.ts"));
+    expect(scorerDigest(root)).toBeNull();
+    expect(scorerVersionEvidence(root, [report(["passed"])])).toMatchObject({ kind: "scorer_version", digest: null, status: "INCONCLUSIVE" });
+  });
+
+  it("[FO-19-04][OPS-03] its status is the recorded mutation-suite result: PASS only when every recorded case passed; FAIL blocks even a local manifest; unrecorded is NOT_RUN", () => {
+    const n = Object.keys(SCORER_GATES).length;
+    const passed = base({ targetEnvironment: "local", evidenceDir: withReport(report(Array.from({ length: n }, () => "passed"))) });
+    const entry = passed.manifest.testEvidence.find((e) => e.kind === "scorer_version");
+    expect(entry).toEqual({ kind: "scorer_version", ref: expect.stringContaining(`${n} gate families`), digest: scorerDigest(REPO_ROOT), status: "PASS" });
+    expect(passed.notes.join(" ")).not.toContain("SCORER_MUTATION_SUITE_NOT_PASS");
+
+    const failed = base({ targetEnvironment: "local", evidenceDir: withReport(report(["passed", "failed"])) });
+    expect(failed.manifest.testEvidence.find((e) => e.kind === "scorer_version")?.status).toBe("FAIL");
+    expect(failed.blockers.map((b) => b.code)).toContain("TEST_EVIDENCE_FAILING");
+    expect(failed.manifest.status).toBe("BLOCKED");
+
+    const skipped = base({ targetEnvironment: "local", evidenceDir: withReport(report(["passed", "skipped"])) });
+    expect(skipped.manifest.testEvidence.find((e) => e.kind === "scorer_version")?.status).toBe("INCONCLUSIVE");
+
+    // Another suite's results never stand in for the mutation suite.
+    const other = base({ targetEnvironment: "local", evidenceDir: withReport({ success: true, testResults: [{ name: "/ws/platform/src/evaluation/scorer.test.ts", assertionResults: [{ status: "passed" }] }] }) });
+    expect(other.manifest.testEvidence.find((e) => e.kind === "scorer_version")?.status).toBe("NOT_RUN");
+    expect(other.notes.join(" ")).toContain("SCORER_MUTATION_SUITE_NOT_PASS");
+    expect(other.manifest.status).toBe("IMPLEMENTED_OFFLINE");
+    // A live target is blocked until the mutation suite of this scorer has a passing recorded result.
+    const live = base({ targetEnvironment: "staging", evidenceDir: withReport(report(["passed", "pending"])) });
+    expect(live.blockers.map((b) => b.code)).toContain("SCORER_MUTATION_SUITE_NOT_PASS");
   });
 });

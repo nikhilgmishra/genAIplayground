@@ -10,12 +10,20 @@
  * request, eligible or not; not a secret) is never a tool output field: it is spoken only
  * through the approved-template path (verification.secure_link_match_code, slot type
  * match_code) so the caller can compare it with the words the portal shows.
+ *
+ * Notifications switched off (OPS-KS-01): while OUTBOUND_NOTIFICATIONS or INTEGRATION
+ * notifications is engaged (or the switch state is unreadable) the verification service (composed
+ * with the kill-switch reader `notificationSwitches`) answers VERIFICATION_UNAVAILABLE_USE_HUMAN before
+ * any lookup, so the caller hears the `verification.failed_generic` template (registry status DRAFT)
+ * and is offered the human route instead of waiting for a message that is never sent. The service's
+ * reason code goes on the `tool.invoke` audit event only (`auditReasonCode`); it is global state,
+ * identical for every caller.
  */
 import { z } from "zod";
 import type { BusinessServices } from "../../business/services/types.js";
 import { openResource } from "../../business/shared.js";
 import { speechFor } from "../../business/speech.js";
-import type { GenericVerificationResponse } from "../../identity/ports.js";
+import type { GenericVerificationResponse, VerificationUnavailableReason } from "../../identity/ports.js";
 import { DependencyError } from "../../shared/errors.js";
 import { isValidMatchCode } from "../../voice/slots.js";
 import type { ToolModule } from "../ports.js";
@@ -68,16 +76,19 @@ export function beginVerificationTool(s: BusinessServices): ToolModule<z.infer<t
       let verificationId: string;
       let status: (typeof STATUS)[number];
       let matchCode: string | null = null;
+      let unavailableReason: VerificationUnavailableReason | undefined;
       try {
         if (input.method === "SECURE_LINK") {
           const r = await s.deps.verification.beginSecureLink(ctx.auth, { role, locator });
           verificationId = r.transactionId;
           status = r.response;
           matchCode = isValidMatchCode(r.matchCode) ? r.matchCode : null;
+          unavailableReason = r.unavailableReason;
         } else {
           const r = await s.deps.verification.beginOtp(ctx.auth, { role, locator });
           verificationId = r.challengeId;
           status = r.response;
+          unavailableReason = r.unavailableReason;
         }
       } catch (err) {
         if (err instanceof DependencyError && err.outcome === "NOT_STARTED") return retryable("VERIFICATION_SERVICE_UNAVAILABLE");
@@ -88,7 +99,10 @@ export function beginVerificationTool(s: BusinessServices): ToolModule<z.infer<t
         status === "IF_ELIGIBLE_A_LINK_WAS_SENT" && matchCode !== null
           ? speechFor(s.deps.templates, "verification.secure_link_match_code", { matchCode })
           : speechFor(s.deps.templates, TEMPLATE_BY_STATUS[status]);
-      return ok({ verification: { verificationId, status, nextStep } }, speech);
+      const data: z.infer<typeof VerificationOutput> = { verification: { verificationId, status, nextStep } };
+      // Audit evidence only (never in the result): why the human route was offered while notifications are off.
+      if (status === "VERIFICATION_UNAVAILABLE_USE_HUMAN" && unavailableReason) return { status: "SUCCESS", data, speech, auditReasonCode: unavailableReason };
+      return ok(data, speech);
     },
   };
 }

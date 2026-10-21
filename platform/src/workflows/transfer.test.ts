@@ -397,8 +397,8 @@ describe("TransferCoordinator", () => {
     expect(current(k).destinationId).toBe("dst_safety_priority");
   });
 
-  it("[SPEC-10.transfer] duplicate events are idempotent and out-of-order events are rejected without corrupting state", async () => {
-    const { coordinator } = setup();
+  it("[SPEC-10.transfer][SAFE-04][ACT-02] duplicate events are idempotent; an out-of-order event is deferred without corrupting state, never applied early, and applied after its predecessor", async () => {
+    const { coordinator, telephony } = setup();
     const j = await coordinator.requestTransfer(handoff());
     const id = current(j).transferId;
     const q1 = await coordinator.applyEvent({ transferId: id, event: "QUEUED", eventId: "evt-0001", source: "talkdesk.fixture" });
@@ -406,14 +406,58 @@ describe("TransferCoordinator", () => {
     expect(q2.decision).toEqual({ kind: "duplicate" });
     const q3 = await coordinator.applyEvent({ transferId: id, event: "QUEUED", eventId: "evt-0002", source: "talkdesk.fixture" });
     expect(q3.decision).toEqual({ kind: "duplicate" });
-    const bad = await coordinator.applyEvent({ transferId: id, event: "BRIDGED", source: "talkdesk.fixture" });
-    expect(bad.decision).toEqual({ kind: "rejected", reasonCode: "TRANSFER_EVENT_OUT_OF_ORDER" });
-    const after = await coordinator.get(j.handoffId);
-    expect(current(after as TransferJourney).state).toBe("QUEUED");
-    expect(current(after as TransferJourney).history).toHaveLength(q1.journey.attempts[0]?.history.length ?? 0);
-    // The valid flow continues normally afterwards.
-    const done = await drive(coordinator, after as TransferJourney, ["RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED"]);
+    const early = await coordinator.applyEvent({ transferId: id, event: "BRIDGED", eventId: "evt-0004", source: "talkdesk.fixture" });
+    expect(early.decision).toEqual({ kind: "deferred", reasonCode: "TRANSFER_EVENT_AWAITING_PREDECESSOR" });
+    // SAFE-04: right after the early event nothing about the attempt changed.
+    const after = (await coordinator.get(j.handoffId)) as TransferJourney;
+    expect(current(after).state).toBe("QUEUED");
+    expect(current(after).history).toEqual(q1.journey.attempts[0]?.history);
+    expect(current(after).history.map((h) => h.state)).not.toContain("BRIDGED");
+    expect(current(after).history.map((h) => h.state)).not.toContain("CALLER_CONFIRMED_CONNECTED");
+    expect(after.connectedAt).toBeNull();
+    expect(after.appliedEventIds).not.toContain("evt-0004");
+    expect(journeyOutcome(after)).toBe("OUTCOME_UNKNOWN");
+    // Only once its predecessor is applied is the held BRIDGED applied (with its own source).
+    const accepted = await drive(coordinator, after, ["RECEIVER_ACCEPTED"]);
+    expect(current(accepted).history.map((h) => [h.state, h.source])).toEqual([
+      ["REQUESTED", "coordinator"],
+      ["QUEUED", "talkdesk.fixture"],
+      ["RECEIVER_ACCEPTED", "talkdesk.fixture"],
+      ["BRIDGED", "talkdesk.fixture"],
+    ]);
+    expect(accepted.connectedAt).toBeNull();
+    // Its redelivery is now a duplicate; the valid flow continues normally.
+    expect((await coordinator.applyEvent({ transferId: id, event: "BRIDGED", eventId: "evt-0004", source: "talkdesk.fixture" })).decision).toEqual({ kind: "duplicate" });
+    const done = await drive(coordinator, accepted, ["CALLER_CONFIRMED_CONNECTED"]);
     expect(journeyOutcome(done)).toBe("TRANSFERRED");
+    expect(telephony.dials).toHaveLength(1);
+    expect(telephony.updates).toHaveLength(0);
+  });
+
+  it("[SAFE-04][SPEC-14.faults] CALLER_CONFIRMED_CONNECTED before BRIDGED is deferred, never applied early; one attempt, one dial, no update prompt once BRIDGED arrives", async () => {
+    const { coordinator, telephony, audit } = setup();
+    const j = await coordinator.requestTransfer(handoff());
+    const id = current(j).transferId;
+    await drive(coordinator, j, ["RECEIVER_ACCEPTED"]);
+    const early = await coordinator.applyEvent({ transferId: id, event: "CALLER_CONFIRMED_CONNECTED", eventId: "evt-ccc", source: "talkdesk.fixture" });
+    expect(early.decision).toEqual({ kind: "deferred", reasonCode: "TRANSFER_EVENT_AWAITING_PREDECESSOR" });
+    const held = (await coordinator.get(j.handoffId)) as TransferJourney;
+    expect(held.status).toBe("ROUTING");
+    expect(held.connectedAt).toBeNull();
+    expect(journeyOutcome(held)).toBe("OUTCOME_UNKNOWN");
+    expect(current(held).state).toBe("RECEIVER_ACCEPTED");
+    expect(current(held).history.map((h) => h.state)).toEqual(["REQUESTED", "RECEIVER_ACCEPTED"]);
+    expect(audit.events.filter((e) => e.action === "transfer.event_deferred").map((e) => [e.outcome, e.reasonCode])).toEqual([["PENDING", "TRANSFER_EVENT_AWAITING_PREDECESSOR"]]);
+
+    const bridged = await coordinator.applyEvent({ transferId: id, event: "BRIDGED", eventId: "evt-b", source: "talkdesk.fixture" });
+    expect(bridged.decision).toEqual({ kind: "applied", next: "BRIDGED" });
+    expect(bridged.journey.status).toBe("CONNECTED");
+    expect(journeyOutcome(bridged.journey)).toBe("TRANSFERRED");
+    expect(current(bridged.journey).history.map((h) => h.state)).toEqual(["REQUESTED", "RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED"]);
+    expect(bridged.journey.attempts).toHaveLength(1);
+    expect(bridged.journey.deferredEvents).toEqual([]);
+    expect(telephony.dials).toHaveLength(1);
+    expect(telephony.updates).toHaveLength(0);
   });
 
   it("[SPEC-10.transfer] a late acceptance on a superseded attempt is rejected and does not affect the active attempt", async () => {

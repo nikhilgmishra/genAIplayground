@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { PEOPLE } from "../fixtures/synthetic-world.js";
-import { InMemoryMetrics } from "../observability/metrics.js";
+import { InMemoryMetrics, VERIFICATION_ABUSE_SIGNAL_KINDS } from "../observability/metrics.js";
 import { FakeClock } from "../shared/clock.js";
-import { VerificationAbuseMonitor, abuseKey } from "./abuse-monitor.js";
+import { AccountAbuseSignal, VerificationAbuseMonitor, abuseKey } from "./abuse-monitor.js";
 import type { KvStore } from "./ports.js";
 import { hourWindow } from "./keys.js";
 import { MemoryKvStoreFixture } from "./kv/memory-kv-store.js";
@@ -30,6 +30,32 @@ describe("VerificationAbuseMonitor (account-keyed abuse signals, AUTH-ENUM-01)",
     // Hourly windows: the next hour starts from zero.
     clock.advanceSeconds(3600);
     expect(await m.count("LINK_ACCOUNT_LIMIT", ACCOUNT)).toBe(0);
+  });
+
+  it("[SPEC-13.dashboards][AUTH-ENUM-01][DATA-01] every recorded signal is counted in vsp_verification_abuse_signals_total by kind only, even when the investigation store is down", async () => {
+    // The catalogue's closed label enum is exactly the monitor's signal kinds.
+    expect([...VERIFICATION_ABUSE_SIGNAL_KINDS].sort()).toEqual([...AccountAbuseSignal.options].sort());
+    const metrics = new InMemoryMetrics();
+    const m = new VerificationAbuseMonitor({ kv: new MemoryKvStoreFixture(), clock: new FakeClock(), metrics, retentionHours: 24 });
+    for (const signal of AccountAbuseSignal.options) await m.record(signal, ACCOUNT);
+    await m.record("OTP_DESTINATION_LIMIT", { kind: "destination", id: "chn_synthAverySms00001" });
+    for (const signal of AccountAbuseSignal.options) {
+      expect(metrics.counterValue("vsp_verification_abuse_signals_total", { signal }), signal).toBe(signal === "OTP_DESTINATION_LIMIT" ? 2 : 1);
+    }
+    const [series] = metrics.find("vsp_verification_abuse_signals_total", { signal: "OTP_ACCOUNT_LIMIT" });
+    expect(Object.keys(series?.labels ?? {})).toEqual(["signal"]);
+    const all = JSON.stringify(metrics.allSeries());
+    for (const id of [PEOPLE.avery.accountId, "chn_synthAverySms00001"]) expect(all).not.toContain(id);
+    expect(metrics.counterValue("vsp_metric_label_rejections_total")).toBe(0);
+    // A store outage loses only the hashed investigation counter, never the alarm metric.
+    const fail = () => Promise.reject(new Error("FIXTURE_KV_DOWN"));
+    const down: KvStore = { kind: "local_fixture", get: fail, putIfAbsent: fail, compareAndSwap: fail, delete: fail, increment: fail };
+    const outageMetrics = new InMemoryMetrics();
+    await new VerificationAbuseMonitor({ kv: down, clock: new FakeClock(), metrics: outageMetrics, retentionHours: 24 }).record("OTP_ACCOUNT_GUESS_LIMIT", ACCOUNT);
+    expect(outageMetrics.counterValue("vsp_verification_abuse_signals_total", { signal: "OTP_ACCOUNT_GUESS_LIMIT" })).toBe(1);
+    // An invalid signal is not counted.
+    await m.record("NOT_A_SIGNAL" as never, ACCOUNT);
+    expect(metrics.counterValue("vsp_verification_abuse_signals_total", { signal: "other" })).toBe(0);
   });
 
   it("[AUTH-ENUM-01] recording never throws (a store outage cannot change what the caller observes); reads validate their input", async () => {

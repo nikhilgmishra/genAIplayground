@@ -1,0 +1,58 @@
+# WP-07: a local OpenTelemetry Collector for the live composition's OTLP/HTTP export (FO-03-30).
+#
+#   make up PROFILE=core,otel
+#
+# Not part of the `core` profile and not used by the Layer-2 suites: the composition suite starts its own
+# throwaway collector from the SAME pinned image (platform/test/integration/composition/telemetry.test.ts reads the
+# image from this file), with a per-run test CA, and stops it to inject the collector outage. The shared service
+# here is for developers pointing a sandbox-profile unit at a local collector.
+#
+# The receiver speaks OTLP/HTTP over TLS only (the platform's exporter refuses plain http; observability.otlp URLs
+# are https), with the checkout's local CA certificate from the generated state. Received telemetry is written to
+# the collector's own log (debug exporter, basic verbosity): content-free by construction, because the platform
+# exports catalogue metrics and allowlisted span attributes only (contentAttributes: DISABLED). Nothing is
+# forwarded anywhere else.
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector:0.130.0@sha256:0c066d4388070dad8dc9961d9f23649e85a226620e6b359334e4a6c7f9d73b23
+    profiles: [otel]
+    networks: [vsp]
+    command: ["--config=/etc/otelcol/vsp-local.yaml"]
+    configs:
+      - source: otel-collector-config
+        target: /etc/otelcol/vsp-local.yaml
+    volumes:
+      - ${VSP_LOCAL_STATE_DIR:?run make up}/tls:/etc/otelcol/tls:ro
+    ports: ["127.0.0.1:${VSP_PORT_OTEL:-54318}:4318"]
+    restart: "no"
+    labels:
+      io.vsp.emulates: "an OpenTelemetry Collector (the OTLP/HTTP endpoint of the deployment's telemetry pipeline)"
+      io.vsp.protocol: "OTLP/HTTP JSON over TLS (POST /v1/metrics, /v1/traces)"
+      io.vsp.not-emulated: "the managed telemetry backend, retention, alerting, IAM on the export path, sampling decisions of the deployment"
+      io.vsp.licence: "Apache-2.0"
+
+configs:
+  otel-collector-config:
+    content: |
+      receivers:
+        otlp:
+          protocols:
+            http:
+              endpoint: 0.0.0.0:4318
+              tls:
+                cert_file: /etc/otelcol/tls/server.pem
+                key_file: /etc/otelcol/tls/server.key
+      exporters:
+        debug:
+          verbosity: basic
+      service:
+        telemetry:
+          metrics:
+            level: none
+        pipelines:
+          metrics:
+            receivers: [otlp]
+            exporters: [debug]
+          traces:
+            receivers: [otlp]
+            exporters: [debug]

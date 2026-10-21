@@ -42,7 +42,9 @@ export type IntegrityFindingCode =
   | "SHIPPED_MANIFEST_MISSING_FROM_SINK"
   | "SINK_MANIFEST_UNKNOWN_LOCALLY"
   | "LOCAL_SINK_DIVERGENCE"
-  | "SINK_UNAVAILABLE";
+  | "SINK_UNAVAILABLE"
+  | "MANIFEST_UNSIGNED"
+  | "MANIFEST_SIGNATURE_INVALID";
 
 export interface IntegrityFinding {
   code: IntegrityFindingCode;
@@ -212,8 +214,11 @@ export interface IntegrityVerifierOptions {
   db: Db;
   sink: AuditSink;
   clock: Clock;
-  /** Role able to read every stream (default app_worker). */
-  role?: Extract<DbRole, "app_worker" | "owner">;
+  /**
+   * Role able to read every stream (default app_worker). The separate verifier identity uses
+   * app_audit_verifier (read-only: verifyShipped with markVerified is refused by the database).
+   */
+  role?: Extract<DbRole, "app_worker" | "owner" | "app_audit_verifier">;
   pageSize?: number;
 }
 
@@ -235,7 +240,7 @@ interface LocalRow {
 }
 
 export class IntegrityVerifier {
-  private readonly role: Extract<DbRole, "app_worker" | "owner">;
+  private readonly role: Extract<DbRole, "app_worker" | "owner" | "app_audit_verifier">;
   private readonly pageSize: number;
 
   constructor(private readonly opts: IntegrityVerifierOptions) {

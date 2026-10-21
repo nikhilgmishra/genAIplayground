@@ -1,0 +1,240 @@
+{
+  "label": "LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION. Erratum to a committed combined run summary (analysis only; the summary, its report and the recorded results are unchanged).",
+  "summary": "corpus-local-20261019w5.summary.json",
+  "rescoreCheck": "corpus-local-20261019w5.rescore-check-r4.json",
+  "scorerDigest": "96047c461cf559745197bf2cceb81ecaf5c2fbd1cefff2c970c826dd1450ae73",
+  "rule": "A DUPLICATE_WEBHOOK run is reached only on independent evidence (the telephony emulator's delivery log). The local driver's own count of the outbox messages it re-published (DUPLICATE_REDELIVERIES_<n>, recorded as observedBy emulator_log.outbox_redelivered) is a driver self-report (fault-plan.ts driver_self_report): it never sets reachedFault, and such a run is INCONCLUSIVE.",
+  "recorded": {
+    "totals": {
+      "pass": 2398,
+      "fail": 286,
+      "inconclusive": 27,
+      "notRun": 0,
+      "taskCompletionRate": 0.8845444485429731
+    },
+    "fault": {
+      "faultId": "DUPLICATE_WEBHOOK",
+      "requested": 26,
+      "reached": 26,
+      "reachedAndPassed": 26,
+      "notReached": 0,
+      "layer2": "UNKNOWN"
+    },
+    "localGate": "FAIL"
+  },
+  "corrected": {
+    "totals": {
+      "runs": 2711,
+      "required": 2711,
+      "pass": 2379,
+      "fail": 286,
+      "inconclusive": 46,
+      "notRun": 0,
+      "taskCompletionRate": 0.8775359645887126
+    },
+    "fault": {
+      "faultId": "DUPLICATE_WEBHOOK",
+      "requested": 26,
+      "reached": 7,
+      "reachedAndPassed": 7,
+      "notReached": 19,
+      "layer2": "UNKNOWN"
+    },
+    "localGate": "FAIL"
+  },
+  "selfReportCorrections": 19,
+  "explained": true,
+  "problems": [],
+  "results": [
+    {
+      "runId": "run_local_20261019w5_journeys",
+      "scenarioId": "scn_journey_2_disputed_charge_review__duplicate_webhook",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_journeys/call-evidence.jsonl#scn_journey_2_disputed_charge_review__duplicate_webhook/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_002",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_002/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_005",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_005/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_008",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_008/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_011",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_011/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_014",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_014/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_0of3",
+      "scenarioId": "scn_risk_duplicate_webhook_017",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_0of3/call-evidence.jsonl#scn_risk_duplicate_webhook_017/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_003",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_003/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_006",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_006/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_009",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_009/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_012",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_012/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_015",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_015/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_1of3",
+      "scenarioId": "scn_risk_duplicate_webhook_018",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_1of3/call-evidence.jsonl#scn_risk_duplicate_webhook_018/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_001",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_001/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_004",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_004/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_007",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_007/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_010",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_010/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_013",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_013/1#committedState/driverNotes/0"
+    },
+    {
+      "runId": "run_local_20261019w5_risk_2of3",
+      "scenarioId": "scn_risk_duplicate_webhook_016",
+      "scenarioVersion": 1,
+      "repetition": 1,
+      "recordedVerdict": "PASS",
+      "correctedVerdict": "INCONCLUSIVE",
+      "recordedObservedBy": "emulator_log.outbox_redelivered",
+      "recordedEvidenceRef": "evidence/runs/run_local_20261019w5_risk_2of3/call-evidence.jsonl#scn_risk_duplicate_webhook_016/1#committedState/driverNotes/0"
+    }
+  ]
+}

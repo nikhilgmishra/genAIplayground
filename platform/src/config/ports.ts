@@ -1,4 +1,6 @@
 import type { ApprovalScope, Environment } from "../protocol/index.js";
+import type { EgressPolicyConfig } from "../privacy/egress.js";
+import type { WorkforceSsoConfig } from "../console-api/sso-config.js";
 
 /**
  * Platform configuration. Production startup runs the configuration guard which
@@ -83,6 +85,122 @@ export interface PlatformConfig {
    * gatewayConfigOf(), which re-validates it (fail closed).
    */
   gateway?: GatewayConfig;
+  /**
+   * Added by the live composition (WP-07; schema.ts InfrastructureConfigSchema): where the live adapters of
+   * the substrate find their resources (AWS region and, in sandbox only, emulator endpoints; the outbox queue;
+   * the independent route-audit journal table; the audit sink; key and secret references). Absent outside
+   * local/ci => the live composition refuses to start (LIVE_INFRASTRUCTURE_NOT_CONFIGURED).
+   */
+  infrastructure?: InfrastructureConfig;
+  /** Telemetry export (OpenTelemetry OTLP); content attributes are never exported (FO-03-30, AIN-37). */
+  observability?: ObservabilityConfig;
+  /**
+   * Egress allowlist (DATA-01): every outbound destination the process may reach. Required outside local/ci
+   * (EGRESS_POLICY_NOT_CONFIGURED); local/ci default to LOCAL_FIXTURE_EGRESS_POLICY (approves nothing).
+   */
+  egress?: EgressPolicyConfig;
+  /** Workforce SSO of the operations console (console-api/sso-config.ts WorkforceSsoConfigSchema, WP-05). */
+  consoleAuth?: WorkforceSsoConfig;
+  /** Caller identity providers whose ID tokens complete a secure-link verification (JwksOidcVerifier over discovery). */
+  callerIdentity?: CallerIdentityConfig;
+  /** Connector runtime: reviewed ConnectorProfiles (relative directory) and their change-feed syncs. */
+  connectors?: ConnectorsConfig;
+  /** Knowledge service settings of the live composition. */
+  knowledge?: KnowledgeConfig;
+  crm?: CrmConfig;
+}
+
+/** Emulator endpoints (sandbox profile only; the guard refuses them in staging and production). */
+export interface AwsEndpointOverrides {
+  dynamodb: string | null;
+  sqs: string | null;
+  s3: string | null;
+  kms: string | null;
+  secretsManager: string | null;
+  sts: string | null;
+}
+
+export interface InfrastructureConfig {
+  aws: { region: string; endpointOverrides: AwsEndpointOverrides | null; s3ForcePathStyle: boolean };
+  /**
+   * Exact host names whose services live on the private network (VPC endpoints, in-VPC collectors, private
+   * IdPs): the egress-classified transport requires them to resolve to private addresses. Every other host
+   * must resolve to public addresses.
+   */
+  privateNetworkHosts: string[];
+  /**
+   * Address ranges (CIDR) of the load balancer nodes in front of the live units. The console's sign-in rate
+   * limit keys on the client address, which only a peer inside these ranges may name in X-Forwarded-For; absent
+   * or empty, the socket peer is the client. Private ranges only (the guard refuses anything else).
+   */
+  trustedProxyCidrs?: string[];
+  /** Outbox publisher (SQS) and its dead-letter queue. */
+  outbox: { queueUrl: string; fifo: boolean; deadLetterQueueUrl: string | null } | null;
+  /** Independent DynamoDB journal of route audit evidence (used when PostgreSQL refuses a deferral). */
+  routeAuditJournalTable: string | null;
+  /** S3 Object Lock audit sink in the audit account (the exporter writes, the verifier reads). */
+  auditSink: { bucket: string; expectedBucketOwner: string; keyPrefix: string; objectLockMode: "COMPLIANCE" | "GOVERNANCE"; kmsKeyId: string } | null;
+  /** Independent audit export (platform/src/main/audit-exporter.ts): separate identities for exporter and verifier. */
+  auditExport: { manifestSigningKeyId: string; exporterDatabaseRef: string; verifierDatabaseRef: string; trustedManifestKeyIds: string[] } | null;
+  /** Secret references (Secrets Manager) the live composition resolves at startup. */
+  secrets: { requestHashPepperRef: string | null; otpPepperRef: string | null; consoleSessionSealerRef: string | null };
+  /** KMS key for the ingress payload envelope cipher (GenerateDataKey / Decrypt). */
+  ingressPayloadKeyId: string | null;
+}
+
+export interface ObservabilityConfig {
+  /** Content attributes are never exported; the only accepted value. */
+  contentAttributes: "DISABLED";
+  otlp: {
+    /** Full OTLP/HTTP URLs (`https://<collector>/v1/metrics`, `/v1/traces`); null = that signal is not exported. */
+    metricsUrl: string | null;
+    tracesUrl: string | null;
+    exportIntervalMs: number;
+    timeoutMs: number;
+  } | null;
+}
+
+export interface CallerIdentityConfig {
+  idps: { adapterKey: "oidc-client-idp" | "oidc-provider-idp"; issuer: string; audience: string }[];
+}
+
+export interface ConnectorFeedConfig {
+  profileId: string;
+  streamId: string;
+  operationId: string;
+  intervalMs: number;
+  maxPagesPerRun: number;
+  /** Dead-letter queue of records the feed cannot project (a refusal stops consumption, the checkpoint is kept). */
+  deadLetterQueueUrl: string;
+  /** Mapping target field holding the record's stable key (indexed as a digest). */
+  keyField: string;
+  /** Mapping target field holding the record's source update time, or null. */
+  updatedAtField: string | null;
+}
+
+export interface ConnectorsConfig {
+  /** Directory (relative to the repository root) of the reviewed ConnectorProfile files, or null for none. */
+  profileDirectory: string | null;
+  feeds: ConnectorFeedConfig[];
+}
+
+/** CRM inputs of the live composition (WP-07): the tenant's Salesforce Case schema (PRQ-006). */
+export interface CrmConfig {
+  salesforce: {
+    /** The org's REST API version, e.g. "v62.0" (never defaulted). */
+    apiVersion: string;
+    /** Where the administrator's schema evidence is kept (document reference, no content). */
+    schemaEvidenceRef: string;
+    /** VALID approval record that accepted the schema (any approved scope of this environment). */
+    schemaApprovalId: string;
+    /** Object and field API names (validated strictly by the adapter; placeholders refused). */
+    mapping: Record<string, unknown>;
+  } | null;
+}
+
+export interface KnowledgeConfig {
+  /** Exact domains approved for links in knowledge answers (none = no link is ever spoken). */
+  allowedLinkDomains: string[];
 }
 
 export type GatewayInboundChannel = "mcp_tools" | "telephony_control" | "portal" | "webhook";

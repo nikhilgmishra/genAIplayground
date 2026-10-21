@@ -1,0 +1,69 @@
+{
+  "scenarioId": "scn_partner_case_follow_up__frustrated",
+  "version": 2,
+  "split": "heldout_acceptance",
+  "intent": "partner_case_follow_up",
+  "audience": "partner",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "frustrated",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_open_case",
+    "faults": []
+  },
+  "permittedRecords": [
+    "sup_synthAcmeIntakeCase01"
+  ],
+  "expectedAssurance": "A2",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "I've been on hold forever and I'm honestly getting angry. I'm following up on the request Acme submitted last week.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Any update?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic partner Quinn checks the Acme partner-intake case under case:read. Frustrated and terse; has called before.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "get_authorized_case_status"
+  ],
+  "prohibitedActions": [
+    "disclose:treatment_status",
+    "disclose:other_subject"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "INFORMATION_PROVIDED",
+    "committedActions": [],
+    "supportRequestCreated": false,
+    "disclosedProtectedFields": true
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

@@ -12,21 +12,21 @@ permits it (OPS-04).
 | Path | Content |
 |---|---|
 | `modules/network` | VPC across >= 3 AZs; public subnets for the ALB and NAT only; private app and data subnets (data has no internet route); gateway endpoints for S3/DynamoDB; interface endpoints for SQS, KMS, Secrets Manager, Logs, CloudWatch, ECR, STS and Step Functions; endpoint policies limited to the workload and audit accounts; KMS-encrypted flow logs |
-| `modules/kms` | One CMK per data class / purpose, with rotation. Key policies separate administration from cryptographic use, limit use to named role ARNs (`aws:PrincipalArn`), optionally restrict use by `kms:ViaService`, and never grant `kms:*` or `Principal "*"` |
-| `modules/ingress` | Internet-facing ALB, HTTPS-only (TLS13 policy). Path allowlist with a fixed 404 default. Optional ALB JWT validation and an optional supplemental WAF IP allowlist. WAFv2 with AWS managed rule groups and a rate-based rule. Sampled requests are off. WAF logs every request header, so `authorization`, `cookie`, `mcp-session-id`, the bearer session reference `x-vsp-session-ref`, the call binding `x-vsp-interaction-id`, `idempotency-key` and the query string are redacted by name (VSP-INF-01; tftest and the `WAF-LOGS` policy rule assert each name). Access logs go to a dedicated bucket. The HTTP->HTTPS redirect listener is off by default |
+| `modules/kms` | One CMK per data class / purpose, with rotation. Key policies separate administration from cryptographic use, limit use to named role ARNs (`aws:PrincipalArn`), optionally restrict use by `kms:ViaService`, and never grant `kms:*` or `Principal "*"`. Administrators get explicit create actions (`kms:CreateAlias`, never `kms:Create*`, which matches `kms:CreateGrant`), so they create grants only for AWS resources (`kms:GrantIsForAWSResource`) |
+| `modules/ingress` | Internet-facing ALB, HTTPS-only (TLS13 policy). Path allowlist with a fixed 404 default. Optional ALB JWT validation and an optional supplemental WAF IP allowlist. WAFv2 with AWS managed rule groups and two per-source-IP rate-based rules: one that blocks, outside the tool-caller paths `/mcp` and `/telephony/`, and one that only counts, on them, because the safety and human routes use those paths ([edge rate limiting](#edge-rate-limiting-and-the-safety-routes); `WAF-RATE` policy rule). Sampled requests are off. WAF logs every request header, so `authorization`, `cookie`, `mcp-session-id`, the bearer session reference `x-vsp-session-ref`, the call binding `x-vsp-interaction-id`, `idempotency-key` and the query string are redacted by name (VSP-INF-01; tftest and the `WAF-LOGS` policy rule assert each name). Access logs go to a dedicated bucket. The HTTP->HTTPS redirect listener is off by default |
 | `modules/ecs_service` | Fargate cluster plus gateway and worker services. Tasks run by image digest, as non-root uid 10001, with a read-only root FS and capabilities dropped. No public IP, no ECS Exec. Least-privilege task role per service; execution role limited to the image, log groups and listed secrets. Autoscaling keeps a warm minimum. Circuit breaker rolls back failed deployments. Optional regional write fence (explicit IAM Deny) |
 | `modules/aurora` | Aurora PostgreSQL 16, Multi-AZ, CMK storage and Performance Insights, IAM DB auth, TLS forced, statement logging off, deletion protection, backups. Optional Aurora Global Database (primary or read-only secondary with no write forwarding) |
 | `modules/dynamodb_sessions` | Session table (`pk`, TTL attribute `ttl`): PITR, CMK SSE, deletion protection, optional global-table replica with its own regional CMK |
 | `modules/sqs` | Queues with DLQs, redrive and KMS. FIFO where per-aggregate ordering matters. TLS-only, account-restricted queue policies. Alarm on DLQ depth > 0 |
 | `modules/step_functions` | STANDARD state machines rendered from `infra/stepfunctions/*.asl.json` with `templatefile()`. Logs never include execution data. CMK encryption. Versions are published and starts go through a `live` alias |
 | `modules/audit` | **Audit account** (`aws.audit` provider alias only): Object Lock bucket (mode and days REQUIRED, null rejected), versioning, audit CMK, deny-delete / TLS-only bucket policy, write-only cross-account writer role (PutObject only), separate read-only auditor role, S3 access logs |
-| `modules/observability` | KMS-encrypted SNS alarm topic, 11 dashboards (spec section 13 list plus platform), alarms on catalogue metrics (`platform/src/observability/metrics.ts`) and ALB metrics. Alarm text is fixed and contains no PHI |
+| `modules/observability` | KMS-encrypted SNS alarm topic, 11 dashboards (spec section 13 list plus platform), alarms on catalogue metrics (`platform/src/observability/metrics.ts`), ALB metrics and the count-only WAF rate rule. Audit alarms include deferred route-audit depth held for 5 minutes (`vsp_audit_deferred_depth`, Maximum over processes; RB-AUDIT-OUTAGE), dropped deferred events (RB-AUDIT-GAP), and the share of accepted consequential tool calls without a recorded `tool.invoke` audit event (`vsp_protected_actions_total{audit="not_recorded"}` divided by all accepted, threshold 0 percent; RB-AUDIT-GAP). Verification abuse signals (`vsp_verification_abuse_signals_total`) alarm to RB-AUTH-BYPASS. Thresholds are engineering proposals. Alarm text is fixed and contains no PHI |
 | `modules/secrets` | Secrets Manager containers with CMK, reader-only resource policies and optional rotation hooks. **No secret values** |
-| `modules/iam_ci` | GitHub OIDC provider. Plan/apply roles trust exactly `repo:<owner>/<repo>:environment:<env>[-plan]:job_workflow_ref:<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main` with aud `sts.amazonaws.com` (needs the repository OIDC subject customization, see prerequisites). Permissions boundary that CI cannot change and that also denies the CI roles any change to their own policies/trust/boundary, role-policy changes on roles without the boundary, trust changes and PassRole on roles CI did not create, assuming in-account roles, identity-provider/user/group/managed-policy changes, the data-plane reads listed in `data_plane_reads` (DynamoDB items, queue messages, secret values, log events and query results, RDS log files, X-Ray traces, SSM parameters, EC2 console/password data, KMS decrypt outside the state), and the export and sharing calls listed in `data_plane_exports` that this stack never makes (DynamoDB table export and table resource policy, RDS snapshot sharing and snapshot export, log export tasks and subscription filters, S3 replication and ACLs, legacy SQS `AddPermission`). The same list is also in both inline policies. KMS grants are allowed only when an AWS service creates them, and secret policies only with Block Public Policy, for every role under the boundary (VSP-INF-02). The resource policies Terraform manages can still name another account (see residual risk below). Plan reads the state and writes only `<key>.tflock`; apply overwrites the state but deletes only the lock; neither changes the state bucket's configuration (VSP-INF-03). No long-lived keys |
+| `modules/iam_ci` | GitHub OIDC provider. Plan/apply roles trust exactly `repo:<owner>/<repo>:environment:<env>[-plan]:job_workflow_ref:<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main` with aud `sts.amazonaws.com` (needs the repository OIDC subject customization, see prerequisites). Permissions boundary that CI cannot change and that also denies the CI roles any change to their own policies/trust/boundary, role-policy changes on roles without the boundary, trust changes and PassRole on roles CI did not create, assuming in-account roles, identity-provider/user/group/managed-policy changes, the data-plane reads listed in `data_plane_reads` (DynamoDB items, queue messages, secret values, log events and query results, RDS log files, X-Ray traces, SSM parameters, EC2 console/password data, KMS decrypt outside the state), and the export and sharing calls listed in `data_plane_exports` that this stack never makes (DynamoDB table export and table resource policy, RDS snapshot sharing and snapshot export, log export tasks and subscription filters, S3 replication, bucket ACLs and object and object-version ACLs (`s3:PutObjectAcl`, `s3:PutObjectVersionAcl`), legacy SQS `AddPermission`). The `CI-BOUNDARY` policy rule probes every one of them, each on the resource IAM authorizes it on (the bucket for bucket ACLs and replication, an object for object ACLs), so a deny scoped to the wrong resource type is reported; the object ACLs are also probed on an object in every bucket the boundary itself names (Resource or NotResource), so a deny that exempts one bucket's objects, the state's for example, is reported for that bucket. The same list is also in both inline policies. KMS grants are allowed only when an AWS service creates them, and secret policies only with Block Public Policy, for every role under the boundary (VSP-INF-02). The resource policies Terraform manages can still name another account (see residual risk below). Plan reads the state and writes only `<key>.tflock`; apply overwrites the state but deletes only the lock; neither changes the state bucket's configuration (VSP-INF-03). No long-lived keys |
 | `modules/budgets` | AWS Budgets alerts (actual and forecasted). **Alerts are not hard caps** |
 | `modules/stack` | Composition used by every environment root |
 | `envs/{sandbox,staging,production,production-dr}` | Roots: providers (`allowed_account_ids` pinning, audit-account alias), partial S3 backend, tfvars without secrets, plan tests |
-| `policy/` | Rego policy over `terraform show -json` (OPA, pinned) + unit tests + SYNTHETIC offline-plan fixtures. Includes a minimal IAM evaluator that probes the rendered CI boundary for self-modification, escalation, data-read, export and sharing paths (`CI-BOUNDARY`), the CI state grants (`CI-STATE`), CI identity changes (`CI-IDENTITY`), pinned GitHub subjects (`IAM`) and WAF log redaction (`WAF-LOGS`) |
+| `policy/` | Rego policy over `terraform show -json` (OPA, pinned) + unit tests + SYNTHETIC offline-plan fixtures. Includes a minimal IAM evaluator that probes the rendered CI boundary for self-modification, escalation, data-read, export and sharing paths (`CI-BOUNDARY`), the CI state grants (`CI-STATE`), CI identity changes (`CI-IDENTITY`), pinned GitHub subjects (`IAM`), WAF log redaction (`WAF-LOGS`), and a WAF statement evaluator that refuses a rate-based rule with any action but Count (Block, Captcha, Challenge) that can match a safety or human-route path, a rate-based rule that labels such requests together with a blocking rule on labels, a custom rule group referenced without OverrideAction Count, and rules declared as `rule {}` blocks (`WAF-RATE`), and KMS key policies that let an IAM principal create grants not for AWS resources (`KMS-GRANT`) |
 
 ## Commands (all offline)
 
@@ -105,14 +105,116 @@ real-account plan is **NOT RUN**.
 | Hostname + ACM certificate | Platform owner | `TF_VAR_certificate_arn` |
 | ALB idle timeout vs Talkdesk MCP Streamable HTTP behaviour (placeholder 120 s) | Talkdesk admin + platform engineering | `ingress.idle_timeout_seconds` |
 | Talkdesk egress IPs (supplemental allowlist only) and token issuer for ALB JWT validation | Talkdesk admin / identity owner | `ingress.*` |
-| WAF rate limit (ILLUSTRATIVE default 120000 / 5 min / IP, from the spec's 400 req/s load floor) | SRE | `ingress.waf_rate_limit_per_5min` |
+| WAF rate limit (ILLUSTRATIVE default 120000 / 5 min / IP, from the spec's 400 req/s load floor; enforced outside `/mcp` and `/telephony/`, only counted on them) | SRE | `ingress.waf_rate_limit_per_5min` |
 | ALB access-log delivery principal for the chosen region | Platform engineering (check AWS docs) | `ingress.elb_log_delivery_account_id` |
 | Aurora PostgreSQL 16 minor version availability in region (tfvars say `16.6`) | Platform engineering | `aurora_engine_version` |
 | Region choice (PROPOSED us-east-1 / us-west-2) vs BAA eligible-service list | Platform owner + privacy counsel | tfvars |
 | SNS alarm subscriptions / paging integration | SRE on-call | not configured |
+| Value of the `request-hash-pepper` secret (32+ random bytes shared by every gateway instance for the keyed tool-request hash, DP-02); the live composition does not load it yet | Security admin | Secrets Manager (container planned in `modules/stack`, gateway-readable only) |
 | OpenTelemetry -> CloudWatch exporter (dashboards and alarms show INSUFFICIENT_DATA until then) | Observability owner | BLOCKED |
 | Egress FQDN allowlist (e.g. AWS Network Firewall) in addition to security groups | Security | not in this plan |
 | Console access path (not exposed on the public ALB) | Security + operations | not in this plan |
+
+## Edge rate limiting and the safety routes
+
+SAFE-02 and SAFE-03 require that the safety and human routes are never silently cut off, and
+ADR-0012 already exempts `request_safety_route` and `request_human_transfer` from every
+gateway rate limit and from admission. The edge WAF rate rule used to count every request per
+source IP and block it above the limit. That rule could not tell a safety call from any other
+call. Talkdesk is the only legitimate caller of the tool paths, and its traffic for every
+concurrent call can share one egress IP. A tripped rule would therefore have blocked safety and
+human transfers together with all other calls.
+
+Design (fail-safe):
+
+* `rate-limit-per-source-ip` (BLOCK) applies only to requests whose URI path is **not** a
+  tool-caller path. A tool-caller path is `/mcp`, `/mcp/...` or `/telephony/...`, matched
+  case-sensitively on the path as received (regex `^/(?:mcp(?:/|$)|telephony/)`, no
+  transformation; non-capturing groups only, because AWS WAF's regex syntax excludes capturing
+  subexpressions). These are the paths the default `mcp` and `telephony` listener rules forward.
+  They include the MCP safety and human-route tools and Studio's utterance screening, human
+  request and handoff operations. A mis-cased or encoded variant is not a tool-caller path, so
+  it keeps the blocking limit. ALB path patterns are case-sensitive too, so a mis-cased variant
+  gets the fixed 404; how the ALB matches a percent-encoded path was not verified offline.
+* Every service-to-service route (`require_jwt = true`; Talkdesk is its caller) must be a
+  tool-caller path. A precondition on the web ACL refuses a plan with any other, so a new
+  Talkdesk-facing route (for example a transfer-events webhook, if one is ever routed) cannot
+  silently fall under the blocking limit. To add one, extend the regex and the `WAF-RATE` probe
+  paths together. Routes Talkdesk does not call (`require_jwt = false`, such as the portal)
+  keep the blocking limit.
+* `rate-observe-tool-caller-paths` (COUNT) applies the same limit to the tool-caller paths and
+  never blocks. Its CloudWatch metric (`<prefix>-rate-observe-tool-paths`) feeds the
+  observability alarm `<prefix>-waf-tool-path-rate-observed` (RB-DEPENDENCY-OUTAGE).
+* Every request on the tool-caller paths is still authenticated by the gateway. Every non-safety
+  tool call is still metered per call and per integration there, and the managed rule groups
+  still apply. With `supplemental_allowlist_cidrs` set, every other source is blocked before any
+  rate rule, so the allowlisted vendor egress is the only source that reaches these paths.
+* The `WAF-RATE` policy rule evaluates each blocking rate-based rule's scope-down statement
+  against the safety-route paths (`/mcp`, `/mcp/` and the three Studio safety and human-route
+  operations). Every action other than Count is blocking: Captcha and Challenge stop a
+  non-browser client such as Talkdesk's MCP client or a Studio HTTP step just as Block does, and
+  Allow or a missing or malformed action is refused rather than reasoned about. The rule decides
+  a regex match on the untransformed URI path exactly only for a portable pattern: one RE2 (OPA)
+  compiles, of printable ASCII, with `(?` only as the non-capturing `(?:`, and with no
+  backslash before a letter or digit. In that subset RE2 and AWS WAF's PCRE agree on the fixed
+  ASCII probe paths. Any other pattern is undecidable, like every other statement, and counts as
+  possibly matching (fail closed). That covers a PCRE lookahead or backreference, which RE2
+  rejects and AWS WAF can accept; a repeat count above 1000 (`x{0,1001}`), which RE2 rejects
+  and PCRE accepts, in a pattern that passes every other filter, so the RE2 compile check alone
+  catches it (`test_waf_rate_re2_uncompilable_repeat_is_undecidable`); and a pattern both
+  accept but match differently: under `(?i)` RE2 folds U+017F (long s) to `s`, PCRE matching
+  byte-wise does not, so an exclusion would hold in OPA only.
+* The same rule closes three indirect ways to rate-block the safety paths:
+  * A rate-based rule with any action, Count included, can label the requests over its limit
+    (`RuleLabels`), and a later rule can block on that label (`LabelMatchStatement`).
+    Together they rate-block. The pair is refused whenever the labelling rule can match a
+    safety-route path. The gate does not follow label keys or rule priorities.
+  * A custom rule group (`aws_wafv2_rule_group`) can hold rate-based rules. Its own
+    `rule_json` is checked like the web ACL's, and a web ACL rule that references a custom
+    rule group is refused unless its `OverrideAction` is Count. The gate does not tie the
+    reference's ARN to a group in the plan, so the reference is refused even when the group
+    holds no rate rule.
+  * Rules declared as `rule {}` blocks instead of `rule_json` are refused, on a web ACL or a
+    rule group, because the gate reads `rule_json` only.
+* Tests: the ingress tftest runs `edge_rate_limit_never_blocks_safety_route_paths`,
+  `edge_rate_limit_with_supplemental_allowlist` and the `rejects_service_route_*` runs, and
+  `policy/terraform_test.rego` has the `test_waf_rate_*` tests.
+
+Residual risk (accepted for engineering, needs SRE and security review):
+
+* Until the Talkdesk egress allowlist is known (`supplemental_allowlist_cidrs` is empty by
+  default), a single source can send unlimited requests to `/mcp` and `/telephony/` without the
+  edge blocking it. The gateway rejects unauthenticated requests, but each one still costs the
+  gateway work (threat T-19). Set the allowlist when the egress inventory exists; the alarm
+  above shows when any source exceeds the observed limit.
+* The supplemental allowlist rule blocks every source that is not listed, on every path. That
+  includes the account portal's calls to `/portal/*`, so the portal backend's egress must also
+  be listed when the allowlist is enabled.
+* The managed rule groups (for example size limits on request bodies in
+  `AWSManagedRulesCommonRuleSet`) can still block a tool-path request, safety calls included.
+  They were not evaluated against Talkdesk MCP traffic. Run them in COUNT mode in sandbox first.
+* The `WAF-RATE` gate reads the web ACL's `rule_json` from the plan. On the plan that creates
+  (or replaces) the supplemental allowlist IP set, `rule_json` is unknown, because it references
+  the new IP set's ARN, and the gate cannot evaluate the rate rules at all. That is the
+  allowlist configuration intended for production. For that plan the ingress tftest
+  (`edge_rate_limit_with_supplemental_allowlist`) is the only check; every later plan has a
+  known `rule_json` and is gated again.
+* The gate probes five fixed paths. It does not derive them from the listener rules; the
+  web ACL precondition above ties new service-to-service routes to the exemption instead.
+  The precondition recognises a Talkdesk-facing route by `require_jwt = true`. How Talkdesk
+  authenticates webhooks is UNKNOWN (TB-09). A future Talkdesk webhook routed with
+  `require_jwt = false` would therefore fall under the blocking per-IP limit without any check
+  noticing. Route such a webhook with `require_jwt = true`, or extend the regex and the probe
+  paths together.
+* The gate does not evaluate AWS managed rule groups. Their rules (see the size limits above,
+  and any managed group with rate-based or challenge rules added later) can stop a safety call
+  without a `WAF-RATE` finding.
+* The portable-regex subset is an engineering judgement of where RE2 and PCRE agree. The
+  ingress pattern is inside it, but AWS WAF has not evaluated the rule. That needs a sandbox
+  plan and apply (NOT RUN).
+* An `AndStatement` or `OrStatement` with fewer than two statements is evaluated as written
+  (an empty And always matches). AWS rejects such a statement at apply, so it cannot reach an
+  environment, but the gate does not refuse it at plan time.
 
 ## Interface contracts with other modules
 
@@ -120,7 +222,7 @@ real-account plan is **NOT RUN**.
   (gateway 8080, worker 8081), `VSP_SESSION_TABLE`, `VSP_DB_WRITER_ENDPOINT`,
   `VSP_DB_READER_ENDPOINT`, `VSP_DB_NAME`, `VSP_DB_IAM_USER=app_runtime` (IAM DB auth; the role
   needs `GRANT rds_iam`), `VSP_SECRET_REFS` (JSON name -> Secrets Manager ARN; values fetched
-  at runtime), `VSP_METRICS_NAMESPACE=VSP`, `VSP_METRICS_LOG_GROUP`. Worker only:
+  at runtime; only the gateway's map has `request-hash-pepper`), `VSP_METRICS_NAMESPACE=VSP`, `VSP_METRICS_LOG_GROUP`. Worker only:
   `VSP_QUEUE_URLS` (outbox topic -> URL), `VSP_STATE_MACHINE_ARNS` (workflow -> `live` alias),
   `VSP_AUDIT_BUCKET`, `VSP_AUDIT_PREFIX`, `VSP_AUDIT_REGION`, `VSP_AUDIT_WRITER_ROLE_ARN`
   (assume, then single-part `PutObject` only).
@@ -187,6 +289,13 @@ real-account plan is **NOT RUN**.
   - **Item writes that return old values.** `dynamodb:UpdateItem` or `DeleteItem` with
     `ReturnValues` is not denied. It needs the item keys, and CI cannot list them (Scan,
     Query and stream reads are denied).
+  - **Limits of the `CI-BOUNDARY` probes.** Each probe is one request: a probe resource
+    (a generic object, plus an object in every bucket the boundary names) and a fixed set of
+    request keys (region, principal). A deny that holds for these requests but not for some
+    other resource or key value passes the gate. For example, a deny excluded by a condition
+    on a key the probes do not set, or a resource pattern that names no bucket. The `iam_ci`
+    module's own export deny uses `Resource "*"` and the principal condition only, so these
+    limits concern a future change to the boundary.
   The effects above were evaluated offline (tftest, OPA evaluator) with AWS IAM semantics.
   They were not run against AWS. In particular, the request keys `kms:GrantIsForAWSResource`
   and `secretsmanager:BlockPublicPolicy` must be confirmed in a real account, including that

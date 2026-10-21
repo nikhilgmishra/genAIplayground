@@ -6,9 +6,11 @@
  * Per item:
  *  1. strict structural validation (unknown fields fail);
  *  2. sanitization of title and body (sanitize.ts);
- *  3. prompt-injection / dial-target detection on BOTH the raw (entity-decoded)
- *     input and the sanitized output, so instructions hidden in stripped markup
- *     still quarantine the item;
+ *  3. prompt-injection / dial-target detection on the raw input, the input with
+ *     entities decoded to a fixpoint (markup kept; every HTML named reference;
+ *     NFKC before each decode, as in the sanitizer), the sanitized output and the
+ *     text hidden in Unicode tag characters (raw or entity-encoded), so
+ *     instructions hidden in stripped markup still quarantine the item;
  *  4. personal-data pattern check (emails, SSN-like, card-like values):
  *     knowledge must not carry customer data;
  *  5. policy checks: approved with approver and time, owned, effective now,
@@ -27,7 +29,7 @@ import { toVectorLiteral } from "./embedding.js";
 import type { KnowledgeEmbedder } from "./embedding.js";
 import { detectInjection } from "./injection.js";
 import type { IngestReport } from "./ports.js";
-import { sanitizeKnowledgeText } from "./sanitize.js";
+import { decodeEntitiesForDetection, sanitizeKnowledgeText } from "./sanitize.js";
 import { APPROVER, KnowledgeItemInputSchema, OWNER, SOURCE_ID, contentDigestOf, itemDigestOf, normalizeLanguage } from "./schema.js";
 import type { NormalizedKnowledgeItem } from "./schema.js";
 import { computeSnapshot, persistSnapshotIfChanged } from "./snapshot.js";
@@ -41,15 +43,8 @@ export type ItemEvaluation =
   | { kind: "invalid"; sourceId: string; reasonCodes: string[] }
   | { kind: "evaluated"; item: NormalizedKnowledgeItem; reasonCodes: string[]; findings: string[] };
 
-const decodeForDetection = (s: string): string =>
-  s
-    .replace(/&#x([0-9a-f]{1,6});?/gi, (_m, h: string) => safeChar(Number.parseInt(h, 16)))
-    .replace(/&#(\d{1,7});?/g, (_m, d: string) => safeChar(Number.parseInt(d, 10)))
-    .replace(/&(lt|gt|amp|quot|apos|nbsp|colon);?/gi, (_m, n: string) => ({ lt: "<", gt: ">", amp: "&", quot: '"', apos: "'", nbsp: " ", colon: ":" })[n.toLowerCase()] ?? "");
-
-function safeChar(cp: number): string {
-  return Number.isFinite(cp) && cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : "";
-}
+/** Sanitizer findings that quarantine under their own reason code only, not as executable content. */
+const OWN_REASON_FINDINGS: ReadonlySet<string> = new Set(["SANITIZER_INPUT_TOO_LARGE", "HIDDEN_TAG_CHARACTERS", "ENTITY_DECODE_LIMIT_EXCEEDED"]);
 
 /** Pure evaluation of one raw item. Deterministic for a given input and context. */
 export function evaluateKnowledgeItem(raw: unknown, index: number, ctx: EvaluationContext): ItemEvaluation {
@@ -72,14 +67,17 @@ export function evaluateKnowledgeItem(raw: unknown, index: number, ctx: Evaluati
   const sanitizedBody = sanitizeKnowledgeText(p.body, { allowedLinkDomains: ctx.allowedLinkDomains });
   const findings = [...new Set([...sanitizedTitle.findings, ...sanitizedBody.findings])].sort();
   const quarantineFindings = [...sanitizedTitle.quarantineFindings, ...sanitizedBody.quarantineFindings];
-  // An input the sanitizer refuses as too large (VSP-KN-02) is quarantined under its own reason, not as executable content.
-  if (quarantineFindings.some((f) => f !== "SANITIZER_INPUT_TOO_LARGE" && f !== "HIDDEN_TAG_CHARACTERS")) reasons.add("KNOWLEDGE_EXECUTABLE_CONTENT");
+  // An input the sanitizer refuses as too large (VSP-KN-02), hidden tag text and entities nested past the decode
+  // budget (VSP-KN-01) are quarantined under their own reason, not as executable content.
+  if (quarantineFindings.some((f) => !OWN_REASON_FINDINGS.has(f))) reasons.add("KNOWLEDGE_EXECUTABLE_CONTENT");
   for (const f of quarantineFindings) reasons.add(`KNOWLEDGE_${f}`);
   if (sanitizedTitle.text.length === 0 || sanitizedBody.text.length === 0) reasons.add("KNOWLEDGE_EMPTY_AFTER_SANITIZE");
 
   // Tag-encoded text is invisible to readers; decode it so a hidden instruction is reported as what it is (VSP-KN-01).
-  const hidden = [decodeTagCharacters(p.title), decodeTagCharacters(p.body)].filter((t) => t.length > 0);
-  for (const text of [p.title, p.body, decodeForDetection(p.title), decodeForDetection(p.body), sanitizedTitle.text, sanitizedBody.text, ...hidden]) {
+  // The sanitizer decodes tag characters at every step, so entity-encoded tag characters (&#xe0049;) are covered too.
+  const hidden = [...new Set([decodeTagCharacters(p.title), decodeTagCharacters(p.body), sanitizedTitle.hiddenText, sanitizedBody.hiddenText])].filter((t) => t.length > 0);
+  const inspected = [p.title, p.body, decodeEntitiesForDetection(p.title), decodeEntitiesForDetection(p.body), sanitizedTitle.text, sanitizedBody.text, ...hidden, ...hidden.map(decodeEntitiesForDetection)];
+  for (const text of inspected) {
     for (const code of detectInjection(text)) reasons.add(code);
   }
   if (detectSensitiveSpans(`${p.title}\n${p.body}`).some((s) => s.type === "EMAIL" || s.type === "SSN" || s.type === "CARD")) {

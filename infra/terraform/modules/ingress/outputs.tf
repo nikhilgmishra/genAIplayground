@@ -38,6 +38,16 @@ output "web_acl_arn" {
   value       = aws_wafv2_web_acl.this.arn
 }
 
+output "web_acl_name" {
+  description = "WAFv2 web ACL name (AWS/WAFV2 WebACL dimension)."
+  value       = aws_wafv2_web_acl.this.name
+}
+
+output "waf_rate_observe_metric_name" {
+  description = "Metric name (AWS/WAFV2 Rule dimension) of the COUNT-only rate rule on the tool-caller paths; CountedRequests above zero means a source exceeded the edge limit on paths where it is never enforced."
+  value       = local.rate_observe_metric_name
+}
+
 output "access_log_bucket" {
   description = "ALB access-log bucket name."
   value       = aws_s3_bucket.access_logs.id

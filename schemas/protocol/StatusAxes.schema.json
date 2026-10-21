@@ -1,0 +1,72 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/StatusAxes.json",
+  "title": "StatusAxes",
+  "x-protocol-version": "2026-10-17.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "software": {
+      "type": "string",
+      "enum": [
+        "MISSING",
+        "IMPLEMENTED",
+        "VERIFIED_LOCAL",
+        "RELEASE_PACKAGE_VERIFIED"
+      ]
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "NOT_CONFIGURED",
+        "CONFIGURED",
+        "VERIFIED_SANDBOX",
+        "APPROVED_PILOT",
+        "VERIFIED_PRODUCTION"
+      ]
+    },
+    "qualification": {
+      "type": "string",
+      "enum": [
+        "NOT_RUN",
+        "FAIL",
+        "INCONCLUSIVE",
+        "PASS"
+      ]
+    },
+    "evidenceRefs": {
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+      }
+    },
+    "legacyReleaseStatus": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "IMPLEMENTED_OFFLINE",
+            "VERIFIED_SANDBOX",
+            "APPROVED_PILOT",
+            "VERIFIED_PRODUCTION",
+            "BLOCKED"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "software",
+    "environment",
+    "qualification",
+    "evidenceRefs",
+    "legacyReleaseStatus"
+  ],
+  "additionalProperties": false
+}

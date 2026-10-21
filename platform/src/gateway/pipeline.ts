@@ -809,6 +809,11 @@ export class ToolPipeline {
     const masked = applyFieldMask(out.data, fieldMask, module.maskTarget);
     const speech = this.completeSpeech(st, outcome.speech);
     if (outcome.status === "PENDING") st.evidence.push(`pending:${outcome.pendingRef}`);
+    // Audit-only reason of a SUCCESS (e.g. OPS-KS-01 human route while notifications are switched off): recorded
+    // on tool.invoke, never returned. A pipeline-owned reason (session reason, LATE_SETTLEMENT) takes precedence.
+    if (outcome.status === "SUCCESS" && st.auditReason === null && typeof outcome.auditReasonCode === "string" && ReasonCode.safeParse(outcome.auditReasonCode).success) {
+      st.auditReason = outcome.auditReasonCode;
+    }
     return this.finish(st, outcome.status === "PENDING" ? { ...outcome, data: masked } : { status: "SUCCESS", data: masked, speech: null }, masked, speech);
   }
 

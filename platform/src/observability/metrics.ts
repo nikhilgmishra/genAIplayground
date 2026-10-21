@@ -51,7 +51,8 @@ export type DashboardId =
   | "audit"
   | "resilience"
   | "admission_controls"
-  | "service_objectives";
+  | "service_objectives"
+  | "resolution";
 
 export interface MetricDefinition {
   readonly name: string;
@@ -302,10 +303,78 @@ export const WORKER_LOOP_NAMES = [
   "audit.deferred_flush",
   // OPS-AUD-01: integrity, ingestion and completeness reconciliation (audit/monitor.ts).
   "audit.verify",
+  // Live composition loops (platform/src/worker/live-loops.ts, WP-07).
+  "audit.route_reconcile",
+  "inbox.process",
+  "inbox.stream_ingest",
+  "inbox.payload_purge",
+  "inbox.replay_key_purge",
+  "console.sso_sweep",
+  "connectors.feed_sync",
+  // The audit exporter process (platform/src/main/audit-exporter.ts): export under the writer identity,
+  // independent verification under the read-only verifier identity.
+  "audit.export",
+  "audit.export_verify",
 ] as const;
 
 /** Durable action grant check results (platform/src/workflows/grants.ts reason codes, lower-cased) plus engine-side gaps. */
 export const GRANT_CHECK_RESULTS = ["valid", "invalid_input", "not_found", "expired", "revoked", "action_not_permitted", "absent", "store_unconfigured"] as const;
+
+/**
+ * Resolution-contract intents (platform/src/business/contracts). Kept here so the `intent` label
+ * allowlist is closed without the catalogue importing the business layer; business tests assert
+ * every contract intent is listed. "unknown" labels an outcome recorded without a known contract.
+ */
+export const CONTRACT_INTENTS = [
+  "appointment_lookup",
+  "appointment_reschedule",
+  "appointment_create",
+  "invoice_explanation",
+  "billing_review",
+  "payment_page",
+  "claim_status",
+  "complaint_intake",
+  "support_intake",
+  "case_follow_up",
+  "human_request",
+  "safety_route",
+  "provider_onboarding_status",
+  "credentialing_document_status",
+  "remittance_lookup",
+  "partner_intake",
+  "public_faq",
+  "login_guidance",
+  "verification",
+  "unknown",
+] as const;
+
+/**
+ * Repeat-contact windows a deployment may measure (label `window`; each id IS its duration, so a
+ * label can never misstate the window). Which ones are measured is configuration
+ * (platform/src/business/outcomes.ts DEFAULT_REPEAT_CONTACT_POLICY).
+ */
+export const REPEAT_CONTACT_WINDOWS = ["24h", "72h", "7d", "14d", "30d"] as const;
+export type RepeatContactWindow = (typeof REPEAT_CONTACT_WINDOWS)[number];
+
+/** Results of the repeat-contact check made when a call's first outcome is recorded (business/outcomes.ts). */
+export const REPEAT_CONTACT_CHECK_RESULTS = ["repeat", "first_contact", "no_authorized_subject", "subject_ambiguous", "check_failed"] as const;
+
+/** Mapped Salesforce Case states observed by the support-request service (vendor status values are never labels). */
+export const CASE_STATES = ["open", "closed", "unmapped"] as const;
+
+/**
+ * Account-keyed verification abuse signal kinds (platform/src/identity/abuse-monitor.ts
+ * AccountAbuseSignal). Kept here so the label allowlist is closed; identity tests assert the two
+ * lists are equal. Labels carry the kind only: never an account, destination, session or call id.
+ */
+export const VERIFICATION_ABUSE_SIGNAL_KINDS = [
+  "LINK_ACCOUNT_LIMIT",
+  "OTP_ACCOUNT_LIMIT",
+  "OTP_DESTINATION_LIMIT",
+  "OTP_ACCOUNT_GUESS_LIMIT",
+  "OTP_ACCOUNT_CHALLENGE_LOCKED",
+  "RECENT_NUMBER_CHANGE",
+] as const;
 
 // ---------------------------------------------------------------------------
 // Catalogue
@@ -358,7 +427,7 @@ export type MetricCatalogue = ReadonlyMap<string, MetricDefinition>;
 
 export function createMetricCatalogue(ext: CatalogueExtensions = {}): MetricCatalogue {
   const tool = dyn(DEFAULT_TOOL_NAMES, ext.toolNames);
-  const intent = dyn([...IssueCategory.options], ext.intents);
+  const intent = dyn([...IssueCategory.options, ...CONTRACT_INTENTS], ext.intents);
   const model = dyn(["unknown"], ext.models);
   const voice = dyn(["unknown"], ext.voices);
 
@@ -376,6 +445,22 @@ export function createMetricCatalogue(ext: CatalogueExtensions = {}): MetricCata
       entry: ENTRY,
     }),
     def("vsp_interaction_outcomes_total", "counter", "1", "call_flow", "Interaction outcomes (RESOLVED requires evidence)", { outcome: Outcome.options, intent }),
+    // --- resolution, containment, repeat contact, reopened cases (spec section 13) --------------
+    // Containment is measured apart from resolution and is never a success measure: no service
+    // objective, alarm or evaluation gate rewards a call for ending without a human transfer.
+    def("vsp_verified_resolutions_total", "counter", "1", "resolution", "Calls RESOLVED with the contract's committed receipt verified for the call (an accepted request or created Case is not a resolution, ACT-04)", {
+      intent,
+      source: ["call_end", "reconciliation"],
+    }),
+    def("vsp_contained_interactions_total", "counter", "1", "resolution", "Call-end outcomes with no human or safety transfer attempted (no transfer journey of any status; containment, not resolution)", { outcome: Outcome.options, intent }),
+    def("vsp_repeat_contacts_total", "counter", "1", "resolution", "Calls of an authorized subject with an earlier recorded call inside the window", {
+      window: REPEAT_CONTACT_WINDOWS,
+      prior_outcome: Outcome.options,
+      prior_intent: intent,
+    }),
+    def("vsp_repeat_contact_checks_total", "counter", "1", "resolution", "Repeat-contact checks at a call's first recorded outcome (denominator of the repeat-contact rate)", { result: REPEAT_CONTACT_CHECK_RESULTS }),
+    def("vsp_case_status_observations_total", "counter", "1", "resolution", "Salesforce Case status reads by mapped state", { case_state: CASE_STATES }),
+    def("vsp_cases_reopened_total", "counter", "1", "resolution", "Synchronized Cases observed open again after an observed close", { issue_category: IssueCategory.options }),
     // --- identity --------------------------------------------------------
     def("vsp_identity_verifications_total", "counter", "1", "identity", "Verification attempts by method and result", {
       method: VerificationMethod.options,
@@ -395,6 +480,9 @@ export function createMetricCatalogue(ext: CatalogueExtensions = {}): MetricCata
       ],
     }),
     def("vsp_challenge_abuse_signals_total", "counter", "1", "identity", "Challenge abuse and risk signals", { signal: RiskFlag.options }),
+    def("vsp_verification_abuse_signals_total", "counter", "1", "identity", "Account-keyed verification abuse signals by kind (aggregated; no account, destination or session identifier)", {
+      signal: VERIFICATION_ABUSE_SIGNAL_KINDS,
+    }),
     // --- tools and dependencies -----------------------------------------
     def("vsp_tool_calls_total", "counter", "1", "tools_dependencies", "Tool invocations by status", { tool, status: ToolStatus.options }),
     def("vsp_tool_latency_ms", "histogram", "ms", "tools_dependencies", "Tool latency at the gateway", { tool, status: ToolStatus.options }),
@@ -807,3 +895,25 @@ export const noopMetrics: Metrics = {
   observe: () => undefined,
   gauge: () => undefined,
 };
+
+/**
+ * Fans every emission out to each sink (WP-07: the live composition keeps the in-process aggregate the
+ * alarm evaluation and readiness read, and the OpenTelemetry bridge the exporter reads). A sink that throws
+ * never stops the others, and never reaches the caller.
+ */
+export function teeMetrics(...sinks: readonly Metrics[]): Metrics {
+  const each = (f: (m: Metrics) => void) => {
+    for (const s of sinks) {
+      try {
+        f(s);
+      } catch {
+        // one failing sink does not stop the others
+      }
+    }
+  };
+  return {
+    increment: (name, labels, value) => each((m) => m.increment(name, labels, value)),
+    observe: (name, valueMs, labels) => each((m) => m.observe(name, valueMs, labels)),
+    gauge: (name, value, labels) => each((m) => m.gauge(name, value, labels)),
+  };
+}

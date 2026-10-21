@@ -1,0 +1,280 @@
+# Module register (WP-06; follow-on FO-03-11, FO-03-03, FO-06-24; docs/ARCHITECTURE.md section 6.4).
+#
+# Every module directory under the TypeScript source roots, present or planned by a package of
+# docs/followon/work-packages.yaml, with the modules it may import. Enforced three ways, all from this
+# file: the ESLint rule vsp/module-boundaries (platform/eslint.config.js, media/eslint.config.js,
+# companion/eslint.config.js), the dependency-cruiser rules (.dependency-cruiser.cjs) and the
+# architecture suite (platform/test/architecture), which also fails on a directory no module declares.
+#
+#   path       a directory (prefix) or a single file; a file resolves to the longest declared path
+#   allow      module ids it may import (its own files always); anything else is a violation
+#   kind       contracts | platform-service | trust | domain | composition | untrusted-output |
+#              test-support | http-only | operator | connector-runtime | connector-family | cache
+#   status     present (exists in the tree) | planned (owned by a later package; the rules already hold)
+#
+# Test support (tests, *.fixture.ts, testing.ts, fixtures/, __fixtures__/, testing/ directories) is
+# exempt from the allowlists: it is never part of a production composition (OPS-04 keeps fixtures out),
+# and the entry-point rules below refuse fixture imports from production entry points.
+#
+# After phase B the register moves with the registry group (WP-07, then each phase integration package).
+schemaVersion: vsp.module-register.v1
+
+roots:
+  - platform/src
+  - media/src
+  - companion/src
+  - console/src
+  - services/*/src
+
+testSupport:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.property.test.ts"
+  - "**/*.fixture.ts"
+  - "**/*test-fixtures.ts"
+  - "**/testing.ts"
+  - "**/fixtures/**"
+  - "**/__fixtures__/**"
+  - "**/testing/**"
+  - "**/test/**"
+  - "**/e2e/**"
+
+# The untrusted-output group (rule 1): may import only these modules (and each other downward).
+untrustedGroup:
+  members: [models, prompts, harness, media]
+  mayImport: [protocol, shared, resilience, observability, privacy-egress, connectors-http, gateway-client]
+
+# Rule 2: write ports (domain commits, notifications, transfers) are called only by the action executor
+# (and wired by the composition root).
+writePortModules: [domain, notifications, transfer]
+writePortImporters: [actions, main, worker]
+
+# Rule 3: the connector runtime and families are imported only by trusted server modules; the console API
+# reaches connectors only through readiness and the catalogue.
+connectorModules: [connectors-runtime, connectors-profile, connectors-secrets, connectors-dsl, connectors-authority, connectors-knowledge, connectors-warehouse, connectors-lakehouse, connectors-cdp, connectors-talkdesk, connectors-salesforce]
+connectorForbiddenImporters: [models, prompts, harness, media, console-api, gateway-client, improvement, monitors, review, studio]
+
+# Rule 4: production entry points never import fixtures, LOCAL FIXTURE adapters, the demo, the evaluation
+# tooling or test emulators (directly; `transitive: true` also forbids reaching them through other modules).
+entryPoints:
+  - file: platform/src/main/live-container.ts
+    transitive: true
+  - file: platform/src/main/live-modules.ts
+    transitive: true
+  - file: platform/src/main/live-worker.ts
+    transitive: true
+  - file: platform/src/worker/live-loops.ts
+    transitive: true
+  - file: platform/src/main/audit-exporter.ts
+    transitive: true
+  - file: platform/src/worker/main.ts
+    transitive: false
+  - file: media/src/main.ts
+    transitive: true
+  - file: platform/src/main/server.ts
+    transitive: false
+  # Not transitive until console-api/auth.ts (console-api group) moves its LOCAL FIXTURE sign-in out (hand-off).
+  - file: platform/src/main/live-console.ts
+    transitive: false
+entryPointForbidden: [fixtures, adapters-local, demo, evaluation]
+
+# Rule 6: improvement acts only on drafts and signed canary limits: it never reaches policy, identity or the
+# tenant-config publication path, directly or through the modules it may import.
+improvementForbidden: [policy, identity, tenant-config-publication]
+
+# Decision-gated technologies (FO-03-25, FO-08-17, FO-08-35, FO-23-08): none may appear in a package
+# manifest, the lockfile, an import or a declared module without an Accepted ADR recorded here.
+decisionGates:
+  - id: eventbridge-fanout
+    requirementId: FO-03-25
+    rule: EventBridge only when fan-out is justified (follow-on prompt section 3)
+    packages: ["@aws-sdk/client-eventbridge", "@aws-sdk/client-pipes", "@aws-sdk/client-scheduler"]
+    importPatterns: ["^@aws-sdk/client-eventbridge", "^@aws-sdk/client-pipes"]
+    moduleKinds: [event-fanout]
+    decision: null
+  - id: graph-retrieval
+    requirementId: FO-08-17
+    rule: Expensive graph retrieval only when a retrieval evaluation shows measured gains (section 8)
+    packages: ["neo4j-driver", "@neo4j/graphql", "gremlin", "@aws-sdk/client-neptune", "@aws-sdk/client-neptunedata", "@aws-sdk/client-neptune-graph", "graphology", "@langchain/community", "llamaindex"]
+    importPatterns: ["^neo4j-driver", "^@neo4j/", "^gremlin", "^@aws-sdk/client-neptune", "^graphology", "^@langchain/community/(graphs|retrievers/graph)", "^llamaindex"]
+    moduleKinds: [graph-store, graph-retriever]
+    requiresEvaluationReport: evidence/evaluation/retrieval/
+    decision: null
+  - id: semantic-cache
+    requirementId: FO-08-35
+    rule: A similarity-keyed cache needs the FO-07-42 key and the disclosure re-check on return (section 8)
+    packages: ["@upstash/semantic-cache", "gptcache", "semantic-cache", "@langchain/redis", "redis-semantic-cache"]
+    importPatterns: ["^@upstash/semantic-cache", "^gptcache", "^semantic-cache", "^@langchain/redis", "^redis-semantic-cache"]
+    moduleKinds: [semantic-cache]
+    cacheKinds: [semantic]
+    requiresKeyRequirement: FO-07-42
+    decision: null
+  - id: personal-agent-protocol
+    requirementId: FO-23-08
+    rule: The Personal Agent Protocol is not an assumed stable dependency (section 23, V01)
+    packages: ["personal-agent-protocol", "@personal-agent-protocol/sdk", "@pap/sdk", "pap-sdk"]
+    importPatterns: ["personal-agent-protocol", "^@pap/", "^pap-sdk"]
+    moduleKinds: [personal-agent-protocol]
+    decision: null
+
+# Every cache module declares whether it is keyed exactly or by similarity (FO-08-35). A `semantic` cache also
+# names `keyRequirement: FO-07-42`, `disclosureRecheck: true` and `recheckTest` (a test tagged [FO-08-35]).
+caches:
+  - file: platform/src/adapters/support-record-cache.ts
+    cacheKind: exact
+    key: Case external id (tenant-scoped adapter instance); TTL at most 60 s
+  - file: platform/src/ingress/verifiers.ts
+    cacheKind: exact
+    key: SHA-256 of the webhook signature value or jti (ReplayCache); bounded size and expiry
+  - file: platform/src/connectors/secrets/resolver.ts
+    cacheKind: exact
+    key: secret reference and version stage; bounded TTL
+  - file: platform/src/connectors/runtime/token-manager.ts
+    cacheKind: exact
+    key: capability and access of one connector's credential; expiry-bounded
+
+modules:
+  # ---------------------------------------------------------------- contracts and platform services
+  - { id: protocol, path: platform/src/protocol, kind: contracts, status: present, allow: [console-api-contract, shared] }
+  # The console API contract (route constants, types) and its zod schemas: pure contract files that the
+  # protocol generator renders into the console OpenAPI and the console imports (rule 5).
+  - id: console-api-contract
+    paths: [platform/src/console-api/contract.ts, platform/src/console-api/schemas.ts]
+    kind: contracts
+    status: present
+    allow: []
+  - { id: shared, path: platform/src/shared, kind: contracts, status: present, allow: [] }
+  - { id: db, path: platform/src/db, kind: platform-service, status: present, allow: [shared] }
+  - { id: observability, path: platform/src/observability, kind: platform-service, status: present, allow: [protocol, shared] }
+  - { id: resilience, path: platform/src/resilience, kind: platform-service, status: present, allow: [observability, protocol, shared] }
+  # The configuration guard loads the module-local config sub-schemas and guard rules of other modules by file
+  # (docs/followon/work-packages.yaml ownership rules): the console's workforce SSO schema and rule, and the
+  # connector credential-separation rule (WP-07).
+  - id: config
+    path: platform/src/config
+    kind: platform-service
+    status: present
+    allow: [observability, privacy-egress, protocol, shared]
+    allowFiles: [platform/src/console-api/sso-config.ts, platform/src/connectors/profile/credentials.ts]
+  - id: privacy-egress
+    paths: [platform/src/privacy/egress.ts, platform/src/privacy/classification.ts, platform/src/privacy/patterns.ts]
+    kind: platform-service
+    status: present
+    allow: [observability, protocol, shared]
+  - { id: privacy, path: platform/src/privacy, kind: platform-service, status: present, allow: [config, observability, privacy-egress, protocol, shared] }
+  - { id: ops, path: platform/src/ops, kind: platform-service, status: present, allow: [adapters, audit, config, db, observability, protocol, shared] }
+  # ---------------------------------------------------------------- trust and transport
+  - { id: policy, path: platform/src/policy, kind: trust, status: present, allow: [config, fixtures, observability, protocol, shared] }
+  - { id: identity, path: platform/src/identity, kind: trust, status: present, allow: [adapters, observability, ops, protocol, shared] }
+  - { id: audit, path: platform/src/audit, kind: trust, status: present, allow: [db, observability, protocol, shared] }
+  - { id: outbox, path: platform/src/outbox, kind: trust, status: present, allow: [audit, db, observability, protocol, shared] }
+  - { id: ingress, path: platform/src/ingress, kind: trust, status: present, allow: [audit, db, observability, outbox, protocol, shared] }
+  - { id: calls, path: platform/src/calls, kind: trust, status: planned, owner: WP-11, allow: [audit, db, observability, protocol, shared] }
+  # ---------------------------------------------------------------- connector runtime (WP-06) and families
+  - { id: connectors-http, path: platform/src/connectors/http, kind: connector-runtime, status: present, allow: [observability, privacy-egress, protocol, shared] }
+  - { id: connectors-secrets, path: platform/src/connectors/secrets, kind: connector-runtime, status: present, allow: [observability, protocol, shared] }
+  - { id: connectors-dsl, path: platform/src/connectors/dsl, kind: connector-runtime, status: present, allow: [protocol, shared] }
+  - { id: connectors-profile, path: platform/src/connectors/profile, kind: connector-runtime, status: present, allow: [connectors-dsl, privacy-egress, protocol, shared] }
+  - { id: connectors-runtime, path: platform/src/connectors/runtime, kind: connector-runtime, status: present, allow: [connectors-dsl, connectors-http, connectors-profile, connectors-secrets, db, observability, protocol, resilience, shared] }
+  - { id: connectors-authority, path: platform/src/connectors/authority, kind: connector-family, status: planned, owner: WP-19, allow: &family [connectors-dsl, connectors-http, connectors-profile, connectors-runtime, connectors-secrets, config, db, observability, protocol, resilience, shared] }
+  - { id: connectors-knowledge, path: platform/src/connectors/knowledge, kind: connector-family, status: planned, owner: WP-20, allow: *family }
+  - { id: connectors-warehouse, path: platform/src/connectors/warehouse, kind: connector-family, status: planned, owner: WP-21, allow: *family }
+  - { id: connectors-lakehouse, path: platform/src/connectors/lakehouse, kind: connector-family, status: planned, owner: WP-21, allow: *family }
+  - { id: connectors-cdp, path: platform/src/connectors/cdp, kind: connector-family, status: planned, owner: WP-21, allow: *family }
+  - { id: connectors-talkdesk, path: platform/src/connectors/talkdesk, kind: connector-family, status: planned, owner: WP-29, allow: *family }
+  - { id: connectors-salesforce, path: platform/src/connectors/salesforce, kind: connector-family, status: planned, owner: WP-29, allow: *family }
+  - id: connectors-catalog
+    path: platform/src/connectors/catalog
+    kind: connector-family
+    status: planned
+    owner: WP-32
+    allow: [connectors-authority, connectors-cdp, connectors-dsl, connectors-http, connectors-knowledge, connectors-lakehouse, connectors-profile, connectors-runtime, connectors-salesforce, connectors-secrets, connectors-talkdesk, connectors-warehouse, config, db, observability, protocol, shared]
+  # ---------------------------------------------------------------- domain engines
+  - id: adapters
+    path: platform/src/adapters
+    kind: domain
+    status: present
+    allow: [adapters-live, adapters-local, connectors-runtime, connectors-profile, connectors-secrets, connectors-http, connectors-dsl, fixtures, protocol, shared]
+  - id: adapters-live
+    path: platform/src/adapters/live
+    kind: domain
+    status: present
+    # WP-07: the live transfer store (PostgreSQL) implements the workflows module's TransferStore port.
+    allow: [adapters, connectors-runtime, connectors-profile, connectors-secrets, connectors-http, connectors-dsl, db, observability, protocol, resilience, shared, workflows]
+  - { id: adapters-local, path: platform/src/adapters/local, kind: test-support, status: present, allow: [adapters, adapters-live, fixtures, protocol, shared, observability, resilience] }
+  - id: actions
+    path: platform/src/actions
+    kind: domain
+    status: present
+    allow: [audit, db, domain, notifications, observability, outbox, protocol, shared, transfer]
+  - { id: domain, path: platform/src/domain, kind: domain, status: planned, owner: WP-23, allow: [connectors-dsl, connectors-http, connectors-profile, connectors-runtime, connectors-secrets, config, observability, protocol, resilience, shared] }
+  - { id: knowledge, path: platform/src/knowledge, kind: domain, status: present, allow: [audit, connectors-dsl, connectors-knowledge, connectors-profile, connectors-runtime, db, observability, privacy-egress, protocol, shared] }
+  - { id: grounding, path: platform/src/grounding, kind: domain, status: planned, owner: WP-20, allow: [db, knowledge, observability, protocol, shared] }
+  - { id: memory, path: platform/src/memory, kind: domain, status: present, allow: [db, observability, privacy, protocol, shared] }
+  - { id: retention, path: platform/src/retention, kind: domain, status: present, allow: [audit, db, observability, privacy, protocol, shared] }
+  - { id: privacy-ops, path: platform/src/privacy-ops, kind: domain, status: planned, owner: WP-22, allow: [audit, config, context, db, entity, memory, observability, outbox, privacy, protocol, retention, shared] }
+  - { id: context, path: platform/src/context, kind: domain, status: planned, owner: WP-18, allow: [audit, config, connectors-dsl, connectors-profile, connectors-runtime, db, ingress, observability, policy, protocol, resilience, shared] }
+  - { id: entity, path: platform/src/entity, kind: domain, status: planned, owner: WP-19, allow: [audit, connectors-authority, connectors-dsl, connectors-profile, connectors-runtime, db, observability, protocol, shared] }
+  - { id: safety, path: platform/src/safety, kind: domain, status: present, allow: [audit, db, observability, protocol, shared] }
+  - { id: voice, path: platform/src/voice, kind: domain, status: present, allow: [identity, observability, protocol, shared] }
+  - { id: notifications, path: platform/src/notifications, kind: domain, status: planned, owner: WP-27, allow: [audit, config, connectors-dsl, connectors-http, connectors-profile, connectors-runtime, connectors-secrets, db, observability, outbox, privacy-egress, protocol, resilience, shared] }
+  - { id: transfer, path: platform/src/transfer, kind: domain, status: planned, owner: WP-28, allow: [audit, db, ingress, observability, outbox, protocol, resilience, shared] }
+  # ---------------------------------------------------------------- business and durable work
+  - { id: workflows, path: platform/src/workflows, kind: domain, status: present, allow: [actions, adapters, audit, config, db, observability, protocol, shared] }
+  - id: business
+    path: platform/src/business
+    kind: domain
+    status: present
+    allow: [actions, adapters, audit, config, context, db, gateway, grounding, identity, knowledge, memory, observability, ops, outbox, policy, protocol, safety, shared, voice, workflows]
+  # ---------------------------------------------------------------- trusted boundaries
+  - id: gateway
+    path: platform/src/gateway
+    kind: trust
+    status: present
+    allow: [actions, adapters, audit, business, calls, config, context, db, grounding, identity, ingress, knowledge, observability, ops, policy, protocol, resilience, safety, shared, voice, workflows]
+  - id: console-api
+    path: platform/src/console-api
+    kind: trust
+    status: present
+    allow: [actions, adapters-local, audit, business, config, connectors-catalog, console-api-contract, db, fixtures, improvement, knowledge, monitors, observability, ops, outbox, policy, protocol, readiness, review, safety, shared, studio, tenant-config, workflows]
+  # ---------------------------------------------------------------- operator services
+  - { id: tenant-config, path: platform/src/tenant-config, kind: operator, status: planned, owner: WP-31, allow: [audit, config, db, observability, protocol, shared, tenant-config-publication] }
+  # The publication path of tenant configuration (rule 6: improvement never imports it; studio publishes
+  # only through tenant-config). The sub-path is a placeholder WP-31 may move with a register change.
+  - { id: tenant-config-publication, path: platform/src/tenant-config/publication, kind: operator, status: planned, owner: WP-31, allow: [audit, config, db, observability, protocol, shared] }
+  - { id: readiness, path: platform/src/readiness, kind: operator, status: planned, owner: WP-32, allow: [connectors-catalog, connectors-profile, connectors-runtime, db, observability, protocol, shared, tenant-config] }
+  - { id: studio, path: platform/src/studio, kind: operator, status: planned, owner: WP-33, allow: [audit, db, knowledge, observability, protocol, shared, tenant-config] }
+  - { id: monitors, path: platform/src/monitors, kind: operator, status: planned, owner: WP-35, allow: [audit, db, models, observability, protocol, shared] }
+  - { id: review, path: platform/src/review, kind: operator, status: planned, owner: WP-35, allow: [audit, db, models, observability, protocol, shared] }
+  - { id: improvement, path: platform/src/improvement, kind: operator, status: planned, owner: WP-36, allow: [db, monitors, observability, protocol, review, shared, tenant-config] }
+  - { id: qualification, path: platform/src/qualification, kind: operator, status: planned, owner: WP-45, allow: [audit, connectors-catalog, db, observability, protocol, readiness, shared, tenant-config] }
+  # ---------------------------------------------------------------- untrusted-output orchestration (rule 1)
+  - { id: models, path: platform/src/models, kind: untrusted-output, status: planned, owner: WP-08, allow: [connectors-http, observability, privacy-egress, protocol, resilience, shared] }
+  - { id: prompts, path: platform/src/prompts, kind: untrusted-output, status: planned, owner: WP-10, allow: [protocol, shared] }
+  - { id: harness, path: platform/src/harness, kind: untrusted-output, status: planned, owner: WP-10, allow: [connectors-http, gateway-client, models, observability, privacy-egress, prompts, protocol, resilience, shared] }
+  - { id: gateway-client, path: platform/src/gateway-client, kind: contracts, status: present, owner: WP-07, allow: [protocol, shared] }
+  # ---------------------------------------------------------------- composition and tooling
+  - id: main
+    path: platform/src/main
+    kind: composition
+    status: present
+    allow: ["*"]
+  - id: worker
+    path: platform/src/worker
+    kind: composition
+    status: present
+    allow: [actions, adapters-local, audit, business, config, context, db, gateway, ingress, main, observability, ops, outbox, protocol, retention, shared, workflows]
+  - { id: evaluation, path: platform/src/evaluation, kind: composition, status: present, allow: [audit, business, config, db, fixtures, gateway, harness, knowledge, main, monitors, observability, policy, protocol, shared, voice, worker] }
+  - { id: demo, path: platform/src/demo, kind: test-support, status: present, allow: [evaluation, protocol, shared] }
+  - { id: fixtures, path: platform/src/fixtures, kind: test-support, status: present, allow: [protocol, shared] }
+  # ---------------------------------------------------------------- media/ (untrusted-output group, HTTP to the gateway only)
+  - id: media
+    path: media/src
+    kind: untrusted-output
+    status: planned
+    owner: WP-11..WP-17
+    allow: [connectors-http, gateway-client, harness, models, observability, privacy-egress, protocol, resilience, shared]
+  # ---------------------------------------------------------------- HTTP-only packages (rule 5)
+  - { id: console, path: console/src, kind: http-only, status: present, allow: [gateway-client], allowFiles: [platform/src/console-api/contract.ts] }
+  - { id: companion, path: companion/src, kind: http-only, status: planned, owner: WP-27, allow: [gateway-client] }
+  - { id: reference-business-api, path: services/reference-business-api/src, kind: http-only, status: planned, owner: WP-23, allow: [] }

@@ -387,10 +387,13 @@ export class KmsTrustedKeyResolver implements TrustedKeyResolver {
     private readonly makeCommand: (input: { KeyId: string }) => unknown,
   ) {}
 
-  /** Builds a resolver using the real AWS SDK v3 KMS client. */
-  static async create(region: string): Promise<KmsTrustedKeyResolver> {
+  /**
+   * Builds a resolver using the real AWS SDK v3 KMS client. `endpoint` overrides the KMS endpoint (an emulator,
+   * sandbox only: the guard refuses endpoint overrides in staging and production, rules/infrastructure.ts).
+   */
+  static async create(region: string, opts: { endpoint?: string | null; credentials?: { accessKeyId: string; secretAccessKey: string } } = {}): Promise<KmsTrustedKeyResolver> {
     const kms = await import("@aws-sdk/client-kms");
-    const client = new kms.KMSClient({ region });
+    const client = new kms.KMSClient({ region, ...(opts.endpoint ? { endpoint: opts.endpoint } : {}), ...(opts.credentials ? { credentials: opts.credentials } : {}) });
     return new KmsTrustedKeyResolver(client as unknown as KmsPublicKeyClient, (input) => new kms.GetPublicKeyCommand(input));
   }
 
@@ -411,5 +414,41 @@ export class KmsTrustedKeyResolver implements TrustedKeyResolver {
     }
     if (algorithmForKey(key) === null) throw new ValidationError("APPROVAL_TRUST_KEY_INVALID");
     return key;
+  }
+}
+
+/** A KMS key named by a key ARN, a bare key id or a multi-region (mrk-) key id: every form KMS Sign accepts except an alias. */
+const KMS_SIGNING_KEY_FORM = /^(arn:aws[a-z-]*:kms:[a-z0-9-]{3,32}:\d{12}:key\/[A-Za-z0-9-]{1,128}|mrk-[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/;
+
+/**
+ * Resolves the PUBLIC key of a runtime signing key (the assertion key, the audit manifest signing and trusted
+ * manifest keys) with KMS GetPublicKey, for the key separation check only (config/rules/key-separation.ts: two key
+ * ids holding the same key material are one key; FO-14-56). It is never a trust anchor resolver: it accepts every
+ * reference form the runtime may sign with (key ARN, bare key id, mrk- id; a bare id names the key in the client's
+ * own account and region, the one the runtime's signer reaches), any key usage and any asymmetric key spec, so the
+ * material can be compared; it never accepts an alias (the guard refuses aliases for signing keys). A refused or
+ * failing call throws (the guard then refuses the environment: RUNTIME_SIGNING_KEY_UNRESOLVED).
+ */
+export class KmsRuntimeSigningKeyResolver implements TrustedKeyResolver {
+  readonly kind = "live" as const;
+  constructor(
+    private readonly client: KmsPublicKeyClient,
+    private readonly makeCommand: (input: { KeyId: string }) => unknown,
+  ) {}
+
+  async resolve(ref: string): Promise<KeyObject | null> {
+    if (!KMS_SIGNING_KEY_FORM.test(ref)) return null;
+    let res: { PublicKey?: Uint8Array; KeySpec?: string; KeyUsage?: string };
+    try {
+      res = await this.client.send(this.makeCommand({ KeyId: ref }));
+    } catch {
+      throw new ValidationError("RUNTIME_SIGNING_KEY_UNAVAILABLE");
+    }
+    if (!res.PublicKey) throw new ValidationError("RUNTIME_SIGNING_KEY_INVALID");
+    try {
+      return createPublicKey({ key: Buffer.from(res.PublicKey), format: "der", type: "spki" });
+    } catch {
+      throw new ValidationError("RUNTIME_SIGNING_KEY_INVALID");
+    }
   }
 }

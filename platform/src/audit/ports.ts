@@ -56,6 +56,14 @@ export interface DeferredAppendResult {
   eventId: string | null;
   /** Why it was not written now (AUDIT_STORE_UNWRITABLE, AUDIT_DEFERRED_QUEUE_FULL, ...); null when written. */
   reasonCode: string | null;
+  /**
+   * Where a deferred event is held (DurableDeferredAuditQueue, audit/journal.ts): "postgres" and "dynamodb"
+   * survive a crash, "memory" is the bounded last resort when neither journal accepted it. Absent for the
+   * process-local DeferredAuditQueue.
+   */
+  journal?: "postgres" | "dynamodb" | "memory" | null;
+  /** Opaque id of the deferral (dfr_...) when deferred. */
+  deferralId?: string | null;
 }
 
 /**
@@ -68,4 +76,23 @@ export interface DeferredAppendResult {
  */
 export interface DeferredAuditSink {
   appendOrDefer(input: AuditEventInput, stream?: string): Promise<DeferredAppendResult>;
+}
+
+/**
+ * A started human or safety route that must leave audit evidence by its deadline (route_audit_intents,
+ * migration 2040). Opened when the route starts (in the caller's transaction when it has one); resolved
+ * by the deferred sink when the route event is written or journaled; turned into an
+ * audit.route.not_recorded marker by RouteAuditReconciler when nothing arrived (FO-01-34).
+ */
+export interface RouteAuditIntentRecorder {
+  open(input: {
+    tenantId: string;
+    routeKind: "HUMAN_TRANSFER" | "SAFETY_ROUTE";
+    /** Correlation id the route's audit event will carry (the handoff id). */
+    correlationId: string;
+    callId: string;
+    safetyIncidentId?: string | null;
+    /** Seconds until an intent without evidence is reported (default 300, 30..86400). */
+    deadlineSeconds?: number;
+  }, tx?: Queryable): Promise<{ intentId: string; created: boolean }>;
 }

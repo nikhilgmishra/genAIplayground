@@ -16,8 +16,11 @@
  *  4. ranking among permitted rows only: ts_rank_cd over websearch_to_tsquery,
  *     plus optional pgvector cosine similarity (local fixture embedder offline);
  *  5. every returned row is re-checked in TypeScript against the same policy,
- *     its content digest is verified, and its excerpt is re-checked by the
- *     injection detector and sanitizer invariants before return.
+ *     its content digest is verified, and its title and excerpt are re-checked
+ *     by the injection detector and the sanitizer invariants (after the
+ *     sanitizer's own normalization, entity decoding and invisible/control
+ *     stripping; any such character left in the stored row drops it) before
+ *     return.
  *
  * Audience rule: callers with assurance A0, or audience "public", see only
  * items with sensitivity PUBLIC that list the "public" audience. Other callers
@@ -29,7 +32,7 @@
  */
 import type { Db } from "../db/types.js";
 import type { Logger, Metrics } from "../observability/ports.js";
-import { stripControl, stripInvisible } from "../privacy/patterns.js";
+import { containsInvisibleOrControl, stripControl, stripInvisible } from "../privacy/patterns.js";
 import { sha256Hex } from "../shared/canonical.js";
 import { ValidationError } from "../shared/errors.js";
 import { toVectorLiteral, tokenize } from "./embedding.js";
@@ -166,6 +169,19 @@ export function cleanQuery(q: string): string {
 
 const FTS_CONFIG_SQL = "(case split_part(lower($3), '-', 1) when 'en' then 'english' when 'es' then 'spanish' else 'simple' end)::regconfig";
 
+/**
+ * Re-check of the served text (the title and the excerpt) against the injection detector and the
+ * sanitizer's output invariants, which normalize, entity-decode and strip the text as the sanitizer
+ * does and flag any invisible, control or tag character left in it. The whole stored body is also
+ * checked for such characters: the current sanitizer never stores one, so a row that holds one was
+ * stored by an older sanitizer and is dropped (VSP-KN-01).
+ */
+export function servedTextSafe(row: Pick<RetrievedRow, "title" | "body_sanitized">, excerpt: string, allowedLinkDomains?: readonly string[]): boolean {
+  if (detectInjection(excerpt).length > 0 || detectInjection(row.title).length > 0) return false;
+  if (sanitizedTextViolations(excerpt, allowedLinkDomains).length > 0 || sanitizedTextViolations(row.title, allowedLinkDomains).length > 0) return false;
+  return !containsInvisibleOrControl(row.body_sanitized);
+}
+
 export async function searchKnowledge(deps: SearchDeps, raw: unknown): Promise<SearchOutcome> {
   const parsed = SearchInputSchema.safeParse(raw);
   if (!parsed.success) throw new ValidationError("KNOWLEDGE_SEARCH_INPUT_INVALID");
@@ -241,7 +257,7 @@ export async function searchKnowledge(deps: SearchDeps, raw: unknown): Promise<S
       continue;
     }
     const excerpt = buildExcerpt(row.body_sanitized, query, tuning.maxExcerptChars);
-    if (detectInjection(excerpt).length > 0 || detectInjection(row.title).length > 0 || sanitizedTextViolations(excerpt, deps.allowedLinkDomains).length > 0) {
+    if (!servedTextSafe(row, excerpt, deps.allowedLinkDomains)) {
       dropped += 1;
       deps.logger.warn("knowledge.search.recheck_dropped", { reasonCode: "RECHECK_EXCERPT_UNSAFE", intent: input.intent });
       countDropped(deps, "RECHECK_EXCERPT_UNSAFE");

@@ -8,8 +8,8 @@
  * No LLM is involved: variant transforms are fixed code plus per-skeleton
  * overrides, so the same inputs always produce byte-identical files. Every
  * generated scenario is `review.status: "UNREVIEWED"` until a human reviewer
- * records a review (PRQ-012). The split is a stable hash of the scenario id
- * (~20 percent held-out acceptance).
+ * records a review (PRQ-012). The split is assigned per family (split.ts,
+ * family-split.v2): every variant of an intent skeleton is in one split.
  *
  * Usage: tsx src/evaluation/generate.ts [--check] [--root <repo root>]
  *   --check  exit 1 if any generated file is missing, changed or stale (drift).
@@ -21,15 +21,16 @@ import { ScenarioDefinition, VariantFamily } from "../protocol/index.js";
 import type { RiskClass, ScenarioTurn } from "../protocol/index.js";
 import { sha256Hex } from "../shared/canonical.js";
 import { loadFaultPlans } from "./fault-plan.js";
-import { FAULTED_JOURNEYS, JOURNEYS } from "./journeys.js";
+import { FAULTED_JOURNEYS, JOURNEYS, JOURNEY_INTENTS } from "./journeys.js";
 import { REPO_ROOT, posixRelative, repoPaths, walkFiles } from "./paths.js";
 import { loadSkeletons } from "./skeleton.js";
 import type { IntentSkeleton, SkeletonTurn, VariantOverride } from "./skeleton.js";
-import { stableSplit } from "./split.js";
+import { familySplit } from "./split.js";
 import { KNOWN_TOOL_NAMES, PROTECTED_TOOLS } from "./vocabulary.js";
 
 export const VARIANT_FAMILIES = VariantFamily.options;
-export const GENERATOR_ID = "platform/src/evaluation/generate.ts@1";
+/** @2: splits assigned per family (split.ts family-split.v2) instead of per scenario id. */
+export const GENERATOR_ID = "platform/src/evaluation/generate.ts@2";
 
 const FRUSTRATION = [
   "This is the third time I've called about this and I'm really fed up.",
@@ -259,7 +260,7 @@ export function buildScenario(sk: IntentSkeleton, family: VariantFamily): Scenar
   const candidate: ScenarioDefinition = {
     scenarioId,
     version: sk.skeletonVersion,
-    split: stableSplit(scenarioId),
+    split: familySplit(sk.intent, JOURNEY_INTENTS),
     intent: sk.intent,
     audience: d.audience,
     locale: d.locale,
@@ -316,7 +317,13 @@ export interface PlannedFile {
 export const serializeScenario = (s: ScenarioDefinition): string => `${JSON.stringify(s, null, 2)}\n`;
 
 /** Directories wholly owned by this generator (stale JSON files inside them are removed on write). */
-export const MANAGED_DIRS = ["scenarios/generated/development", "scenarios/generated/heldout_acceptance", "scenarios/journeys"] as const;
+export const MANAGED_DIRS = [
+  "scenarios/generated/development",
+  "scenarios/generated/tuning",
+  "scenarios/generated/heldout_acceptance",
+  "scenarios/generated/regression",
+  "scenarios/journeys",
+] as const;
 
 export function planCorpusFiles(root = REPO_ROOT): { files: PlannedFile[]; scenarios: ScenarioDefinition[]; problems: string[] } {
   const p = repoPaths(root);

@@ -1,0 +1,70 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "SOURCE_MERGED",
+  "version": 1,
+  "title": "The identity directory merges two subjects",
+  "description": "The identity directory merges two subject records while a call or pending work references one of them; authorization and context must be re-resolved against the surviving subject.",
+  "category": "identity",
+  "target": {
+    "components": [
+      "platform/src/entity",
+      "platform/src/identity"
+    ],
+    "dependency": "identity_directory"
+  },
+  "trigger": {
+    "kind": "WHILE_WORK_PENDING",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "SUBJECT_MERGED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "tokens_absent",
+      "gate": "privacy",
+      "tokens": [
+        "disclose:other_subject"
+      ]
+    }
+  ],
+  "callerVisible": "The caller is re-verified or told a person will follow up; no other person's data is disclosed.",
+  "backendEvidence": [
+    "IdentityLink re-resolution recorded",
+    "Grants re-checked against the surviving subject"
+  ],
+  "requirementIds": [
+    "AUTH-05"
+  ],
+  "appliesToIntents": [
+    "appointment_lookup",
+    "case_follow_up"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:SOURCE_MERGED] owned by WP-24 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.SOURCE_MERGED",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the identity directory merges two subjects",
+    "injectionPointPackages": [
+      "WP-19"
+    ],
+    "postconditionPackages": [
+      "WP-19",
+      "WP-24"
+    ],
+    "layer2Owner": "WP-24",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "Context and grants are re-resolved before any disclosure",
+    "No record of the other subject is disclosed"
+  ]
+}

@@ -1,0 +1,1031 @@
+# Follow-on requirement source records, prompt section 8. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '8'
+requirements:
+- id: FO-08-01
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: software
+  text: Ship a production knowledge ingestion pipeline (validation, sanitization, approval, conflict handling, versioning, snapshots), not just an embeddings function.
+  acceptance: Ingest tests on PostgreSQL (PGlite) pass; pipeline used by a live composition with real sources.
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  - OPS-06
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/ingest.ts, service.ts, snapshot.ts
+  - platform/src/knowledge/ingest.test.ts:50-305 (passing 2026-10-19)
+  - fix wave 5 (8c0f5a0) merged the sanitizer residual fixes (accepted by an adversarial verifier); statuses re-checked at 8c0f5a0
+  gap: Fed only by the SYNTHETIC local corpus (platform/src/knowledge/corpus.ts refuses non-local); no source connectors (FO-06-77..80); not composed outside local.
+  remediation: Connect source connectors and live composition.
+  size: S
+  environmentDependency: Aurora PostgreSQL with pgvector for deployment
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - stale "fix wave 5 in progress" text refreshed against 8c0f5a0 (critic gap 3)
+- id: FO-08-02
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: software
+  text: 'Ship a knowledge management UI: ingest, review queue, approve/reject, release held items, version history, expiry dashboard.'
+  acceptance: Console pages with server-enforced knowledge_editor role, MFA, a11y tests, and API endpoints for review/release/reject.
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  - SPEC-16.console-functional
+  derivedFrom: []
+  capabilityIds:
+  - operator.studio
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - console/src/navigation.ts (no knowledge page)
+  - platform/src/knowledge/service.ts releaseHeld/rejectHeld have no console-api endpoint (grep)
+  - console/src/pages/ReleasesPage.tsx (snapshot release review only; heldItems not rendered)
+  gap: Knowledge editors have no UI or API to manage content.
+  remediation: Add console-api knowledge endpoints and console pages.
+  size: L
+  environmentDependency: none
+  workPackage: WP-33
+  provenance:
+    origin: extraction
+- id: FO-08-03
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: software
+  text: Each article/runbook records owner, audience, locale, jurisdiction, allowed intents, version, effective date, expiry, sensitivity, access rules and approval.
+  acceptance: Schema/migration enforce fields; ingest rejects unowned/unapproved/invalid window.
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/schema.ts:25-44
+  - platform/migrations/0500_knowledge.sql:14-63
+  - platform/src/knowledge/ingest.test.ts:116
+  gap: 'Access rules limited to audience role + sensitivity (no group/organization ACL). IMPLEMENTED, not VERIFIED_LOCAL: Access rules cover audience role and sensitivity only; group and organization ACLs, a named element, are absent.'
+  remediation: Add optional ACL groups if required by tenants.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: access rules cover audience role and sensitivity only; group and organization ACLs, a named element, are absent.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-20
+- id: FO-08-04
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: software
+  text: Each article records its source URL/record reference.
+  acceptance: sourceUrl/sourceRecordId stored and shown with citations.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/schema.ts (sourceId and sourceSystem only)
+  gap: No source URL/record field.
+  remediation: Add sourceUrl (allowlisted) and sourceRecordId to schema and migration (new migration).
+  size: S
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-08-05
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: software
+  text: Parse and scan safely; defend against malicious instructions in content.
+  acceptance: Injection/dial-target detection on raw, decoded, sanitized and hidden text quarantines items; property tests.
+  originalIds:
+  - SAFE-05
+  - SPEC-9.knowledge-ingestion
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/injection.ts, sanitize.ts
+  - platform/src/knowledge/ingest.test.ts:82
+  - platform/src/knowledge/sanitize*.test.ts
+  - fix wave 5 (8c0f5a0) merged the sanitizer residual fixes (accepted by an adversarial verifier); statuses re-checked at 8c0f5a0
+  gap: Heuristic detector (documented limitations); text formats only.
+  remediation: Add model-based injection classifier as an additional signal once qualified.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-20
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-08-06
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: software
+  text: Defend against malicious URLs in knowledge content.
+  acceptance: No non-allowlisted URL, bare domain or IP literal survives sanitization or retrieval re-check (property tests).
+  originalIds:
+  - SAFE-05
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/host-literals.ts + host-literals.test.ts
+  - platform/src/knowledge/search.test.ts:242-379 (VSP-KN-01 re-check)
+  - fix wave 5 (8c0f5a0) merged the sanitizer residual fixes (accepted by an adversarial verifier); statuses re-checked at 8c0f5a0
+  gap: 'Fix wave 5 (8c0f5a0) closed the VSP-KN-01 residuals (adversarial verifier: FIXED); remaining risk is the documented heuristic scope.'
+  remediation: Close KN-01 residuals.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-20
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-08-07
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: software
+  text: Defend against malicious attachments in knowledge sources.
+  acceptance: Attachments scanned (malware/type) before parsing; executable attachments quarantined.
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/sanitize.ts (removes attachment/executable references from text)
+  - no file attachment ingestion or malware scan
+  gap: Only textual references handled.
+  remediation: See FO-06-81.
+  size: M
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-08-08
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: software
+  text: Defend against oversized files and inputs.
+  acceptance: Body/batch/sanitizer input caps enforced; document byte caps enforced before parsing.
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/schema.ts:17-18 (MAX_BODY_CHARS, MAX_BATCH)
+  - platform/src/knowledge/sanitize.ts MAX_SANITIZE_INPUT_CHARS
+  - platform/src/knowledge/ingest.test.ts:230
+  - platform/src/knowledge/sanitize.adversarial.test.ts (time budgets)
+  gap: 'No byte caps for binary documents (no document ingestion yet). IMPLEMENTED, not VERIFIED_LOCAL: Document byte caps before parsing, a named element, do not exist (no binary document ingestion).'
+  remediation: Add byte caps in document sources.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: document byte caps before parsing, a named element, do not exist (no binary document ingestion).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-20
+- id: FO-08-09
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: software
+  text: Defend against index poisoning.
+  acceptance: Only approved, unconflicted, digest-verified rows are servable; rows bypassing SQL filters are dropped; poisoning eval set measured.
+  originalIds:
+  - SAFE-05
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0500_knowledge.sql (servable column, RLS, immutable versions)
+  - platform/src/knowledge/search.test.ts:204 (rows bypassing the SQL filter dropped)
+  - platform/src/knowledge/ingest.test.ts:133-173 (conflict holds, immutability)
+  gap: 'There is no retrieval-poisoning evaluation set (FO-08-14). The approval layer of the defence can be forged: ingest accepts a self-asserted approval.status APPROVED (platform/src/knowledge/ingest.ts:91-95), so a compromised source or caller can make poisoned content servable. The sanitizer, injection detector, conflict holds, digest re-check and post-SQL re-check remain effective. Depends on new FO-08-37. IMPLEMENTED, not VERIFIED_LOCAL: Approval is self-asserted at platform/src/knowledge/ingest.ts:91-95, so the approval layer can be forged, and no poisoning evaluation set is measured.'
+  remediation: Add poisoning cases to retrieval evaluation.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: approval is self-asserted at platform/src/knowledge/ingest.ts:91-95, so the approval layer can be forged, and no poisoning evaluation set is measured.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-20
+- id: FO-08-10
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: constraint
+  text: Unapproved content is draft and never served.
+  acceptance: Unapproved items stored only as quarantined review records; RLS exposes servable rows only.
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0500_knowledge.sql:44-57 (servable generated column; unapproved must be quarantined)
+  - platform/src/knowledge/ingest.test.ts:116,243
+  gap: None for the store; drafts are not editable in a UI (FO-08-02).
+  remediation: '-'
+  size: S
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-08-11
+  section: '8'
+  subsection: Hybrid retrieval, reranking and retrieval evaluation
+  kind: software
+  text: Use PostgreSQL full-text + pgvector hybrid retrieval with policy filters applied before ranking.
+  acceptance: Hybrid search tests on PostgreSQL with pgvector pass; full-text fallback without pgvector; live composition enables vectors.
+  originalIds:
+  - SPEC-9.retrieval
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/search.ts (permitted CTE, ts_rank_cd + pgvector cosine)
+  - platform/src/knowledge/search.test.ts:65,116,440,458 (PGlite with pgvector 0.8)
+  - 'platform/src/main/container.ts:428 (local composition passes embedder: null -> full-text only)'
+  gap: Vector path exercised only in tests with the hashing fixture embedder; the composed service runs full-text only.
+  remediation: Compose a qualified embedder and enable vectors in the composition.
+  size: S
+  environmentDependency: Aurora PostgreSQL with pgvector
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-08-12
+  section: '8'
+  subsection: Hybrid retrieval, reranking and retrieval evaluation
+  kind: software
+  text: Use a qualified production embedding model for the approved corpus and queries.
+  acceptance: Live KnowledgeEmbedder (pinned model id/version) passes retrieval evaluation thresholds; endpoint egress-approved.
+  originalIds:
+  - DATA-01
+  - OPS-06
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/embedding.ts (LocalHashingEmbedder LOCAL FIXTURE only; KnowledgeEmbedder kind 'live' declared but unimplemented)
+  - platform/src/knowledge/service.ts:78 (production refuses the fixture)
+  gap: No real embedding model adapter.
+  remediation: Implement a self-hostable CPU embedder (e.g. ONNX bge-small/e5-small from Hugging Face) for local qualification and a Bedrock/hosted adapter for deployment; make vector dimension configurable.
+  size: M
+  environmentDependency: Approved embedding model and BAA-covered or self-hosted endpoint (MODEL_VOICE_SELECTION approval, PRQ-002)
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-08-13
+  section: '8'
+  subsection: Hybrid retrieval, reranking and retrieval evaluation
+  kind: software
+  text: Use a qualified reranker in the retrieval pipeline.
+  acceptance: Reranker stage over permitted candidates improves measured nDCG/recall; pinned model id; latency budget met.
+  originalIds:
+  - SPEC-9.retrieval
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no reranker in platform/src/knowledge (grep 'rerank' finds nothing relevant)
+  gap: Not implemented.
+  remediation: Add a cross-encoder reranker stage (e.g. bge-reranker ONNX on CPU) after the permitted CTE, with eval-gated enablement.
+  size: M
+  environmentDependency: Approved reranker model/endpoint
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-08-14
+  section: '8'
+  subsection: Hybrid retrieval, reranking and retrieval evaluation
+  kind: evaluation
+  text: 'Evaluate retrieval: recall@k, ranking quality, citation accuracy, source-version accuracy and negative retrieval.'
+  acceptance: Retrieval eval harness with labelled query sets per domain produces metrics with thresholds; regression gate in CI.
+  originalIds:
+  - SPEC-9.retrieval
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no retrieval metrics in platform/src/evaluation (grep recall/nDCG)
+  - scenarios/risk/prompt_injection_knowledge.json (single safety scenario, not retrieval quality)
+  gap: Not implemented.
+  remediation: Add platform/src/evaluation/retrieval with labelled sets, metrics and thresholds.
+  size: M
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-08-15
+  section: '8'
+  subsection: Hybrid retrieval, reranking and retrieval evaluation
+  kind: software
+  text: Tune retrieval per domain.
+  acceptance: Per-domain tuning profiles chosen by evaluation and pinned in the snapshot/release manifest.
+  originalIds:
+  - SPEC-9.retrieval
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/search.ts:54 DEFAULT_SEARCH_TUNING (single global tuning)
+  gap: No per-domain tuning.
+  remediation: Add tuning profiles keyed by intent domain, selected by eval results.
+  size: S
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-08-16
+  section: '8'
+  subsection: Hybrid retrieval, reranking and retrieval evaluation
+  kind: constraint
+  text: Keep structured transaction truth in source tools, not in knowledge.
+  acceptance: Knowledge rejects personal/transaction data; transaction facts come only from tools.
+  originalIds:
+  - DATA-04
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/ingest.ts:83-85 (KNOWLEDGE_PERSONAL_DATA_PATTERN raised only for EMAIL, SSN and CARD spans)
+  - platform/src/knowledge/ingest.test.ts:82 (adv-personal-data-paste quarantined)
+  - 'platform/src/knowledge/search.ts header comment (sensitive facts come from structured tools only: a comment, not a test)'
+  gap: 'Two named elements have no test. (1) Transaction data: ingestion quarantines only EMAIL, SSN and CARD spans; no detector or test rejects balances, amounts tied to an account, invoice, claim, account or member identifiers. (2) "Transaction facts come only from tools" rests on a header comment in search.ts; no test shows that a financial or protected answer can never be grounded on a knowledge item.'
+  remediation: 'WP-20: transaction-data detection at ingestion (amount-with-account context, invoice, claim, account and member id shapes) with its own quarantine reason and adversarial corpus cases; a GroundingVerifier test that refuses a FINANCIAL_FACT or PROTECTED_FACT slot whose source is a KnowledgeCitation instead of a tool result.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL -> IMPLEMENTED: transaction-data rejection is not implemented (ingest.ts:83-85 covers EMAIL, SSN and CARD only) and the tool-only rule is evidenced by a header comment, not a test'
+    repairStatusFrom: VERIFIED_LOCAL
+- id: FO-08-17
+  section: '8'
+  subsection: Hybrid retrieval, reranking and retrieval evaluation
+  kind: constraint
+  text: Expensive graph retrieval is optional and used only when measured gains justify it.
+  acceptance: No graph retrieval without an evaluation showing gains.
+  originalIds:
+  - SPEC-9.retrieval
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - decision-gates.test.ts [FO-08-17]
+  gap: 'Not triggered yet: no graph store or retriever exists (WP-20).'
+  remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when a graph database client or graph retriever module appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it. The ADR must cite a WP-20 retrieval evaluation report showing the gain.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    repair:
+    - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
+    - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when graph retrieval appears without a decision record'
+    repairStatusFrom: NOT_APPLICABLE
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-08-18
+  section: '8'
+  subsection: Hybrid retrieval, reranking and retrieval evaluation
+  kind: constraint
+  text: A vector similarity score is never treated as a confidence score or an authorization decision.
+  acceptance: Authorization filters precede ranking; score never gates disclosure or claims confidence (test).
+  originalIds:
+  - AUTH-02
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/search.ts (filters in permitted CTE before ranking)
+  - platform/src/gateway/tools/knowledge.ts:30-36 (score dropped from tool output)
+  gap: No explicit test asserting score is not used as confidence.
+  remediation: Add a test and document it in the ModelDecision contract.
+  size: S
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-08-19
+  section: '8'
+  subsection: Grounding and citations
+  kind: software
+  text: Approved public FAQ and protected operational knowledge are distinguishable.
+  acceptance: A0/public callers see only PUBLIC items listing 'public'.
+  originalIds:
+  - AUTH-01
+  - SPEC-9.retrieval
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/search.ts isPublicOnly
+  - platform/src/knowledge/search.test.ts:99 ([AUTH-01])
+  - platform/migrations/0500_knowledge.sql knowledge_items_public_audience
+  gap: '-'
+  remediation: '-'
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-20
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-08-20
+  section: '8'
+  subsection: Grounding and citations
+  kind: software
+  text: Conflicting policies cause a clarification, fresh read or owned escalation.
+  acceptance: Conflicting items held at ingest; at runtime absence/conflict yields no_answer plus an owned escalation offer, never a guess.
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/conflicts.ts + ingest.test.ts:133-155 (held for review)
+  - platform/src/gateway/tools/knowledge.ts:72-75 (knowledge.no_answer template)
+  gap: The runtime response does not distinguish a conflict from no match, and it does not create an owned escalation automatically. The knowledge.no_answer template is DRAFT (platform/src/voice/templates/en-US.json:1462-1468), and the gate rejects unapproved templates outside local (platform/src/voice/gate.ts:188-189), so in any non-local environment the no-answer path renders the generic safe fallback, not the person offer.
+  remediation: Return a typed reason (CONFLICT/EXPIRED/JURISDICTION/NONE) and route to clarification or escalation.
+  size: S
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-08-21
+  section: '8'
+  subsection: Grounding and citations
+  kind: software
+  text: Missing, expired or wrong-jurisdiction policies cause a clarification, fresh read or owned escalation.
+  acceptance: Expired/not-yet-effective/wrong-jurisdiction items are filtered; caller gets clarification or escalation.
+  originalIds:
+  - SPEC-9.retrieval
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/search.test.ts:93 (effective window vs supplied time)
+  - platform/src/knowledge/search.ts rowPermitted (jurisdiction/language fallback)
+  - platform/src/gateway/tools/knowledge.ts:72-75
+  gap: 'Filtering is verified, but the jurisdiction it compares against is a service constant: DEFAULT_JURISDICTION ''US'' (platform/src/business/services/knowledge.ts:32-49), not the caller''s or subject''s jurisdiction. State-level items (US-CA) can never be served, and the national item is served to everyone, so wrong-jurisdiction protection is not enforced for sub-national policy (new FO-08-38). The clarification/escalation decision is not reason-specific either.'
+  remediation: As FO-08-20.
+  size: S
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-08-22
+  section: '8'
+  subsection: Grounding and citations
+  kind: software
+  text: 'No citation laundering: every material factual assertion resolves to an allowed source span/field or an actual effect receipt.'
+  acceptance: Gate verifies each cited ref exists in the turn's tool results/receipts and that slot values equal the cited fields; free model text checked span-by-span.
+  originalIds:
+  - ACT-05
+  - DATA-04
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts:196 (SOURCE_REFERENCE_MISSING for FINANCIAL_FACT/PROTECTED_FACT/COMMITMENT)
+  - platform/src/voice/gate.ts:24 (LOW_RISK_GROUNDED free paraphrase not implemented)
+  - platform/src/gateway/tools/*.ts sourceRef(...) generated server-side
+  gap: 'Only a presence check: refs are not resolved against tool results or source fields, and there is no span-level verifier for model text.'
+  remediation: Add a GroundingVerifier that resolves each ref to a ToolResult field/receipt or KnowledgeCitation span and compares values before release.
+  size: M
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-08-23
+  section: '8'
+  subsection: Grounding and citations
+  kind: software
+  text: KnowledgeCitation pins the exact source version and span.
+  acceptance: Citation includes source id, version, content digest and span offsets; superseded versions never cited.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/schema.ts citationIdFor kb_<sourceId>@v<version>
+  - platform/src/knowledge/search.test.ts:106 ([OPS-06] exact version)
+  gap: Version pinned; no span offsets or digest in the citation contract.
+  remediation: Add KnowledgeCitation contract with digest and excerpt offsets.
+  size: S
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-08-24
+  section: '8'
+  subsection: Persistent memory
+  kind: software
+  text: Persistent memory is tenant-owned and exportable.
+  acceptance: Tenant-scoped storage (RLS) plus a scoped export of a subject's/tenant's memory with audit.
+  originalIds:
+  - DATA-01
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0700_support_memory.sql (tenant+subject RLS)
+  - no export API
+  gap: Export missing.
+  remediation: Add memory export to the export workflow (FO-07-44).
+  size: S
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-08-25
+  section: '8'
+  subsection: Persistent memory
+  kind: software
+  text: Store useful support preferences, open issues, promises, completed actions and reviewed summaries with provenance, expiry and verification labels.
+  acceptance: Closed key sets per kind; mandatory expiry; provenance labels; tests.
+  originalIds:
+  - SPEC-9.memory
+  - DATA-04
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/support-memory.ts:49-56
+  - platform/src/memory/support-memory.test.ts:63,172
+  gap: Writers of memory entries from real workflows are limited; review workflow issuing review:// records is BLOCKED.
+  remediation: Wire memory writes from workflow outcomes; implement review records.
+  size: S
+  environmentDependency: Retention horizon from privacy counsel (PRQ-025)
+  regressionPackage: WP-22
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-08-26
+  section: '8'
+  subsection: Persistent memory
+  kind: software
+  text: Separate caller reports from source facts.
+  acceptance: CALLER_REPORTED must come from a call; VERIFIED never from a call (code and CHECK).
+  originalIds:
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0700_support_memory.sql support_memory_provenance_source
+  - platform/src/memory/support-memory.test.ts:165
+  gap: '-'
+  remediation: '-'
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-22
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-08-27
+  section: '8'
+  subsection: Persistent memory
+  kind: constraint
+  text: Do not infer diagnoses, vulnerability, personality, lifetime-value-based service rights or therapy guidance in memory.
+  acceptance: Forbidden keys and code values rejected in code and DB, including vulnerability/personality/value-tier concepts; property test.
+  originalIds:
+  - SAFE-01
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/memory/support-memory.ts:59-71 (forbidden tokens/stems: diagnosis, therapy, psych, risk, ...)'
+  - platform/src/memory/support-memory.test.ts:93,123,189
+  gap: 'Stems omit vulnerability, personality and value-tier concepts: a code value such as VULNERABLE_CALLER or HIGH_VALUE_CUSTOMER in preferenceValue would be accepted.'
+  remediation: Add VULNERAB, PERSONALIT, LIFETIME_VALUE, LTV, VIP, TIER stems in code and trigger, with tests.
+  size: S
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-08-28
+  section: '8'
+  subsection: Persistent memory
+  kind: constraint
+  text: Do not persist raw hidden model reasoning.
+  acceptance: ModelInvocation/ModelDecision records store decisions and refs only; test that reasoning fields are dropped.
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/support-memory.ts (free text rejected)
+  - no model harness exists yet
+  gap: Holds by absence; must be enforced in the model harness records.
+  remediation: Add schema-level exclusion in ModelInvocation logging.
+  size: S
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-08-29
+  section: '8'
+  subsection: Persistent memory
+  kind: constraint
+  text: Memory cannot grant permission, establish medical facts, or override current sources or consent.
+  acceptance: recapLabel grantsAuthorization=false, medicalFact=false; memory never enters PolicyInput; assembly prefers current source over memory (test).
+  originalIds:
+  - DATA-04
+  - AUTH-03
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/README.md (recapLabel)
+  - platform/src/memory/support-memory.test.ts:93,148
+  gap: 'No mechanism compares memory with current source values (no context assembler). IMPLEMENTED, not VERIFIED_LOCAL: "assembly prefers current source over memory" has no mechanism and no test (no context assembler).'
+  remediation: 'Assembler precedence: source > memory; contradiction surfaced.'
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: "assembly prefers current source over memory" has no mechanism and no test (no context assembler).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-24
+- id: FO-08-30
+  section: '8'
+  subsection: Persistent memory
+  kind: software
+  text: Support memory editing and correction with history.
+  acceptance: Staff/subject correction creates a new version linked to the old one with reason and audit; corrected entry never recapped.
+  originalIds:
+  - DATA-04
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0700_support_memory.sql support_memory_guard (UPDATE refused; no versioning)
+  gap: Entries are immutable with no correction path.
+  remediation: Add memory versions (supersedes) with correction API/UI.
+  size: M
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-08-31
+  section: '8'
+  subsection: Persistent memory
+  kind: software
+  text: Apply purpose limits to memory use.
+  acceptance: Each entry has allowed purposes; recap/assembly filters by current purpose.
+  originalIds:
+  - DATA-01
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/ports.ts MemoryEntry has no purpose field
+  gap: No purpose limits.
+  remediation: Add allowedPurposes to entries and enforce in recapFor/assembler.
+  size: S
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-08-32
+  section: '8'
+  subsection: Persistent memory
+  kind: software
+  text: Support memory deletion (subject- or staff-initiated) in addition to expiry.
+  acceptance: Deletion request removes entries and derivatives with evidence.
+  originalIds:
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/support-memory.ts expire(now)
+  - platform/src/retention/retention.test.ts:305 (policy-based deletion of support memory)
+  gap: Only expiry and retention-policy deletion exist.
+  remediation: Add per-entry/subject deletion via the deletion workflow (FO-07-47).
+  size: S
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-08-33
+  section: '8'
+  subsection: Persistent memory
+  kind: constraint
+  text: Do not build a cross-customer transcript index.
+  acceptance: No table/index holds transcripts across customers; RLS requires tenant and subject for memory.
+  originalIds:
+  - DATA-01
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0700_support_memory.sql:62-65 (runtime RLS requires tenant AND subject)
+  - 'platform/src/memory/support-memory.test.ts:133-143 (RLS as app_runtime: no read or write for another subject), :74 (no recap for another tenant or subject)'
+  - 'platform/src/knowledge/README.md and migration header comments 0300, 0500, 0610, 0900 ("no transcript" statements: comments, not tests)'
+  gap: 'The memory RLS half is tested. "No table or index holds transcripts across customers" holds only because no transcript store exists at 8c0f5a0 (not yet triggered): no schema test fails when a migration adds a transcript, utterance or embedding table or index that is not scoped by tenant and subject. The trigger comes with WP-13 (transcripts), WP-22 (audio quarantine) and WP-34 to WP-36 (evaluation observations, failure clusters).'
+  remediation: 'WP-22: schema check over all migrations (dataset registry test) that fails when a table, index or vector store holding transcript or caller-utterance text is not tenant- and subject-scoped under forced RLS, or is shared across customers.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL -> IMPLEMENTED: the cross-customer transcript element was evidenced by README and migration comments only; it holds because nothing it governs exists yet'
+    repairStatusFrom: VERIFIED_LOCAL
+- id: FO-08-34
+  section: '8'
+  subsection: Persistent memory
+  kind: constraint
+  text: Do not build unrestricted nightly self-rewriting memory.
+  acceptance: No job rewrites memory; changes only via reviewed correction.
+  originalIds:
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/memory/README.md (''Not implemented, by design: nightly dreaming, self-editing'')'
+  - platform/src/memory/support-memory.ts (memory changes only through explicit service calls; no scheduled or background writer exists in platform/src/memory)
+  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: not yet triggered. No job rewrites memory because none exists; nothing enforces that memory changes only through a reviewed correction. WP-22 introduces memory versions with correction history and the check that fails when a trigger appears.'
+  remediation: 'WP-22: memory entries change only through the reviewed correction path (versioned, with history); a test fails when a scheduled or background job, or any writer other than that path, changes a memory entry.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair round 4 (wave B1 ledger job): not-yet-triggered gap and enforcing package (WP-22) added as the status rules require; status unchanged'
+- id: FO-08-35
+  section: '8'
+  subsection: Persistent memory
+  kind: constraint
+  text: Tenant-isolated semantic caches apply the same disclosure checks as primary retrieval.
+  acceptance: If a semantic cache is introduced, it is keyed per FO-07-42 and re-checked on return (test).
+  originalIds:
+  - AUTH-02
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - decision-gates.test.ts [FO-08-35]
+  gap: 'Not triggered yet: no semantic cache exists.'
+  remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when a cache module declared with kind semantic appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it. Every cache module must declare its kind in modules.yaml; a semantic cache additionally needs the FO-07-42 key and a re-check-on-return test.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    repair:
+    - 'NOT_APPLICABLE kept: the trigger has not occurred (planner open question 1 resolved)'
+    - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when semantic caches appears without a decision record'
+    repairStatusFrom: NOT_APPLICABLE
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-08-36
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: software
+  text: Knowledge snapshots are pinned and released beyond local/CI only with an accountable approval.
+  acceptance: Snapshot version/digest in release manifest; KNOWLEDGE_RELEASE approval required outside local/ci.
+  originalIds:
+  - OPS-06
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/snapshot.ts
+  - platform/src/knowledge/ingest.test.ts:182
+  - platform/src/protocol/release.ts knowledgeSnapshotDigest
+  - console/src/pages/ReleasesPage.tsx
+  gap: No approved snapshot exists; release flow depends on the live composition.
+  remediation: Produce a release with a real approval in sandbox.
+  size: S
+  environmentDependency: KNOWLEDGE_RELEASE approval record (PRQ-032)
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-08-37
+  section: '8'
+  subsection: Knowledge ingestion and management
+  kind: software
+  text: Knowledge approval is an accountable decision bound to the exact item digest. It comes either from an in-platform review by an authenticated MFA knowledge editor (with independent review where configured) or from a source-system publish state that the connector reads under a reviewed mapping. An approval asserted in ingest input by an untrusted caller or source is not accepted.
+  acceptance: 'Tests: an ingest batch that claims approval.status APPROVED without a matching approval record (approver staff id, knowledge_editor role, MFA time, item digest) is stored as draft. Approving one version does not approve an edited version. Approval records are audited and shown in the knowledge UI. The Salesforce Knowledge mapping derives approval only from PublishStatus=Online under an approved mapping.'
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  - OPS-06
+  - AUTH-03
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/ingest.ts:91-95 (APPROVED accepted when approvedBy matches the APPROVER regex and approvedAt is not in the future)
+  - platform/src/knowledge/service.ts releaseHeld/rejectHeld (an MFA knowledge_editor check exists only for conflict-held items)
+  gap: Whoever calls ingest asserts the approval field, so 'unapproved content is draft' (FO-08-10) and the index-poisoning defences (FO-08-09) depend on the honesty of the caller or source.
+  remediation: Add knowledge_approvals (tenant, source_id, version, item_digest, approver_staff_id, role, mfa_at, decision, audit_event_id) and make servable require a matching approval row through a constraint or trigger. Add approve/reject console-api endpoints and UI (FO-08-02), and a per-source approval mapping in the knowledge ConnectorProfile (FO-06-99).
+  size: M
+  environmentDependency: Knowledge owners and editors with workforce SSO/MFA roles
+  workPackage: WP-20
+  provenance:
+    origin: challenge-missed
+- id: FO-08-38
+  section: '8'
+  subsection: Grounding and citations
+  kind: software
+  text: 'Retrieval uses the caller''s or subject''s applicable jurisdiction from a trusted source: the authenticated account or service location, or, for public information only, a confirmed caller-stated location. Sub-national items take precedence over national ones. When the jurisdiction is unknown or ambiguous for a jurisdiction-dependent question, the platform asks for clarification or escalates instead of serving a default-jurisdiction policy.'
+  acceptance: 'Tests: a US-CA subject receives the US-CA item instead of the US item, and a US-NY subject receives the US item. An unknown-jurisdiction caller asking a state-dependent policy question gets a JURISDICTION_UNKNOWN clarification or escalation, not the national answer. For protected content the jurisdiction never comes from tool arguments.'
+  originalIds:
+  - SPEC-9.retrieval
+  - AUTH-03
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/services/knowledge.ts:32-49 (DEFAULT_JURISDICTION 'US' constant passed to every search)
+  - platform/src/knowledge/search.ts:114,234 (an item matches the given jurisdiction or its country prefix only)
+  gap: Wrong-jurisdiction protection (FO-08-21) is applied against a service constant, so state-specific policies are never served and the national policy is served everywhere.
+  remediation: Resolve jurisdiction into the server-established AuthContext/ContextSnapshot from the account system, or from a confirmed slot on the public path, and pass it to KnowledgeService.search. Rank exact sub-national matches above country matches, and return a typed JURISDICTION_UNKNOWN reason that routes to clarification (the typed reasons of FO-08-20/21).
+  size: S
+  environmentDependency: Authoritative source of service location per subject; policy owners' jurisdiction tags
+  workPackage: WP-20
+  provenance:
+    origin: challenge-missed

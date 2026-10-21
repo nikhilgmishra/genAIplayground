@@ -1,0 +1,2760 @@
+# Follow-on requirement source records, prompt section 6. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '6'
+requirements:
+- id: FO-06-01
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: Deliver real connector transports for every required connector family (Talkdesk/contact center, SIP, Salesforce, CDP, Snowflake, Iceberg/lakehouse, business systems, knowledge sources, notification channels, outbound voice); an interface plus a mock or a fixture-only adapter is insufficient.
+  acceptance: Each family has a live adapter class (kind 'live') performing real network I/O over its documented protocol, composable outside local/ci, with a passing protocol-level contract test.
+  originalIds:
+  - OPS-03
+  - OPS-04
+  - SPEC-16.integration-records
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/README.md (only SalesforceRestSupportRecords is a real outbound live adapter; Talkdesk, scheduling, billing, claims, provider and relationship adapters are BLOCKED stubs)
+  - platform/src/adapters/live/talkdesk-blocked.ts
+  - platform/src/adapters/live/business-systems-blocked.ts
+  - platform/src/adapters/live/blocked-set.ts
+  - platform/src/main/container.ts:22-26,308-314 (sandbox/staging/production composition refused with LIVE_COMPOSITION_NOT_IMPLEMENTED)
+  - 'repo-wide grep 2026-10-19: no Segment, Snowflake, Iceberg/Athena, SIP, softphone or LiveKit code'
+  gap: One outbound live connector (Salesforce upsert) plus inbound JWT/OIDC verification exist; there is no connector runtime, and the composition root refuses every non-local environment, so even the Salesforce adapter cannot run in a deployment.
+  remediation: Create platform/src/connectors/ with a shared ConnectorRuntime (profile loader, credential resolver, allowlisted HTTP client, budget/timeout/retry binding, checkpoint store, DLQ, health/readiness) and implement one live adapter per family; wire them into a live composition root.
+  size: XL
+  environmentDependency: none for software; vendor sandbox per family for VERIFIED_SANDBOX
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-06-02
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: evaluation
+  text: Keep emulators for deterministic tests, but run the exact production adapter against them over its actual protocol (HTTP/REST, webhooks, gRPC, SIP/RTP, SQL API).
+  acceptance: For each live adapter a contract test starts a protocol-level emulator (127.0.0.1 server or Docker container) and drives the same class used in production composition; titles label EMULATED vs vendor evidence.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - test/integration/connectors/emulator.ts
+  - runtime.test.ts
+  gap: Protocol emulators for each connector family come with their packages (WP-12, WP-19..23, WP-27, WP-29).
+  remediation: Build one emulator per family (node:http for REST/webhooks; Docker SIP UA such as sipp/pjsua with LiveKit SIP or Asterisk; MinIO + Iceberg REST catalog + Trino/DuckDB for lakehouse; Snowflake SQL API stub; SMTP sink such as MailHog) and run the production adapters against them in CI.
+  size: L
+  environmentDependency: none
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-06-03
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: Connectors implement documented authentication with token caching, refresh and rotation (single refresh on 401, no refresh loop, rotated credentials picked up without restart).
+  acceptance: 'Emulator tests per adapter: token cached, expiry bound honoured, one refresh on 401, rotated secret used on next token request; JWKS rotation for inbound tokens.'
+  originalIds:
+  - AUTH-02
+  - AUTH-04
+  - SPEC-8.service-identities
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - connector.test.ts [FO-06-03] token in flight when invalidated
+  - runtime.test.ts [FO-06-03]
+  gap: Emulator runs per adapter family (Talkdesk OAuth, Snowflake JWT, CDP) come with each family.
+  remediation: Extract a reusable OAuth2/JWT token manager into the connector runtime with rotation, clock-skew and revocation tests; require every live adapter to use it.
+  size: M
+  environmentDependency: Vendor OAuth clients / connected apps per tenant for sandbox qualification
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-06-04
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: Credential references in connector configuration resolve at runtime from the secret store (Secrets Manager/KMS/SSM); secret values never appear in configuration.
+  acceptance: A SecretResolver resolves arn:aws:secretsmanager references (with caching and rotation stages) in a test against an emulator (e.g. LocalStack) and is the only credential source for live adapters.
+  originalIds:
+  - AUTH-06
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - resolver.test.ts [FO-06-04] read in flight when refresh()
+  - runtime.test.ts [FO-06-04]
+  gap: Not yet the only credential source of live adapters (WP-07); SSM references are refused.
+  remediation: 'Implement SecretResolver (Secrets Manager, version stages, bounded cache, refresh on auth failure; local-fixture: resolver for tests) and bind it in the live composition.'
+  size: M
+  environmentDependency: AWS account with Secrets Manager for sandbox qualification
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-06-05
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: Source object/field mappings are classified required/optional/prohibited and validated for type and semantics, not just presence.
+  acceptance: Mapping validation rejects a prohibited field, a missing required field, a type mismatch and a semantic mismatch (enum/unit/timezone) against fetched source metadata; tests per connector.
+  originalIds:
+  - SPEC-8.salesforce-model
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - connector.test.ts [FAULT:SCHEMA_DRIFT seam]
+  - runtime.test.ts [FO-06-05]
+  gap: Drift tests per connector come with each family; the readiness run is WP-32.
+  remediation: Add MappingSpec to ConnectorProfile (per-field class, expected type, enum/unit semantics, data classification) and validate it against fetched metadata at startup and in the test wizard.
+  size: M
+  environmentDependency: none
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-06-06
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: Connectors implement the documented pagination/cursor strategy with bounded page size and page count.
+  acceptance: 'Emulator tests: last page, empty page, cursor expiry, page-count bound reached -> partial result labelled TRUNCATED.'
+  originalIds:
+  - SPEC-12.resilience
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - connector.test.ts [FO-06-06] OFFSET last page / page bound + resume
+  - runtime.test.ts [FO-06-06] OFFSET over TLS
+  - mutants N15, D2-next-null, D2-start-ignored killed
+  gap: None for the acceptance; pagination per vendor is proven by each family's emulator.
+  remediation: Implement bounded cursor iterators per adapter (Salesforce nextRecordsUrl, Snowflake result partitions, Athena NextToken, Talkdesk page links) driven by ConnectorProfile.pagination.
+  size: M
+  environmentDependency: none
+  regressionPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-06-07
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: Each connector enforces a rate and concurrency budget (throttling, bulkheads) and honours vendor Retry-After and limit headers.
+  acceptance: Per-connector token bucket and concurrency cap from the profile; emulator test shows throttling before vendor 429 and backoff on Retry-After; usage metric exported.
+  originalIds:
+  - SPEC-12.quotas
+  - SPEC-12.resilience
+  - SPEC-12.admission
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - rate-limiter.test.ts [FO-06-07] pause re-spaces queued callers
+  - connector.test.ts [FO-06-07] queued callers restart spaced; connector-wide cap
+  - 'runtime.test.ts [FO-06-07] Retry-After: 2 restart spaced'
+  gap: None for the acceptance; production budget values need vendor quotas.
+  remediation: Bind a per-connector token bucket + bulkhead from ConnectorProfile.rateBudget in the connector runtime; export vendor usage as metrics; test throttling against emulators.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-06
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-06-08
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: 'Connectors apply timeouts and retry classification: NOT_STARTED failures may retry, UNKNOWN outcomes never retry before reconciliation, no retry stacking.'
+  acceptance: Contract tests per adapter for timeout-before-send, timeout-after-send, connection refused, 429/503 and nested-retry refusal.
+  originalIds:
+  - ACT-03
+  - SPEC-12.no-retry-stacking
+  - SPEC-12.resilience
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - connector.test.ts [FO-06-08] 503 on a write that needs reconciliation
+  - transport.test.ts [FO-06-08]
+  - runtime.test.ts [FO-06-08]
+  gap: None for the acceptance.
+  remediation: Make the connector runtime the only call path to a vendor so classification is uniform; add the classification table to each ConnectorProfile.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-06
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: contract tests exist only for the Salesforce REST adapter; the shared connector runtime that applies timeout and retry classification to every connector does not exist (WP-06).'
+    repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-06-09
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: Incremental readers persist durable checkpoints (cursor, replay id, watermark) and resume from them after a crash.
+  acceptance: 'Crash/resume test against an emulator: no gap and no duplicate projection after restart from the stored checkpoint.'
+  originalIds:
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - test/integration/connectors/checkpoints.test.ts [FO-06-09]
+  gap: None for the acceptance.
+  remediation: Add connector_checkpoints (tenant, connector, stream, position, watermark, digest, updated_at) with RLS; commit checkpoint in the same transaction as inbox acceptance.
+  size: M
+  environmentDependency: none
+  regressionPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-06-10
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: Failed outbound connector deliveries go to a dead-letter queue with audited operator repair.
+  acceptance: Bounded attempts end in DEAD_LETTER; operator requeue is audited; requeue fails closed without audit.
+  originalIds:
+  - SPEC-8.outbox
+  - SPEC-12.no-retry-stacking
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  - platform.substrate
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - substrate/sqs.test.ts [FO-06-10] redrive refused without the audit write; failed move audited
+  - src/outbox/outbox.test.ts requeue fails closed without an operator
+  gap: The console endpoint for SQS redrive is WP-38's; AWS is not configured.
+  remediation: Reuse the dispatcher DLQ pattern for inbound inbox processing and every new outbound connector; compose with SQS in the live composition.
+  size: S
+  environmentDependency: SQS queues + DLQ in AWS for sandbox
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the SQS evidence is a mock (StubSqsClient in platform/src/outbox/sqs-publisher.contract.test.ts:1-4,22-38), not ElasticMQ or LocalStack; only the Postgres outbox DLQ is verified.'
+    repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-06-11
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: Every connector exposes health checks that fail closed and feed capability readiness.
+  acceptance: Active probe (auth + metadata + approved synthetic record) per connector; registry health report fails closed; readiness shown per capability.
+  originalIds:
+  - OPS-03
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - connector.test.ts [FO-06-11] sandbox write must name a WRITE op
+  - connector.test.ts [FO-06-11] metadata on the standard call path
+  gap: Per-capability readiness is not on an operator surface yet (WP-32), and probes per family come with each family.
+  remediation: Define active probes in ConnectorProfile, run them from the worker, record results as capability evidence and expose readiness in onboarding.
+  size: S
+  environmentDependency: none
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-06-12
+  section: '6'
+  subsection: ConnectorProfile
+  kind: software
+  text: ConnectorProfile is a versioned contract (single contract source -> JSON Schema/OpenAPI/TS) recording vendor, API, API version, documentation URL and owner.
+  acceptance: ConnectorProfile schema exists in platform/src/protocol, generated schemas are committed, loader rejects a profile missing vendor/API version/doc URL/owner.
+  originalIds:
+  - OPS-06
+  - SPEC-16.integration-records
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/connectors/profile/profile.test.ts
+  gap: None for the acceptance.
+  remediation: Add ConnectorProfile to platform/src/protocol with generate-schemas output and loader validation; derive the inventory from profiles.
+  size: M
+  environmentDependency: none
+  regressionPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-06-13
+  section: '6'
+  subsection: ConnectorProfile
+  kind: software
+  text: ConnectorProfile records documented base URL, allowed hosts, region and tenant/account binding; requests outside allowed hosts or to another tenant/account are refused.
+  acceptance: 'Tests: host not in allowedHosts refused before I/O; token/instance pointing at another org/account refused; region mismatch refused.'
+  originalIds:
+  - DATA-01
+  - SAFE-05
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - connector.test.ts [FO-06-13]
+  - runtime.test.ts [FO-06-13]
+  gap: None for the acceptance; metadata responses now get the header binding check too.
+  remediation: Add baseUrl/allowedHosts/region/accountBinding fields; enforce in the connector HTTP client and verify the bound account id from the first authenticated response.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-06-14
+  section: '6'
+  subsection: ConnectorProfile
+  kind: software
+  text: ConnectorProfile records OAuth scopes and the credential reference; granted scopes are checked against declared scopes.
+  acceptance: Token response with broader or narrower scopes than declared is refused/flagged; credential reference must be a SecretRef.
+  originalIds:
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - connector.test.ts [FO-06-14]
+  gap: None for the acceptance.
+  remediation: Add scopes[] to the profile; verify token scope claims in the shared token manager; least-privilege test per connector.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-06-15
+  section: '6'
+  subsection: ConnectorProfile
+  kind: software
+  text: ConnectorProfile declares enabled reads and writes, authoritative fields and event schema; operations not enabled are refused at runtime.
+  acceptance: Calling a disabled operation throws OPERATION_NOT_ENABLED before I/O; authoritative-field list drives context precedence; event schema id pinned.
+  originalIds:
+  - AUTH-02
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - connector.test.ts [FO-06-15]
+  gap: Authoritative fields do not drive context precedence yet (WP-18).
+  remediation: Add reads/writes/authoritativeFields/eventSchemas to the profile; the connector runtime checks every operation against it.
+  size: M
+  environmentDependency: none
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-06-16
+  section: '6'
+  subsection: ConnectorProfile
+  kind: software
+  text: ConnectorProfile declares pagination/cursor strategy, rate/concurrency budget, timeout and idempotency/reconcile semantics per operation.
+  acceptance: Profile validation requires these per enabled operation; a write without an idempotency or reconcile declaration is refused.
+  originalIds:
+  - ACT-02
+  - ACT-03
+  - SPEC-12.resilience
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/connectors/profile/profile.test.ts [FO-06-16]
+  gap: None for the acceptance.
+  remediation: Add operation-level pagination/rateBudget/timeoutMs/idempotency {key, lookupByKey, reconcile} fields and enforce them in the runtime.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-06-17
+  section: '6'
+  subsection: ConnectorProfile
+  kind: software
+  text: ConnectorProfile declares deletion behavior and retention/egress class for each data stream.
+  acceptance: Profile without deletion behavior/retention class is refused; retention registry and egress policy derive vendor-copy and destination rules from the profile.
+  originalIds:
+  - DATA-01
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - profile.test.ts [FO-06-17]
+  gap: The retention registry (WP-22) and the composed egress policy (WP-07) do not consume the derivations yet.
+  remediation: Add deletion {supportsDelete, tombstones, vendorDeletionPath}, retentionClass and egressClass to the profile and feed retention registry and EgressGuard from it.
+  size: S
+  environmentDependency: Privacy counsel retention matrix (PRQ-025)
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-06-18
+  section: '6'
+  subsection: ConnectorProfile
+  kind: software
+  text: ConnectorProfile carries verified capability evidence and a configuration digest; profile changes are pinned, reviewed and audited.
+  acceptance: Profile digest included in the release manifest; capability evidence refs signed; change produces an audit event and requires review.
+  originalIds:
+  - OPS-06
+  - OPS-03
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - runtime.test.ts [FO-06-18]
+  - evidence.test.ts
+  gap: Profile digests are not pinned in the release manifest (WP-40 / WP-01), and the registry checks the format of approval ids only.
+  remediation: Compute a canonical digest per profile, add connectorProfileDigests to ReleaseManifest, store capability evidence records (see FO-06-95).
+  size: M
+  environmentDependency: none
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-06-19
+  section: '6'
+  subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
+  kind: constraint
+  text: No secrets in configuration exports, URLs, logs, chat or frontend bundles.
+  acceptance: Config loader refuses inline secrets; URLs refuse query/userinfo; logs reason-code only; gitleaks over history; scan of built console bundle; config export redaction test.
+  originalIds:
+  - AUTH-06
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  - release.supply_chain
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/schema.ts:14-25
+  - platform/src/config/loader.test.ts:70,126 [AUTH-06]
+  - platform/src/privacy/egress.test.ts:98
+  - platform/src/adapters/live/salesforce-rest.contract.test.ts:344 [DATA-01]
+  - .github/workflows/ci.yml:176-186 + scripts/ci/gitleaks.sh
+  - platform/eslint.config.js (console.log banned)
+  gap: 'No configuration export feature exists to test; the built console bundle is not scanned for secrets/credential references. IMPLEMENTED, not VERIFIED_LOCAL: Configuration export redaction and the built console bundle scan, two named elements, do not exist.'
+  remediation: Add redaction tests when config import/export is built; add a CI step running gitleaks over console/dist.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: configuration export redaction and the built console bundle scan, two named elements, do not exist.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-40
+- id: FO-06-20
+  section: '6'
+  subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
+  kind: constraint
+  text: 'No arbitrary-host fetch: every outbound request goes to a host allowed by the connector profile and egress policy; redirects and token-supplied hosts cannot redirect traffic.'
+  acceptance: 'Adversarial tests: redirect, instance_url/host from response, DNS rebinding-style host, IP literal - all refused before I/O; lint rule bans raw fetch outside the connector HTTP client.'
+  originalIds:
+  - DATA-01
+  - SAFE-05
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - test/integration/connectors/pinning.test.ts [FO-06-20] (N17 killed)
+  - transport.test.ts [FO-06-20]
+  - lint-rules.test.ts
+  gap: The Salesforce adapter keeps its reviewed fetch lint exception until WP-07 moves it onto the transport.
+  remediation: Add ConnectorHttpClient (profile allowlist, no redirects, size/time bounds, egress classification) and an ESLint no-restricted-globals/imports rule for fetch/http/https outside it.
+  size: S
+  environmentDependency: none
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-06-21
+  section: '6'
+  subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
+  kind: constraint
+  text: No arbitrary SQL and no model-generated SQL; only reviewed parameterized statements or templates.
+  acceptance: 'Static check rejects interpolated SQL text; adversarial test: tool/model input containing SQL is never executed; warehouse templates are an allowlist.'
+  originalIds:
+  - DATA-01
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - lint-rules.test.ts [FO-06-21]
+  gap: Warehouse templates (WP-21) do not exist, and SQL sinks are recognised by name (query/exec).
+  remediation: Add a lint/CI check for SQL string interpolation and adversarial tests with the Snowflake/Athena template engine (FO-06-61).
+  size: S
+  environmentDependency: none
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - evidence
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-06-22
+  section: '6'
+  subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
+  kind: constraint
+  text: No dynamic shell, eval, untrusted plugin loading or executable mapping expressions.
+  acceptance: ESLint no-eval/no-new-func/no-implied-eval enabled; dynamic import and child_process restricted to an allowlist; mapping DSL is non-executable.
+  originalIds:
+  - DATA-01
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - lint-rules.test.ts [FO-06-22] incl. WebAssembly probes
+  gap: None for the acceptance; lint is a first gate, not a sandbox.
+  remediation: Enable those lint rules and a restricted-imports rule for child_process/vm/worker_threads outside an allowlist.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-06-23
+  section: '6'
+  subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
+  kind: software
+  text: A declarative adapter profile may map reviewed operations and JSON fields only through a bounded, non-executable DSL with endpoint and schema allowlists.
+  acceptance: DSL interpreter is total (step/size limits), has a closed function set, cannot construct hosts or paths outside the allowlist; property tests for termination and no host escape; mapping digests pinned.
+  originalIds:
+  - SAFE-05
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - dsl.test.ts [FO-06-23] step limit / output-size limit
+  - dsl.property.test.ts [FO-06-23]
+  - mutants D01, D02 killed
+  gap: None for the acceptance.
+  remediation: Implement a JSON-pointer based mapping DSL (rename, cast, enum map, date/zone parse, unit conversion) over reviewed operation templates (method, path template with typed params, request/response JSON Schema) and use it for the business-system reference integration.
+  size: L
+  environmentDependency: none
+  regressionPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-06-24
+  section: '6'
+  subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
+  kind: constraint
+  text: The declarative profile is not permission for a model to invent HTTP operations; models can only call pinned catalogue tools.
+  acceptance: 'Adversarial test: a model/tool proposal for an unlisted operation or host is refused by the server.'
+  originalIds:
+  - OPS-06
+  - SAFE-05
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/catalog.ts + catalog.test.ts:74,86,150 (frozen pinned catalogue; digest matches schemas/tools/catalog.json)
+  - platform/src/gateway/mcp.ts (MCP exposes catalogue tools only)
+  gap: 'Holds today because no LLM harness or declarative adapter exists; must be re-verified with them (J19). IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: it holds because no model harness or declarative adapter exists; must be re-verified with them (WP-10, J19).'
+  remediation: Add an adversarial harness test once the model harness and DSL land.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: it holds because no model harness or declarative adapter exists; must be re-verified with them (WP-10, J19).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-10
+- id: FO-06-25
+  section: '6'
+  subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
+  kind: constraint
+  text: Missing or undocumented vendor behavior remains explicitly unsupported and fails closed, never a false-success stub.
+  acceptance: Every unsupported operation throws a typed BLOCKED/UNSUPPORTED error, reports unhealthy and contains no invented endpoint.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/adapters/refusals.test.ts [FO-06-25]
+  gap: 'Regression only: WP-07 removes the BLOCKED stubs from the live composition.'
+  remediation: Keep the pattern for genuinely undocumented behaviour only (WP-06); WP-07 live-registry scan.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-06
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it; the reason-code follow-up is now a WP-06 deliverable instead of an unowned gap'
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
+- id: FO-06-26
+  section: '6'
+  subsection: Connector safety rules (no arbitrary host/SQL/eval, bounded DSL)
+  kind: software
+  text: For each capability whose vendor behavior is unknown, supply a documented reference integration and an operator capability test instead of a stub.
+  acceptance: Each formerly BLOCKED capability has a reference integration (documented API shape + emulator + adapter) and a wizard capability test that yields signed evidence.
+  originalIds:
+  - OPS-03
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/vendor-questions.md (questions only)
+  - platform/src/adapters/live/business-systems-blocked.ts (requiredEvidence lists, no reference integration)
+  gap: Blocked capabilities have no executable path to qualification.
+  remediation: Publish reference integrations for scheduling/billing/claims/provider/relationship/notification and Talkdesk capabilities; add capability tests to the wizard.
+  size: L
+  environmentDependency: Vendor/business-system owner answers for qualification (PRQ-004, PRQ-007, PRQ-033)
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+- id: FO-06-27
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: Talkdesk connector correlates calls/interactions with the platform call binding and ingests approved call events.
+  acceptance: 'Emulator test: Talkdesk call events with interaction ids are authenticated, persisted to the inbox, correlated to CallBinding and projected; unknown event types quarantined.'
+  originalIds:
+  - SPEC-8.webhook-auth
+  - AUTH-03
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/talkdesk-blocked.ts (TalkdeskTelephonyLive BLOCKED)
+  - platform/src/gateway/http/webhook-routes.ts (transfer events only, LOCAL FIXTURE HMAC)
+  - platform/src/gateway/session-binding.ts (call correlation via the MCP gateway call id only)
+  gap: No Talkdesk event ingestion or interaction correlation exists.
+  remediation: Implement a Talkdesk events connector over the documented webhook/event API with inbox persistence (FO-07-17) and correlation to CallBinding; emulator tests.
+  size: L
+  environmentDependency: Talkdesk tenant with API/webhook entitlements and an integration identity (PRQ-004, PRQ-019, PRQ-021, PRQ-034; VQ-TD-22/27/28/33/34/39)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-28
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: Talkdesk connector reads queues and agents (availability, queue state) for routing and handoff decisions.
+  acceptance: 'Emulator test: queue availability read with freshness; unavailable queue triggers configured fallback chain.'
+  originalIds:
+  - SAFE-04
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/ports.ts has no queue/agent read port
+  - platform/src/config/schema.ts:57-63 DestinationConfig.vendorQueueRef is static configuration
+  gap: Routing uses static queue references without live state.
+  remediation: Add QueueDirectory port + Talkdesk adapter (documented Users/Queues APIs), cached with source-specific max age.
+  size: M
+  environmentDependency: Talkdesk tenant with API/webhook entitlements and an integration identity (PRQ-004, PRQ-019, PRQ-021, PRQ-034; VQ-TD-22/27/28/33/34/39)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-29
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: Talkdesk connector requests transfers to allowlisted destinations and records receiver acceptance and connection evidence from the vendor.
+  acceptance: Emulator test drives REQUESTED -> RECEIVER_ACCEPTED -> BRIDGED -> CALLER_CONFIRMED_CONNECTED from vendor events through the live adapter; non-allowlisted destination refused.
+  originalIds:
+  - SAFE-04
+  - SAFE-05
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/local/telephony-fixture.ts + telephony-fixture.transfer-contract.test.ts:57-79 (lifecycle verified against fixture)
+  - 'platform/src/adapters/live/talkdesk-blocked.ts (live transfer BLOCKED: PRQ-004, PRQ-034, PRQ-014, PRQ-022)'
+  - platform/src/workflows/transfer.ts (state machine)
+  gap: State machine and allowlist are verified with a fixture only; no live transfer control or acceptance-evidence source exists.
+  remediation: Implement TalkdeskTelephonyLive over the documented transfer API/Studio HTTP step (or SIP REFER path, FO-06-39) with emulator tests; keep destination ids resolved from trusted configuration.
+  size: L
+  environmentDependency: Talkdesk tenant with API/webhook entitlements and an integration identity (PRQ-004, PRQ-019, PRQ-021, PRQ-034; VQ-TD-22/27/28/33/34/39)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-30
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: Talkdesk connector retrieves historical report, transcript and media references where the tenant permits, keeping Explore historical reporting separate from live events.
+  acceptance: Explore client paginates documented reports into restricted storage with source watermarks; live event path never reads Explore; transcript/media are references with access checks.
+  originalIds:
+  - DATA-02
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/talkdesk-blocked.ts TalkdeskExploreClient (HistoricalReportSource port, BLOCKED)
+  - platform/src/adapters/integration-inventory.ts (Explore entry, source S24 https://docs.talkdesk.com/docs/explore-api)
+  gap: Port separation exists; no implementation and no transcript/media reference model.
+  remediation: Implement the documented Explore API client (report request/poll/download) with checkpoints and a restricted media-reference store.
+  size: M
+  environmentDependency: Talkdesk Explore API access and privacy approval of exported fields (PRQ-046, PRQ-002)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-31
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: Talkdesk connector uses documented OAuth scopes and webhook registrations.
+  acceptance: Profile lists exact scopes; token obtained via documented client-credentials flow in emulator test; webhook subscription created/verified via documented API or recorded UI step.
+  originalIds:
+  - AUTH-02
+  - SPEC-8.service-identities
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/integration-inventory.ts Talkdesk entries (authMechanism UNKNOWN)
+  - talkdesk/mcp-connection.md (MCP connection only)
+  gap: No Talkdesk outbound authentication code.
+  remediation: Implement Talkdesk OAuth client via the shared token manager with declared scopes.
+  size: M
+  environmentDependency: Talkdesk tenant with API/webhook entitlements and an integration identity (PRQ-004, PRQ-019, PRQ-021, PRQ-034; VQ-TD-22/27/28/33/34/39)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-32
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: Inbound Talkdesk webhooks are verified using the vendor's actual signing behavior, not the fixture HMAC.
+  acceptance: 'Tests with vendor-documented signature vectors: valid accepted, tampered/replayed/stale rejected; fixture HMAC unusable outside local/ci.'
+  originalIds:
+  - SPEC-8.webhook-auth
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/http/webhook-routes.ts:6-14,34-49 (LOCAL FIXTURE HMAC; WEBHOOK_AUTH_UNVERIFIED elsewhere)
+  - platform/src/gateway/http/webhook-routes.test.ts
+  gap: Only our fixture scheme exists.
+  remediation: 'Add a WebhookVerifier registry selected by ConnectorProfile.ingress.auth {scheme: HMAC_SHA256_HEADER | JWT_BEARER | MTLS | RECONCILE_BY_LOOKUP, header names, canonicalization, timestamp tolerance, replay window, credentialRef with rotation (FO-06-98)}. Implement each scheme now with emulator tests and record the actual mechanism per inbox row (FO-07-19). For Talkdesk, configure the scheme documented for the tenant''s plan (VQ-TD-33/34, TB-09) and use RECONCILE_BY_LOOKUP (FO-06-33) while it is unknown. The fixture HMAC stays local-only.'
+  size: M
+  environmentDependency: Talkdesk documentation of webhook signing (VQ-TD-33/34, TB-09)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-06-33
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: Where no signed feed is available, authenticate the supported gateway and reconcile each event by trusted server lookup; record the limitation.
+  acceptance: Unsigned event is accepted only after a server-side lookup confirms the call/transfer state; limitation recorded in the capability evidence.
+  originalIds:
+  - SPEC-8.webhook-auth
+  - SAFE-04
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/auth.ts JwtAccessTokenAuthenticator (inbound OAuth2 JWT; gateway/auth.test.ts against a local JWKS) - authenticates the integration
+  - platform/src/adapters/ports.ts TelephonyControl has no read/lookup operation
+  - limitation recorded in webhook-routes.ts header and talkdesk/vendor-questions.md
+  gap: Gateway authentication exists; reconcile-by-lookup does not.
+  remediation: Add a TelephonyStateLookup port with Talkdesk implementation and require it for unsigned event acceptance.
+  size: M
+  environmentDependency: Talkdesk tenant with API/webhook entitlements and an integration identity (PRQ-004, PRQ-019, PRQ-021, PRQ-034; VQ-TD-22/27/28/33/34/39)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-34
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: document
+  text: Provide Studio/config exports or precise UI instructions where configuration APIs do not exist.
+  acceptance: Studio flow spec, expected configuration and operator transcription procedure exist and are validated for internal consistency.
+  originalIds:
+  - SPEC-16.prod-guard
+  derivedFrom: []
+  capabilityIds:
+  - activation.qualification
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/studio-flow-spec.md
+  - talkdesk/expected-config.yaml
+  - talkdesk/ai-agent-config.yaml
+  - talkdesk/drift-check.md section 2 (operator transcription until a documented export exists)
+  - talkdesk/observed-config.template.yaml
+  gap: Not executed against a tenant; export method UNKNOWN.
+  remediation: Execute in sandbox and record evidence; adopt the documented export when available.
+  size: S
+  environmentDependency: Talkdesk tenant admin access; VQ-TD-37 (export method)
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+- id: FO-06-35
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: Provide Talkdesk readiness and configuration drift checks.
+  acceptance: drift-check reports MATCH/DRIFT/UNEXPECTED/NEW_FACT/UNOBSERVED; unfilled template is INCOMPLETE; readiness surfaced per capability in the console.
+  originalIds:
+  - SPEC-16.prod-guard
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/tools/drift-check.mjs, validate-package.mjs
+  - talkdesk/tools/package.test.mjs:207 (37 tests passing 2026-10-19)
+  - talkdesk/capability-gate.md
+  - .github/workflows/ci.yml:104-105
+  gap: Tool logic verified locally; never run against an observed tenant; readiness not shown in the console.
+  remediation: Run against sandbox observation; add a console readiness view fed by drift results.
+  size: S
+  environmentDependency: Observed sandbox tenant configuration
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-06-36
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: environment
+  text: Configure AI-off and independent overflow routes in the contact center that do not depend on the AI gateway.
+  acceptance: Studio test SF-T-17 (queue overflow -> fallback chain -> continuity) and AI-off switch test pass on the tenant.
+  originalIds:
+  - OPS-02
+  - SAFE-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - activation.qualification
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/studio-flow-spec.md:303,499 (overflow fallback chain; SF-T-17 NOT_RUN)
+  - talkdesk/tools/package.test.mjs:150 ([SPEC-3.independent-route])
+  - platform/src/ops/kill-switches.ts:34 (AI_ADMISSION)
+  gap: Designed and package-tested only; NOT_CONFIGURED on any tenant.
+  remediation: Configure in sandbox, run SF-T-17 and record evidence.
+  size: S
+  environmentDependency: Talkdesk tenant configuration authority; overflow targets (VQ-OPS-03)
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+- id: FO-06-37
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: Treat Talkdesk Auth Gate as a component gate, not the identity provider; test missing, null, false, strings, uncleared values, expiry and reused sessions.
+  acceptance: Backend truth table and property tests pass for missing, null, false, string, expired and reused-session values (only boolean true opens the gate). The Studio-side part (uncleared variable across steps, simulator, sandbox) is FO-06-37a.
+  originalIds:
+  - AUTH-07
+  - AUTH-04
+  - AUTH-01
+  - SPEC-2.auth-gate-values
+  derivedFrom: []
+  capabilityIds:
+  - conversation.talkdesk_native
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/session-service.ts:28-42 (only boolean true opens)
+  - 'platform/src/identity/session-service.test.ts:33 (initial value literally false), :85 (second session revokes the first: no reused session), :126 (expired), :184 (session from a previous call), :194 (truth table), :200 (property: every non-true value is closed), :209 (malformed gate responses), :217, :248, :261 ([AUTH-07])'
+  gap: None for the backend part. The Studio-side checks are split to FO-06-37a (WP-45).
+  remediation: Keep; WP-29 re-runs the truth table when the Talkdesk connector lands.
+  size: S
+  environmentDependency: none (the Studio-side sandbox part is FO-06-37a)
+  regressionPackage: WP-29
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-2.auth-gate-values'
+    - 'Phase A repair round 2 (critic re-check): split: the backend truth table stays VERIFIED_LOCAL (every named backend value has a test); the Studio-side sandbox tests, which no local test can exercise, moved to FO-06-37a in WP-45'
+- id: FO-06-37a
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: evaluation
+  text: 'Studio-side Auth Gate tests (qualification part of FO-06-37): an uncleared variable carried across Studio steps, the simulator and the sandbox Studio flow keep the gate closed for every value other than boolean true.'
+  acceptance: The AG matrix (talkdesk/auth-gate.md) is executed in the Talkdesk sandbox Studio and simulator under its approval; each AG row records PASS, FAIL or INCONCLUSIVE with the simulator version.
+  originalIds:
+  - AUTH-07
+  - SPEC-2.auth-gate-values
+  derivedFrom: []
+  capabilityIds:
+  - conversation.talkdesk_native
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'talkdesk/auth-gate.md (AG matrix: a document, not an executable job)'
+  - 'talkdesk/tools/package.test.mjs:166 (expected Studio variable initialised to boolean false), :188 (matrix covers missing, null, false, string, expiry and reuse rows): static checks of the expected configuration only'
+  - no sandbox job definition or simulator script executes the matrix
+  gap: No qualification job runs the AG matrix in sandbox Studio or the simulator; the uncleared-variable-across-steps case is not exercised anywhere.
+  remediation: 'WP-45: sandbox Studio and simulator job definition for the AG matrix, executed only under its scoped approval, writing per-row results under evidence/qualification/.'
+  size: S
+  environmentDependency: Talkdesk sandbox Studio and simulator (PRQ-018)
+  workPackage: WP-45
+  provenance:
+    origin: repair-split
+    splitFrom: FO-06-37
+    repair:
+    - 'Phase A repair round 2 (critic re-check): Studio-side sandbox part split from FO-06-37 (critic: the acceptance named a sandbox step that no local test exercises)'
+- id: FO-06-38
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: evaluation
+  text: Qualify guardrail termination, simulator version identity and preview features before relying on them.
+  acceptance: Qualification records (PASS/FAIL/INCONCLUSIVE) for guardrail exits, simulator version captured in evidence, preview features disabled until qualified.
+  originalIds:
+  - SAFE-03
+  - OPS-06
+  - OPS-03
+  - SPEC-2.guardrail-exit
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - talkdesk/simulator-and-evaluation-runbook.md
+  - talkdesk/tools/package.test.mjs:71 ([SAFE-03] guardrail and limits exit to Studio)
+  - talkdesk/tools/package.test.mjs:128 (versions UNKNOWN)
+  gap: Runbook exists; qualification NOT_RUN; simulator version not captured in any evidence record.
+  remediation: Execute the runbook in sandbox; add simulator version to EvaluationResult evidence.
+  size: S
+  environmentDependency: Talkdesk sandbox with AI Agent Platform and simulator
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+    repair:
+    - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-2.guardrail-exit'
+- id: FO-06-39
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: Implement a generic documented SIP connector (RFC 3261 signaling, SDP/RTP media, transfer via REFER or re-INVITE with acceptance evidence) for non-Talkdesk contact centers.
+  acceptance: SIP adapter places/receives calls and transfers against a Docker SIP emulator; transfer acceptance comes from signaling (200 OK/NOTIFY sipfrag), never assumed.
+  originalIds:
+  - SAFE-04
+  - SAFE-05
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - telephony.sip
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no SIP code in the repository (grep; SIP URIs are only refused as dial targets: platform/src/workflows/transfer.ts:11, platform/src/knowledge/injection.ts)'
+  - docs/followon/CONTINUATION.md (livekit/livekit-server image pulled; no code)
+  gap: No telephony transport other than the Talkdesk MCP tool surface.
+  remediation: Implement via LiveKit SIP (or drachtio/SIP.js) behind the TelephonyControl port with allowlisted destinations.
+  size: XL
+  environmentDependency: SIP trunk/carrier credentials for qualification only (no live calls without authority, OPS-05)
+  workPackage: WP-12
+  provenance:
+    origin: extraction
+- id: FO-06-40
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: Provide a local synthetic softphone/receiver path with real SIP signaling and RTP media to test audio and transfer without live customer calls.
+  acceptance: 'Docker composition (LiveKit server + SIP bridge + scripted SIP UA caller/receiver) runs in CI: synthetic WAV audio in, transfer offered, receiver accepts/declines, evidence captured.'
+  originalIds:
+  - SAFE-04
+  - DATA-02
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - telephony.sip
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no softphone/SIP UA/compose file in the repository (grep 2026-10-19)
+  gap: Audio and transfer cannot be exercised end to end locally.
+  remediation: Add infra/local/compose with LiveKit + LiveKit SIP + pjsua/sipp agents and a test driver in platform/test.
+  size: L
+  environmentDependency: none
+  workPackage: WP-12
+  provenance:
+    origin: extraction
+- id: FO-06-41
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: software
+  text: Salesforce connector performs restricted REST and metadata reads of selected Knowledge/Case/Contact relationships.
+  acceptance: 'Emulator tests: describe-based field allowlist, SOQL over selected fields only, relationship reads bounded and access-checked.'
+  originalIds:
+  - SPEC-8.salesforce-outage
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/salesforce-rest-support-records.ts (PATCH upsert and GET by external id with minimal fields only; :375)
+  - no describe/metadata, Contact or Knowledge read
+  gap: Read-side Salesforce integration is absent.
+  remediation: Add SalesforceReadConnector (describe cache, bounded SOQL templates over allowlisted fields, relationship traversal limits).
+  size: L
+  environmentDependency: Salesforce sandbox, administrator schema and integration identity (PRQ-006, PRQ-035, PRQ-024; VQ-SF-03..08)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-42
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: software
+  text: Salesforce connector performs incremental history sync with deletion awareness.
+  acceptance: 'Emulator tests: SystemModstamp watermark with overlap window, getDeleted/queryAll tombstones applied, checkpoint resume.'
+  originalIds:
+  - SPEC-8.salesforce-outage
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no SOQL query, watermark, getDeleted or queryAll usage in platform/src
+  gap: No history or deletion awareness.
+  remediation: Implement incremental sync with checkpoints (FO-06-09) and tombstone propagation into projections/memory.
+  size: M
+  environmentDependency: Salesforce sandbox, administrator schema and integration identity (PRQ-006, PRQ-035, PRQ-024; VQ-SF-03..08)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-43
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: software
+  text: Optionally consume documented CDC/Pub/Sub API events when tenant-enabled, preserving replay positions and reconciling gaps.
+  acceptance: 'Emulated gRPC Pub/Sub test: replay id persisted, restart resumes, gap detected and reconciled by query.'
+  originalIds:
+  - SPEC-8.salesforce-outage
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no Pub/Sub API client or replay-id store in platform/src
+  gap: No streaming source.
+  remediation: Implement Pub/Sub API client (gRPC, Avro schema registry) behind an EventSource port with checkpointed replay ids.
+  size: L
+  environmentDependency: Tenant-enabled Change Data Capture entitlement
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-44
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: software
+  text: Implement Case creation/update with restricted schema and external IDs.
+  acceptance: Emulated contract tests pass; configured administrator schema replaces placeholders; live composition wires the adapter into support sync.
+  originalIds:
+  - SPEC-8.salesforce-model
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/salesforce-rest-support-records.ts (upsert by external id; junction links)
+  - platform/src/adapters/live/salesforce-rest.contract.test.ts:92-156 (EMULATED; passing 2026-10-19)
+  gap: Schema is PLACEHOLDER (BLOCKED); the adapter is not used by support sync in any composition (offline uses SupportRecordsFixture; live wiring is blocked-set.ts).
+  remediation: Wire SalesforceRestSupportRecords (via CachingSupportRecords) into the live composition and run J16 against the emulator.
+  size: S
+  environmentDependency: Salesforce sandbox, administrator schema and integration identity (PRQ-006, PRQ-035, PRQ-024; VQ-SF-03..08)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-06-45
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: software
+  text: Respect Salesforce API limits.
+  acceptance: 403 REQUEST_LIMIT_EXCEEDED handled as NOT_STARTED; Sforce-Limit-Info exported as a metric and used to throttle background sync.
+  originalIds:
+  - SPEC-12.quotas
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/salesforce-rest.contract.test.ts:244,321
+  gap: Usage held in memory (lastApiUsage) only; not exported or used for throttling.
+  remediation: Export vsp_vendor_api_usage and gate sync on remaining allocation.
+  size: S
+  environmentDependency: Salesforce sandbox, administrator schema and integration identity (PRQ-006, PRQ-035, PRQ-024; VQ-SF-03..08)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-06-46
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: software
+  text: Handle Salesforce sharing, field-level security, validation/duplicate rules and trigger/flow side effects.
+  acceptance: Emulator tests for DUPLICATES_DETECTED, FIELD_CUSTOM_VALIDATION_EXCEPTION, INSUFFICIENT_ACCESS_OR_READONLY, ENTITY_IS_LOCKED, FLS-hidden field; side-effect inventory recorded.
+  originalIds:
+  - SPEC-8.salesforce-model
+  - ACT-03
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/salesforce-rest.contract.test.ts:233 (400/404 mapped generically to FAILED)
+  - no describe-based FLS check in salesforce-rest-support-records.ts
+  gap: Vendor rule outcomes are not distinguished; side effects unknown.
+  remediation: Map documented errorCodes to typed outcomes, verify FLS via describe before write, record automation inventory in the profile.
+  size: M
+  environmentDependency: Salesforce automation inventory (PRQ-035)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-47
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: software
+  text: Default existing read-only connections to READ_ONLY; never test mutations with them; activation of writes requires a separately authorized sandbox/write identity.
+  acceptance: Adapter refuses any mutation unless profile accessMode allows writes and a distinct write credential + approval exist; test proves READ_ONLY default.
+  originalIds:
+  - OPS-05
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no access-mode field in platform/src/config/schema.ts:36-44 or SalesforceRestConfigSchema (salesforce-rest-support-records.ts:170-188)
+  - platform/src/config/guard.ts:324 (VENDOR_SANDBOX_INTEGRATION approval for sandbox live adapters, not a read/write identity split)
+  gap: No read/write identity separation.
+  remediation: Add accessMode READ_ONLY|SANDBOX_WRITE|PRODUCTION_WRITE (default READ_ONLY) and a separate writeCredentialRef with approval.
+  size: S
+  environmentDependency: Separately authorized Salesforce sandbox write identity
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-48
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: constraint
+  text: No Apex or broad metadata modification shortcuts.
+  acceptance: Test asserts the adapter only calls /services/oauth2/token and /services/data/{v}/sobjects|query paths.
+  originalIds:
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/salesforce-rest-support-records.ts header (documented token and sobjects endpoints only)
+  gap: No test asserting the path allowlist.
+  remediation: Add a path-allowlist assertion in the emulator.
+  size: S
+  environmentDependency: none
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-06-49
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: software
+  text: Use a server-derived external idempotency key, unique interaction/case links and documented upsert behavior; follow a 204 upsert with a lookup for the real ID.
+  acceptance: 'Emulated tests: repeated upserts never duplicate; 204 followed by minimal read-back.'
+  originalIds:
+  - ACT-02
+  - ACT-03
+  - SPEC-8.salesforce-model
+  derivedFrom: []
+  capabilityIds:
+  - contact_center.talkdesk
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/support-records-schema.ts (server external-id formats)
+  - platform/src/adapters/live/salesforce-rest.contract.test.ts:115,126
+  - platform/migrations/0300_support_requests.sql (server-generated issue/interaction external ids)
+  gap: Verified against emulator only.
+  remediation: Qualify in sandbox.
+  size: S
+  environmentDependency: Salesforce sandbox, administrator schema and integration identity (PRQ-006, PRQ-035, PRQ-024; VQ-SF-03..08)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-06-50
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: constraint
+  text: A successful CRM write is not proof of final case disposition or business resolution.
+  acceptance: Created Case keeps vendor-managed status; outcome RESOLVED requires independent evidence.
+  originalIds:
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/local/support-records-fixture.ts (status never reset by upsert)
+  - platform/src/business/support-requests.test.ts:43 [ACT-04]
+  - platform/src/business/outcomes.test.ts
+  - platform/test/journeys/outcomes.test.ts
+  gap: 'Verified with the fixture; live adapter does not read final disposition. IMPLEMENTED, not VERIFIED_LOCAL: "Created Case keeps vendor-managed status" is verified only on the support-records fixture; the live Salesforce adapter contract tests do not assert it and the adapter never reads final disposition.'
+  remediation: Add disposition read-back to the live read connector.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: "Created Case keeps vendor-managed status" is verified only on the support-records fixture; the live Salesforce adapter contract tests do not assert it and the adapter never reads final disposition.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-29
+- id: FO-06-51
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: software
+  text: During CRM outage retain an encrypted internal support reference plus outbox, label it pending CRM synchronization, and never invent Salesforce Case numbers.
+  acceptance: 'Outage test: internal SR reference returned, sync RETRY_SCHEDULED, later replay creates exactly one Case; speech says pending sync; encryption at rest verified in infrastructure.'
+  originalIds:
+  - SPEC-8.salesforce-outage
+  - SPEC-8.outbox
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0300_support_requests.sql (SR- reference, sync state)
+  - platform/src/business/support-requests.test.ts:77,101,124
+  - platform/src/gateway/tools/intake.ts:60-61,102-103 (PENDING_SYNC; template support_reference.pending_sync)
+  gap: Exercised against the in-memory SupportRecordsFixture, never against SalesforceRestSupportRecords + emulator; encryption at rest is an unverified infrastructure control.
+  remediation: Run J16 with the live adapter against the emulator; verify KMS encryption in the Terraform plan tests.
+  size: S
+  environmentDependency: KMS-encrypted Aurora cluster (infrastructure)
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-06-52
+  section: '6'
+  subsection: Salesforce Service Cloud
+  kind: constraint
+  text: Store minimized summaries and access-checked evidence references in the CRM, not full transcripts by default.
+  acceptance: Schema CHECK limits summary content; restricted records synchronized minimized.
+  originalIds:
+  - DATA-01
+  - SPEC-6.case-minimization
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0300_support_requests.sql (summary <=600 chars, no 4+ digit runs, template id, provenance)
+  - platform/src/business/support/summaries.ts
+  - platform/src/business/support-requests.test.ts:146
+  gap: Evidence references to restricted content are not yet access-checked links (no content store).
+  remediation: Add access-checked evidence reference resolution when the content store exists.
+  size: S
+  environmentDependency: none
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-6.case-minimization'
+- id: FO-06-53
+  section: '6'
+  subsection: Segment and other CDPs
+  kind: software
+  text: Ingest documented track/identify/group/alias-compatible events through a reviewed contract, preserving original event identity (messageId) and event/sent/received timestamps.
+  acceptance: Emulator delivers Segment-spec events; inbox stores messageId, timestamp, sentAt, receivedAt, originalTimestamp; duplicates deduplicated; unknown fields quarantined.
+  originalIds:
+  - DATA-01
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - data.cdp
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no CDP code in the repository (grep 'segment' 2026-10-19 finds only unrelated identifiers)
+  gap: No CDP ingestion.
+  remediation: Implement CdpEventConnector with a reviewed event contract (JSON Schema per event name) on the shared inbox.
+  size: L
+  environmentDependency: Segment (or other CDP) workspace configured to deliver to the platform, tenant source credentials and privacy approval of event contract
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-54
+  section: '6'
+  subsection: Segment and other CDPs
+  kind: software
+  text: Verify each tenant's CDP delivery mechanism and authentication (webhook destination secret, Functions, or pull API).
+  acceptance: Per-tenant profile declares mechanism; wizard test proves authentication; unauthenticated delivery refused.
+  originalIds:
+  - SPEC-8.webhook-auth
+  derivedFrom: []
+  capabilityIds:
+  - data.cdp
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no CDP delivery authentication
+  gap: Not implemented.
+  remediation: Support documented delivery mechanisms per CDP with explicit auth verification and record the actual mechanism per event.
+  size: M
+  environmentDependency: Segment (or other CDP) workspace configured to deliver to the platform, tenant source credentials and privacy approval of event contract
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-55
+  section: '6'
+  subsection: Segment and other CDPs
+  kind: constraint
+  text: Treat alias/identify as analytics linkage only; never sufficient to merge protected identities.
+  acceptance: 'Adversarial test: alias linking two users produces a quarantined linkage signal, no IdentityLink, no disclosure.'
+  originalIds:
+  - AUTH-01
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no IdentityLink model or CDP ingestion exists (FO-07-10)
+  gap: Enforcement point does not exist yet.
+  remediation: Make CDP linkage a low-confidence signal type that the identity graph can never promote without reviewed evidence.
+  size: S
+  environmentDependency: none
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-56
+  section: '6'
+  subsection: Segment and other CDPs
+  kind: software
+  text: Assign different confidence to real-time server-authoritative operational events, trusted app events and browser claims; 'payment clicked' is not 'payment settled'.
+  acceptance: Each ingested fact carries authority_rank/source class; context assembly never states settlement from a client-side event (test).
+  originalIds:
+  - DATA-04
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no event confidence model; ContextFact absent (FO-07-06)
+  gap: Not implemented.
+  remediation: Add source class and authority rank to ContextFact and enforce in assembly/speech.
+  size: M
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-06-57
+  section: '6'
+  subsection: Segment and other CDPs
+  kind: constraint
+  text: Marketing profile traits never create support action authority.
+  acceptance: 'Adversarial test: CDP trait (e.g. VIP, plan tier) cannot appear in PolicyInput or change authorization.'
+  originalIds:
+  - AUTH-03
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - data.cdp
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/policy.ts (strict server-established PolicyInput)
+  - platform/src/gateway/catalog.test.ts:57 [AUTH-03] (tool inputs cannot declare identity fields)
+  gap: Holds by construction; no CDP-specific adversarial test.
+  remediation: Add the adversarial test with the CDP connector.
+  size: S
+  environmentDependency: none
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-58
+  section: '6'
+  subsection: Segment and other CDPs
+  kind: software
+  text: Configure CDP purpose/field filters, suppression/deletion propagation and destination allowlists.
+  acceptance: Field filter drops non-allowlisted traits at ingest; suppression/deletion events propagate to projections, memory and caches; outbound destinations allowlisted.
+  originalIds:
+  - DATA-01
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - data.cdp
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/privacy/egress.ts (generic destination allowlist only)
+  gap: No CDP filters or suppression propagation.
+  remediation: Implement purpose/field filters in the CDP profile and a deletion/suppression consumer.
+  size: M
+  environmentDependency: Segment (or other CDP) workspace configured to deliver to the platform, tenant source credentials and privacy approval of event contract
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-59
+  section: '6'
+  subsection: Segment and other CDPs
+  kind: constraint
+  text: No support transcript, inferred distress or protected treatment fact goes to advertising/marketing destinations through a CDP integration.
+  acceptance: 'Egress test: any non-content-free class to an analytics/marketing destination is refused; no outbound CDP payload contains transcript or safety fields.'
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - data.cdp
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/privacy/egress.ts (ANALYTICS_SINK content-free only)
+  - platform/src/privacy/egress.test.ts:49
+  gap: No MARKETING/ADVERTISING destination kind and no classification for inferred distress; no outbound CDP connector to test end to end.
+  remediation: Add MARKETING_DESTINATION kind (content-free only) and a safety/distress classification blocked from all analytics egress.
+  size: S
+  environmentDependency: none
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-06-60
+  section: '6'
+  subsection: Snowflake
+  kind: software
+  text: Real read-only Snowflake connector using supported authentication (key-pair JWT or OAuth) over the documented SQL API.
+  acceptance: Adapter authenticates and runs statements against a SQL API emulator; read-only role enforced.
+  originalIds:
+  - DATA-01
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no Snowflake code (grep 2026-10-19)
+  gap: Not implemented.
+  remediation: Implement SnowflakeSqlApiConnector (POST /api/v2/statements, key-pair JWT) with emulator tests.
+  size: L
+  environmentDependency: Snowflake account, read-only role with secure views/row access/masking policies, key-pair or OAuth credentials
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-61
+  section: '6'
+  subsection: Snowflake
+  kind: software
+  text: Query Snowflake only through approved secure views or parameterized SQL templates; no model-generated SQL.
+  acceptance: Template registry with digests; bindings typed; any non-template statement refused.
+  originalIds:
+  - DATA-01
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no query template registry
+  gap: Not implemented.
+  remediation: Add a reviewed template registry (id, version, SQL with bind variables, result schema) pinned by digest.
+  size: M
+  environmentDependency: Snowflake account, read-only role with secure views/row access/masking policies, key-pair or OAuth credentials
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-62
+  section: '6'
+  subsection: Snowflake
+  kind: software
+  text: Bound Snowflake records, time ranges, statements, warehouse use, query timeout and cost.
+  acceptance: 'Tests: row limit, time-range limit, statement timeout parameter, warehouse allowlist and credit budget enforced.'
+  originalIds:
+  - SPEC-12.budget-cutoff
+  - SPEC-12.resilience
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no warehouse budget
+  gap: Not implemented.
+  remediation: Enforce limits in templates and statement parameters; integrate with ops budgets.
+  size: M
+  environmentDependency: Snowflake account, read-only role with secure views/row access/masking policies, key-pair or OAuth credentials
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-63
+  section: '6'
+  subsection: Snowflake
+  kind: software
+  text: Support asynchronous query completion/cancellation and result pagination.
+  acceptance: 'Emulator: 202 async handle polled, cancel on deadline, partitioned results paged.'
+  originalIds:
+  - SPEC-12.resilience
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no async query handling
+  gap: Not implemented.
+  remediation: Implement statement handle polling, cancel, partition iteration.
+  size: M
+  environmentDependency: Snowflake account, read-only role with secure views/row access/masking policies, key-pair or OAuth credentials
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-64
+  section: '6'
+  subsection: Snowflake
+  kind: software
+  text: Use explicit column selection, tenant/subject predicates, deleted-record handling, role/row/masking policies and source-quality watermarks.
+  acceptance: Template lint rejects SELECT *; tenant/subject predicates mandatory; deleted rows excluded; result carries source watermark.
+  originalIds:
+  - AUTH-05
+  - DATA-01
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no warehouse access contract
+  gap: Not implemented.
+  remediation: Define a bounded data-access contract shared by Snowflake and Athena with mandatory predicates and watermark output.
+  size: M
+  environmentDependency: Snowflake account, read-only role with secure views/row access/masking policies, key-pair or OAuth credentials
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-65
+  section: '6'
+  subsection: Snowflake
+  kind: constraint
+  text: No broad warehouse export into each call; warehouse history complements operational APIs and is never presumed current.
+  acceptance: Per-call fact budget enforced; warehouse facts labelled historical with as-of; volatile facts require live lookup (FO-07-41).
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no warehouse connector or freshness labelling
+  gap: Not implemented.
+  remediation: Enforce via ContextFact freshness/authority rank and context assembly budgets.
+  size: S
+  environmentDependency: none
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-66
+  section: '6'
+  subsection: Apache Iceberg / lakehouse
+  kind: software
+  text: Implement a supported Iceberg catalog and query-engine profile (e.g. Glue + Athena) behind the same bounded data-access contract.
+  acceptance: Athena adapter runs approved templates against Iceberg tables via the data-access contract; emulator test.
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no Iceberg/Athena/Glue code (grep 2026-10-19)
+  gap: Not implemented.
+  remediation: Implement AthenaIcebergConnector (StartQueryExecution/GetQueryResults with workgroup limits) sharing the warehouse data-access contract.
+  size: L
+  environmentDependency: AWS Glue Data Catalog + Athena (or chosen engine) with Lake Formation permissions on approved silver/gold tables
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-67
+  section: '6'
+  subsection: Apache Iceberg / lakehouse
+  kind: evaluation
+  text: Provide a local compatible Iceberg catalog/query fixture.
+  acceptance: Docker composition (MinIO + Iceberg REST catalog + Trino or DuckDB) used by CI tests of the lakehouse connector.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no lakehouse fixture
+  gap: Not implemented.
+  remediation: Add compose services and seeded synthetic tables with snapshots, deletes and schema evolution.
+  size: M
+  environmentDependency: none
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-68
+  section: '6'
+  subsection: Apache Iceberg / lakehouse
+  kind: software
+  text: Pin table, snapshot and schema IDs in evidence for every lakehouse read.
+  acceptance: Each result carries table identifier, snapshot id and schema id; replay with the same snapshot is reproducible.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no lakehouse reads
+  gap: Not implemented.
+  remediation: Record snapshot/schema ids from the catalog in the SourceWatermark/evidence.
+  size: S
+  environmentDependency: AWS Glue Data Catalog + Athena (or chosen engine) with Lake Formation permissions on approved silver/gold tables
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-69
+  section: '6'
+  subsection: Apache Iceberg / lakehouse
+  kind: software
+  text: Respect row deletes, tombstones, partition pruning, schema evolution, late data, snapshot expiry and retention.
+  acceptance: Fixture tests for position/equality deletes, renamed column, late partition, expired snapshot -> honest unavailable.
+  originalIds:
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no lakehouse reads
+  gap: Not implemented.
+  remediation: Seed the local Iceberg fixture (FO-06-67, e.g. Iceberg REST catalog + MinIO + Trino/DuckDB) with tables exercising v2 position and equality delete files, a dropped-and-re-added column resolved by field id, a renamed column, a late-arriving partition and an expired snapshot. Test that the connector returns no deleted rows, maps columns by field id across schema versions, reports partition pruning from engine scan statistics, refuses evidence pinned to an expired snapshot with a typed reason, and applies the current deletion and authorization list to any time-travel read.
+  size: M
+  environmentDependency: AWS Glue Data Catalog + Athena (or chosen engine) with Lake Formation permissions on approved silver/gold tables
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-06-70
+  section: '6'
+  subsection: Apache Iceberg / lakehouse
+  kind: software
+  text: Verify access enforcement at the query engine (catalog tags alone do not prove filtering); historical snapshots never bypass current deletion or authorization.
+  acceptance: 'Test: time-travel query to a snapshot containing a deleted/unauthorized row returns nothing; engine-level row filter verified.'
+  originalIds:
+  - AUTH-05
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no lakehouse reads
+  gap: Not implemented.
+  remediation: Disallow time travel by default; apply current deletion list and authorization predicates post-query; qualify Lake Formation filters in sandbox.
+  size: M
+  environmentDependency: AWS Glue Data Catalog + Athena (or chosen engine) with Lake Formation permissions on approved silver/gold tables
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-71
+  section: '6'
+  subsection: Apache Iceberg / lakehouse
+  kind: constraint
+  text: Never query raw bronze patient data from the conversational model.
+  acceptance: Data-access contract allowlists only approved curated tables; bronze tables unreachable by any template (test).
+  originalIds:
+  - DATA-01
+  - SAFE-01
+  derivedFrom: []
+  capabilityIds:
+  - data.warehouse
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no data-access contract exists
+  gap: No enforcement point exists.
+  remediation: Table allowlist with layer classification in the profile; refuse bronze/raw layers.
+  size: S
+  environmentDependency: none
+  workPackage: WP-21
+  provenance:
+    origin: extraction
+- id: FO-06-72
+  section: '6'
+  subsection: Business systems
+  kind: software
+  text: Ship production adapters for the canonical scheduling, billing/claims-status, provider onboarding/remittance and notification contracts.
+  acceptance: Live adapters per contract pass contract tests against the reference HTTP service emulator and are composable outside local/ci.
+  originalIds:
+  - SPEC-16.integration-records
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/business-systems-blocked.ts (SchedulingLiveBlocked, BillingLiveBlocked, ClaimsLiveBlocked, ProviderSystemLiveBlocked, RelationshipDirectoryLiveBlocked)
+  - platform/src/adapters/local/*-fixture.ts (fixtures only)
+  - platform/src/main/container.ts:22-26,308-314 (sandbox/staging/production composition refused with LIVE_COMPOSITION_NOT_IMPLEMENTED)
+  gap: Only fixtures and BLOCKED stubs.
+  remediation: Implement HTTP adapters over the reference service contract (FO-06-74) with tenant mappings via the bounded DSL.
+  size: XL
+  environmentDependency: Business-system owners' API documentation, sandbox credentials and idempotency/lookup-by-key confirmation (PRQ-007, PRQ-033, PRQ-050)
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+- id: FO-06-73
+  section: '6'
+  subsection: Business systems
+  kind: software
+  text: Provide a canonical referrals-status contract and adapter.
+  acceptance: Referral status port, schema, policy action and adapter exist with tests; program membership is never treated as authoritative referral status.
+  originalIds:
+  - AUTH-05
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no referral contract in platform/src/adapters/ports.ts or platform/src/business/contracts (grep 'referral' finds nothing)
+  gap: Contract absent.
+  remediation: Add ReferralStatusSystem port, business contract, tool and policy action.
+  size: M
+  environmentDependency: Business-system owners' API documentation, sandbox credentials and idempotency/lookup-by-key confirmation (PRQ-007, PRQ-033, PRQ-050)
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+- id: FO-06-74
+  section: '6'
+  subsection: Business systems
+  kind: software
+  text: Provide a documented reference HTTP service and bounded tenant mappings where internal APIs are unknown.
+  acceptance: OpenAPI-documented reference service (container) implementing canonical contracts incl. idempotency and lookup-by-key; mapping profiles validated.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no reference service in the repository
+  gap: Not implemented.
+  remediation: Build services/reference-business-api (OpenAPI + container) and use it as the emulator for FO-06-72.
+  size: L
+  environmentDependency: none
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+- id: FO-06-75
+  section: '6'
+  subsection: Business systems
+  kind: software
+  text: Each business adapter implements read, prepare, commit, receipt and reconcile behavior; non-idempotent downstream APIs require an explicit supported reconciliation path.
+  acceptance: 'Contract tests per adapter: crash-after-commit, timeout-after-send, duplicate delivery reconcile without duplicate effect; non-idempotent API refused unless a reconciliation lookup is declared.'
+  originalIds:
+  - ACT-01
+  - ACT-02
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.ts + platform/migrations/0100,0101,0102 (ledger, reconciliation, invalidation; verified with fixtures in platform/test/journeys/transactions.test.ts)
+  - platform/src/adapters/local/scheduling-fixture.ts findByIdempotencyKey (fixture)
+  gap: Action-layer semantics are real and verified locally, but no live adapter provides them; non-idempotent reconciliation declaration does not exist.
+  remediation: Implement in each live adapter and add an idempotency/reconcile declaration to the profile.
+  size: L
+  environmentDependency: Business-system owners' API documentation, sandbox credentials and idempotency/lookup-by-key confirmation (PRQ-007, PRQ-033, PRQ-050)
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+- id: FO-06-76
+  section: '6'
+  subsection: Business systems
+  kind: constraint
+  text: Never fabricate insurance coverage, fee waivers, clinical suitability, payout authorization or a claims decision; match each capability to its real authority.
+  acceptance: Ports expose only authoritative fields; templates contain no waiver/refund/coverage wording; tests.
+  originalIds:
+  - ACT-04
+  - SAFE-01
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/ports.ts (ClaimStatus insurer-reported only; listSlots administrative availability only; markInReview no refund)
+  - platform/src/business/billing.test.ts:125 ([ACT-04] no refund/waiver/credit wording)
+  gap: Re-verify per live adapter mapping.
+  remediation: Include prohibited-field classes in mappings (FO-06-05).
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-23
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-06-77
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Salesforce Knowledge connector ingests approved articles with version, owner, ACL and effective dates.
+  acceptance: 'Emulator test: published article versions synced incrementally into knowledge ingest; archived/deleted articles taken out of service.'
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/README.md BLOCKED table (Salesforce Knowledge export/sync adapter)
+  - platform/src/knowledge/schema.ts sourceSystem enum includes salesforce_knowledge (input only)
+  gap: Only the ingest pipeline exists; no source connector.
+  remediation: Implement Knowledge__kav reads (PublishStatus, VersionNumber, LastPublishedDate) via the Salesforce read connector.
+  size: M
+  environmentDependency: Knowledge owner approvals and source access (Salesforce Knowledge sandbox, object storage bucket, KB API credentials) (PRQ-032, VQ-SF-09)
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-06-78
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Ingest from reviewed URL allowlists (no unrestricted crawling).
+  acceptance: Fetcher restricted to allowlisted URLs/prefixes, robots/size/type limits, no redirects off-list; emulator tests.
+  originalIds:
+  - DATA-01
+  - SAFE-05
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no URL fetcher in platform/src/knowledge
+  gap: Not implemented.
+  remediation: Add AllowlistedUrlSource using the connector HTTP client and the existing sanitizer.
+  size: M
+  environmentDependency: Knowledge owner approvals and source access (Salesforce Knowledge sandbox, object storage bucket, KB API credentials) (PRQ-032, VQ-SF-09)
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-06-79
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Ingest documents from object storage with safe parsing (HTML/PDF/DOCX/Markdown).
+  acceptance: S3/MinIO source test with each supported type; parser sandboxed with size/time limits; unsupported types quarantined.
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no document parser or object-storage source
+  gap: Not implemented.
+  remediation: Add ObjectStorageSource with bounded parsers feeding evaluateKnowledgeItem.
+  size: M
+  environmentDependency: Knowledge owner approvals and source access (Salesforce Knowledge sandbox, object storage bucket, KB API credentials) (PRQ-032, VQ-SF-09)
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-06-80
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Provide a generic KB API connector.
+  acceptance: Declarative profile (FO-06-23) maps a KB API to KnowledgeItemInput; emulator test.
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no KB API connector
+  gap: Not implemented.
+  remediation: Implement via the bounded mapping DSL.
+  size: M
+  environmentDependency: Knowledge owner approvals and source access (Salesforce Knowledge sandbox, object storage bucket, KB API credentials) (PRQ-032, VQ-SF-09)
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-06-81
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Scan attachments and files from knowledge sources (malware/type/size) before parsing.
+  acceptance: EICAR test file quarantined; oversized/unsupported files quarantined with reason codes.
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/sanitize.ts (strips attachment references from text only)
+  gap: No file scanning.
+  remediation: Integrate a scanner (ClamAV container locally; AWS GuardDuty Malware Protection for S3 in AWS) before parsing.
+  size: M
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-06-82
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Propagate source deletion/archival and manage index lifecycle (re-embed, purge embeddings) for connector-ingested knowledge.
+  acceptance: Source deletion removes item from service and purges embeddings; snapshot changes; tests.
+  originalIds:
+  - DATA-03
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/ingest.test.ts:214 (re-ingest as REJECTED/expired takes a version out of service)
+  - platform/migrations/0500_knowledge.sql (embeddings cascade on item delete)
+  gap: Store-side lifecycle works; no source deletion feed and no explicit delete/purge API.
+  remediation: Add tombstone handling in each KB connector and a purge operation recorded in retention evidence.
+  size: S
+  environmentDependency: Knowledge owner approvals and source access (Salesforce Knowledge sandbox, object storage bucket, KB API credentials) (PRQ-032, VQ-SF-09)
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-06-83
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: constraint
+  text: No unrestricted crawling during calls; retrieval uses only the approved indexed corpus.
+  acceptance: Test asserts knowledge search performs no network I/O.
+  originalIds:
+  - DATA-01
+  - SAFE-05
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/search.ts (database only)
+  gap: No explicit no-network test.
+  remediation: Add a test with fetch stubbed to throw during search.
+  size: S
+  environmentDependency: none
+  workPackage: WP-20
+  provenance:
+    origin: extraction
+- id: FO-06-84
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Provide a secure web companion application alongside voice.
+  acceptance: Companion web app (separate from console) reachable via secure link, accessible (WCAG 2.2 AA), with tests.
+  originalIds:
+  - AUTH-01
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - companion.web
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no companion app in console/ or elsewhere; platform/src/gateway/http/portal-routes.ts assumes an existing account portal calls the API
+  gap: Only a backend verification API exists.
+  remediation: Build a companion SPA (or embed in the account portal) for authentication, review and async replies.
+  size: L
+  environmentDependency: Domain, IdP client registration and hosting for the companion
+  workPackage: WP-27
+  provenance:
+    origin: extraction
+- id: FO-06-85
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: The secure web companion authenticates the person and binds the result to exactly one call session/generation.
+  acceptance: Secure link + IdP ID token + match code binds only that call session generation; replay/consumed/expired indistinguishable.
+  originalIds:
+  - AUTH-01
+  - AUTH-03
+  - AUTH-06
+  derivedFrom: []
+  capabilityIds:
+  - companion.web
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/http/portal-routes.ts
+  - platform/src/gateway/http/portal-routes.test.ts:74,122
+  - platform/src/adapters/live/oidc-verifier.ts + oidc-verifier.test.ts (node:http IdP)
+  - platform/src/identity/verification-service.ts
+  gap: Backend verified; no companion front-end; live IdP not configured.
+  remediation: Connect the companion UI to these routes.
+  size: S
+  environmentDependency: Live IdP client registration (PRQ-005)
+  workPackage: WP-27
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-06-86
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: The companion supports review of prepared actions and summaries.
+  acceptance: Person reviews the exact prepared-action digest and confirms; confirmation binds to the digest.
+  originalIds:
+  - ACT-01
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - companion.web
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/http/portal-routes.ts approveStepUp (A3 for one digest) only; no review payload
+  gap: No review surface.
+  remediation: Add review endpoints rendering approved templates for the prepared action, and companion UI.
+  size: M
+  environmentDependency: none
+  workPackage: WP-27
+  provenance:
+    origin: extraction
+- id: FO-06-87
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: The companion supports asynchronous replies for long-running cases.
+  acceptance: Person receives a neutral notification, opens companion, sees case status from source of truth and replies; reply becomes a workflow event.
+  originalIds:
+  - SPEC-9.workflow
+  derivedFrom: []
+  capabilityIds:
+  - companion.web
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no async messaging channel
+  gap: Not implemented.
+  remediation: Add companion messaging bound to SupportRequest/workflow with authorization per message.
+  size: M
+  environmentDependency: none
+  workPackage: WP-27
+  provenance:
+    origin: extraction
+- id: FO-06-88
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Ship live email and SMS notification adapters with configured senders.
+  acceptance: Adapters send through vendor APIs against emulators (SMTP sink / SMS API stub) with idempotency keys.
+  originalIds:
+  - DATA-01
+  - SPEC-9.notifications
+  derivedFrom: []
+  capabilityIds:
+  - notifications.messaging
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/local/notification-fixture.ts (in-memory capture only; live provider BLOCKED)
+  gap: Fixture only.
+  remediation: Implement SesEmailSender/SmsSender over documented APIs with the shared runtime.
+  size: M
+  environmentDependency: BAA-covered email/SMS vendor (e.g. SES/Pinpoint or Twilio), registered sender IDs/10DLC, communications approval of templates
+  workPackage: WP-27
+  provenance:
+    origin: extraction
+- id: FO-06-89
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Send notifications only to verified registered recipients.
+  acceptance: Raw addresses cannot be passed; unverified channel refused; recently changed channel flagged.
+  originalIds:
+  - AUTH-01
+  - SPEC-9.notifications
+  derivedFrom: []
+  capabilityIds:
+  - notifications.messaging
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/ports.ts NotificationSender.send(channelRef) and RegisteredChannel.verified/changedAt
+  - platform/src/identity/verification-service.ts (resolves registered channels from IdentityDirectory)
+  - platform/src/adapters/local/notification-fixture.ts (enforces registered refs in the fixture)
+  gap: 'The production-path rule that is real is the channel selection in verification-service.ts:682-709 (exactly one candidate, verified channel of an allowed kind, recently-changed check). Registered and verified state comes only from LocalIdentityDirectoryFixture: no live or BLOCKED IdentityDirectory exists (grep ''implements IdentityDirectory''). The final registered-channelRef check and any channelRef-to-address resolution exist only in NotificationFixture (platform/src/adapters/local/notification-fixture.ts:96-119). The live sender wrapper must re-check verified/registered state from the directory at send time.'
+  remediation: Move the registered/verified check into the production sender wrapper and test with the live adapter.
+  size: S
+  environmentDependency: BAA-covered email/SMS vendor (e.g. SES/Pinpoint or Twilio), registered sender IDs/10DLC, communications approval of templates
+  workPackage: WP-27
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-06-90
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Apply consent, preferences and quiet hours before any notification.
+  acceptance: Every send path calls decideNotification; tests prove deferral in quiet hours and suppression on opt-out/unknown consent.
+  originalIds:
+  - SPEC-9.notifications
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - notifications.messaging
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/notification-policy.ts:57 decideNotification + notification-policy.test.ts:22-47 (passing)
+  - platform/src/ops/notification-gate.ts (kill-switch gate)
+  gap: decideNotification is not called from any production send path (grep).
+  remediation: Wire decideNotification into the notification gate/sender wrapper and add an integration test.
+  size: S
+  environmentDependency: none
+  workPackage: WP-27
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-06-91
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Record notification delivery receipts.
+  acceptance: Vendor delivery callbacks authenticated, stored and linked to the notification; accepted-for-delivery is not delivered.
+  originalIds:
+  - OPS-01
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - notifications.messaging
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no delivery receipt model
+  gap: Not implemented.
+  remediation: Add delivery-status webhook ingestion via the inbox and a notification_deliveries table.
+  size: M
+  environmentDependency: BAA-covered email/SMS vendor (e.g. SES/Pinpoint or Twilio), registered sender IDs/10DLC, communications approval of templates
+  workPackage: WP-27
+  provenance:
+    origin: extraction
+- id: FO-06-92
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Outbound voice is fully implemented but separately activated and budgeted.
+  acceptance: Outbound call adapter (SIP/Talkdesk) with allowlisted numbers from registered channels, separate kill switch and budget; disabled by default; emulator test.
+  originalIds:
+  - OPS-05
+  - SPEC-12.budget-cutoff
+  - SAFE-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.outbound
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/notification-policy.ts:63 (voice suppressed unless outboundCallingEnabled)
+  - platform/src/ops/kill-switches.ts:34 (OUTBOUND_NOTIFICATIONS only)
+  gap: Only a refusal exists.
+  remediation: Implement outbound call placement on the SIP/LiveKit runtime with OUTBOUND_VOICE kill switch and budget.
+  size: L
+  environmentDependency: Carrier/Talkdesk outbound entitlement, budget approval and calling-consent policy
+  workPackage: WP-27
+  provenance:
+    origin: extraction
+- id: FO-06-93
+  section: '6'
+  subsection: Connector test wizard
+  kind: software
+  text: 'Connector test wizard runs: validate configuration -> authenticate -> inspect metadata -> inspect approved synthetic record -> compare mapping -> freshness test.'
+  acceptance: Backend wizard API + console UI execute each step against an emulator and report per-step PASS/FAIL with reason codes; console tests.
+  originalIds:
+  - OPS-03
+  - SPEC-16.prod-guard
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no wizard in platform/src/console-api or console/src/pages (navigation.ts lists 13 pages, none for connectors)
+  gap: Not implemented.
+  remediation: Add console-api connector-test endpoints and a console onboarding page using the connector runtime.
+  size: L
+  environmentDependency: none
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-06-94
+  section: '6'
+  subsection: Connector test wizard
+  kind: software
+  text: The wizard performs write/reconcile tests only in an authorized sandbox.
+  acceptance: Write step refused unless profile accessMode is SANDBOX_WRITE with approval; reconcile verified by lookup.
+  originalIds:
+  - OPS-05
+  - ACT-02
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no wizard
+  gap: Not implemented.
+  remediation: Gate the write step on accessMode + approval record.
+  size: M
+  environmentDependency: Separately authorized sandbox write identity
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-06-95
+  section: '6'
+  subsection: Connector test wizard
+  kind: software
+  text: The wizard signs capability evidence.
+  acceptance: Evidence record (profile digest, steps, results, tier, timestamps) signed with the release/approval signing key and verifiable.
+  originalIds:
+  - OPS-03
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/config/approvals.ts (approval record verification exists, reusable)
+  - platform/src/protocol/release.ts EvidenceRef
+  gap: No capability evidence record.
+  remediation: Add CapabilityEvidence contract, signing via KMS (local key in local/ci), and verification at activation.
+  size: M
+  environmentDependency: Signing key in KMS
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+- id: FO-06-96
+  section: '6'
+  subsection: Connector test wizard
+  kind: evaluation
+  text: Tests and evidence distinguish code pass, emulator pass and actual vendor pass.
+  acceptance: Every capability evidence record carries tier CODE|EMULATOR|VENDOR_SANDBOX|VENDOR_PRODUCTION; inventory derives status from evidence.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - operator.onboarding
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/salesforce-rest-support-records.ts capabilityStatus BLOCKED|EMULATED_CONTRACT_TEST|SCHEMA_PROVIDED
+  - salesforce-rest.contract.test.ts:91 (titles labelled EMULATED, not sandbox evidence)
+  - platform/src/adapters/integration-inventory.ts InventoryStatus
+  gap: Tiering is per adapter and in prose; no evidence record type carries it.
+  remediation: Make tier a field of CapabilityEvidence and derive inventory statuses from it.
+  size: S
+  environmentDependency: none
+  workPackage: WP-32
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-06-97
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: Inbound connector events and records (webhooks, CDC/Pub/Sub, CDP events, delivery receipts, incremental pulls) that still fail processing after bounded attempts go to an inbound dead-letter queue with alerting and audited operator replay. Checkpoints and watermarks never advance silently past a dead-lettered record.
+  acceptance: 'Emulator test per inbound family: a poison event is retried with bounded backoff, then moves to INBOUND_DEAD with a reason code, increments vsp_inbox_dead_letter_total and raises an alarm. The stream''s watermark reports the gap. An audited operator replay (MFA, allowlisted reason code) reprocesses it exactly once, and a replay whose audit write fails is refused.'
+  originalIds:
+  - SPEC-8.outbox
+  - OPS-01
+  - OPS-03
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - ingress/processing.test.ts [FO-06-97] poison -> INBOUND_DEAD with alarm; replay needs audit + MFA
+  - src/ingress/ingress.test.ts [FO-06-97] future MFA refused; replay limit
+  gap: Stream watermark gaps are shown only with an in-test StreamSource, and the CloudWatch alarm is WP-39's.
+  remediation: Add an INBOUND_DEAD state with attempts/last_error columns to the inbound inbox proposed in FO-07-17. Reuse PgOutboxDispatcher's bounded backoff and its audited requeueDead pattern for inbox consumers. Record the dead-lettered position as a gap in source_watermarks (FO-07-23), and expose list and replay in the console DLQ work queue (section 14).
+  size: M
+  environmentDependency: none for software; SQS DLQ in AWS for VERIFIED_SANDBOX
+  workPackage: WP-04
+  provenance:
+    origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-06-98
+  section: '6'
+  subsection: Configurable connectors (general)
+  kind: software
+  text: Inbound connector credentials (webhook signing secrets, shared bearer secrets, mTLS client certificates, CDP destination secrets) rotate without a restart, through an overlap window in which both the current and the next credential verify. The credential version that verified each accepted event is recorded.
+  acceptance: 'Ingress test: during the configured overlap window, events signed with the old and the new secret are both accepted. After the window the old secret is refused. A rotation is picked up from the secret store without a restart. The inbox row records which credential version verified it, and no secret value reaches logs.'
+  originalIds:
+  - AUTH-06
+  - SPEC-8.webhook-auth
+  derivedFrom: []
+  capabilityIds:
+  - ingress.events
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - ingress/http.test.ts [FO-06-98][FO-15-50] Secrets Manager rotation inside the overlap only (17/17 x3)
+  - ingress/http.test.ts [FO-06-98] AWSPENDING staged before promotion
+  gap: LocalStack Secrets Manager only; the rotation function and per-source secrets belong to WP-39 and activation.
+  remediation: Add a credential-version list (current, next, notAfter) to the ingress verifier registry, resolved through SecretResolver (FO-06-04) with a bounded refresh. Verify against every active version in constant time, persist credentialVersion with the inbox record, and test rotation against each emulator.
+  size: S
+  environmentDependency: Secrets Manager rotation configuration per tenant/source
+  regressionPackage: WP-04
+  provenance:
+    origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-06-99
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Every knowledge source connector, not only Salesforce Knowledge (also reviewed URL allowlists, documents/object storage and the generic KB API), maps owner, version, ACL/audience, sensitivity, locale, jurisdiction and effective/expiry dates from source metadata, or from a reviewed per-source default bound to an approval. Items missing them are held as drafts.
+  acceptance: 'Per-source mapping tests: an object-storage document, a URL page and a KB-API record each produce a KnowledgeItemInput with mapped owner, version, ACL and dates. The version comes from the object version/ETag or the source record version, never from ingestion time. A missing mapped field produces a quarantine reason code, not a silent default. The sourceSystem enum accepts each source class.'
+  originalIds:
+  - SPEC-9.knowledge-ingestion
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/knowledge/schema.ts:25-44 (sourceSystem enum is only salesforce_knowledge | approved_runbook; no sourceUrl/sourceRecordId)
+  - c2 FO-06-77 requires owner/version/ACL/effective dates for Salesforce Knowledge only; FO-06-78..80 acceptance criteria do not require any metadata mapping
+  gap: Section 6 applies 'owner/version/ACL/effective dates' to all four source classes. The knowledge schema cannot represent non-Salesforce sources, and no mapping rules exist.
+  remediation: Extend KnowledgeItemInputSchema.sourceSystem with url_allowlist | object_storage | kb_api, and add sourceUrl/sourceRecordId (FO-08-04). Add a per-source KnowledgeMappingSpec to the ConnectorProfile (FO-06-05) that maps source metadata to owner, audiences, sensitivity, jurisdiction, language and effective/expiry dates. Take the version from S3 VersionId/ETag or the source record version. Refuse approval filled in by a default (see FO-08-37).
+  size: M
+  environmentDependency: Knowledge owners' per-source metadata conventions and approvals (PRQ-032)
+  workPackage: WP-20
+  provenance:
+    origin: challenge-missed
+- id: FO-06-100
+  section: '6'
+  subsection: Talkdesk / contact center (incl. generic SIP and local softphone)
+  kind: software
+  text: The generic SIP connector authenticates and restricts peers per profile (digest credentials or mTLS, plus a signalling-source allowlist). It uses TLS signalling and SRTP media where the trunk documents them. It sends INVITE or REFER only to destination identifiers resolved from trusted configuration, never to a dial string supplied by a caller or a model.
+  acceptance: 'Local SIP tests on the FO-06-40 softphone stack: an unauthenticated or non-allowlisted INVITE is rejected (401/403). TLS/SRTP is negotiated when the profile requires it, and a plaintext offer is refused. A REFER or INVITE to a non-allowlisted URI, or to a raw number taken from tool input, is refused before any signalling (J19).'
+  originalIds:
+  - SAFE-04
+  - AUTH-03
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - telephony.sip
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'no SIP code in platform/src (grep SIP/LiveKit/RTP: only prose in platform/src/workflows/transfer.ts comments, talkdesk docs and ADR-0006)'
+  - platform/src/workflows/transfer.ts (destination ids resolved from trusted configuration; telephony fixture only)
+  gap: c2 FO-06-39/40 specify SIP signalling, media and transfer, but not peer authentication, transport security or dial-target restriction for this new telephony surface.
+  remediation: Implement the SIP adapter (LiveKit SIP or drachtio) with a SipTrunkProfile {authMode, credentialRef, allowedSignallingCidrs, tls, srtp, allowedDestinations[]}. Resolve every REFER/INVITE target from DestinationId configuration. Add sipp/pjsua negative tests to the local compose stack.
+  size: M
+  environmentDependency: SIP trunk documentation, credentials and allowlisted destinations (qualification only, no live calls without authority)
+  workPackage: WP-12
+  provenance:
+    origin: challenge-missed
+- id: FO-06-101
+  section: '6'
+  subsection: Knowledge and channels (KB sources, secure web companion, email/SMS, outbound voice)
+  kind: software
+  text: Outbound voice calls go through the same consent, preference, quiet-hours and kill-switch decision as notifications. The callee starts at A0, so no protected content is spoken until the callee authenticates on that call. Voicemail receives only neutral approved content. Placement and answer/no-answer receipts are recorded and charged against the outbound budget.
+  acceptance: 'Local SIP/softphone tests: a scheduled callback inside quiet hours is deferred. Opted-out or unknown consent suppresses the call. An answered call hears only a neutral greeting and the verification offer until A2. On voicemail detection only the neutral template plays. Each placement debits the outbound budget, and placement is refused when the outbound kill switch is off.'
+  originalIds:
+  - SPEC-9.notifications
+  - AUTH-01
+  - OPS-05
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - voice.outbound
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/notification-policy.ts:63 (voice suppressed unless outboundCallingEnabled; the function has no call sites)
+  - platform/src/workflows/definitions/callback-request.ts:6 (automated outbound calling is not part of the workflow)
+  gap: c2 FO-06-92 covers placement, kill switch and budget, but not the disclosure, consent and voicemail rules that make an outbound call safe.
+  remediation: Route every outbound placement through decideNotification (once wired, FO-06-90) and a new OutboundCallGate (kill switch + budget + consent). Start the call session through SessionService at A0 with an outbound flag. Restrict templates to neutral ones until A2. Record placement and answer receipts in notification_deliveries (FO-06-91).
+  size: M
+  environmentDependency: Calling-consent policy, caller ID registration, outbound budget approval (OPS-05)
+  workPackage: WP-27
+  provenance:
+    origin: challenge-missed

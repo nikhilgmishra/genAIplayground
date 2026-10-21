@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "BRIDGE_DROPPED",
-  "version": 1,
+  "version": 2,
   "title": "Bridge drops after receiver acceptance",
   "description": "The receiver accepts but the bridge drops before the caller is confirmed connected.",
   "category": "telephony",
@@ -50,5 +50,34 @@
     "safety_disclosure_self",
     "human_request"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.BRIDGE_DROPPED",
+    "origin": "registry",
+    "injectionPoint": "the bridge drops after receiver acceptance (LiveKit/SIP warm transfer)",
+    "injectionPointPackages": [
+      "WP-12",
+      "WP-28"
+    ],
+    "postconditionPackages": [
+      "WP-15",
+      "WP-28"
+    ],
+    "layer2Owner": "WP-28",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "transfer_states",
+      "adjacent": [
+        "RECEIVER_ACCEPTED",
+        "FAILED"
+      ]
+    }
+  ],
+  "postconditions": [
+    "The attempt fails after receiver acceptance and is never recorded COMPLETED without CALLER_CONFIRMED_CONNECTED",
+    "The next staffed route from trusted configuration is invoked; the caller is never abandoned",
+    "TRANSFERRED is recorded only with receiver acceptance and a verified connection"
+  ]
 }

@@ -118,13 +118,13 @@ human_boundary_actions := [
 test_auth02_human_boundary_actions_always_deny_require_human if {
 	every a in human_boundary_actions {
 		x := object.union(fx.avery_appt, {"action": a, "auth": object.union(fx.avery_appt.auth, {"assurance": "A3"})})
-		denied_with(x, ["HUMAN_BOUNDARY"], ["REQUIRE_HUMAN"])
+		denied_with(x, ["HIGH_RISK_HUMAN_ONLY", "HUMAN_BOUNDARY"], ["REQUIRE_HUMAN"])
 	}
 }
 
 test_auth02_human_boundary_actions_deny_anonymous if {
 	every a in human_boundary_actions {
-		denied_with(fx.anon(a, "caller_self_service", "account", "INTERNAL"), ["HUMAN_BOUNDARY"], ["REQUIRE_HUMAN"])
+		denied_with(fx.anon(a, "caller_self_service", "account", "INTERNAL"), ["HIGH_RISK_HUMAN_ONLY", "HUMAN_BOUNDARY"], ["REQUIRE_HUMAN"])
 	}
 }
 
@@ -885,4 +885,52 @@ test_allowed_decisions_never_expose_unlisted_fields if {
 			f in data.vsp.catalogue.actions[x.action].fieldMask
 		}
 	}
+}
+
+# ------------------------------------------------- WP-05: high-risk and A1 ----
+
+# FO-05-06: a listed high-risk change goes to a person whatever the tier, even if its class were changed.
+test_fo0506_high_risk_human_only_regardless_of_tier_and_class if {
+	x := fx.with_auth(fx.avery_commit, {"assurance": "A3", "stepUpDigest": fx.digest_a, "stepUpExpiresAt": fx.later})
+	d := authz.decision with input as x
+		with data.vsp.catalogue.highRisk as {"description": "test high-risk list", "humanOnlyActions": ["appointment:commit_change"]}
+	d.allow == false
+	"HIGH_RISK_HUMAN_ONLY" in d.reasonCodes
+	"REQUIRE_HUMAN" in d.obligations
+}
+
+# FO-05-03: without a tenant approval, A1 counts as A0: an A1 session gets nothing an A0 session would not.
+test_fo0503_a1_without_tenant_approval_counts_as_a0 if {
+	denied(fx.with_auth(fx.avery_appt, {"assurance": "A1"}), ["ASSURANCE_INSUFFICIENT"])
+	data.vsp.catalogue.assuranceA1.operations == []
+	data.vsp.catalogue.assuranceA1.approvalRef == null
+}
+
+a1_path := {"id": "self_a1", "grantReason": "ALLOW_SELF", "roles": ["client"], "factTypes": ["self"], "target": "subject", "requireAuthSubject": true, "scope": null, "minAssurance": "A1", "purposes": ["caller_self_service"], "classifications": ["PHI"]}
+
+# Rule exercise only: the catalogue lint refuses a PHI read as an A1 operation (A1_OPERATION_NOT_LOW_RISK).
+a1_action := object.union(data.vsp.catalogue.actions["appointment:read"], {"minAssurance": "A1", "access": [a1_path]})
+
+test_fo0503_a1_counts_only_for_tenant_approved_operations if {
+	x := fx.with_auth(fx.avery_appt, {"assurance": "A1"})
+	approved := authz.decision with input as x
+		with data.vsp.catalogue.actions["appointment:read"] as a1_action
+		with data.vsp.catalogue.assuranceA1 as {"description": "test tenant approval", "approvalRef": "apr_synthTenantA1Approval", "operations": ["appointment:read"]}
+	approved.allow == true
+	unapproved := authz.decision with input as x
+		with data.vsp.catalogue.actions["appointment:read"] as a1_action
+		with data.vsp.catalogue.assuranceA1 as {"description": "test no approval record", "approvalRef": null, "operations": ["appointment:read"]}
+	unapproved.allow == false
+	"A1_OPERATION_NOT_APPROVED" in unapproved.reasonCodes
+	"ASSURANCE_INSUFFICIENT" in unapproved.reasonCodes
+	unlisted := authz.decision with input as x
+		with data.vsp.catalogue.actions["appointment:read"] as a1_action
+		with data.vsp.catalogue.assuranceA1 as {"description": "test other operation", "approvalRef": "apr_synthTenantA1Approval", "operations": ["case:read"]}
+	unlisted.allow == false
+	"A1_OPERATION_NOT_APPROVED" in unlisted.reasonCodes
+
+	# A2 is unaffected by the A1 list.
+	a2 := authz.decision with input as fx.avery_appt
+		with data.vsp.catalogue.actions["appointment:read"] as a1_action
+	a2.allow == true
 }

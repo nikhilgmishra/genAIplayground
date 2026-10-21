@@ -1,0 +1,79 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "MODEL_REFUSAL",
+  "version": 1,
+  "title": "The model provider refuses the request",
+  "description": "The model endpoint returns a provider refusal for a turn; the harness must fall back to an approved response or a person without speaking unvalidated text.",
+  "category": "model",
+  "target": {
+    "components": [
+      "platform/src/models",
+      "platform/src/harness"
+    ],
+    "dependency": "model_runtime"
+  },
+  "trigger": {
+    "kind": "AT_TURN",
+    "tool": null,
+    "turnIndex": 1,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "MODEL_REFUSAL",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    },
+    {
+      "check": "tokens_absent",
+      "gate": "privacy",
+      "tokens": [
+        "speak:unapproved_text"
+      ]
+    }
+  ],
+  "callerVisible": "The caller hears an approved fallback line or is connected to a person; the conversation does not stop silently.",
+  "backendEvidence": [
+    "ModelInvocation with a refusal outcome",
+    "Fallback route or approved template selected"
+  ],
+  "requirementIds": [
+    "SAFE-03",
+    "ACT-05"
+  ],
+  "appliesToIntents": [
+    "safety_disclosure_self",
+    "human_request",
+    "invoice_explanation"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:MODEL_REFUSAL] owned by WP-17 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.MODEL_REFUSAL",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the model emulator returns a provider refusal",
+    "injectionPointPackages": [
+      "WP-08"
+    ],
+    "postconditionPackages": [
+      "WP-08",
+      "WP-14",
+      "WP-15",
+      "WP-17"
+    ],
+    "layer2Owner": "WP-17",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "A refusal never ends the call silently (SAFE-03)",
+    "Only approved fallback audio is released (ACT-05)",
+    "The refusal is recorded on the model invocation"
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "JUDGE_FAILURE",
+  "version": 1,
+  "title": "The pre-release or monitor judge fails",
+  "description": "The pre-release judge or a monitor times out or errors; audio that needs the judge is not released, and safety and error audio stay usable.",
+  "category": "model",
+  "target": {
+    "components": [
+      "platform/src/monitors",
+      "media/src/egress"
+    ],
+    "dependency": "judge"
+  },
+  "trigger": {
+    "kind": "DURING_SPEECH",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "JUDGE_FAILURE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    },
+    {
+      "check": "tokens_absent",
+      "gate": "privacy",
+      "tokens": [
+        "speak:unapproved_text"
+      ]
+    }
+  ],
+  "callerVisible": "The caller hears an approved template instead of generated text, or is connected to a person.",
+  "backendEvidence": [
+    "Judge timeout recorded",
+    "Release refused for judge-dependent audio; approved template used"
+  ],
+  "requirementIds": [
+    "ACT-05",
+    "SAFE-03"
+  ],
+  "appliesToIntents": [
+    "invoice_explanation",
+    "safety_disclosure_self"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:JUDGE_FAILURE] owned by WP-35 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.JUDGE_FAILURE",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the pre-release or monitor judge times out or errors",
+    "injectionPointPackages": [
+      "WP-35"
+    ],
+    "postconditionPackages": [
+      "WP-14",
+      "WP-15",
+      "WP-35"
+    ],
+    "layer2Owner": "WP-35",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "Judge-dependent audio is never released without a verdict",
+    "Safety and error audio do not depend on the judge",
+    "The failure is visible to monitors"
+  ]
+}

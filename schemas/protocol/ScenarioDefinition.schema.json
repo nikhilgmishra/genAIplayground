@@ -2,9 +2,19 @@
   "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ScenarioDefinition.json",
   "title": "ScenarioDefinition",
   "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "scenario-definition.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "versions": "version",
+    "outcome": "expectedFinalState.outcome"
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "scenario-definition.v1"
+    },
     "scenarioId": {
       "type": "string",
       "pattern": "^scn_[a-z0-9_]{3,80}$"
@@ -18,7 +28,9 @@
       "type": "string",
       "enum": [
         "development",
-        "heldout_acceptance"
+        "heldout_acceptance",
+        "tuning",
+        "regression"
       ]
     },
     "intent": {
@@ -53,7 +65,9 @@
       "enum": [
         "simulated_text",
         "simulated_voice",
-        "pstn"
+        "pstn",
+        "sip_audio",
+        "webrtc_audio"
       ]
     },
     "variantFamily": {
@@ -239,7 +253,8 @@
           "maxItems": 8,
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 80
           }
         },
         "supportRequestCreated": {

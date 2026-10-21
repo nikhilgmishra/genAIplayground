@@ -12,9 +12,26 @@
  *  - every other environment: the route refuses with WEBHOOK_AUTH_UNVERIFIED
  *    before reading the event. Transfer outcomes stay OUTCOME_UNKNOWN and humans
  *    reconcile until a documented mechanism exists.
+ *
+ * The generic authenticated event ingress (every other source, with the documented mechanism of each
+ * source and credential rotation) is `ingressPlugin` below over platform/src/ingress: it is registered by
+ * the composition (WP-07) next to these routes. Once Talkdesk documents its webhook authentication
+ * (TB-09), transfer events move to an ingress source profile with that mechanism.
+ *
+ * Delivery order is not guaranteed (TB-07). A progress event that arrives before
+ * its predecessor is held by the TransferCoordinator and applied only after it
+ * (ADR-0017): the response is 200 {accepted: true, decision: "deferred"}, because
+ * the event is durably held and a 2xx tells the sender not to redeliver. Ordering
+ * comes from the transfer state machine itself, never from a vendor sequence
+ * number (its semantics are UNKNOWN, TB-07).
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { TLSSocket } from "node:tls";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
+import type { IngressRouter } from "../../ingress/router.js";
+import { normalizeFingerprint } from "../../ingress/verifiers.js";
+import type { PeerCertificateInfo } from "../../ingress/verifiers.js";
 import type { Environment } from "../../protocol/index.js";
 import { canonicalJson } from "../../shared/canonical.js";
 import type { Clock } from "../../shared/clock.js";
@@ -37,7 +54,7 @@ export const TransferEventBody = z.strictObject({
   eventId: z.string().regex(/^[A-Za-z0-9:._-]{1,128}$/),
   packageAcknowledged: z.boolean().optional(),
 });
-export const TransferEventResponse = z.strictObject({ accepted: z.boolean(), decision: z.enum(["applied", "acknowledged", "duplicate", "rejected"]) });
+export const TransferEventResponse = z.strictObject({ accepted: z.boolean(), decision: z.enum(["applied", "acknowledged", "duplicate", "deferred", "rejected"]) });
 
 /** Computes the LOCAL FIXTURE signature (tests and the local demo). */
 export function fixtureWebhookSignature(timestampSeconds: number, body: unknown, key: string = LOCAL_FIXTURE_WEBHOOK_HMAC_KEY): string {
@@ -84,7 +101,10 @@ export function webhookRoutes(d: WebhookRouteDeps): RouteDef<unknown, unknown>[]
       // Parsed after authentication: the body is read only once the signature verifies.
       body: z.unknown() as z.ZodType<unknown>,
       responses: {
-        200: { description: "Event processed (idempotent; duplicates ignored)", schema: TransferEventResponse },
+        200: {
+          description: "Event processed (idempotent; duplicates ignored). decision deferred: an early progress event is held and applied only after its predecessor (accepted, do not redeliver)",
+          schema: TransferEventResponse,
+        },
         400: { description: "Strict schema violation", schema: ErrorBody },
         401: { description: "Signature missing, invalid, stale or replayed", schema: ErrorBody },
         403: { description: "WEBHOOK_AUTH_UNVERIFIED: no documented vendor mechanism (TB-09)", schema: ErrorBody },
@@ -111,6 +131,7 @@ export function webhookRoutes(d: WebhookRouteDeps): RouteDef<unknown, unknown>[]
         remember(sig, nowS);
         try {
           const r = await d.transfers.applyEvent({ transferId: body.data.transferId, event: body.data.event, eventId: body.data.eventId, source: "webhook.local_fixture", ...(body.data.packageAcknowledged !== undefined ? { packageAcknowledged: body.data.packageAcknowledged } : {}) });
+          // "deferred" is accepted: the coordinator holds the event durably until its predecessor is applied.
           return { status: 200, body: { accepted: r.decision.kind !== "rejected", decision: r.decision.kind } };
         } catch (e) {
           const code = (e as { reasonCode?: unknown }).reasonCode;
@@ -121,3 +142,57 @@ export function webhookRoutes(d: WebhookRouteDeps): RouteDef<unknown, unknown>[]
     }),
   ] as RouteDef<unknown, unknown>[];
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Generic authenticated event ingress (follow-on FO-07-16, FO-15-50, FO-06-98)
+// ---------------------------------------------------------------------------------------------------
+
+export const INGRESS_ROUTE_PATH = "/v1/ingress/:sourceId/events";
+
+export interface IngressPluginOptions {
+  router: IngressRouter;
+  /** Read the TLS client certificate of the socket (only when the gateway terminates mTLS itself). */
+  socketClientCertificates?: boolean;
+}
+
+const SourceIdParam = z.strictObject({ sourceId: z.string().regex(/^[a-z][a-z0-9_.-]{2,63}$/) });
+
+function peerOf(req: FastifyRequest, enabled: boolean): PeerCertificateInfo | null {
+  if (!enabled) return null;
+  const socket = req.raw.socket as Partial<TLSSocket>;
+  if (typeof socket.getPeerCertificate !== "function") return null;
+  const cert = socket.getPeerCertificate(false);
+  const fp = cert && typeof cert.fingerprint256 === "string" ? normalizeFingerprint(cert.fingerprint256) : null;
+  return { authorized: socket.authorized === true, fingerprint256: fp };
+}
+
+/**
+ * Fastify plugin for POST /v1/ingress/:sourceId/events. Registered in its own encapsulated context so its
+ * content-type parsers keep the RAW request bytes (signatures are computed over the exact bytes sent;
+ * re-serialised JSON would not verify) and its body limit is the largest source limit. Authentication,
+ * persistence and the decision are the IngressRouter's (platform/src/ingress/router.ts); the reply is a
+ * decision code and an inbox id, or a reason code.
+ */
+export async function ingressPlugin(app: FastifyInstance, opts: IngressPluginOptions): Promise<void> {
+  await app.register(async (scope) => {
+    scope.removeAllContentTypeParsers();
+    scope.addContentTypeParser("*", { parseAs: "buffer", bodyLimit: opts.router.maxBodyBytes }, (_req, body, done) => done(null, body));
+    scope.post(INGRESS_ROUTE_PATH, { bodyLimit: opts.router.maxBodyBytes, config: { vspOperationId: "ingress.events", vspRateLimitExempt: false } }, async (req, reply) => {
+      const params = SourceIdParam.safeParse(req.params);
+      if (!params.success) return reply.code(404).send({ error: { reasonCode: "INGRESS_SOURCE_UNKNOWN", requestId: req.id } });
+      const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      const res = await opts.router.handle({
+        sourceId: params.data.sourceId,
+        rawBody: raw,
+        header: (name) => {
+          const v = req.headers[name.toLowerCase()];
+          return typeof v === "string" ? v : null; // duplicated headers are ambiguous: treated as absent
+        },
+        peer: peerOf(req, opts.socketClientCertificates === true),
+      });
+      const body = "error" in res.body ? { error: { ...res.body.error, requestId: req.id } } : res.body;
+      return reply.code(res.status).send(body);
+    });
+  });
+}
+

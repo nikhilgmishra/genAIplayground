@@ -9,9 +9,17 @@
   },
   "scripts": {
     "tools": "bash scripts/fetch-tools.sh",
-    "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck && pnpm run typecheck:runner",
+    "typecheck:runner": "tsc --noEmit --strict --target es2023 --lib es2023 --module nodenext --moduleResolution nodenext --types node --allowImportingTsExtensions --erasableSyntaxOnly --verbatimModuleSyntax --noUncheckedIndexedAccess --skipLibCheck scripts/vsp/runner.mts scripts/vsp/up.mts scripts/vsp/down.mts",
+    "lint": "pnpm -r lint && pnpm run lint:runner",
+    "lint:runner": "platform/node_modules/.bin/eslint --config platform/eslint.config.js --max-warnings 0 'scripts/vsp/*.mts'",
     "test": "pnpm -r test",
+    "test:unit": "node scripts/vsp/runner.mts test-unit",
+    "test:integration": "node scripts/vsp/runner.mts test-integration",
+    "local:up": "node scripts/vsp/runner.mts up",
+    "local:down": "node scripts/vsp/runner.mts down",
+    "check:runtime": "node scripts/vsp/runner.mts check-runtime",
+    "check:deps": "node scripts/vsp/runner.mts check-deps",
     "policy:test": "bash scripts/policy.sh test",
     "policy:build": "bash scripts/policy.sh build",
     "build": "pnpm -r build",
@@ -19,9 +27,25 @@
     "start": "pnpm --filter @vsp/platform start:local",
     "evidence": "pnpm --filter @vsp/platform evidence"
   },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "dependency-cruiser": "18.6.0",
+    "typescript": "6.0.3"
+  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
-    ]
+    ],
+    "ignoredBuiltDependencies": [
+      "@livekit/local-inference",
+      "@napi-rs/canvas",
+      "onnxruntime-node",
+      "protobufjs",
+      "sharp"
+    ],
+    "overrides": {
+      "sharp": "0.35.5",
+      "adm-zip": "0.6.1"
+    }
   }
 }

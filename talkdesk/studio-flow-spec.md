@@ -339,6 +339,11 @@ sub-flow after an AI exit `VERIFICATION_REQUIRED`.
   (`IF_ELIGIBLE_A_LINK_WAS_SENT` or `VERIFICATION_UNAVAILABLE_USE_HUMAN`) whether zero,
   one or many records matched (SPEC-7.no-enumeration). Play the matching approved
   template (`verification.secure_link_sent` / `verification.unavailable_use_human`).
+  `VERIFICATION_UNAVAILABLE_USE_HUMAN` (`nextStep: HUMAN_VERIFICATION`) is also the answer
+  for every caller while outbound notifications are switched off (`OUTBOUND_NOTIFICATIONS`
+  or `INTEGRATION notifications` kill switch, or unreadable switch state): no link or code
+  is sent, so do not poll TC-04; go straight to SF-11c. The gateway decides this before any
+  account lookup, so it reveals nothing about the caller (OPS-KS-01).
   The caller approves in the portal under existing MFA; the gateway binds the result to
   this session and generation with a nonce and match code.
   Poll TC-04 at a bounded interval and count (values UNKNOWN — set from portal

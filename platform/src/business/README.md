@@ -25,18 +25,81 @@ prepare/commit), 9 (support memory recap), 10 (handoff and safety route), 16 (jo
 | `contracts/*.ts` | 19 resolution contracts (DRAFT). `defineContract()` parses with the protocol schema and refuses `APPROVED` or a non-null `approvedBy`. |
 | `contracts/render.ts`, `contracts/cli-generate-doc.ts` | Generates `docs/resolution-contracts.md`; `--check` exits 1 on drift (a test also checks it). |
 | `../../migrations/0300_support_requests.sql` | `support_interactions`, `support_requests`, `support_request_links`, `interaction_actions`, `interaction_outcomes`; immutability and sync-state triggers; RLS (restricted rows hidden from `app_runtime`; `app_console` reads them only with `app.restricted_reader = 'on'`); security-definer lookups `support_request_by_creation_key`, `business_action_tenant`. |
-| `support/support-request-service.ts` | `PgSupportRequestService`: `create()` writes the request, its links and an outbox `support_request.sync` message (opaque payload) in one transaction; `handleSyncMessage()` through `PgConsumerDedup`, idempotent upserts by external id, `RETRY_SCHEDULED` with bounded exponential backoff, `DEAD_LETTER` after `maxAttempts`, stale-claim recovery, operator `repairDeadLetter()` (audited); restricted records sync as a minimal restricted Case; `trace()` (worker view by default; console view as `app_console` under RLS, with `app.restricted_reader` set only when the caller passes `restrictedReader: true`; carries `lastReasonCode`, `syncedAt` and the request's `support_request.sync` outbox message ids), `listForCall()` (requests created for or linked to one call, worker view), `listUnsynced()`. |
+| `../../migrations/0301_interaction_outcome_subject.sql` | `interaction_outcomes.subject_ref` (opaque id of the call's authorized subject, null when none or ambiguous) and a partial index for repeat-contact lookups. 0300's tenant RLS and append-only trigger cover the column; 0301 replaces `app_console`'s table-wide SELECT with a column grant that leaves out `subject_ref` (only `app_runtime` and `app_worker` read it). |
+| `../../migrations/0302_support_case_observations.sql` | `support_case_observations`: append-only, `app_worker`-only (RLS) record of mapped Case states (`OPEN` / `CLOSED`, recorded on change only; a `CLOSED` -> `OPEN` row is a reopening). Vendor status text is never stored. |
+| `support/support-request-service.ts` | `PgSupportRequestService`: `create()` writes the request, its links and an outbox `support_request.sync` message (opaque payload) in one transaction; `handleSyncMessage()` through `PgConsumerDedup`, idempotent upserts by external id, `RETRY_SCHEDULED` with bounded exponential backoff, `DEAD_LETTER` after `maxAttempts`, stale-claim recovery, operator `repairDeadLetter()` (audited); restricted records sync as a minimal restricted Case; `trace()` (worker view by default; console view as `app_console` under RLS, with `app.restricted_reader` set only when the caller passes `restrictedReader: true`; carries `lastReasonCode`, `syncedAt` and the request's `support_request.sync` outbox message ids), `listForCall()` (requests created for or linked to one call, worker view), `listUnsynced()`; `observeCaseStatus()` (reopened cases, below). |
 | `support/summaries.ts` | Template-assembled summaries from codes only (no free text, no digit runs). |
 | `providers.ts` | `ProviderCommitPort`s for `appointment.reschedule`, `appointment.create`, `billing.review.submit` (lookup by idempotency key; conflict and validation errors mapped to `FAILED` reason codes so the ledger does not record `UNKNOWN`). |
 | `commit.ts` | Maps ledger results to `COMMITTED / FAILED / UNKNOWN / STATE_CHANGED / RETRYABLE / REJECTED / DENIED`. |
 | `services/*.ts` | Appointments (options with opaque slot ids, prepare with optional slot id, commit, slot conflicts), billing (invoice facts, review prepare/commit with `onCommitted` follow-up), intake (general incl. representative-linked requests, complaint with policy-authorized subject link, partner), cases (status view, recap), knowledge (public FAQ search). |
 | `handoff.ts` | `BusinessHandoffService`: destination only from trusted configuration (a console-initiated `requestHuman` may name a staff-selected `destinationId`, which must be an allowlisted entry, and `initiatedBy {staffId}`, audited as the actor with sourceComponent `console`), deterministic handoff id per call and priority (a repeat never dials twice), strict `HandoffPackage` with a single-use receiver assertion, safety route that invalidates pending mutations and escalates the session (resolving the call's live session server-side when no context came with the request); a human request in safety mode takes the safety route; every safety route records content-free safety evidence; clinical / privacy / safety handoff records are restricted (`handoffRecordPlacement`); audit and support-record creation never block the safety transfer. |
-| `outcomes.ts` | `decideOutcome()` (pure) and `BusinessOutcomeService` (verifies claimed receipts against this call's `interaction_actions`; a call action still unsettled in the ledger => `OUTCOME_UNKNOWN` / `COMMIT_OUTCOME_UNKNOWN`; `reviseAfterCommit()` appends a revision when the reconciler commits it). |
+| `outcomes.ts` | `decideOutcome()` (pure) and `BusinessOutcomeService` (verifies claimed receipts against this call's `interaction_actions`; a call action still unsettled in the ledger => `OUTCOME_UNKNOWN` / `COMMIT_OUTCOME_UNKNOWN`; `reviseAfterCommit()` appends a revision when the reconciler commits it). Records the call's authorized subject (`subject_ref`) and emits the resolution measures: verified resolution, containment and repeat contact (below). |
 | `recheck.ts` | `BusinessPreDisclosureRecheck` (the `PreDisclosureRecheck` wired into the container's `PgWorkflowEngine`): current consent, representation, account state, kill switches and the OPA decision for purpose `durable_follow_up` with the durable grant's actor/subject, per grant-action rule (`RECHECK_RULES`). Ports `AccountStateLookup`, `ConsentRegistry`. |
 | `fixtures/recheck.fixture.ts` | **LOCAL FIXTURE**: `LocalAccountStateFixture` (actor/subject -> account over the SYNTHETIC directory, current state from `LocalIdentityDirectoryFixture`), `LocalConsentRegistryFixture` (in-memory consent changes after acceptance; `revoke`, `record`). Live versions BLOCKED. |
 | `consumers.ts` | Outbox consumers `support_request.sync` and `action.committed` (records the receipt; billing follow-up exactly once on the reconciled path; append-only outcome revision for a call that ended with the commit unsettled). |
 | `../gateway/tools/*.ts` | 18 tool modules (below). |
 | `testing/harness.ts` | **LOCAL TEST HARNESS, SYNTHETIC DATA ONLY**. Composes the real modules with LOCAL fixtures and runs a local copy of the gateway order (strict input, resolveResource, relationships, kill switches, policy, execute, strict output, field mask). Not a production composition. |
+
+## Resolution measures (spec section 13; SPEC-13.resolution-metrics)
+
+Metrics are in the content-free catalogue (`../observability/metrics.ts`, dashboard `resolution`);
+labels are code constants only. No subject, actor, account, call, session, request or Case id is
+ever a label, log field or alert text (DATA-01).
+
+| Measure | Where | Definition |
+|---|---|---|
+| Interaction outcomes | `outcomes.ts` `record()` | `vsp_interaction_outcomes_total{outcome, intent}`; `intent` is the contract intent (closed list `CONTRACT_INTENTS`, a test keeps it equal to the contracts), `unknown` without a contract. |
+| Verified resolution | `outcomes.ts` `record()`, `reviseAfterCommit()` | `vsp_verified_resolutions_total{intent, source}`: `RESOLVED` only, which `decideOutcome()` reaches only with the contract's committed receipt verified for the call. `REQUEST_ACCEPTED` (accepted workflow, created Case or support request) is never a resolution (ACT-04). A call counts once, at its first `RESOLVED` row: a call-end `record()` (`source="call_end"`, including a repeated `record()` that resolves a call first recorded unresolved) or a reconciliation revision (`"reconciliation"`). A later `RESOLVED` row of a call that already had one is not counted again (for example a call resolved at call end, recorded again without its receipt, then restored by a revision). |
+| Containment | `outcomes.ts` `record()` | `vsp_contained_interactions_total{outcome, intent}`, once per call at its first recorded outcome: no human or safety transfer was attempted for the call. `record()` reads that server-side from the call's own transfer journeys (`deps.transfers.journeysForCall`, the same `TransferCoordinator` the gateway routes with): any journey of any status (routing, holding, connected, completed, abandoned by the caller, superseded) is an attempt, so a transfer the caller abandoned while queued, or a safety route still in progress at call end, is not contained. A failed lookup also counts as an attempt (logged as `business.outcome.transfer_lookup_failed`, no identifiers), and connected or failed transfer evidence (`evidence.transferConnected` / `evidence.failed`) is never contained either. This is the evaluation aggregate's definition (`isContainedResult`: `transferOutcome` `NOT_ATTEMPTED`, i.e. no journey). Measured apart from resolution and never a success measure: no service objective, alarm or evaluation gate uses it. |
+| Repeat contact | `outcomes.ts` `record()` | At a call's FIRST recorded outcome only (a repeated `record()` for the same call is not a contact), the call's authorized subject is resolved server-side and the most recent earlier call of that subject is looked up in `interaction_outcomes` (tenant-scoped, as `app_runtime` under RLS; revision rows are not contacts). `vsp_repeat_contacts_total{window, prior_outcome, prior_intent}` counts it once per configured window it falls in; `vsp_repeat_contact_checks_total{result}` (`repeat`, `first_contact`, `no_authorized_subject`, `subject_ambiguous`, `check_failed`) is the denominator. The check never changes or blocks the outcome. |
+| Reopened cases | `support/support-request-service.ts` `observeCaseStatus()` | `vsp_cases_reopened_total{issue_category}` and `vsp_case_status_observations_total{case_state}`; audited as `support_request.case_reopened`. |
+
+**Authorized subject.** From server-side records only: the `subjectRef` a trusted component may pass
+to `record()` (the subject of the call's authorized session, never a caller, model or tool value), the
+`subjectId` of every ledger action of the call (prepared only after a policy allow for that subject)
+and the `subject_ref` of the call's support requests (linked only at A2+; restricted rows stay
+invisible to `app_runtime`). Exactly one distinct subject is stored; none is `no_authorized_subject`,
+several are `subject_ambiguous` (stored null, never guessed), an unreadable ledger entry or a
+failed read of the call's support-request links is `check_failed` (stored null, never guessed from
+the remaining sources, the trusted `subjectRef` included). A failed prior-contact lookup is
+`check_failed` too, never `first_contact` (logged as `business.outcome.repeat_contact_check_failed`,
+no identifiers). In every case the outcome row is still written. The gateway's TC-11 does not pass `subjectRef` yet (the interface in `contract.ts`
+does not carry it; see Interface change requests), so a read-only call with no action and no
+subject-linked support request is counted as `no_authorized_subject` and not measured today.
+`interaction_outcomes.subject_ref` is readable by `app_runtime` and `app_worker` only: migration 0301
+replaces the console's table-wide SELECT with a column grant without it, so the outcome row of a call
+whose handoff record is restricted names no subject to the console.
+
+**Once per call under concurrency.** `record()` and `reviseAfterCommit()` take the same
+transaction-scoped advisory lock (`interaction_outcomes:<tenant>:<call>`) before reading the call's
+rows, so under Aurora's READ COMMITTED two concurrent TC-11 requests (or a request and the
+`action.committed` consumer) for one call cannot both see "no earlier row" and both count the call's
+containment, repeat-contact check or verified resolution. `record()` also writes its row strictly
+after the call's latest row, so the current outcome is unambiguous within one millisecond. PGlite runs
+one transaction at a time, so the race itself cannot be reproduced offline; a unit test pins that both
+writers take that one lock before any read, and the concurrent behaviour is UNVERIFIED until a test
+against PostgreSQL with concurrent connections exists.
+
+**Windows (placeholder).** `DEFAULT_REPEAT_CONTACT_POLICY.windows = ["24h", "7d"]`, the two windows
+spec section 13 names; overrides are validated against the closed list `REPEAT_CONTACT_WINDOWS`
+(`24h`, `72h`, `7d`, `14d`, `30d`; the id is the duration). What counts as a contact (any intent and
+outcome, transfers and safety routes included, no exclusion for callbacks the organisation initiated)
+is an engineering default pending the support / operations owner's success-measure definitions
+(PRQ-001), not an approved definition.
+
+**Reopened cases.** Case status and ownership are managed by humans in Salesforce and the sync only
+pushes, so a reopening is measured where the platform READS the status
+(`SupportRecordSystem.getCaseByExternalId`, through the kill-switch gate). `observeCaseStatus()` maps
+the vendor value with `CaseStateMapping` (`DEFAULT_CASE_STATE_MAPPING` is a placeholder that maps
+nothing: the tenant's Case Status picklist and closed semantics are UNKNOWN until PRQ-006 / VQ-SF-04,
+so every observation is `unmapped` and nothing is recorded or guessed), appends a
+`support_case_observations` row only on a change, and counts `CLOSED` -> `OPEN` as a reopening. A
+request with no recorded Case id (`CASE_NOT_SYNCED`, even when a timed-out write left a Case in the
+vendor) is not read at all; a failed or held read, and a Case found under the request's external id
+with another Case id (`CASE_ID_MISMATCH`, e.g. recreated in the vendor), change nothing. Nothing calls it on a schedule yet: the trigger (a
+Salesforce change notification or a bounded poll inside the API allocation, VQ-SF-07) is BLOCKED on
+the Salesforce administrator, so reopened cases are measurable offline only with the LOCAL fixture
+(`setCaseStatus`) and a TEST-ONLY mapping.
 
 ## Tools
 
@@ -149,7 +212,7 @@ person's id and a restricted record all resolve to the same denied resource.
   recorded for the call; an unreadable ledger row counts as unsettled) makes the outcome
   `OUTCOME_UNKNOWN` / `COMMIT_OUTCOME_UNKNOWN` (only TRANSFERRED or a verified RESOLVED outrank it),
   never INFORMATION_PROVIDED. `interaction_outcomes` is append-only (migration 0300 trigger): the
-  `action.committed` consumer calls `reviseAfterCommit()` (idempotent, advisory lock per call),
+  `action.committed` consumer calls `reviseAfterCommit()` (idempotent; the per-call advisory lock it shares with `record()`),
   which re-decides the call's latest outcome with the now-recorded receipt and, when the decision
   differs, appends a revision row (`evidence.revision = { revises, previousOutcome, trigger:
   ACTION_COMMITTED_AFTER_CALL_END, actionId }`, recorded strictly after the row it revises) and an
@@ -209,6 +272,15 @@ console restricted-reader flag. Still open (owned by other modules):
 
 - outbox: carry `tenantId` on `action.committed` (a definer lookup is used meanwhile).
 - retention: register the `support_requests` dataset.
+- contract.ts / gateway (SPEC-13.resolution-metrics, repeat contact): add the optional
+  `subjectRef` to `InteractionOutcomeService.record`'s input (`outcomes.ts` already accepts it as
+  `OutcomeRecordInput`), and have the gateway's TC-11 pass the subject of the call's AUTHORIZED
+  session (A2+, server-side session state only, never a caller, model or tool value). Until then a
+  read-only call with no ledger action and no subject-linked support request is
+  `no_authorized_subject`.
+- ~~contract.ts / gateway (SPEC-13.resolution-metrics, containment): a `transferRequested` outcome
+  evidence flag~~ — not needed: `outcomes.ts` reads the call's transfer journeys through
+  `deps.transfers` itself (Containment row above).
 - ~~workflows: a durable action grant for `grantRef`~~ — done in wave 4 (below).
 
 ## Tests

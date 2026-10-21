@@ -3,7 +3,9 @@
  *
  * `registerConsoleApi(app, deps)` registers every endpoint of contract.ts under
  * CONSOLE_API_BASE. Per request, in order:
- *   1. workforce authentication (bearer JWT, MFA amr, staff directory, revocation)
+ *   1. workforce authentication: an opaque console session (live SSO or dual-controlled recovery:
+ *      revocation, rotation replay, absolute AND idle expiry, IdP active-state check; sso.ts) or,
+ *      in local/ci only, a LOCAL FIXTURE bearer JWT (MFA amr, staff directory, revocation)
  *   2. ENDPOINT_ROLES (contract)                                   -> 403
  *   3. strict path / query / body validation (zod)                 -> 400
  *   4. console policy decision(s), deny by default (OPA)           -> 403
@@ -27,6 +29,7 @@ import { killSwitchBlock } from "../ops/kill-switches.js";
 import { humanInterventionSignal } from "../safety/detector.js";
 import { AccessDeniedError, ConfigurationRejectedError, ConflictError, PlatformError } from "../shared/errors.js";
 import { digestOf } from "../shared/canonical.js";
+import { iso } from "../shared/clock.js";
 import { newId } from "../shared/ids.js";
 import { WorkflowRecheckDeniedError } from "../workflows/engine.js";
 import {
@@ -47,6 +50,7 @@ import { isOfflineEnvironment, normalizeRoles } from "./auth.js";
 import type { ConsoleIdentity, PolicyCheck } from "./authorize.js";
 import { authorize, defaultChecks, hasEndpointRole } from "./authorize.js";
 import { activeGrant } from "./break-glass.js";
+import { PgBreakGlassIssuance } from "./break-glass-issuance.js";
 import type { ConsoleApiDeps } from "./deps.js";
 import { ConsoleHttpError, badRequest, conflict, errorBody, forbidden, notFound, toHttpError, unauthenticated, unavailable } from "./errors.js";
 import {
@@ -63,7 +67,11 @@ import {
   safetyRowsForCalls,
   summarizeCall,
 } from "./read-models.js";
-import { ENDPOINT_SCHEMAS, IdempotencyKeyS, PATH_PARAM_SCHEMAS } from "./schemas.js";
+import { workforceDisplayLabel } from "./oidc-staff-directory.js";
+import { exchangeCode, oidcClientView, recoveryActivate, recoveryChallenge, refreshSession, sessionPolicyView, startSignIn } from "./routes/auth/workforce-auth.js";
+import { BREAK_GLASS_MAX_DURATION_SECONDS, ENDPOINT_SCHEMAS, IdempotencyKeyS, PATH_PARAM_SCHEMAS } from "./schemas.js";
+import { isConsoleSessionHeader } from "./sso.js";
+import type { SsoIdentity } from "./sso.js";
 import {
   ConsoleIdempotencyStore,
   ConsoleReconciliationStore,
@@ -79,27 +87,20 @@ import type { IdempotencyScope } from "./stores.js";
 /** Runtime component keys reported to the configuration guard (GuardContext.adapterKinds). */
 export { CONSOLE_LOCAL_SIGN_IN_COMPONENT, WORKFORCE_IDP_ADAPTER_KEY as WORKFORCE_IDP_COMPONENT } from "../config/guard.js";
 
-const BLOCKED_OIDC: C.OidcClientConfig = {
-  status: "BLOCKED",
-  issuer: null,
-  clientId: null,
-  authorizationEndpoint: null,
-  redirectPath: "/auth/callback",
-  scopes: ["openid"],
-  codeChallengeMethod: "S256",
-  blockedReasonCode: "WORKFORCE_OIDC_CLIENT_NOT_ISSUED",
-};
-
 const PUBLIC: ReadonlySet<string> = new Set(PUBLIC_ENDPOINTS);
 const SENSITIVE_READ_REASON = "SENSITIVE_VIEW_READ";
 /** A NOT_FOUND reconciliation older than this must be repeated before a retry. */
 export const RETRY_RECONCILIATION_MAX_AGE_MS = 10 * 60_000;
 const SAFETY_EVENTS_WINDOW_MS = 7 * 24 * 3_600_000;
 const BODY_LIMIT_BYTES = 8 * 1024;
+/** Maximum of a break-glass grant: defined once in schemas.ts and pinned to policy data and migration 2051 by a test. */
+export { BREAK_GLASS_MAX_DURATION_SECONDS };
 
 /** Kinds of the components the console instantiated, for the configuration guard. */
 export function consoleRuntimeComponents(deps: Pick<ConsoleApiDeps, "auth">): Record<string, "local_fixture" | "live"> {
-  const out: Record<string, "local_fixture" | "live"> = { [WORKFORCE_IDP_ADAPTER_KEY]: deps.auth.verifier.kind };
+  const sso = deps.auth.sso ?? null;
+  const idp = sso ? (sso.service.kind === "live" && deps.auth.verifier.kind === "live" ? "live" : "local_fixture") : deps.auth.verifier.kind;
+  const out: Record<string, "local_fixture" | "live"> = { [WORKFORCE_IDP_ADAPTER_KEY]: idp };
   if (deps.auth.localSignIn) out[CONSOLE_LOCAL_SIGN_IN_COMPONENT] = "local_fixture";
   return out;
 }
@@ -112,6 +113,12 @@ export function assertConsoleDeps(deps: ConsoleApiDeps): void {
   if (deps.auth.verifier.kind === "local_fixture" && !offline) violations.push("WORKFORCE_IDP_LOCAL_FIXTURE_OUTSIDE_OFFLINE@console.auth.verifier");
   if (deps.auth.staffDirectory.kind === "local_fixture" && !offline) violations.push("WORKFORCE_DIRECTORY_LOCAL_FIXTURE_OUTSIDE_OFFLINE@console.auth.staffDirectory");
   if (deps.auth.verifier.policy.allowLocalFixtureAmr && !offline) violations.push("WORKFORCE_FIXTURE_AMR_OUTSIDE_OFFLINE@console.auth.verifier");
+  const sso = deps.auth.sso ?? null;
+  // Outside local/ci the console only accepts server-side SSO sessions (idle + absolute expiry, FO-05-18).
+  if (!sso && !offline) violations.push("WORKFORCE_SSO_NOT_CONFIGURED@console.auth.sso");
+  if (sso && sso.service.kind === "local_fixture" && !offline) violations.push("WORKFORCE_IDP_LOCAL_FIXTURE_OUTSIDE_OFFLINE@console.auth.sso");
+  if (sso && sso.config !== sso.service.config) violations.push("WORKFORCE_SSO_CONFIG_MISMATCH@console.auth.sso");
+  if (deps.auth.recovery && !sso) violations.push("RECOVERY_WITHOUT_SSO@console.auth.recovery");
   if (violations.length > 0) throw new ConfigurationRejectedError(violations);
 }
 
@@ -188,6 +195,10 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
   const releases = new ReleaseSubmissionRegistryPg(deps.db);
   const reconciliations = new ConsoleReconciliationStore(deps.db);
   const auditorQuery = new PgAuditQuery(deps.db, "app_auditor");
+  const sso = deps.auth.sso ?? null;
+  const recovery = deps.auth.recovery ?? null;
+  const issuance = deps.auth.breakGlassIssuance ?? new PgBreakGlassIssuance(deps.db, deps.audit, BREAK_GLASS_MAX_DURATION_SECONDS);
+  const offline = isOfflineEnvironment(deps.environment);
 
   const sendError = (reply: FastifyReply, err: ConsoleHttpError, correlationId: string | null): FastifyReply =>
     reply.code(err.status).type("application/json; charset=utf-8").send(errorBody(err, correlationId));
@@ -224,8 +235,33 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
 
   /* ---------------- helpers bound to deps ---------------- */
 
+  /** Console session (SSO or recovery) -> identity; roles come from the session (refreshed by the IdP active-state check). */
+  const identityFromSession = async (s: SsoIdentity, now: Date): Promise<ConsoleIdentity> => {
+    const roles = normalizeRoles(s.roles);
+    if (roles.length === 0) throw unauthenticated("STAFF_NOT_PROVISIONED");
+    const breakGlass = await deps.auth.breakGlass.grantFor(s.tenantId, s.staffId, now);
+    if (breakGlass && breakGlass.approvedBy === s.staffId) log.warn("console.break_glass.self_granted_record", { staffId: s.staffId, grantId: breakGlass.grantId, reasonCode: "BREAK_GLASS_SELF_GRANTED" });
+    return {
+      staffId: s.staffId,
+      tenantId: s.tenantId,
+      displayLabel: workforceDisplayLabel(s.staffId, roles),
+      roles,
+      mfa: true,
+      authenticatedAt: iso(s.authenticatedAt),
+      sessionExpiresAt: iso(s.sessionExpiresAt),
+      jtiHash: s.sessionHash,
+      localFixture: false,
+      breakGlass,
+      session: { kind: s.kind, familyId: s.familyId, sessionHash: s.sessionHash, idleTimeoutSeconds: s.idleTimeoutSeconds },
+    };
+  };
+
   const authenticate = async (req: FastifyRequest, now: Date): Promise<ConsoleIdentity> => {
-    const token = await deps.auth.verifier.verifyAuthorizationHeader(req.headers.authorization);
+    const header = req.headers.authorization;
+    if (sso && isConsoleSessionHeader(header)) return identityFromSession(await sso.service.authenticate(header), now);
+    // Outside local/ci only console sessions are accepted: a raw IdP token has no server-side idle expiry.
+    if (!offline) throw unauthenticated("UNAUTHENTICATED");
+    const token = await deps.auth.verifier.verifyAuthorizationHeader(header);
     const staff = await deps.auth.staffDirectory.resolve({ issuer: token.issuer, subject: token.subject });
     if (!staff || !staff.active) throw unauthenticated("STAFF_NOT_PROVISIONED");
     const roles = normalizeRoles(staff.roles);
@@ -244,6 +280,7 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
       jtiHash: token.jtiHash,
       localFixture: token.localFixture,
       breakGlass,
+      session: { kind: token.localFixture ? "LOCAL_FIXTURE" : "OIDC_SSO", familyId: null, sessionHash: null, idleTimeoutSeconds: null },
     };
   };
 
@@ -289,7 +326,46 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
     const out = await authorize(deps.policy, ctx.identity, checks, { environment: deps.environment, now: ctx.now });
     const d = { decisionId: out.decision.decisionId, allow: out.decision.allow, reasonCodes: [...out.decision.reasonCodes], policyVersion: out.decision.policyVersion };
     if (!out.allowed) return deny(ctx, forbidden(out.reasonCode ?? "STAFF_ROLE_NOT_PERMITTED"), d);
+    // BREAK_GLASS_REVIEW obligation: the use of the grant opens its post-use access review (fail closed).
+    if (out.decision.obligations.includes("BREAK_GLASS_REVIEW")) {
+      const grant = activeGrant(ctx.identity.breakGlass, ctx.identity.staffId, ctx.now);
+      if (!grant) return deny(ctx, forbidden("STAFF_BREAK_GLASS_REQUIRED"), d);
+      await recordEmergencyUse(ctx, d, { subjectKind: "BREAK_GLASS_GRANT", subjectRef: grant.grantId, approverId: grant.approvedBy });
+    }
     return d;
+  };
+
+  /**
+   * Post-use access review of emergency access (FO-05-45): the first use of a break-glass grant opens the
+   * review in the same transaction as the use's audit event (idempotent per grant). When that cannot be
+   * recorded the access is refused (fail closed, OPS-01).
+   */
+  const recordEmergencyUse = async (
+    ctx: AuthedCtx,
+    decision: AuthedCtx["decision"],
+    subject: { subjectKind: C.AccessReviewSubject; subjectRef: string; approverId: string | null },
+  ): Promise<void> => {
+    const grantUse = subject.subjectKind === "BREAK_GLASS_GRANT";
+    try {
+      await issuance.recordUse({
+        tenantId: ctx.identity.tenantId,
+        holderId: ctx.identity.staffId,
+        approverId: subject.approverId,
+        subjectKind: subject.subjectKind,
+        subjectRef: subject.subjectRef,
+        now: ctx.now,
+        audit: auditInput(ctx, {
+          action: grantUse ? "console.break_glass.first_use" : "console.recovery.first_use",
+          outcome: "SUCCEEDED",
+          reasonCode: grantUse ? "BREAK_GLASS_USED" : "RECOVERY_SESSION_USED",
+          policyDecision: decision,
+          evidencePointers: [`${grantUse ? "break_glass_grant" : "recovery_session"}:${subject.subjectRef}`],
+        }),
+      });
+    } catch (err) {
+      log.error("console.access_review.unavailable", { action: auditActionFor(ctx.key), reasonCode: err instanceof PlatformError ? err.reasonCode : "ACCESS_REVIEW_UNAVAILABLE", correlationId: ctx.correlationId });
+      throw new ConsoleHttpError(503, "ACCESS_REVIEW_UNAVAILABLE", true);
+    }
   };
 
   const parseInputs = (key: EndpointKey, req: FastifyRequest): { params: Record<string, string>; query: unknown; body: unknown } => {
@@ -361,6 +437,7 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
           Object.assign(ctx, parseInputs(key, req));
           const authed = ctx as AuthedCtx;
           const checks = route.checks ? await route.checks(authed) : defaultChecks(key as AuthenticatedEndpointKey, authed.identity.tenantId);
+          // A recovery session's access review is opened at activation (recovery.ts), before any use.
           authed.decision = await authorizeOrDeny(authed, checks);
 
           const idempotent = route.idempotent ?? (spec.method === "POST" && key !== "auth.logout");
@@ -407,13 +484,19 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
   /* ---------------- authentication ---------------- */
 
   publicRoute("auth.config", {
-    handle: async (): Promise<C.AuthConfigResponse> => ({
-      apiVersion: CONSOLE_API_VERSION,
-      environment: deps.environment,
-      localFixture: deps.localFixture,
-      mode: deps.auth.localSignIn ? "local_fixture" : "oidc_workforce",
-      oidc: deps.auth.oidc ?? BLOCKED_OIDC,
-    }),
+    handle: async (): Promise<C.AuthConfigResponse> => {
+      // Availability only; a failed lookup reports "not available" (the activation path re-checks).
+      const recoveryAvailable = recovery ? await recovery.anyActive().catch(() => false) : false;
+      return {
+        apiVersion: CONSOLE_API_VERSION,
+        environment: deps.environment,
+        localFixture: deps.localFixture,
+        mode: deps.auth.localSignIn && !sso ? "local_fixture" : "oidc_workforce",
+        oidc: await oidcClientView(sso, deps.auth.oidc),
+        sessionPolicy: sessionPolicyView(sso),
+        recoveryAvailable,
+      };
+    },
   });
 
   if (deps.auth.localSignIn && isOfflineEnvironment(deps.environment)) {
@@ -446,20 +529,28 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
         } catch {
           throw new ConsoleHttpError(503, "AUDIT_UNAVAILABLE", true);
         }
-        return { accessToken: issued.accessToken, tokenType: "Bearer", expiresAt: issued.expiresAt.toISOString(), localFixture: true };
+        return { accessToken: issued.accessToken, tokenType: "Bearer", expiresAt: issued.expiresAt.toISOString(), localFixture: true, sessionKind: "LOCAL_FIXTURE", idleTimeoutSeconds: null };
       },
     });
   }
 
-  publicRoute("auth.oidcExchange", {
-    // BLOCKED (PRQ-036): no workforce OIDC client, token endpoint or role-group mapping exists.
-    handle: async () => {
-      throw unavailable("OIDC_NOT_CONFIGURED", false);
-    },
-  });
+  /* Workforce SSO (routes/auth/workforce-auth.ts); 503 OIDC_NOT_CONFIGURED without a live SSO client. */
+  publicRoute("auth.oidcStart", { handle: async (ctx) => startSignIn(sso, ctx.body as C.OidcStartRequest) });
+  publicRoute("auth.oidcExchange", { handle: async (ctx) => exchangeCode(sso, ctx.body as C.OidcExchangeRequest, ctx.correlationId) });
+  publicRoute("auth.refresh", { handle: async (ctx, req) => refreshSession(sso, req.headers.authorization, ctx.correlationId) });
+  /* Dual-controlled SSO-outage recovery (recovery.ts); 503 RECOVERY_NOT_CONFIGURED when not set up. */
+  publicRoute("auth.recoveryChallenge", { handle: async (ctx) => recoveryChallenge(recovery, ctx.body as C.RecoveryChallengeRequest, ctx.correlationId) });
+  publicRoute("auth.recoveryActivate", { handle: async (ctx) => recoveryActivate(recovery, ctx.body as C.RecoveryActivateRequest, ctx.correlationId) });
 
   register("auth.logout", {
     handle: async (ctx) => {
+      const session = ctx.identity.session;
+      if (sso && session.familyId && session.sessionHash) {
+        // Console session: the whole family is revoked; the IdP refresh token is revoked (best effort).
+        await auditRequired(ctx, { outcome: "SUCCEEDED", reasonCode: "STAFF_LOGOUT" });
+        await sso.service.logout({ tenantId: ctx.identity.tenantId, familyId: session.familyId, sessionHash: session.sessionHash }, ctx.now);
+        return { loggedOut: true };
+      }
       await revocations.revoke(deps.audit, {
         tenantId: ctx.identity.tenantId,
         staffId: ctx.identity.staffId,
@@ -489,7 +580,185 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
         environment: deps.environment,
         localFixture: deps.localFixture || ctx.identity.localFixture,
         sessionExpiresAt: ctx.identity.sessionExpiresAt,
+        sessionKind: ctx.identity.session.kind,
+        idleTimeoutSeconds: ctx.identity.session.idleTimeoutSeconds,
       };
+    },
+  });
+
+  /* ---------------- break-glass issuance and access reviews (break-glass-issuance.ts) ---------------- */
+
+  register("breakGlass.list", {
+    handle: async (ctx): Promise<C.BreakGlassRequestsResponse> => ({
+      requests: await issuance.list(ctx.identity.tenantId, ctx.identity.staffId, ctx.now, ctx.identity.roles.includes("security_admin")),
+    }),
+  });
+
+  register("breakGlass.request", {
+    handle: async (ctx): Promise<C.BreakGlassDecisionResponse> => {
+      const body = ctx.body as C.BreakGlassRequestCreate;
+      requireAllowedReason(body.reason, OPERATOR_REASON_CODES["breakGlass.request"]);
+      const request = await issuance.request({
+        tenantId: ctx.identity.tenantId,
+        staffId: ctx.identity.staffId,
+        body,
+        now: ctx.now,
+        audit: auditInput(ctx, { outcome: "PENDING", reasonCode: body.justificationCode, policyDecision: ctx.decision, idempotencyKey: ctx.idempotencyKey }),
+      });
+      return { request };
+    },
+  });
+
+  register("breakGlass.decide", {
+    // Never self-approved: the policy refuses a decision by the requester (forbidSelfInitiated), and so do
+    // the service and the database (CHECK + RLS).
+    checks: async (ctx) => {
+      // A never-self action needs the record's initiator: an unknown record is refused like an unauthorized
+      // one (INITIATOR_REQUIRED), so the endpoint is no existence oracle.
+      const request = await issuance.get(ctx.identity.tenantId, ctx.identity.staffId, ctx.params.requestId as string, ctx.now);
+      return [{ action: "break_glass:approve", resource: { type: "break_glass_request", tenantId: ctx.identity.tenantId, initiatorStaffId: request?.requestedBy ?? null } }];
+    },
+    handle: async (ctx): Promise<C.BreakGlassDecisionResponse> => {
+      const body = ctx.body as C.BreakGlassDecisionRequest;
+      requireAllowedReason(body.reason, OPERATOR_REASON_CODES["breakGlass.decide"]);
+      const request = await issuance.decide({
+        tenantId: ctx.identity.tenantId,
+        deciderId: ctx.identity.staffId,
+        requestId: ctx.params.requestId as string,
+        body,
+        now: ctx.now,
+        audit: auditInput(ctx, {
+          outcome: "SUCCEEDED",
+          reasonCode: body.decision === "APPROVE" ? "BREAK_GLASS_APPROVED" : "BREAK_GLASS_REJECTED",
+          policyDecision: ctx.decision,
+          idempotencyKey: ctx.idempotencyKey,
+          evidencePointers: [`break_glass_request:${ctx.params.requestId as string}`],
+        }),
+      });
+      return { request };
+    },
+  });
+
+  register("accessReviews.list", {
+    handle: async (ctx): Promise<C.AccessReviewsResponse> => ({ reviews: await issuance.listReviews(ctx.identity.tenantId, ctx.identity.staffId) }),
+  });
+
+  register("accessReviews.complete", {
+    checks: async (ctx) => {
+      const review = await issuance.getReview(ctx.identity.tenantId, ctx.identity.staffId, ctx.params.reviewId as string);
+      return [{ action: "access_review:perform", resource: { type: "access_review", tenantId: ctx.identity.tenantId, initiatorStaffId: review?.holderStaffId ?? null } }];
+    },
+    handle: async (ctx): Promise<C.AccessReviewCompleteResponse> => {
+      const body = ctx.body as C.AccessReviewCompleteRequest;
+      requireAllowedReason(body.reason, OPERATOR_REASON_CODES["accessReviews.complete"]);
+      const review = await issuance.completeReview({
+        tenantId: ctx.identity.tenantId,
+        reviewerId: ctx.identity.staffId,
+        reviewId: ctx.params.reviewId as string,
+        body,
+        now: ctx.now,
+        audit: auditInput(ctx, {
+          outcome: "SUCCEEDED",
+          reasonCode: `ACCESS_REVIEW_${body.outcome}`,
+          policyDecision: ctx.decision,
+          idempotencyKey: ctx.idempotencyKey,
+          evidencePointers: [`access_review:${ctx.params.reviewId as string}`],
+        }),
+      });
+      return { review };
+    },
+  });
+
+  /* ---------------- dual-controlled recovery identities (recovery.ts) ---------------- */
+
+  const requireRecovery = () => {
+    if (!recovery) throw unavailable("RECOVERY_NOT_CONFIGURED", false);
+    return recovery;
+  };
+
+  register("recoveryIdentities.list", {
+    handle: async (ctx): Promise<C.RecoveryIdentitiesResponse> => ({ identities: await requireRecovery().list(ctx.identity.staffId) }),
+  });
+
+  register("recoveryIdentities.propose", {
+    handle: async (ctx): Promise<C.RecoveryIdentityProposeResponse> => {
+      const body = ctx.body as C.RecoveryIdentityProposeRequest;
+      return requireRecovery().propose({
+        proposerId: ctx.identity.staffId,
+        body,
+        now: ctx.now,
+        audit: auditInput(ctx, { outcome: "PENDING", reasonCode: "RECOVERY_IDENTITY_PROPOSED", policyDecision: ctx.decision, idempotencyKey: ctx.idempotencyKey }),
+      });
+    },
+  });
+
+  register("recoveryIdentities.confirm", {
+    // Only the holder the identity names (policy assignedStaffId), and only in an SSO session (recovery.ts).
+    checks: async (ctx) => {
+      const identity = recovery ? await recovery.get(ctx.identity.staffId, ctx.params.identityId as string) : null;
+      return [{ action: "recovery_identity:confirm", resource: { type: "recovery_identity", tenantId: ctx.identity.tenantId, assignedStaffId: identity?.staffId ?? null } }];
+    },
+    handle: async (ctx): Promise<C.RecoveryIdentityResponse> => {
+      const body = ctx.body as C.RecoveryIdentityConfirmRequest;
+      const session = ctx.identity.session;
+      const identity = await requireRecovery().confirm({
+        holder: { staffId: ctx.identity.staffId, sessionKind: session.kind, sessionHash: session.sessionHash, roles: ctx.identity.roles },
+        identityId: ctx.params.identityId as string,
+        signature: body.signature,
+        now: ctx.now,
+        audit: auditInput(ctx, {
+          outcome: "SUCCEEDED",
+          reasonCode: "RECOVERY_IDENTITY_HOLDER_CONFIRMED",
+          policyDecision: ctx.decision,
+          idempotencyKey: ctx.idempotencyKey,
+          evidencePointers: [`recovery_identity:${ctx.params.identityId as string}`],
+        }),
+      });
+      return { identity };
+    },
+  });
+
+  register("recoveryIdentities.approve", {
+    // Dual control: never approved by the proposer (policy forbidSelfInitiated, service and database checks).
+    checks: async (ctx) => {
+      const identity = recovery ? await recovery.get(ctx.identity.staffId, ctx.params.identityId as string) : null;
+      return [{ action: "recovery_identity:approve", resource: { type: "recovery_identity", tenantId: ctx.identity.tenantId, initiatorStaffId: identity?.proposedBy ?? null } }];
+    },
+    handle: async (ctx): Promise<C.RecoveryIdentityResponse> => {
+      const identity = await requireRecovery().approve({
+        approverId: ctx.identity.staffId,
+        identityId: ctx.params.identityId as string,
+        now: ctx.now,
+        audit: auditInput(ctx, {
+          outcome: "SUCCEEDED",
+          reasonCode: "RECOVERY_IDENTITY_APPROVED",
+          policyDecision: ctx.decision,
+          idempotencyKey: ctx.idempotencyKey,
+          evidencePointers: [`recovery_identity:${ctx.params.identityId as string}`],
+        }),
+      });
+      return { identity };
+    },
+  });
+
+  register("recoveryIdentities.revoke", {
+    handle: async (ctx): Promise<C.RecoveryIdentityResponse> => {
+      const body = ctx.body as C.RecoveryIdentityRevokeRequest;
+      const reason = requireAllowedReason(body.reason, OPERATOR_REASON_CODES["recoveryIdentities.revoke"]);
+      const identity = await requireRecovery().revoke({
+        adminId: ctx.identity.staffId,
+        identityId: ctx.params.identityId as string,
+        reason: body.reason,
+        now: ctx.now,
+        audit: auditInput(ctx, {
+          outcome: "SUCCEEDED",
+          reasonCode: reason,
+          policyDecision: ctx.decision,
+          idempotencyKey: ctx.idempotencyKey,
+          evidencePointers: [`recovery_identity:${ctx.params.identityId as string}`],
+        }),
+      });
+      return { identity };
     },
   });
 
@@ -621,15 +890,20 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
       const summary = summarizeCall(callId, events, [], [], deps.localFixture);
       if (!summary) throw notFound();
       if (summary.state === "ENDED") throw conflict("CALL_ENDED");
-      if (!deps.telephonyTransferAvailable) return deny(ctx, unavailable("TALKDESK_CONTROL_UNAVAILABLE", false), ctx.decision);
-      // Write-ahead intent: nothing is attempted unless this is durable (OPS-01).
-      const intentId = await auditRequired(ctx, { outcome: "PENDING", reasonCode: body.reason, callId, evidencePointers: [`db://destinations/${body.destinationId}`] });
-      // Kill switches never gate the human route; the handoff service owns the transfer (SAFE-04/SAFE-05).
-      const language = destination.languages.find((l) => /^[a-z]{2}(-[A-Z]{2})?$/.test(l)) ?? "en";
       // A staff-raised safety concern (spec section 10: human intervention is a safety signal) takes the FULL
       // safety path (SAFE-HANDOFF-05): priority route first, then pending mutations revoked, the session flagged
       // (resolved server-side by the handoff service), the restricted safety record and safety evidence.
       const staffSafety = body.reason === "SAFETY_PRIORITY" || destination.purpose === "SAFETY_PRIORITY";
+      // Without telephony control a plain transfer is refused before anything happens. A staff SAFETY escalation
+      // is never refused here: stopping administrative work (pending mutations revoked, session flagged) and the
+      // safety evidence do not depend on the dial, so they run unconditionally and only the dial is refused (by
+      // the telephony port, a guard port in the live composition); the response then says the route is
+      // unavailable (TALKDESK_CONTROL_UNAVAILABLE), so the staff member takes the contact centre's own route.
+      if (!deps.telephonyTransferAvailable && !staffSafety) return deny(ctx, unavailable("TALKDESK_CONTROL_UNAVAILABLE", false), ctx.decision);
+      // Write-ahead intent: nothing is attempted unless this is durable (OPS-01).
+      const intentId = await auditRequired(ctx, { outcome: "PENDING", reasonCode: body.reason, callId, evidencePointers: [`db://destinations/${body.destinationId}`] });
+      // Kill switches never gate the human route; the handoff service owns the transfer (SAFE-04/SAFE-05).
+      const language = destination.languages.find((l) => /^[a-z]{2}(-[A-Z]{2})?$/.test(l)) ?? "en";
       // The staff-selected destination is passed through; the handoff service re-checks it against the allowlist (SAFE-05).
       let result: Awaited<ReturnType<typeof deps.handoff.requestHuman>>;
       try {
@@ -637,6 +911,8 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
           ? await deps.handoff.requestSafetyRoute({ tenantId, callId, ctx: null, signals: [humanInterventionSignal(language)], locale: language, validatedAt: ctx.now, initiatedBy: { staffId }, correlationId: ctx.correlationId })
           : await deps.handoff.requestHuman({ tenantId, callId, ctx: null, reason: body.reason, language, issueCategory: null, destinationId: destination.destinationId, initiatedBy: { staffId } });
       } catch (err) {
+        // The safety path stops administrative work even when the route request itself failed.
+        if (staffSafety) await revokePendingForCall(tenantId, staffId, callId, ctx.now);
         if (err instanceof AccessDeniedError && err.reasonCode === "DESTINATION_NOT_ALLOWLISTED") {
           await auditBestEffort(ctx, { outcome: "DENIED", reasonCode: "DESTINATION_NOT_ALLOWLISTED", callId, policyDecision: ctx.decision });
           throw badRequest("DESTINATION_NOT_ALLOWLISTED");
@@ -646,9 +922,12 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
       // Defense in depth for the safety path: the call's pending mutations are revoked through the ledger even
       // when its live session cannot be resolved server-side (each cancellation is audited by the ledger).
       if (staffSafety || result.priority === "SAFETY") await revokePendingForCall(tenantId, staffId, callId, ctx.now);
-      if (!result.transferId) {
-        await auditBestEffort(ctx, { outcome: "PENDING", reasonCode: "TRANSFER_ROUTE_PENDING", callId, policyDecision: ctx.decision, evidencePointers: [`transfer_journey:${result.handoffId}`] });
-        throw unavailable("TRANSFER_ROUTE_PENDING", false);
+      // Without telephony control nothing was connected by the console (the telephony port refused the dial, and a
+      // refused attempt still carries a transfer id): the response never claims a transfer then.
+      if (!deps.telephonyTransferAvailable || !result.transferId) {
+        const reasonCode = deps.telephonyTransferAvailable ? "TRANSFER_ROUTE_PENDING" : "TALKDESK_CONTROL_UNAVAILABLE";
+        await auditBestEffort(ctx, { outcome: "PENDING", reasonCode, callId, policyDecision: ctx.decision, evidencePointers: [`transfer_journey:${result.handoffId}`] });
+        throw unavailable(reasonCode, false);
       }
       // The handoff service only ever dials an allowlisted destination; anything else is a defect (SAFE-05).
       if (!deps.destinations.some((d) => d.destinationId === result.destinationId)) throw new ConsoleHttpError(500, "INTERNAL_ERROR");

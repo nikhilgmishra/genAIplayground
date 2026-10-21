@@ -9,7 +9,7 @@ import { aggregateResults, renderReport } from "./aggregate.js";
 import { loadCorpus } from "./corpus.js";
 import { ScriptedConversationDriverFixture, idealEvidenceFixture } from "./evidence.fixture.js";
 import { FAULTED_JOURNEYS, JOURNEYS } from "./journeys.js";
-import { readRunResults, RunResultWriter, ResultsWriterError } from "./results.js";
+import { readRunContexts, readRunLineage, readRunResults, RunResultWriter, ResultsWriterError } from "./results.js";
 import { RunnerError, runScenarios } from "./runner.js";
 import type { ConversationDriver } from "./runner.js";
 
@@ -89,7 +89,22 @@ describe("scenario runner with ScriptedConversationDriverFixture (labelled local
     expect(back[0]?.evidenceRef).toBe(`evidence/runs/run_writerTest0001/call-evidence.jsonl#${JOURNEYS[0]?.scenarioId}/1`);
     const agg = aggregateResults(results, JOURNEYS);
     writer.finalize(agg, renderReport(agg));
-    expect(JSON.parse(readFileSync(join(writer.dir, "summary.json"), "utf8")).aggregateVersion).toBe("evaluation-aggregate.v1");
+    expect(JSON.parse(readFileSync(join(writer.dir, "summary.json"), "utf8")).aggregateVersion).toBe("evaluation-aggregate.v2");
+    // FO-17-44 / FO-17-45: every result carries its seed and rerun command; the context sidecar holds the rest.
+    const contexts = readRunContexts(writer.dir);
+    expect(contexts).toHaveLength(results.length);
+    for (const [i, r] of results.entries()) {
+      const c = contexts[i];
+      expect(r.seed).toMatch(/^sd_[0-9a-f]{32}$/);
+      expect(r.rerunCommand).toBe(`pnpm evidence rerun --scenario ${r.scenarioId} --version ${r.scenarioVersion} --repetition ${r.repetition} --seed ${r.seed} --rerun-of run_writerTest0001`);
+      expect(c).toMatchObject({ scenarioId: r.scenarioId, repetition: r.repetition, seed: r.seed, rerunCommand: r.rerunCommand, errors: [] });
+      expect(c?.initialWorld.digest).toMatch(/^[0-9a-f]{64}$/);
+      expect(c?.observedTools?.length).toBeGreaterThan(0);
+      expect(r.schemaVersion).toBe("evaluation-result.v1");
+      expect(r.judgeLabels).toEqual([]);
+      expect(r.audioEvidenceRefs).toEqual([]);
+    }
+    expect(readRunLineage(writer.dir)).toMatchObject({ runId: "run_writerTest0001", rerunOf: [], supersedes: [], reason: null });
     expect(readFileSync(join(writer.dir, "report.md"), "utf8")).toContain("Local fixture evidence only");
     expect(() => writer.finalize(agg, "x")).toThrow(ResultsWriterError);
     expect(() => writer.append(results[0] as EvaluationResult, null)).toThrow("RUN_FINALIZED");

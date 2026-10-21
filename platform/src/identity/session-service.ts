@@ -21,7 +21,7 @@ import { noopMetrics } from "../observability/metrics.js";
 import type { KvStore, SessionChange, SessionService, StartCallInput, StartCallResult } from "./ports.js";
 import type { SessionConfig } from "./config.js";
 import { bindingRefFromHash, epochSeconds, kvKeys, sessionRefHash } from "./keys.js";
-import { SessionStore, addRiskFlag, bindingProblem, dropPrivileges, lifecycleProblem, toAuthContext } from "./session-store.js";
+import { SessionStore, addRiskFlag, bindingProblem, dropPrivileges, lifecycleProblem, privilegesIdleExpired, processingBasisFor, toAuthContext } from "./session-store.js";
 import type { SessionInvalidReason, SessionRecord } from "./session-store.js";
 
 /**
@@ -76,6 +76,7 @@ const DENIAL_METRIC_REASON: Record<SessionInvalidReason, string> = {
   SESSION_INTEGRATION_MISMATCH: "INTEGRATION_MISMATCH",
   SESSION_CHANNEL_NOT_ALLOWED: "INTEGRATION_MISMATCH",
   SESSION_CALL_MISMATCH: "INTEGRATION_MISMATCH",
+  SESSION_IDLE_EXPIRED: "SESSION_EXPIRED",
 };
 
 export interface SessionServiceDeps {
@@ -192,7 +193,65 @@ export class TrustedSessionService implements SessionService {
       lifecycleProblem(loaded.rec, this.clock.now()) ??
       (options.expectedCallId !== undefined && options.expectedCallId !== loaded.rec.callId ? "SESSION_CALL_MISMATCH" : null);
     if (problem) this.deny(problem, hash);
-    return toAuthContext(loaded.rec, sessionRef, integ, this.clock.now());
+    const now = this.clock.now();
+    let current = loaded.rec;
+    if (privilegesIdleExpired(current, now, this.config)) {
+      // A concurrent use may have refreshed activity in the meantime: then the CAS keeps the privileges.
+      if ((await this.expireIdlePrivileges(hash)).outcome === "EXPIRED") this.deny("SESSION_IDLE_EXPIRED", hash);
+      current = (await this.loadOrDeny(hash)).rec;
+    }
+    const rec = await this.touch(hash, current, now);
+    return this.contextOf(rec, sessionRef, integ, now);
+  }
+
+  private contextOf(rec: SessionRecord, sessionRef: string, integ: IntegrationIdentity, now: Date): AuthContext {
+    return toAuthContext(rec, sessionRef, integ, now, processingBasisFor(rec, this.config));
+  }
+
+  /**
+   * Idle expiry of verified privileges (FO-05-18, AUTH-04): the privileges are dropped and the generation is
+   * bumped in one compare-and-swap (pending verification transactions and prepared actions bound to the old
+   * generation are fenced), the lapsed actor is remembered for same-actor re-verification (FO-05-19), and
+   * THIS request is refused SESSION_IDLE_EXPIRED. The call continues at A0; safety and human routes never
+   * need a session. Re-checked inside the CAS, so a concurrent use that just refreshed activity wins
+   * ("ACTIVE": nothing changes).
+   */
+  private async expireIdlePrivileges(hash: string): Promise<{ outcome: "EXPIRED"; generation: number } | { outcome: "ACTIVE" }> {
+    const r = await this.store.mutate(hash, (rec, now) => {
+      const p = lifecycleProblem(rec, now);
+      if (p) return { abort: p };
+      if (!privilegesIdleExpired(rec, now, this.config)) return { abort: "NO_CHANGE" };
+      return {
+        ...dropPrivileges(rec),
+        lapsedActorId: rec.actorId ?? rec.lapsedActorId ?? null,
+        generation: rec.generation + 1,
+        lastActivityAt: iso(now),
+        lastChange: "SESSION_IDLE_EXPIRED",
+      };
+    });
+    if ("aborted" in r && r.aborted === "NO_CHANGE") return { outcome: "ACTIVE" };
+    if ("aborted" in r) this.deny(r.aborted as SessionInvalidReason, hash);
+    this.logger.info("identity.session.idle_expired", { sessionBindingRef: bindingRefFromHash(hash), sessionGeneration: r.rec.generation, reasonCode: "SESSION_IDLE_EXPIRED" });
+    return { outcome: "EXPIRED", generation: r.rec.generation };
+  }
+
+  /** Records activity at a bounded write rate; a failed write only shortens the idle window (fails safe). */
+  private async touch(hash: string, rec: SessionRecord, now: Date): Promise<SessionRecord> {
+    const last = rec.lastActivityAt ? Date.parse(rec.lastActivityAt) : Number.NEGATIVE_INFINITY;
+    if (now.getTime() - last < this.config.activityWriteIntervalSeconds * 1000) return rec;
+    try {
+      const r = await this.store.mutate(hash, (cur, at) => {
+        const p = lifecycleProblem(cur, at);
+        if (p) return { abort: p };
+        const curLast = cur.lastActivityAt ? Date.parse(cur.lastActivityAt) : Number.NEGATIVE_INFINITY;
+        if (at.getTime() <= curLast) return { abort: "NO_CHANGE" };
+        return { ...cur, lastActivityAt: iso(at) };
+      });
+      return "rec" in r ? r.rec : rec;
+    } catch (err) {
+      this.logger.warn("identity.session.activity_write_failed", { sessionBindingRef: bindingRefFromHash(hash), reasonCode: err instanceof PlatformError ? err.reasonCode : "SESSION_STORE_ERROR" });
+      return rec;
+    }
   }
 
   async selectRole(sessionRef: string, integration: IntegrationIdentity, role: Role): Promise<AuthContext> {
@@ -226,9 +285,10 @@ export class TrustedSessionService implements SessionService {
       switch (ch.data.kind) {
         case "PARTICIPANT_CHANGED":
           // A different person is on the line: their privileges AND the previous participant's consent do not carry over.
-          return { ...base, consent: { ...UNDECIDED_CONSENT }, riskFlags: addRiskFlag(rec.riskFlags, "PARTICIPANT_CHANGED") };
+          return { ...base, lapsedActorId: null, consent: { ...UNDECIDED_CONSENT }, riskFlags: addRiskFlag(rec.riskFlags, "PARTICIPANT_CHANGED") };
         case "ACCOUNT_SWITCH":
-          return base;
+          // Explicit switch: a different actor may now verify (never silently, FO-05-19).
+          return { ...base, lapsedActorId: null };
         case "RECOVERY_STARTED":
           return { ...base, riskFlags: addRiskFlag(rec.riskFlags, "ACCOUNT_RECOVERY_IN_PROGRESS") };
         case "RISK_ESCALATION":
@@ -286,6 +346,31 @@ export class TrustedSessionService implements SessionService {
       lifecycleProblem(rec, this.clock.now()) ??
       (options.expectedCallId !== undefined && options.expectedCallId !== rec.callId ? "SESSION_CALL_MISMATCH" : null);
     if (lifecycle) return closed(rec.generation, lifecycle);
+    // Idle expiry applies to the gate exactly as to every other reader (FO-05-18, AUTH-04, AUTH-07): verified
+    // privileges idle beyond the limit close the gate, and they are dropped (generation fenced) as `resolve`
+    // drops them, so the gate can never report a caller authenticated whom the next protected request
+    // would refuse. Reading the gate is not caller activity: it never extends the idle window.
+    if (privilegesIdleExpired(rec, this.clock.now(), this.config)) {
+      try {
+        const expired = await this.expireIdlePrivileges(hash);
+        if (expired.outcome === "EXPIRED") return closed(expired.generation, "SESSION_IDLE_EXPIRED");
+        // A concurrent use refreshed the activity inside the CAS: evaluate the current record.
+        const fresh = await this.store.load(hash);
+        if (!fresh) return closed(rec.generation, "SESSION_NOT_FOUND");
+        return this.gateFor(fresh.rec, evaluatedAt, closed);
+      } catch (err) {
+        return closed(rec.generation, err instanceof PlatformError ? err.reasonCode : "SESSION_STORE_ERROR");
+      }
+    }
+    return this.gateFor(rec, evaluatedAt, closed);
+  }
+
+  /** Open only for a live, non-idle, verified (A2+) actor; everything else is closed. */
+  private gateFor(rec: SessionRecord, evaluatedAt: string, closed: (generation: number, reasonCode: string) => AuthGateResponseT): AuthGateResponseT {
+    const now = this.clock.now();
+    const lifecycle = lifecycleProblem(rec, now);
+    if (lifecycle) return closed(rec.generation, lifecycle);
+    if (privilegesIdleExpired(rec, now, this.config)) return closed(rec.generation, "SESSION_IDLE_EXPIRED");
     const open = rec.actorId !== null && meetsAssurance(rec.assurance, "A2");
     if (!open) return closed(rec.generation, "ASSURANCE_INSUFFICIENT");
     return AuthGateResponse.parse({ isAuthenticated: open === true, sessionGeneration: rec.generation, evaluatedAt });
@@ -313,7 +398,7 @@ export class TrustedSessionService implements SessionService {
     });
     const now = this.clock.now();
     if ("aborted" in r) {
-      if (r.aborted === "NO_CHANGE" && unchanged.rec) return toAuthContext(unchanged.rec, sessionRef, integ, now);
+      if (r.aborted === "NO_CHANGE" && unchanged.rec) return this.contextOf(unchanged.rec, sessionRef, integ, now);
       this.deny(r.aborted as SessionInvalidReason, hash);
     }
     this.logger.info("identity.session.changed", {
@@ -322,7 +407,7 @@ export class TrustedSessionService implements SessionService {
       sessionGeneration: r.rec.generation,
       assurance: r.rec.assurance,
     });
-    return toAuthContext(r.rec, sessionRef, integ, now);
+    return this.contextOf(r.rec, sessionRef, integ, now);
   }
 
   private async revokeByHash(hash: string, reasonCode: string): Promise<void> {

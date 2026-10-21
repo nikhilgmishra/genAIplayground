@@ -72,6 +72,8 @@ export function meFor(staff: StaffView, overrides: Partial<MeResponse> = {}): Me
     environment: "local",
     localFixture: true,
     sessionExpiresAt: "2099-01-01T00:00:00.000Z",
+    sessionKind: "LOCAL_FIXTURE",
+    idleTimeoutSeconds: null,
     ...overrides,
   };
 }
@@ -92,6 +94,8 @@ export function authConfigLocal(overrides: Partial<AuthConfigResponse> = {}): Au
       codeChallengeMethod: "S256",
       blockedReasonCode: "WORKFORCE_OIDC_CLIENT_NOT_ISSUED",
     },
+    sessionPolicy: null,
+    recoveryAvailable: false,
     ...overrides,
   };
 }
@@ -111,6 +115,8 @@ export const authConfigOidc = (): AuthConfigResponse => ({
     codeChallengeMethod: "S256",
     blockedReasonCode: null,
   },
+  sessionPolicy: { idleTimeoutSeconds: 900, absoluteLifetimeSeconds: 28800 },
+  recoveryAvailable: false,
 });
 
 export const overview = (): OverviewResponse => ({

@@ -22,7 +22,10 @@ import { hourWindow } from "./keys.js";
  *    result, which would disclose that the locator is an enrolled person),
  *  - in a policy input, tool result, speech slot or telephony-control response,
  *  - in a log line linked to the call or session.
- * The only other output is the aggregated `vsp_challenge_abuse_signals_total{signal}` counter.
+ * The only other outputs are two aggregated counters: `vsp_verification_abuse_signals_total{signal}`
+ * labelled with the AccountAbuseSignal kind (the security-monitoring alarm metric) and the coarser
+ * `vsp_challenge_abuse_signals_total{signal}` (RiskFlag-valued). Neither carries an account,
+ * destination, session or call identifier (DATA-01).
  *
  * Session-scoped signals that every caller can trigger identically (too many verification begins,
  * a locked challenge, the session OTP failure budget) stay on the session (`ENUMERATION_SUSPECTED`,
@@ -88,15 +91,17 @@ export class VerificationAbuseMonitor {
 
   /**
    * Records one occurrence. Never throws and never changes anything the caller can observe: a
-   * store failure only loses this monitoring increment (the protective action — suppressing the
-   * send or the comparison — has already been decided by the caller).
+   * store failure only loses the hashed investigation counter (the protective action — suppressing
+   * the send or the comparison — has already been decided by the caller). The aggregated metrics are
+   * counted first, so a store outage cannot silence the security-monitoring alarm.
    */
   async record(signal: AccountAbuseSignal, subject: AbuseSubject): Promise<void> {
     try {
       this.subject(signal, subject);
+      this.metrics.increment("vsp_verification_abuse_signals_total", { signal });
+      this.metrics.increment("vsp_challenge_abuse_signals_total", { signal: METRIC_SIGNAL[signal] });
       const w = hourWindow(this.deps.clock.now());
       await this.deps.kv.increment(abuseKey(signal, subject, w), (w + 1 + this.deps.retentionHours) * 3600);
-      this.metrics.increment("vsp_challenge_abuse_signals_total", { signal: METRIC_SIGNAL[signal] });
     } catch {
       // Monitoring is best effort by design; see the method comment.
     }

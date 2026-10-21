@@ -2,9 +2,29 @@
   "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/SupportRequest.json",
   "title": "SupportRequest",
   "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "support-request.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "caseId": "supportRequestId",
+    "subjectRef": "subjectRef",
+    "causationId": "causationId",
+    "occurredAt": "createdAt",
+    "versions": "versions",
+    "provenance": "summaryProvenance",
+    "outcome": "disposition"
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "support-request.v1"
+    },
+    "causationId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
     "supportRequestId": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
@@ -301,6 +321,188 @@
           "type": "null"
         }
       ]
+    },
+    "caseLinks": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "const": "case-link.v1"
+          },
+          "tenantId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "caseId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "interactionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "causationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "linkId": {
+            "type": "string",
+            "pattern": "^csl_[A-Za-z0-9_-]{16,64}$"
+          },
+          "system": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,40}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "PRIMARY_CASE",
+              "RELATED_CASE",
+              "REOPENED_FROM",
+              "DUPLICATE_OF"
+            ]
+          },
+          "externalCaseRef": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "externalIdempotencyKey": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{16,128}$"
+          },
+          "syncState": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "SYNCING",
+              "SYNCED",
+              "RETRY_SCHEDULED",
+              "DEAD_LETTER"
+            ]
+          },
+          "lastSyncedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "relatedCaseId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "tenantId",
+          "caseId",
+          "occurredAt",
+          "interactionId",
+          "causationId",
+          "linkId",
+          "system",
+          "kind",
+          "externalCaseRef",
+          "externalIdempotencyKey",
+          "syncState",
+          "lastSyncedAt",
+          "relatedCaseId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "issueOutcome": {
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "RESOLVED_WITH_EVIDENCE",
+            "INFORMATION_PROVIDED",
+            "REQUEST_ACCEPTED",
+            "WAITING_FOR_SYSTEM",
+            "WAITING_FOR_HUMAN",
+            "WAITING_FOR_CALLER",
+            "TRANSFERRED_WITH_ACCEPTANCE",
+            "DECLINED_BY_POLICY",
+            "CALLER_DISCONNECTED",
+            "FAILED",
+            "OUTCOME_UNKNOWN"
+          ]
+        },
+        "reopened": {
+          "type": "boolean"
+        },
+        "partiallyResolved": {
+          "type": "boolean"
+        },
+        "evidenceRefs": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+          }
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "outcome",
+        "reopened",
+        "partiallyResolved",
+        "evidenceRefs",
+        "recordedAt"
+      ],
+      "additionalProperties": false
     },
     "createdAt": {
       "type": "string",

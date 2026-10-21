@@ -27,6 +27,14 @@
  *   Case (fixed summary, no attempted steps or receipts, restricted=true) so they never
  *   appear as broadly visible Cases.
  *
+ * observeCaseStatus() (reopened cases, spec section 13; SPEC-13.resolution-metrics):
+ *   the synchronization never reads a Case back, so a reopening is measured where the platform
+ *   READS the Case status: the vendor status is mapped to OPEN / CLOSED by the configured
+ *   CaseStateMapping (placeholder maps nothing until PRQ-006), a support_case_observations row
+ *   (migration 0302) is appended only on a change, and CLOSED -> OPEN is audited and counted
+ *   (vsp_cases_reopened_total). No schedule calls it yet (Salesforce change feed or a bounded poll
+ *   within the API allocation: PRQ-006, VQ-SF-07).
+ *
  * Every external call happens outside an open database transaction.
  */
 import { z } from "zod";
@@ -100,6 +108,33 @@ const KILL_SWITCH_HOLD_REASONS: ReadonlySet<string> = new Set(["KILL_SWITCH_INTE
 /** Default horizon of the recap memory entry when the contract has no deadline (engineering default). */
 const DEFAULT_MEMORY_HORIZON = "P14D";
 
+/** Salesforce Case Status values (exact picklist values) that mean the Case is open or closed. */
+export interface CaseStateMapping {
+  readonly open: readonly string[];
+  readonly closed: readonly string[];
+}
+
+/**
+ * PLACEHOLDER: maps nothing. The tenant's Case Status picklist and which values are closed are UNKNOWN
+ * until the Salesforce administrator answers VQ-SF-04 (PRQ-006); until then every observation is
+ * "unmapped" and no reopening can be recorded. Never guessed from Salesforce's default picklist.
+ */
+export const DEFAULT_CASE_STATE_MAPPING: CaseStateMapping = Object.freeze({ open: Object.freeze([]), closed: Object.freeze([]) });
+
+const CaseStateMappingSchema = z
+  .strictObject({ open: z.array(z.string().min(1).max(255)).max(64), closed: z.array(z.string().min(1).max(255)).max(64) })
+  .refine((m) => !m.open.some((v) => m.closed.includes(v)), "CASE_STATE_MAPPING_OVERLAP");
+
+/** Result of one Case status read (observeCaseStatus). */
+export interface CaseStatusObservation {
+  /** A mapped state was read from the system of record (changed or not). */
+  observed: boolean;
+  caseState: "OPEN" | "CLOSED" | "UNMAPPED" | null;
+  /** The last recorded state was CLOSED and the Case is open again. */
+  reopened: boolean;
+  reasonCode: string;
+}
+
 export interface PgSupportRequestServiceOptions {
   db: Db;
   clock: Clock;
@@ -114,6 +149,8 @@ export interface PgSupportRequestServiceOptions {
   sync?: Partial<SupportSyncPolicy>;
   /** Audit stream for this component. */
   auditStream?: string;
+  /** Case Status mapping for reopened-case measurement (default DEFAULT_CASE_STATE_MAPPING: placeholder, maps nothing). */
+  caseStates?: CaseStateMapping;
 }
 
 /** Everything a support request needs; identity fields come only from trusted server state. */
@@ -229,6 +266,7 @@ export class PgSupportRequestService implements SupportRequestService {
   private readonly policy: SupportSyncPolicy;
   private readonly dedup: PgConsumerDedup;
   private readonly auditStream: string | undefined;
+  private readonly caseStates: CaseStateMapping;
 
   constructor(opts: PgSupportRequestServiceOptions) {
     this.db = opts.db;
@@ -245,6 +283,9 @@ export class PgSupportRequestService implements SupportRequestService {
     if (this.policy.maxAttempts < 1 || this.policy.maxAttempts > 50) throw new ValidationError("SUPPORT_SYNC_POLICY_INVALID");
     this.dedup = new PgConsumerDedup({ db: opts.db, clock: opts.clock, role: "app_worker" });
     this.auditStream = opts.auditStream;
+    const caseStates = CaseStateMappingSchema.safeParse(opts.caseStates ?? DEFAULT_CASE_STATE_MAPPING);
+    if (!caseStates.success) throw new ValidationError("CASE_STATE_MAPPING_INVALID");
+    this.caseStates = Object.freeze({ open: Object.freeze([...caseStates.data.open]), closed: Object.freeze([...caseStates.data.closed]) });
   }
 
   // ------------------------------------------------------------------ create
@@ -969,6 +1010,96 @@ export class PgSupportRequestService implements SupportRequestService {
     );
     this.metrics.increment("vsp_crm_reconciliation_total", { result: "repaired" });
     return this.rowToRequest(row);
+  }
+
+  // ------------------------------------------------------------------ reopened cases
+
+  /**
+   * Reads the synchronized Case's status from the system of record (outside any transaction, through
+   * the kill-switch-gated adapter), maps it with the configured CaseStateMapping and appends a
+   * support_case_observations row only when the mapped state differs from the last recorded one. A Case
+   * last recorded CLOSED and now OPEN is a reopening: audited (support_request.case_reopened) and counted
+   * (vsp_cases_reopened_total{issue_category}). An unmapped value is only counted ("unmapped"); the
+   * vendor status text is never stored, logged or used as a label. A failed or held read changes nothing.
+   */
+  async observeCaseStatus(tenantId: string, supportRequestId: string): Promise<CaseStatusObservation> {
+    if (!OpaqueId.safeParse(tenantId).success || !/^sr_[A-Za-z0-9_-]{16,64}$/.test(supportRequestId)) throw new ValidationError("CASE_OBSERVATION_INPUT_INVALID");
+    const notObserved = (reasonCode: string): CaseStatusObservation => ({ observed: false, caseState: null, reopened: false, reasonCode });
+    type Row = { issue_external_id: string; issue_category: IssueCategoryT; subject_ref: string | null; call_id: string; salesforce_case_id: string | null };
+    const sr = (
+      await this.db.tx(
+        (q) => q.query<Row>("select issue_external_id, issue_category, subject_ref, call_id, salesforce_case_id from support_requests where support_request_id = $1", [supportRequestId]),
+        { role: "app_worker", rls: { tenantId } },
+      )
+    ).rows[0];
+    if (!sr) return notObserved("SUPPORT_REQUEST_NOT_FOUND");
+    if (sr.salesforce_case_id === null) return notObserved("CASE_NOT_SYNCED");
+    let found: { caseId: string; status: string } | null;
+    try {
+      found = await this.supportRecords.getCaseByExternalId(sr.issue_external_id);
+    } catch (err) {
+      return notObserved(isIntegrationHeld(err) ? err.reasonCode : reasonOf(err, "SALESFORCE_READ_FAILED"));
+    }
+    if (!found) return notObserved("CASE_NOT_FOUND");
+    if (found.caseId !== sr.salesforce_case_id) return notObserved("CASE_ID_MISMATCH");
+    const status = found.status;
+    const state = this.caseStates.closed.includes(status) ? "CLOSED" : this.caseStates.open.includes(status) ? "OPEN" : null;
+    if (state === null) {
+      this.metrics.increment("vsp_case_status_observations_total", { case_state: "unmapped" });
+      return { observed: false, caseState: "UNMAPPED", reopened: false, reasonCode: "CASE_STATUS_UNMAPPED" };
+    }
+    const caseId = found.caseId;
+    const now = this.clock.now();
+    const reopened = await this.db.tx(
+      async (q) => {
+        // One observation at a time per request (concurrent reads of the same Case).
+        await q.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [`support_case_observations:${tenantId}:${supportRequestId}`]);
+        const last = (
+          await q.query<{ case_state: "OPEN" | "CLOSED"; observed_at: Date | string }>(
+            "select case_state, observed_at from support_case_observations where support_request_id = $1 order by observed_at desc, observation_id desc limit 1",
+            [supportRequestId],
+          )
+        ).rows[0];
+        if (last?.case_state === state) return false;
+        // Strictly later than the change it follows, so "last" is unambiguous even with a frozen clock.
+        const observedAt = last ? new Date(Math.max(now.getTime(), new Date(last.observed_at).getTime() + 1)) : now;
+        await q.query(
+          `insert into support_case_observations (observation_id, tenant_id, support_request_id, case_state, previous_state, observed_at)
+           values ($1, $2, $3, $4, $5, $6)`,
+          [newId("sco"), tenantId, supportRequestId, state, last?.case_state ?? null, iso(observedAt)],
+        );
+        const isReopening = last?.case_state === "CLOSED" && state === "OPEN";
+        if (isReopening) {
+          await this.audit.append(
+            q,
+            buildAuditInput(
+              {
+                tenantId,
+                correlationId: supportRequestId,
+                sourceComponent: "worker",
+                action: "support_request.case_reopened",
+                outcome: "SUCCEEDED",
+                subjectRef: sr.subject_ref,
+                callId: sr.call_id,
+                evidencePointers: [`db://support_requests/${supportRequestId}`, `sf://cases/${caseId}`],
+                reasonCode: "CASE_REOPENED_OBSERVED",
+                dataClass: "BUSINESS_RECORD",
+              },
+              this.clock,
+            ),
+            this.auditStream,
+          );
+        }
+        return isReopening;
+      },
+      { role: "app_worker", rls: { tenantId } },
+    );
+    this.metrics.increment("vsp_case_status_observations_total", { case_state: state === "OPEN" ? "open" : "closed" });
+    if (reopened) {
+      this.metrics.increment("vsp_cases_reopened_total", { issue_category: sr.issue_category });
+      this.logger.info("support_request.case_reopened", { supportRequestId });
+    }
+    return { observed: true, caseState: state, reopened, reasonCode: reopened ? "CASE_REOPENED" : "CASE_STATUS_OBSERVED" };
   }
 
   // ------------------------------------------------------------------ mapping

@@ -18,7 +18,10 @@ the local console composition and the worker loops, and drives the real HTTP sur
 Time is a `FakeClock`; worker loops are run explicitly. Caller-visible behaviour = the utterances the
 response gate renders from approved templates (tool speech, TC-07 prompts) plus the template ids
 Studio plays. Backend evidence = database rows (owner-role reads), LOCAL FIXTURE effect logs
-(scheduling, billing, Salesforce, telephony), audit events and the audit chain.
+(scheduling, billing, Salesforce, telephony), audit events and the audit chain, and the container's
+structured log records (`h.logs`, the memory logger the container was built with; used by the
+`[FAULT:POLICY_ENGINE_ERROR]` test in `platform/test/invariants` to read the policy engine's fail-closed line).
+The invariant failure-injection tests (`platform/test/invariants/failure-injection.test.ts`) reuse this harness.
 
 ## Files
 

@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "REDACTION_FAILURE",
-  "version": 1,
+  "version": 2,
   "title": "Redaction of a transcript fails",
   "description": "The redaction service fails on a transcript segment containing synthetic sensitive content.",
   "category": "privacy",
@@ -53,5 +53,26 @@
     "SPEC-16.fault-injection"
   ],
   "appliesToIntents": [],
-  "notes": "The egress hard gate carries the substantive check; the outcome expectation is intentionally permissive."
+  "notes": "The egress hard gate carries the substantive check; the outcome expectation is intentionally permissive.",
+  "registry": {
+    "requirementId": "FO-17-24.REDACTION_FAILURE",
+    "origin": "registry",
+    "injectionPoint": "the redaction stage fails on a transcript segment",
+    "injectionPointPackages": [
+      "WP-22"
+    ],
+    "postconditionPackages": [
+      "WP-17",
+      "WP-21",
+      "WP-22",
+      "WP-35"
+    ],
+    "layer2Owner": "WP-35",
+    "localDriver": "REFUSED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "A transcript segment whose redaction failed is quarantined from broad access",
+    "No raw content reaches analytics or a debugging vendor (egress evidence)"
+  ]
 }

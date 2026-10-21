@@ -1,0 +1,1480 @@
+# Follow-on requirement source records, prompt section 5. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '5'
+requirements:
+- id: FO-05-01
+  section: '5'
+  kind: constraint
+  text: Retain application assurance tiers A0-A3, explicitly not NIST certification.
+  acceptance: Tiers defined and documented as application tiers.
+  originalIds:
+  - SPEC-7.assurance-tiers
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/common.ts:58-66 (Assurance A0..A3 with the comment "Application policy assurance tiers (NOT NIST AAL certifications)")
+  - platform/src/policy/engine.property.test.ts:58,67 (policy property tests range over every Assurance tier)
+  - 'platform/src/identity/README.md:6-7 (documentation element: "application policy tiers ..., not NIST levels")'
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+- id: FO-05-02
+  section: '5'
+  kind: software
+  text: 'A0: public information, neutral unverified intake and human/safety routing.'
+  acceptance: A0 caller can get public info, intake and human/safety routes; protected reads denied.
+  originalIds:
+  - SPEC-7.assurance-tiers
+  - SAFE-02
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/main/sessionless-routing.test.ts:181,189
+  - platform/src/gateway/pipeline.test.ts:182
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-03
+  section: '5'
+  kind: software
+  text: 'A1: approved possession verification, only for tenant-approved low-risk operations.'
+  acceptance: A1 grants only configured low-risk scopes; OTP disabled unless approved.
+  originalIds:
+  - SPEC-7.otp-limits
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scripts/policy.sh test 252/252 (authz_test.rego A1)
+  gap: The tenant's A1 operation approval record is an activation input.
+  remediation: Approval workflow.
+  size: S
+  environmentDependency: identity-owner approval of OTP (TB-03)
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-05-04
+  section: '5'
+  kind: software
+  text: 'A2: account authentication through the existing portal with MFA/passkey, bound to the call.'
+  acceptance: Portal-bound OIDC verification with MFA amr sets A2 for the same call/generation.
+  originalIds:
+  - SPEC-7.secure-link-binding
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - caller-identity.test.ts password-only refused MFA_REQUIRED (L2)
+  gap: Caller IdP amr values and MFA policy are activation inputs (AIN-13).
+  remediation: Containerised IdP test.
+  size: S
+  environmentDependency: client/provider IdP (PRQ-005)
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-05-05
+  section: '5'
+  kind: software
+  text: 'A3: recent transaction-bound step-up and explicit approval for consequential actions.'
+  acceptance: Step-up valid only for one action digest and short window.
+  originalIds:
+  - SPEC-7.assurance-tiers
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - caller-identity.test.ts [FO-05-05] step-up (L2)
+  - src/identity session-idle.test.ts
+  gap: No software gap; the tenant step-up parameters need approval (AIN-15).
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-05-06
+  section: '5'
+  kind: software
+  text: High-risk changes may still require humans regardless of tier.
+  acceptance: Policy marks high-risk action kinds human-only; tests.
+  originalIds:
+  - SPEC-4.resolution-contracts
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - policy.sh 252/252 HIGH_RISK_HUMAN_ONLY
+  - src/policy unit tests
+  gap: No software gap; the policy release approval is separate (POLICY_RELEASE).
+  remediation: Policy data for human-only actions.
+  size: S
+  environmentDependency: policy owner list of high-risk changes
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-05-07
+  section: '5'
+  kind: software
+  text: Real OIDC issuer discovery and validation.
+  acceptance: Issuer metadata fetched from /.well-known/openid-configuration with issuer equality check; tested against a containerised IdP.
+  originalIds:
+  - SPEC-7.secure-link-binding
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - workforce-sso.test.ts discovery on Keycloak
+  - oidc-client.test.ts [FO-05-07] OIDC_REFRESH_MAX_REQUESTS request bound
+  gap: The tenant issuer is an activation input (AIN-12).
+  remediation: 'Add platform/src/adapters/live/oidc-discovery.ts: fetch <issuer>/.well-known/openid-configuration over HTTPS, require metadata.issuer === the configured issuer, pin jwks_uri, token_endpoint and authorization_endpoint, cache with a TTL and fail closed on fetch error. Feed it to JwksOidcVerifier, WorkforceTokenVerifier and the exchange. Test against a 127.0.0.1 discovery server (issuer mismatch, http downgrade, rotated metadata) and a Keycloak container.'
+  size: S
+  environmentDependency: IdP clients
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-05-08
+  section: '5'
+  kind: software
+  text: aud/iss/exp/nonce checks.
+  acceptance: Verifier rejects wrong issuer, audience, expired, nonce mismatch.
+  originalIds:
+  - SPEC-7.secure-link-binding
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/oidc-verifier.test.ts:52-82
+  - platform/src/console-api/auth.test.ts:74
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-09
+  section: '5'
+  kind: software
+  text: PKCE where appropriate.
+  acceptance: Code flow uses S256 PKCE end to end with backend exchange.
+  originalIds:
+  - SPEC-7.workforce-separation
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - workforce-sso.test.ts PKCE exchange (L2)
+  - oidc-client.test.ts [FO-05-09]
+  gap: No software gap; the live composition is WP-07.
+  remediation: 'Implement auth.oidcExchange in platform/src/console-api: discovery (FO-05-07), POST to token_endpoint with code, code_verifier, an exact redirect_uri from the server allowlist (FO-05-13) and client authentication (private_key_jwt preferred), then ID-token validation with nonce, issuance of the console session and single-use state binding. Test against a containerised OIDC provider (Keycloak or dex) for wrong verifier, replayed code, redirect mismatch and missing MFA amr.'
+  size: M
+  environmentDependency: workforce OIDC client (PRQ-036)
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-05-10
+  section: '5'
+  kind: software
+  text: state/CSRF protection.
+  acceptance: State validated once; cross-site requests rejected.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - workforce-sso-adversarial.test.ts probe B (L2)
+  - sso.test.ts [STRIDE-D] flood
+  gap: Request-rate limiting of /console/api/v1/auth/* at the edge is WP-07.
+  remediation: Bind state server-side at exchange.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-05-11
+  section: '5'
+  kind: software
+  text: Replay resistance.
+  acceptance: Transactions and assertions single-use; replays refused.
+  originalIds:
+  - SPEC-7.assertions
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - workforce-sso.test.ts replayed callback and code refused (L2)
+  gap: No software gap.
+  remediation: Keep; add replay test for workforce exchange.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-05-12
+  section: '5'
+  kind: software
+  text: JWKS rotation.
+  acceptance: Rotated key picked up by refetch on unknown kid.
+  originalIds:
+  - SPEC-7.secure-link-binding
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/oidc-verifier.test.ts:157 (rotation over loopback HTTP JWKS)
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-13
+  section: '5'
+  kind: software
+  text: Callback allowlists.
+  acceptance: Redirect URIs validated against a configured allowlist server-side.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - workforce-sso.test.ts unknown redirect refused
+  - sso-config.test.ts
+  gap: Calling the guard from PlatformConfig is WP-07.
+  remediation: Add consoleAuth.redirectUris (exact-match list) and portal.callbackUris to PlatformConfig with guard validation (https, no wildcards, no query). The exchange endpoint rejects any redirect_uri not in the list before contacting the IdP. Test exact match, trailing slash, case and open-redirect attempts.
+  size: S
+  environmentDependency: IdP client registration
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-05-14
+  section: '5'
+  kind: software
+  text: Session fixation defenses.
+  acceptance: Binding requires same call and generation and no other bound actor.
+  originalIds:
+  - SPEC-7.session-model
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/verification-service.test.ts:225 (generation change refuses binding), :358-372 (same call and generation, no other bound actor), :561 (OTP challenge bound to session and generation)
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1); evidence lines added
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+- id: FO-05-15
+  section: '5'
+  kind: software
+  text: Expiry of transactions, tokens and sessions.
+  acceptance: Expired artefacts refused by injected clock.
+  originalIds:
+  - AUTH-04
+  - SPEC-7.privilege-expiry
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/session-service.test.ts:126-145
+  - platform/src/identity/verification-service.test.ts:549
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-16
+  section: '5'
+  kind: software
+  text: Bind the account-approved nonce to a trusted carrier interaction AND the session generation.
+  acceptance: Binding uses the carrier interaction from the trusted runtime and current generation.
+  originalIds:
+  - SPEC-7.secure-link-binding
+  derivedFrom:
+  - TB-01
+  capabilityIds:
+  - voice.media_runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/session-binding.ts:11-14 (server_to_server_lookup live BLOCKED)
+  - platform/src/identity/verification-service.ts (generation check)
+  gap: Carrier side is a local fixture.
+  remediation: CallBinding from the LiveKit/SIP runtime.
+  size: M
+  environmentDependency: PRQ-013 for Talkdesk; none for own SIP runtime
+  workPackage: WP-11
+  provenance:
+    origin: extraction
+- id: FO-05-17
+  section: '5'
+  kind: constraint
+  text: Never infer binding from an arbitrary call ID passed by a model.
+  acceptance: Model-supplied session/call ids are ignored unless an approved exception exists.
+  originalIds:
+  - AUTH-03
+  - AUTH-07
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/session-binding.ts:6-18
+  - platform/src/identity/session-service.test.ts:184
+  - platform/src/gateway/catalog.ts:42
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-18
+  section: '5'
+  kind: software
+  text: Support idle expiry.
+  acceptance: Idle timeout drops privileges for caller and workforce sessions (test).
+  originalIds:
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - identity.workforce
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - workforce-sso.test.ts idle expiry (L2)
+  - break-glass.test.ts idle/absolute expiry closures
+  - adversarial sweep idle-expiry closure (L2)
+  gap: Idle parameters await identity-owner approval (AIN-15).
+  remediation: 'Add lastActivityAt to the session record (caller sessions in DynamoKvStore, console sessions server-side) and update it on authenticated use with a bounded write rate. SessionService.resolve and the console authenticator fail closed when now - lastActivityAt exceeds the configured idle limit (separate caller and workforce values pending identity-owner approval). Tests with FakeClock: idle expiry drops privileges and keeps safety routes available.'
+  size: S
+  environmentDependency: identity-owner idle duration
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-05-19
+  section: '5'
+  kind: software
+  text: Same-actor refresh without silently switching subjects.
+  acceptance: Refresh re-authenticates the same actor; subject change requires new binding (test).
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - workforce-sso.test.ts refresh rotation and replay (L2)
+  - break-glass.test.ts replay closure under audit failure (N2)
+  gap: No software gap.
+  remediation: 'Implement refresh for console sessions (refresh-token exchange at the IdP with rotation) and for caller A2 sessions (re-verification through the portal step-up path). Require the refreshed (iss, sub) to equal the bound actor; on mismatch, revoke and bump the generation. Tests: same-actor refresh keeps the selected role, a different subject fails closed, and a replayed refresh token is refused.'
+  size: M
+  environmentDependency: IdP refresh support
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-05-20
+  section: '5'
+  kind: software
+  text: Enforce revoked/expired state on every read, retrieval, action, notification and protected utterance.
+  acceptance: Each path rechecks session state at the moment of use (tests per path).
+  originalIds:
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/gateway/pipeline.ts (resolve per tool call: reads, knowledge search, actions)'
+  - platform/src/business/recheck.ts (durable work)
+  - platform/src/voice/gate.ts (generation/turn check only)
+  gap: Queued notifications and audio emission are not rechecked against revocation at send/emission time.
+  remediation: Recheck at notification send and audio emission.
+  size: M
+  environmentDependency: none
+  workPackage: WP-14
+  provenance:
+    origin: extraction
+- id: FO-05-21
+  section: '5'
+  kind: constraint
+  text: TTL deletion is not a gate.
+  acceptance: Expired items refused while still stored.
+  originalIds:
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/session-service.test.ts:126,162
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-22
+  section: '5'
+  kind: software
+  text: The verified identity service supplies canonical actor, selected role, authorized subject, organization, scopes, relationship, assurance, authentication time, consent or other processing basis, expiry and revocation.
+  acceptance: AuthContext populated only from identity service and authoritative directories.
+  originalIds:
+  - AUTH-03
+  - SPEC-7.session-model
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/identity session-idle.test.ts [FO-05-22]
+  gap: No counsel-approved jurisdiction/role matrix exists, and the approved-basis cases run at unit level only.
+  remediation: Live directory; processing-basis field.
+  size: M
+  environmentDependency: PRQ-005
+  workPackage: WP-05
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-05-23
+  section: '5'
+  kind: constraint
+  text: Caller ID, DOB, NPI, address, email domain, claim details, voice familiarity and CDP profile are not authenticators.
+  acceptance: None of these raise assurance (tests).
+  originalIds:
+  - AUTH-01
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  - authority.registries
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/session-service.test.ts:55
+  - docs/security/threat-model.md T-01
+  gap: 'Voice familiarity/CDP untestable until runtime/CDP exist. IMPLEMENTED, not VERIFIED_LOCAL: Voice familiarity and CDP profile, two named elements, are untested because no media runtime or CDP connector exists.'
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: voice familiarity and CDP profile, two named elements, are untested because no media runtime or CDP connector exists.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-19
+- id: FO-05-24
+  section: '5'
+  kind: constraint
+  text: No account-existence disclosure before authorization.
+  acceptance: Observable sequence identical for real and unknown people.
+  originalIds:
+  - SPEC-7.anti-enumeration
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/enumeration-resistance.integration.test.ts
+  - docs/adr/ADR-0014-uniform-verification-abuse-handling.md
+  gap: Timing side channel noted (threat-model T-03).
+  remediation: Latency equalisation in live path.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-25
+  section: '5'
+  kind: constraint
+  text: OTP uses only pre-registered channels; never send verification to a new caller-supplied destination and use that alone as proof.
+  acceptance: No input can carry a destination; recent channel change suppresses send.
+  originalIds:
+  - SPEC-7.otp-limits
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/verification-service.test.ts:529 (a caller-supplied sendTo number is a ValidationError; codes go only to a registered channel)
+  - platform/src/identity/verification-service.test.ts:115 (no begin input can carry a phone number), :507 (a recent number change blocks OTP)
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+- id: FO-05-26
+  section: '5'
+  kind: software
+  text: OTP capture is isolated (portal or DTMF).
+  acceptance: Digits enter only through isolated DTMF/portal capture.
+  originalIds:
+  - AUTH-06
+  - SPEC-7.otp-limits
+  derivedFrom: []
+  capabilityIds:
+  - telephony.sip
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/verification-service.test.ts:422 (submit only from telephony_control)
+  - no portal OTP entry route; no media-runtime DTMF capture
+  gap: Isolation relies on the vendor Studio; own runtime absent.
+  remediation: Isolated DTMF in runtime and portal entry.
+  size: M
+  environmentDependency: PRQ-015 for vendor path
+  workPackage: WP-12
+  provenance:
+    origin: extraction
+- id: FO-05-27
+  section: '5'
+  kind: software
+  text: OTP is one use, short expiry, throttled, with recovery.
+  acceptance: Limits enforced at submit; recovery via human route.
+  originalIds:
+  - SPEC-7.otp-limits
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/identity unit tests (OTP disabled by default)
+  gap: OTP stays disabled (TB-03), and there is no Layer-2 SMS/DTMF provider test.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  workPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-05-28
+  section: '5'
+  kind: constraint
+  text: 'Starting values: five-minute expiry, three attempts per challenge, five per account per hour, pending identity-owner approval.'
+  acceptance: Config defaults match; approval recorded before enabling.
+  originalIds:
+  - SPEC-7.otp-limits
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/config.ts:117-126
+  - platform/src/config/guard.test.ts:315 (security-approved verification values are enforced before non-local use)
+  gap: Approval absent.
+  remediation: Approval record.
+  size: S
+  environmentDependency: identity-owner approval
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1); evidence lines added
+- id: FO-05-29
+  section: '5'
+  kind: constraint
+  text: Do not expose digits to ASR, models, recordings or logs; pausing one recorder is insufficient.
+  acceptance: All recorders/ASR/model streams suppressed during capture (audio test).
+  originalIds:
+  - AUTH-06
+  derivedFrom: []
+  capabilityIds:
+  - telephony.sip
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/verification-service.test.ts:983 (no code in logs/returns)
+  gap: ASR/recording suppression untested (no media).
+  remediation: Runtime-wide capture mode.
+  size: M
+  environmentDependency: none
+  workPackage: WP-12
+  provenance:
+    origin: extraction
+- id: FO-05-30
+  section: '5'
+  kind: software
+  text: Portal verification works even if secure DTMF is unavailable.
+  acceptance: Secure-link path completes without DTMF.
+  originalIds:
+  - SPEC-7.secure-link-binding
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - caller-identity.test.ts (L2)
+  gap: No software gap.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-05-31
+  section: '5'
+  kind: constraint
+  text: No passwords or card secrets through models.
+  acceptance: Gateway rejects password/card-like arguments; redaction catches leaks.
+  originalIds:
+  - SPEC-4.payments-isolated
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/privacy/patterns.ts:53,83 (Luhn card detection)
+  - platform/src/gateway/catalog.ts:42 (forbids server fields only)
+  gap: No structural block of password/card fields in model arguments.
+  remediation: Argument scanner in pipeline.
+  size: S
+  environmentDependency: none
+  workPackage: WP-10
+  provenance:
+    origin: extraction
+- id: FO-05-32
+  section: '5'
+  kind: software
+  text: Provider/practice access requires authoritative active delegation.
+  acceptance: Policy denies without active delegation fact.
+  originalIds:
+  - AUTH-05
+  - SPEC-4.audience-permissions
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - policy/vsp/authz.rego
+  - platform/src/policy/golden-matrix.ts
+  - platform/src/policy/engine.test.ts
+  gap: Facts from fixture directory.
+  remediation: Live directory.
+  size: S
+  environmentDependency: delegation registry (PRQ-007)
+  regressionPackage: WP-19
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-33
+  section: '5'
+  kind: software
+  text: Partners/payers require verified affiliation, contract, purpose and person-level scope.
+  acceptance: Policy denies partner access without all four facts.
+  originalIds:
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/policy/golden-matrix.ts:338-339
+  - policy/vsp/authz_test.rego
+  gap: Fixture facts.
+  remediation: Live registry.
+  size: S
+  environmentDependency: partner contract registry
+  regressionPackage: WP-19
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-34
+  section: '5'
+  kind: constraint
+  text: Benefit sponsorship alone never authorizes an employer to learn treatment status.
+  acceptance: Golden test denies.
+  originalIds:
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - policy/vsp/authz_test.rego:792
+  - platform/src/policy/engine.test.ts:120
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-35
+  section: '5'
+  kind: software
+  text: Minors, guardians and representatives require record-specific current authority; ambiguous rights go to a specialist.
+  acceptance: Policy routes MINOR_CONFIDENTIALITY_REVIEW/CUSTODY_DISPUTE to human review.
+  originalIds:
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/auth.ts:120 (constraints)
+  - policy/vsp/authz_test.rego; platform/src/policy/engine.property.test.ts
+  gap: Fixture facts.
+  remediation: Live registry.
+  size: S
+  environmentDependency: legal authority registry
+  regressionPackage: WP-19
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-36
+  section: '5'
+  kind: constraint
+  text: Never union multiple roles silently.
+  acceptance: Role change drops all privileges.
+  originalIds:
+  - SPEC-4.role-selection
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/session-service.ts:198
+  - platform/src/identity/session-service.test.ts
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-37
+  section: '5'
+  kind: constraint
+  text: Default-deny OPA decisions.
+  acceptance: Default decision denies.
+  originalIds:
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - policy/vsp/authz.rego:675 and policy/vsp/console.rego:240 (default deny)
+  - policy/vsp/authz_test.rego:88 (unknown action is DEFAULT_DENY), policy/vsp/console_test.rego:79 (unknown console action is DEFAULT_DENY)
+  - docs/TEST_EVIDENCE.md:50 (225/225 Rego tests)
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+- id: FO-05-38
+  section: '5'
+  kind: software
+  text: Row/field checks in storage and adapters.
+  acceptance: RLS and field masks enforced.
+  originalIds:
+  - AUTH-02
+  - SPEC-7.data-layer-isolation
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/mask.ts; mask.test.ts (field masks)
+  - platform/src/audit/migration.test.ts:129,139, platform/src/actions/ledger-schema.test.ts:32,48,70, platform/src/outbox/outbox.test.ts:71, platform/src/knowledge/ingest.test.ts:243 (RLS as app_runtime/app_worker roles on PGlite)
+  - platform/src/ops/kill-switches.test.ts:111
+  gap: RLS untested on PostgreSQL server.
+  remediation: PostgreSQL container run.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+- id: FO-05-39
+  section: '5'
+  kind: software
+  text: Separate integration identities per environment and capability.
+  acceptance: Each channel has its own client/scope; environment separated by audience.
+  originalIds:
+  - SPEC-8.service-identities
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/connectors/profile/profile.test.ts [FO-05-39]
+  gap: Not wired into platform/src/config/guard.ts (WP-07).
+  remediation: Live composition.
+  size: S
+  environmentDependency: IdP client credentials per environment
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-05-40
+  section: '5'
+  kind: constraint
+  text: Service-to-service authentication does not authenticate the caller.
+  acceptance: Authenticated integration with A0 session still denied protected reads.
+  originalIds:
+  - AUTH-01
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/pipeline.test.ts:182
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-41
+  section: '5'
+  kind: software
+  text: Workforce SSO/MFA through the existing workforce IdP (authorization code exchange, live staff directory and group-to-role mapping).
+  acceptance: Console sign-in works against a containerised OIDC IdP with MFA amr and mapped roles.
+  originalIds:
+  - SPEC-7.workforce-separation
+  derivedFrom: []
+  capabilityIds:
+  - identity.workforce
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - workforce-sso-adversarial.test.ts K2 and single-factor amr (L2)
+  - sso.test.ts [FO-05-41]
+  gap: Tenant client roles, amr values and the GROUP_PATHS attestation are activation inputs (AIN-13).
+  remediation: Implement exchange, directory, mapping.
+  size: L
+  environmentDependency: PRQ-036
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-05-42
+  section: '5'
+  kind: software
+  text: 'Workforce roles: support agent, supervisor, safety responder, auditor, knowledge editor, policy approver, deployment operator and security administrator, enforced by RBAC.'
+  acceptance: Endpoint role matrix enforced and tested.
+  originalIds:
+  - SPEC-7.workforce-separation
+  derivedFrom: []
+  capabilityIds:
+  - identity.workforce
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/common.ts:46-55 (StaffRole)
+  - platform/src/console-api/contract.ts:347-405 (ENDPOINT_ROLES)
+  - platform/src/console-api/rbac.test.ts
+  gap: Fixture staff directory only.
+  remediation: Live mapping.
+  size: S
+  environmentDependency: role-group mapping from IdP
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-43
+  section: '5'
+  kind: software
+  text: Workforce MFA required.
+  acceptance: Tokens without MFA amr refused.
+  originalIds:
+  - SPEC-7.workforce-separation
+  derivedFrom: []
+  capabilityIds:
+  - identity.workforce
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/auth.ts:36,46-55
+  - platform/src/console-api/auth.test.ts:209
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-44
+  section: '5'
+  kind: constraint
+  text: 'Break-glass enforcement: human-controlled, time-bound, audited, never self-granted and not a tool the model can self-authorize.'
+  acceptance: Expired/self-granted grants denied; no model-facing tool.
+  originalIds:
+  - SPEC-7.workforce-separation
+  derivedFrom: []
+  capabilityIds:
+  - identity.workforce
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/break-glass.ts:1-80
+  - platform/migrations/0900_console.sql:19-66 (approved_by <> staff_id, no delete)
+  - platform/src/policy/console.test.ts
+  gap: None for enforcement.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-05-45
+  section: '5'
+  kind: software
+  text: 'Break-glass issuance: request, independent approval, expiry and post-use review process.'
+  acceptance: Audited issuance workflow writes grants; review task created after use.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - identity.workforce
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - break-glass.test.ts [FO-05-45]
+  - test/integration/identity/break-glass.test.ts (L2)
+  gap: No software gap.
+  remediation: Issuance workflow with human task review.
+  size: M
+  environmentDependency: security approver roster
+  regressionPackage: WP-05
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-05-46
+  section: '5'
+  kind: software
+  text: Keep recording consent, transcription/AI processing permission, support purpose, data disclosure authority, notification subscription and marketing consent distinct.
+  acceptance: Consent model has six independent dimensions enforced at their use points.
+  originalIds:
+  - DATA-03
+  - SPEC-6.consent-before-recording
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/protocol/common.ts:111-122 (ConsentState: recording, automatedProcessing only)'
+  gap: Four dimensions absent.
+  remediation: Extend consent model and enforcement.
+  size: M
+  environmentDependency: counsel definitions
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-05-47
+  section: '5'
+  kind: software
+  text: Explicit opt-out, unknown, expired and affirmative permission are separate states.
+  acceptance: Consent values include EXPIRED with expiry evaluation.
+  originalIds:
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/common.ts:111 (GRANTED, DECLINED, UNKNOWN, NOT_REQUIRED; no EXPIRED)
+  gap: No expired state or expiry time.
+  remediation: Add EXPIRED and expiresAt.
+  size: S
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-05-48
+  section: '5'
+  kind: software
+  text: Revocation propagation to sessions.
+  acceptance: Revocation bumps generation and invalidates pending actions.
+  originalIds:
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/identity/session-service.test.ts:332
+  - platform/src/actions/action-service.test.ts:214,222 (a session generation change invalidates the pending action at confirmation, and at commit with zero provider calls)
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-22
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 4 (wave B1 ledger job): citation corrected: the generation-change invalidation is exercised in action-service.test.ts, not in action-service.invalidation.test.ts (barge-in and supersede); status unchanged'
+- id: FO-05-49
+  section: '5'
+  kind: software
+  text: Revocation propagation to caches.
+  acceptance: Caches cannot serve data after revocation (tests).
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/support-record-cache.ts:17-18 (cache below authorization; 60 s max TTL)
+  gap: No subject-level purge on consent revocation.
+  remediation: Purge on revocation events.
+  size: S
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-05-50
+  section: '5'
+  kind: software
+  text: Revocation propagation to memory.
+  acceptance: Consent/authority revocation suppresses or purges memory recap (test).
+  originalIds:
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/support-memory.ts (no revocation handling)
+  gap: Absent.
+  remediation: 'On a consent or authority revocation event, run SupportMemoryPg.suppressSubject(tenantId, subjectId, reason): set suppressed_at, exclude suppressed rows from recall (RLS policy or view) and delete them in the next retention batch. Wire it to the revocation propagation path used for sessions. Test: a recap is unavailable immediately after revocation and the row is purged by the retention job.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-05-51
+  section: '5'
+  kind: software
+  text: Revocation propagation to pending work.
+  acceptance: Pending durable work rechecks consent/authority before disclosure or change.
+  originalIds:
+  - SPEC-9.recheck
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/recheck.ts:20-28 (consent registry current record wins)
+  - platform/src/business/fixtures/recheck.fixture.ts:57 (LocalConsentRegistryFixture)
+  gap: Consent registry fixture-only; no push propagation.
+  remediation: Live registry plus revocation events.
+  size: M
+  environmentDependency: live consent registry
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-05-52
+  section: '5'
+  kind: software
+  text: Live consent registry adapter.
+  acceptance: ConsentRegistry connector reads authoritative consent over its protocol (emulator test).
+  originalIds:
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/fixtures/recheck.fixture.ts:57 (only implementation)
+  gap: Absent.
+  remediation: Add a ConsentRegistry live connector (platform/src/business/recheck.ts:72 port) built on the connector framework (REST with OAuth2 client credentials; mapping of the tenant consent API to the six consent dimensions and EXPIRED). Include an emulator in docker-compose and a contract test for current-record-wins, expiry and outage fail-closed. Register it in the live composition.
+  size: M
+  environmentDependency: tenant consent system
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-05-53
+  section: '5'
+  kind: software
+  text: Live identity directory adapter.
+  acceptance: IdentityDirectory connector over SCIM/REST with exact-match semantics (emulator test).
+  originalIds:
+  - AUTH-01
+  - SPEC-7.anti-enumeration
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/local/identity-directory.ts:85 (only implementation)
+  gap: Absent.
+  remediation: Add an IdentityDirectory live connector (platform/src/adapters/ports.ts:39) over SCIM 2.0 or tenant REST with exact-match lookup only, minimal attributes, registered-channel retrieval and no account-existence leakage in errors. Include an emulator and contract tests mirroring LocalIdentityDirectoryFixture's behaviour (outage, ambiguous match, recent channel change).
+  size: M
+  environmentDependency: PRQ-005
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-05-54
+  section: '5'
+  kind: software
+  text: Live notification sender for secure links and OTP to registered channels.
+  acceptance: NotificationSender connector (e.g. SNS/Twilio/SMTP) with templates and idempotency (emulator test), disabled by default.
+  originalIds:
+  - SPEC-9.notifications
+  derivedFrom: []
+  capabilityIds:
+  - notifications.messaging
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/local/notification-fixture.ts:83 (only implementation)
+  - platform/src/ops/notification-gate.ts:67 (kill-switch wrapper)
+  gap: Absent.
+  remediation: 'Add NotificationSender live connectors (platform/src/adapters/ports.ts:71): Amazon SNS/Pinpoint SMS and SMTP or SES email with approved templates, provider idempotency keys and delivery-receipt ingestion, wrapped by KillSwitchGatedNotificationSender and disabled by default (no billable send without approval). Contract tests against LocalStack SNS/SES or MailHog, including revocation recheck at send time.'
+  size: M
+  environmentDependency: notification provider, approval
+  workPackage: WP-27
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-05-55
+  section: '5'
+  kind: software
+  text: Live relationship/delegation registry adapter.
+  acceptance: RelationshipDirectory connector returns authoritative facts (emulator test).
+  originalIds:
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/adapters/live/business-systems-blocked.ts:123 (RelationshipDirectoryLiveBlocked)
+  gap: BLOCKED stub.
+  remediation: Replace RelationshipDirectoryLiveBlocked (business-systems-blocked.ts:123) with a connector-framework adapter (REST or FHIR PractitionerRole/RelatedPerson) that returns RelationshipFact with source, validUntil and constraints. Include an emulator, rerun the same golden policy matrix with facts from the emulator, and add outage fail-closed tests.
+  size: M
+  environmentDependency: PRQ-007
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-05-56
+  section: '5'
+  kind: software
+  text: 'Separate outbound integration identities per environment and per capability: each connector capability (for example case read, case write, scheduling commit, notification send) uses its own least-privilege credential and client, and no credential is shared across environments or capabilities.'
+  acceptance: ConnectorProfile declares one credentialRef per capability. The guard rejects a credentialRef reused across capabilities, across connectors, or by another environment's committed configuration. Connector contract tests show a read-only credential cannot call a write endpoint on the emulator.
+  originalIds:
+  - SPEC-8.service-identities
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/connectors/runtime/connector.test.ts [FO-05-56]
+  - runtime.test.ts [FO-05-56]
+  gap: The guard rule is not called from config/guard.ts and the Salesforce credentials are not split (WP-07).
+  remediation: Model capability-scoped credentials in ConnectorProfile (FO-04-34). Add guard rules CREDENTIAL_REUSED_ACROSS_CAPABILITIES and CREDENTIAL_REUSED_ACROSS_ENVIRONMENTS, the latter by comparing committed platform/config/*.json. Split SalesforceRestSupportRecords credentials into read and upsert clients and add an emulator test that a read-scoped token is refused on upsert.
+  size: M
+  environmentDependency: per-capability integration users or clients from each system owner (activation register)
+  workPackage: WP-06
+  provenance:
+    origin: challenge-missed
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: MISSING
+      to: IMPLEMENTED

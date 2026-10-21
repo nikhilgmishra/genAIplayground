@@ -37,6 +37,7 @@ import type { LocalConsole } from "../../src/main/console.js";
 import { buildContainer } from "../../src/main/container.js";
 import type { Container } from "../../src/main/container.js";
 import { createMemoryLogger } from "../../src/observability/logger.js";
+import type { LogRecord } from "../../src/observability/logger.js";
 import type { AuditEvent, Role, SpeechDirective } from "../../src/protocol/index.js";
 import { FakeClock } from "../../src/shared/clock.js";
 import { newId } from "../../src/shared/ids.js";
@@ -72,6 +73,11 @@ export interface JourneyHarness {
   clock: FakeClock;
   mcpUrl: URL;
   loops: Map<string, WorkerLoop>;
+  /**
+   * Every structured log record the container wrote (the memory logger it was built with): backend evidence
+   * that is independent of the tool results, e.g. the policy engine's fail-closed line for a fault test.
+   */
+  logs: readonly LogRecord[];
   /** Runs the named worker loops once each, in order (default: the full delivery pipeline). */
   runWorker(names?: readonly string[], rounds?: number): Promise<void>;
   call(callId?: string): JourneyCall;
@@ -98,12 +104,13 @@ const DEFAULT_LOOPS = ["outbox.dispatch", "outbox.consume", "actions.reconcile",
 
 export async function createJourneyHarness(opts: { start?: string; ingestKnowledge?: boolean } = {}): Promise<JourneyHarness> {
   const clock = new FakeClock(opts.start ?? JOURNEY_START);
+  const memoryLog = createMemoryLogger();
   const c = await buildContainer({
     environment: "local",
     buildBusiness,
     clock,
     env: {},
-    logger: createMemoryLogger().logger,
+    logger: memoryLog.logger,
     rateLimit: null,
     ingestKnowledge: opts.ingestKnowledge ?? true,
     instanceId: "journey-test-1",
@@ -124,6 +131,7 @@ export async function createJourneyHarness(opts: { start?: string; ingestKnowled
     clock,
     mcpUrl,
     loops,
+    logs: memoryLog.records,
     async runWorker(names = DEFAULT_LOOPS, rounds = 1) {
       for (let r = 0; r < rounds; r++) {
         for (const n of names) {

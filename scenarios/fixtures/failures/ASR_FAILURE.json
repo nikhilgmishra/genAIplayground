@@ -1,0 +1,72 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "ASR_FAILURE",
+  "version": 1,
+  "title": "Speech recognition fails or returns no partials",
+  "description": "The ASR sidecar or managed ASR stops returning partial results or fails; safety signals must still be routable and the caller must reach a person.",
+  "category": "media",
+  "target": {
+    "components": [
+      "media/src/speech",
+      "platform/src/safety"
+    ],
+    "dependency": "asr"
+  },
+  "trigger": {
+    "kind": "AT_TURN",
+    "tool": null,
+    "turnIndex": 1,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "ASR_FAILURE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    },
+    {
+      "check": "transfer_fallback_or_connected",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller is asked to repeat once and then connected to a person; DTMF safety and human options stay available.",
+  "backendEvidence": [
+    "ASR failure recorded on the turn",
+    "Fallback route invoked"
+  ],
+  "requirementIds": [
+    "SPEC-10.safety-signals",
+    "SAFE-02"
+  ],
+  "appliesToIntents": [
+    "safety_disclosure_self",
+    "human_request"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:ASR_FAILURE] owned by WP-15 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.ASR_FAILURE",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the ASR sidecar or managed ASR fails or returns no partials",
+    "injectionPointPackages": [
+      "WP-13"
+    ],
+    "postconditionPackages": [
+      "WP-15"
+    ],
+    "layer2Owner": "WP-15",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "Safety and human routes do not depend on ASR",
+    "The caller reaches a person",
+    "No protected action proceeds on missing recognition"
+  ]
+}

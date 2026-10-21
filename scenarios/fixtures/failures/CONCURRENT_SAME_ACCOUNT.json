@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "CONCURRENT_SAME_ACCOUNT",
-  "version": 1,
+  "version": 2,
   "title": "Two concurrent calls change the same appointment",
   "description": "A second synthetic call for the same account prepares and commits a change to the same appointment version while the first call is waiting for confirmation.",
   "category": "concurrency",
@@ -62,5 +62,40 @@
     "appointment_reschedule",
     "appointment_cancel"
   ],
-  "notes": "RESOLVED is acceptable only for a commit that re-prepared against the current version and was freshly confirmed."
+  "notes": "RESOLVED is acceptable only for a commit that re-prepared against the current version and was freshly confirmed.",
+  "registry": {
+    "requirementId": "FO-17-24.CONCURRENT_SAME_ACCOUNT",
+    "origin": "registry",
+    "injectionPoint": "a second call commits to the same record while the first awaits confirmation (two gateway sessions on two postgres:16 connections with the WP-04 race helper, against the WP-23 reference business API; never PGlite)",
+    "injectionPointPackages": [
+      "WP-04",
+      "WP-23"
+    ],
+    "postconditionPackages": [
+      "WP-23",
+      "WP-25"
+    ],
+    "layer2Owner": "WP-25",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "tool_response",
+      "tools": [
+        "commit_appointment_change"
+      ],
+      "statuses": [
+        "PERMANENT_FAILURE"
+      ],
+      "reasonCodes": [
+        "STATE_CHANGED"
+      ],
+      "sessionStates": null
+    }
+  ],
+  "postconditions": [
+    "The stale commit is refused STATE_CHANGED on the before-state version (optimistic concurrency)",
+    "Exactly one effect on the appointment; any later commit is bound to a freshly prepared and confirmed action",
+    "Both attempts have audit events"
+  ]
 }

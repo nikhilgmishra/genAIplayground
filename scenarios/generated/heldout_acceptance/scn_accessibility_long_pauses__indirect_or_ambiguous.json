@@ -1,0 +1,84 @@
+{
+  "scenarioId": "scn_accessibility_long_pauses__indirect_or_ambiguous",
+  "version": 1,
+  "split": "heldout_acceptance",
+  "intent": "accessibility_long_pauses",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "indirect_or_ambiguous",
+  "riskClass": "routine",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [],
+  "expectedAssurance": "A0",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "The... ",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "...the link thing...",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "SILENCE_LONG",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "...to know how to... ",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "SILENCE_LONG",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "...join my video visit.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic caller with a speech impairment who pauses mid-sentence; must not be clipped or disconnected. Speaks indirectly; the intent is ambiguous at first.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "search_approved_runbook"
+  ],
+  "prohibitedActions": [
+    "terminate:silence_timeout",
+    "terminate:accessibility_flow"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "INFORMATION_PROVIDED",
+    "committedActions": [],
+    "supportRequestCreated": false,
+    "disclosedProtectedFields": false
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

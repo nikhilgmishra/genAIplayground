@@ -100,6 +100,15 @@ coordinator:
     - "Caller-facing protected facts come only from gateway SpeechDirective templates (ACT-05)."
     - "On 'agent', 'person', '0' or any request for a human: request_human_transfer, then HUMAN_REQUESTED exit."
     - "On any possible safety concern: request_safety_route, then SAFETY_ROUTE exit; no authentication."
+  # DOCUMENTATION GAP (open, not an instruction): nothing here says how an agent answers a tool result
+  # POLICY_DENIED with a SESSION_* reason (SESSION_EXPIRED, SESSION_ENDED, SESSION_CALL_MISMATCH), as after a
+  # mid-call session expiry or an Auth Gate value that presents another call's session. Today the route is
+  # decided only by studio-flow-spec.md SF-11c (any verification failure -> SF-13 VERIFICATION_RECOVERY) and
+  # SF-12 step 3 (expired action -> no confirmation, SF-13), and in the local evaluation harness by the
+  # simulated coordinator (platform/src/evaluation/driver/coordinator.ts); the corpus expectations
+  # (journey 1 AUTH_EXPIRY_MID_CALL, risk auth_gate_string_values 027-032) rest on SF-11c. The agent
+  # configuration owner records the instruction (with the VERIFICATION_REQUIRED exit as the alternative)
+  # when this specification is approved; it does not block the gateway, which fails closed either way (AUTH-04).
   # Public, account-free answers only (A0). Case follow-up belongs to vsp_intake.
   allowedTools:
     - { name: search_approved_runbook, version: "1.0.0" }

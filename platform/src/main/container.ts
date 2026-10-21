@@ -19,11 +19,10 @@
  * pinned catalogue (must equal schemas/tools/catalog.json), the ToolPipeline and
  * the gateway Fastify app with LOCAL FIXTURE integration tokens.
  *
- * sandbox / staging / production: after the guard, the live composition is
- * refused (LIVE_COMPOSITION_NOT_IMPLEMENTED): live database/session-store/
- * queue/audit-sink wiring, live business adapters and JWKS-backed inbound
- * authentication are not connected here (BLOCKED on the prerequisites listed
- * in the README). Nothing is simulated in their place.
+ * This is the REGRESSION composition (FO-00-36, FO-22-21): the offline slice is no longer the delivery
+ * endpoint but the environment every regression suite runs against. sandbox / staging / production are
+ * composed from real adapters by buildLiveContainer (live-container.ts); here they are refused after the
+ * guard (REGRESSION_COMPOSITION_OFFLINE_ONLY), so a deployed environment can never fall back to fixtures.
  */
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -37,7 +36,6 @@ import type { LocalFixtureSet } from "../adapters/local/fixture-set.js";
 import { LocalIdentityDirectoryFixture } from "../adapters/local/identity-directory.js";
 import { NotificationFixture } from "../adapters/local/notification-fixture.js";
 import { LocalOidcProviderFixture, LocalOidcVerifierFixture } from "../adapters/local/oidc-fixture.js";
-import { createBlockedLiveRegistry } from "../adapters/live/blocked-set.js";
 import type { AdapterRegistry } from "../adapters/registry.js";
 import { DeferredAuditQueue } from "../audit/deferred.js";
 import { PgAuditHealth } from "../audit/health.js";
@@ -85,7 +83,8 @@ import type { KnowledgeItemInput } from "../knowledge/ports.js";
 import { KnowledgeServicePg } from "../knowledge/service.js";
 import { SupportMemoryPg } from "../memory/support-memory.js";
 import { createLogger } from "../observability/logger.js";
-import { InMemoryMetrics, createMetricCatalogue } from "../observability/metrics.js";
+import { createPlatformMetricCatalogue } from "../observability/catalog/index.js";
+import { InMemoryMetrics } from "../observability/metrics.js";
 import type { Logger } from "../observability/ports.js";
 import { createOpsServices } from "../ops/compose.js";
 import { KillSwitchGatedNotificationSender } from "../ops/notification-gate.js";
@@ -123,7 +122,6 @@ import { createDefaultRegistry } from "../workflows/registry.js";
 import { MemoryTransferStore, TransferCoordinator } from "../workflows/transfer.js";
 
 export const LOCAL_CONTAINER_LABEL = "LOCAL FIXTURE COMPOSITION — SYNTHETIC DATA ONLY — NOT A PRODUCTION DEPLOYMENT";
-
 /** Runtime components that are not business adapters but are reported to the guard (OPS-04). */
 export const RUNTIME_COMPONENTS = ["session-store", "transfer-store", "outbox-publisher", "audit-sink", "integration-auth", "interaction-lookup", "metrics-sink"] as const;
 
@@ -237,8 +235,8 @@ const OFFLINE: readonly Environment[] = ["local", "ci"];
 /** Policy bundle for the guard: built from sources offline; only the pre-built bundle elsewhere (null if unreadable). */
 async function loadPolicyForGuard(environment: Environment, clock: Clock, logger: Logger): Promise<OpaWasmPolicyEngine | null> {
   try {
-    if (OFFLINE.includes(environment)) return await OpaWasmPolicyEngine.load({ bundleDir: ensurePolicyBundle().bundleDir, clock, logger });
-    return await OpaWasmPolicyEngine.load({ clock, logger });
+    if (OFFLINE.includes(environment)) return await OpaWasmPolicyEngine.load({ bundleDir: ensurePolicyBundle().bundleDir, clock, logger, environment });
+    return await OpaWasmPolicyEngine.load({ clock, logger, environment });
   } catch {
     return null;
   }
@@ -250,11 +248,6 @@ function committedCatalogDigest(): string | null {
   } catch {
     return null;
   }
-}
-
-/** What a non-offline process would instantiate today: BLOCKED live stubs for business systems and Talkdesk. */
-function plannedLiveKinds(): Record<string, "local_fixture" | "live"> {
-  return createBlockedLiveRegistry().kinds();
 }
 
 /**
@@ -287,7 +280,8 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
     : {};
   const runtimeKinds: Record<string, "local_fixture" | "live"> = offline ? Object.fromEntries(RUNTIME_COMPONENTS.map((c) => [c, "local_fixture" as const])) : {};
   // Offline: exactly the components wired below (fixture set + identity fixtures + runtime fixtures).
-  const adapterKinds = offline ? { ...plannedOfflineKinds(), ...identityKinds, ...runtimeKinds } : plannedLiveKinds();
+  // Outside local/ci this composition instantiates nothing (it is refused below), so it reports no component.
+  const adapterKinds = offline ? { ...plannedOfflineKinds(), ...identityKinds, ...runtimeKinds } : {};
   const deployable = await loadDeployableConfig({
     environment,
     clock,
@@ -305,13 +299,12 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
   // is checked against the egress allowlist before anything is constructed.
   const egressReport = checkStartupEgress({ environment, policy: opts.egressPolicy ?? null, targets: egressTargetsFor(config, opts.telemetryExports ?? []) });
 
-  if (!offline || !policy) {
-    const reasons = ["LIVE_COMPOSITION_NOT_IMPLEMENTED@runtime", ...egressReport.violations];
-    if (!policy) reasons.push("POLICY_BUNDLE_NOT_LOADED@policy.bundlePath");
-    if (!gatewayConfig?.inboundAuth) reasons.push("GATEWAY_INBOUND_AUTH_NOT_CONFIGURED@gateway.inboundAuth");
-    bootLogger.error("container.refused", { environment, reasonCode: "LIVE_COMPOSITION_NOT_IMPLEMENTED" });
-    throw new ConfigurationRejectedError(reasons);
+  if (!offline) {
+    // Deployed environments are composed by buildLiveContainer; the regression composition never serves them.
+    bootLogger.error("container.refused", { environment, reasonCode: "REGRESSION_COMPOSITION_OFFLINE_ONLY" });
+    throw new ConfigurationRejectedError(["REGRESSION_COMPOSITION_OFFLINE_ONLY@environment", ...egressReport.violations]);
   }
+  if (!policy) throw new ConfigurationRejectedError(["POLICY_BUNDLE_NOT_LOADED@policy.bundlePath"]);
   if (config.toolCatalog.expectedDigest && pinnedDigest !== config.toolCatalog.expectedDigest) {
     throw new ConfigurationRejectedError(["TOOL_CATALOG_DIGEST_MISMATCH@toolCatalog.expectedDigest"]);
   }
@@ -321,8 +314,10 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
   const logger = bootLogger.child({ component: "container" });
   const tenantId = config.tenantId;
   const tenantIds = [tenantId];
+  // The composed catalogue (base plus every module fragment), as in the live composition: a metric a module
+  // fragment declares (substrate, connectors, composition: outbox publish failures) is recorded here too.
   const metrics = new InMemoryMetrics({
-    catalogue: createMetricCatalogue({ toolNames: [...new Set([...(opts.metricToolNames ?? []), ...pinnedNamesOrEmpty()])] }),
+    catalogue: createPlatformMetricCatalogue({ toolNames: [...new Set([...(opts.metricToolNames ?? []), ...pinnedNamesOrEmpty()])] }),
     unknownMetric: "drop",
   });
   const db = await PgliteDb.create();
@@ -350,6 +345,9 @@ export async function buildContainer(opts: ContainerOptions): Promise<Container>
       directory,
       oidc,
       notifications: gatedNotifications,
+      // OPS-KS-01 (caller-facing): the same snapshot reader as the gated sender, so every verification begin
+      // answers the human route, before any account lookup, while notifications are switched off.
+      notificationSwitches: () => ops.killSwitches.snapshot(tenantId),
       clock,
       logger,
       metrics,

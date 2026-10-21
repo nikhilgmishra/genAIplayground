@@ -6,9 +6,10 @@
  * audit outage, ...) to a journey. Everything is SYNTHETIC and UNREVIEWED.
  *
  * The generator (generate.ts) writes these to scenarios/journeys/ and
- * scenarios/journeys/faulted/. Journeys belong to the development split: they
- * are demonstrated during development and therefore cannot serve as held-out
- * acceptance evidence.
+ * scenarios/journeys/faulted/. Journeys and their intents belong to the
+ * regression split (split.ts, family-split.v2): they are demonstrated and
+ * inspected on every change, so neither they nor any variant of their intents
+ * can serve as held-out acceptance or tuning evidence.
  */
 import type { ScenarioDefinition, ScenarioTurn } from "../protocol/index.js";
 
@@ -24,7 +25,7 @@ type JourneyInput = Omit<ScenarioDefinition, "version" | "split" | "review" | "c
 const journey = (j: JourneyInput): ScenarioDefinition => ({
   scenarioId: j.scenarioId,
   version: 1,
-  split: "development",
+  split: "regression",
   intent: j.intent,
   audience: j.audience,
   locale: j.locale,
@@ -257,7 +258,8 @@ export const JOURNEYS: readonly ScenarioDefinition[] = [
 interface FaultedJourney {
   journeyId: string;
   fault: string;
-  override: Partial<Pick<ScenarioDefinition, "script" | "expectedToolSequence" | "requiredHandoff" | "expectedFinalState" | "stopCondition" | "persona">>;
+  /** `version` is bumped whenever a faulted journey's script or expectations change (results are keyed by scenario ID/version). */
+  override: Partial<Pick<ScenarioDefinition, "version" | "script" | "expectedToolSequence" | "requiredHandoff" | "expectedFinalState" | "stopCondition" | "persona">>;
 }
 
 const J1 = "scn_journey_1_client_reschedule_conflict";
@@ -270,9 +272,35 @@ const FAULTED: readonly FaultedJourney[] = [
   {
     journeyId: J1,
     fault: "AUTH_EXPIRY_MID_CALL",
+    // The session reaches its expiry between prepare and commit (TTL cleanup not run): the gateway refuses the
+    // commit SESSION_EXPIRED (AUTH-04), nothing commits, and the caller is routed to re-verification by a person.
+    // The expected route is decided by repository-derived sources, not by the master specification (which
+    // requires the fail-closed refusal, AUTH-04, and an accurate outcome label): talkdesk/studio-flow-spec.md
+    // SF-11c (any verification failure -> SF-13 VERIFICATION_RECOVERY), SF-12 step 3 (an expired action gets
+    // no confirmation -> SF-13) and SF-11a (timeout -> offer a human), and the fault plan
+    // scenarios/fixtures/failures/AUTH_EXPIRY_MID_CALL.json (outcome_in admits TRANSFERRED; callerVisible
+    // "offered re-verification or a person"). The commit never reaches the slot conflict, so the
+    // conflict-only turn and its second confirmation are dropped. These expectations cover tools, backend
+    // state and outcome; whether the caller hears the re-verification / person notice after the denial is a
+    // harness matter (the local coordinator and Studio's SF-13 prompt), so a PASS here does not by itself show
+    // the plan's callerVisible text. Version 2: until 2026-10-18 this journey expected a policy decline with
+    // no commit attempt and no transfer.
     override: {
-      expectedToolSequence: ["begin_verification", "get_appointment_options", "prepare_appointment_change"],
-      expectedFinalState: { outcome: "DECLINED_BY_POLICY", committedActions: [], supportRequestCreated: null, disclosedProtectedFields: true },
+      version: 2,
+      script: [
+        say("I need to move my appointment next week."),
+        ev("VERIFICATION_SECURE_LINK_APPROVED"),
+        say("Friday afternoon, the first option please."),
+        ev("STEP_UP_APPROVED"),
+        ev("CONFIRMATION_CAPTURED", "1"),
+        ev("CALL_END"),
+      ],
+      expectedToolSequence: ["begin_verification", "get_appointment_options", "prepare_appointment_change", "commit_appointment_change", "request_human_transfer"],
+      requiredHandoff: "STANDARD_HUMAN",
+      expectedFinalState: { outcome: "TRANSFERRED", committedActions: [], supportRequestCreated: null, disclosedProtectedFields: true },
+      stopCondition: "TRANSFER_CONNECTED",
+      persona:
+        "Journey 1 with the session expiring between prepare and commit (TTL cleanup not run): the commit is refused SESSION_EXPIRED, nothing commits, and the caller is routed to re-verification by a person. Fault injected: AUTH_EXPIRY_MID_CALL.",
     },
   },
   {
@@ -354,3 +382,6 @@ export const REQUIRED_JOURNEY_FAULTS = [
   "TRANSFER_FAILED",
   "AUDIT_OUTAGE",
 ] as const;
+
+/** Intents with a demonstration journey: their whole family is the regression split (split.ts familySplit). */
+export const JOURNEY_INTENTS: ReadonlySet<string> = new Set(JOURNEYS.map((j) => j.intent));

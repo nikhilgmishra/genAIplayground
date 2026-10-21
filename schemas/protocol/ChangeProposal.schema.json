@@ -1,0 +1,327 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ChangeProposal.json",
+  "title": "ChangeProposal",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "change-proposal.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "actorRef": "authoredBy.ref",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "versions": "changes",
+    "provenance": "evidenceRefs"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "change-proposal.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "proposalId": {
+      "type": "string",
+      "pattern": "^chp_[A-Za-z0-9_-]{16,64}$"
+    },
+    "authoredBy": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "optimizer",
+            "staff"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{1,11}_[A-Za-z0-9_-]{8,64}$"
+        }
+      },
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "additionalProperties": false
+    },
+    "evidenceRefs": {
+      "minItems": 1,
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+      }
+    },
+    "suspectedCause": {
+      "type": "object",
+      "properties": {
+        "statementCode": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "VERIFIED_CAUSE",
+            "HYPOTHESIS"
+          ]
+        },
+        "evidenceRefs": {
+          "maxItems": 16,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+          }
+        }
+      },
+      "required": [
+        "statementCode",
+        "status",
+        "evidenceRefs"
+      ],
+      "additionalProperties": false
+    },
+    "changes": {
+      "minItems": 1,
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": [
+              "PROMPT_TEMPLATE",
+              "KNOWLEDGE_ARTICLE",
+              "MODEL_ROUTE",
+              "RETRIEVAL_TUNING",
+              "ROUTER_CALIBRATION",
+              "TOOL_CONFIGURATION",
+              "TENANT_CONFIGURATION",
+              "POLICY_BUNDLE",
+              "PERMISSION_SET",
+              "FINE_TUNED_ARTIFACT"
+            ]
+          },
+          "targetRef": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:@/-]{3,128}$"
+          },
+          "fromVersion": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+          },
+          "toVersion": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+          },
+          "diffDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "diffRef": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 256,
+            "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+          }
+        },
+        "required": [
+          "target",
+          "targetRef",
+          "fromVersion",
+          "toVersion",
+          "diffDigest",
+          "diffRef"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "affectedCapabilities": {
+      "minItems": 1,
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$"
+      }
+    },
+    "expectedBenefit": {
+      "type": "object",
+      "properties": {
+        "metric": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "INCREASE",
+            "DECREASE"
+          ]
+        },
+        "magnitude": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": -1000000,
+              "maximum": 1000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "metric",
+        "direction",
+        "magnitude"
+      ],
+      "additionalProperties": false
+    },
+    "risks": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+      }
+    },
+    "tests": {
+      "minItems": 1,
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "suiteRef": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.:/-]{2,128}$"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "NOT_RUN",
+              "FAIL",
+              "INCONCLUSIVE",
+              "PASS"
+            ]
+          }
+        },
+        "required": [
+          "suiteRef",
+          "required",
+          "result"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "properties": {
+        "targetVersion": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "procedureRef": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+        }
+      },
+      "required": [
+        "targetVersion",
+        "procedureRef"
+      ],
+      "additionalProperties": false
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "EVALUATING",
+        "IN_REVIEW",
+        "APPROVED_FOR_CANARY",
+        "CANARY",
+        "PROMOTED",
+        "ROLLED_BACK",
+        "REJECTED"
+      ]
+    },
+    "reviewRefs": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^rvw_[A-Za-z0-9_-]{16,64}$"
+      }
+    },
+    "governanceReviewRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^rvw_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "heldOutFeedbackUsed": {
+      "type": "boolean",
+      "const": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "occurredAt",
+    "causationId",
+    "proposalId",
+    "authoredBy",
+    "evidenceRefs",
+    "suspectedCause",
+    "changes",
+    "affectedCapabilities",
+    "expectedBenefit",
+    "risks",
+    "tests",
+    "rollback",
+    "state",
+    "reviewRefs",
+    "governanceReviewRef",
+    "heldOutFeedbackUsed"
+  ],
+  "additionalProperties": false
+}

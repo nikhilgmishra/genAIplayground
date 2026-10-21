@@ -8,8 +8,10 @@
  *   stateless) handle exactly one HTTP request; no MCP transport session exists,
  *   so `Mcp-Session-Id` is never authority and never resolves an AuthContext.
  * - tools/list serves exactly the pinned catalogue (name, description, input
- *   JSON Schema, version and catalogue digest in `_meta`); nothing can be
- *   registered at runtime. No resources, prompts, sampling or logging capability.
+ *   JSON Schema, version, catalogue digest, safety class and idempotency mechanism
+ *   in `_meta`, and MCP tool annotations derived from the pinned definition, see
+ *   `mcpAnnotationsFor`); nothing can be registered at runtime. No resources,
+ *   prompts, sampling or logging capability.
  * - tools/call maps the name to its single pinned version and goes through the
  *   ToolPipeline. The caller session comes ONLY from the trusted transport
  *   binding headers (X-VSP-Session-Ref / X-VSP-Interaction-Id), never from MCP
@@ -31,7 +33,7 @@ import { z } from "zod";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import type { IntegrationIdentity } from "../protocol/index.js";
+import type { IntegrationIdentity, ToolDefinition } from "../protocol/index.js";
 import type { Logger } from "../observability/ports.js";
 import type { PinnedCatalog } from "./catalog.js";
 import type { ToolPipeline } from "./pipeline.js";
@@ -58,19 +60,70 @@ export interface McpAdapterDeps {
   logger: Logger;
 }
 
+export interface McpToolAnnotations {
+  readOnlyHint: boolean;
+  destructiveHint: boolean;
+  idempotentHint: boolean;
+  openWorldHint: boolean;
+}
+
+/**
+ * Intakes whose call can retire existing state instead of only adding records: a `begin_verification`
+ * by ONE_TIME_CODE makes its new challenge the call's only outstanding one, so the code sent earlier on
+ * the call stops working (`OTP_CHALLENGE_SUPERSEDED`, AUTH-OTP-LIMIT-01). The other intakes only insert
+ * (a new support request, complaint or partner intake; `on conflict do nothing`).
+ */
+const SUPERSEDING_INTAKES: ReadonlySet<string> = new Set(["begin_verification"]);
+
+/**
+ * MCP `ToolAnnotations` for a pinned definition. They are hints for the client only; the pipeline
+ * enforces everything regardless. Meanings (MCP specification, ToolAnnotations):
+ *  - readOnlyHint: the tool does not modify its environment (PUBLIC_READ, PROTECTED_READ).
+ *  - destructiveHint (meaningful when not read-only; the MCP default is true): false claims the tool
+ *    performs ONLY additive updates, so it is false only where that holds. True for COMMIT_MUTATION (an
+ *    appointment change replaces the booked time; a billing review changes the invoice's state), for
+ *    PREPARE_MUTATION (a new prepared action supersedes the session's earlier PREPARED / CONFIRMED actions
+ *    on the same record, which become INVALIDATED and can no longer be confirmed or committed; an in-doubt
+ *    one gets a durable invalidation request, ACT-01 / ACT-F1) and for the SUPERSEDING_INTAKES above.
+ *    False for the insert-only intakes and for the safety / human routes: a route writes a new handoff,
+ *    and the only existing state it changes is protective (it revokes UNCOMMITTED prepared actions and
+ *    re-applies the session escalation); it is deliberately never marked destructive, so a client never
+ *    holds it behind a confirmation (SAFE-03).
+ *  - idempotentHint (meaningful when not read-only): calling again with the SAME ARGUMENTS has no
+ *    additional effect. The idempotency key is NOT an argument: it travels in the `Idempotency-Key`
+ *    header or MCP `_meta.idempotencyKey`, and the replay protection (and the intake creation key, ACT-F2)
+ *    hangs on it. A repeat with the same arguments but no key or a new key (e.g. after UNKNOWN_OUTCOME)
+ *    creates a second support request, prepared action or verification transaction, so every
+ *    IDEMPOTENCY_KEY_REQUIRED tool is false. The safety and human routes are false too: a repeated
+ *    request returns the active journey instead of dialling twice, but it can write another handoff
+ *    record (human) or record another incident and re-apply the session escalation (safety). Only reads
+ *    and PREPARED_ACTION_DIGEST commits are true: the arguments ARE the action id and digest, and the
+ *    action ledger replays the stored receipt instead of committing twice (ACT-02).
+ *  - openWorldHint: false. Every tool acts only on the enumerated, allowlisted systems of this platform.
+ */
+export function mcpAnnotationsFor(d: Pick<ToolDefinition, "name" | "safetyClass" | "idempotency">): McpToolAnnotations {
+  const readOnly = d.safetyClass === "PUBLIC_READ" || d.safetyClass === "PROTECTED_READ";
+  return {
+    readOnlyHint: readOnly,
+    destructiveHint: d.safetyClass === "COMMIT_MUTATION" || d.safetyClass === "PREPARE_MUTATION" || (d.safetyClass === "INTAKE" && SUPERSEDING_INTAKES.has(d.name)),
+    idempotentHint: readOnly || d.idempotency === "PREPARED_ACTION_DIGEST",
+    openWorldHint: false,
+  };
+}
+
 /** The MCP Tool list derived from the pinned catalogue (exactly these, no dynamic registration). */
-export function mcpToolList(catalog: PinnedCatalog): { name: string; description: string; inputSchema: Record<string, unknown>; annotations: Record<string, boolean>; _meta: Record<string, string> }[] {
+export function mcpToolList(catalog: PinnedCatalog): { name: string; description: string; inputSchema: Record<string, unknown>; annotations: McpToolAnnotations; _meta: Record<string, string> }[] {
   return catalog.definitions.map((d) => ({
     name: d.name,
     description: d.description,
     inputSchema: d.inputSchema,
-    annotations: {
-      readOnlyHint: d.safetyClass === "PUBLIC_READ" || d.safetyClass === "PROTECTED_READ",
-      destructiveHint: false,
-      idempotentHint: d.idempotency !== "IDEMPOTENCY_KEY_REQUIRED" || d.consequential === false,
-      openWorldHint: false,
-    },
-    _meta: { "vsp/toolVersion": d.version, "vsp/catalogDigest": catalog.digest, "vsp/safetyClass": d.safetyClass },
+    annotations: mcpAnnotationsFor(d),
+    // `vsp/idempotency` is the catalogue's retry mechanism, not the MCP idempotentHint: IDEMPOTENCY_KEY_REQUIRED
+    // means a retry must carry the SAME key (Idempotency-Key header or `_meta.idempotencyKey`);
+    // NATURALLY_IDEMPOTENT means no key is needed (a read; a repeated safety / human route returns the active
+    // journey instead of dialling twice, although it can still write another handoff record or incident, which
+    // is why its idempotentHint is false); PREPARED_ACTION_DIGEST means the arguments bind the retry.
+    _meta: { "vsp/toolVersion": d.version, "vsp/catalogDigest": catalog.digest, "vsp/safetyClass": d.safetyClass, "vsp/idempotency": d.idempotency },
   }));
 }
 

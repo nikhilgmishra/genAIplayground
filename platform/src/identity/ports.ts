@@ -80,6 +80,16 @@ export interface SessionService {
 /** Generic responses prevent account enumeration: zero, one or many matches look identical. */
 export type GenericVerificationResponse = "IF_ELIGIBLE_A_LINK_WAS_SENT" | "IF_ELIGIBLE_A_CODE_WAS_SENT" | "VERIFICATION_UNAVAILABLE_USE_HUMAN";
 
+/**
+ * Added (additive, OPS-KS-01 caller-facing follow-up): why a begin answered
+ * `VERIFICATION_UNAVAILABLE_USE_HUMAN` without looking anything up, when the cause is GLOBAL
+ * deployment state that stops every ROUTINE notification: the OUTBOUND_NOTIFICATIONS switch,
+ * the INTEGRATION switch of the notification sender, or an unreadable switch state (fail closed).
+ * It is the same for every caller, so it reveals nothing about any account. Audit evidence only
+ * (the gateway puts it on the begin's audit event); never returned to the caller.
+ */
+export type VerificationUnavailableReason = "KILL_SWITCH_OUTBOUND_NOTIFICATIONS" | "KILL_SWITCH_INTEGRATION" | "KILL_SWITCH_STATE_UNAVAILABLE";
+
 export interface BeginVerificationInput {
   role: Role;
   /** Locates a candidate inside the restricted verification service only; never authenticates. */
@@ -112,16 +122,22 @@ export interface VerificationCompletion {
 }
 
 export interface VerificationService {
-  /** Preferred: short-lived secure link to the pre-registered channel, approved inside an MFA portal session. */
-  beginSecureLink(ctx: AuthContext, input: BeginVerificationInput): Promise<{ transactionId: string; matchCode: string; response: GenericVerificationResponse }>;
+  /**
+   * Preferred: short-lived secure link to the pre-registered channel, approved inside an MFA portal session.
+   * `unavailableReason` is present only when outbound notifications are switched off (see VerificationUnavailableReason).
+   */
+  beginSecureLink(
+    ctx: AuthContext,
+    input: BeginVerificationInput,
+  ): Promise<{ transactionId: string; matchCode: string; response: GenericVerificationResponse; unavailableReason?: VerificationUnavailableReason }>;
   /** Portal callback after OIDC authentication; binds the account to exactly this call session + generation. */
   completeSecureLink(input: { transactionId: string; nonce: string; idToken: string; matchCodeConfirmed: boolean }): Promise<VerificationCompletion>;
   /** Fallback OTP to the existing verified channel only (never a number supplied during the call). */
-  beginOtp(ctx: AuthContext, input: BeginVerificationInput): Promise<{ challengeId: string; response: GenericVerificationResponse }>;
+  beginOtp(ctx: AuthContext, input: BeginVerificationInput): Promise<{ challengeId: string; response: GenericVerificationResponse; unavailableReason?: VerificationUnavailableReason }>;
   /** Called only by the isolated DTMF capture path (telephony_control identity); digits never reach the model. */
   submitOtp(input: { sessionRef: string; challengeId: string; code: string }, integration: IntegrationIdentity): Promise<{ verified: boolean; reasonCode: string }>;
   /** A3: fresh, transaction-bound verification for one prepared-action digest. */
-  beginStepUp(ctx: AuthContext, actionDigest: string): Promise<{ transactionId: string; response: GenericVerificationResponse }>;
+  beginStepUp(ctx: AuthContext, actionDigest: string): Promise<{ transactionId: string; response: GenericVerificationResponse; unavailableReason?: VerificationUnavailableReason }>;
   completeStepUp(input: { transactionId: string; nonce: string; idToken: string }): Promise<VerificationCompletion>;
 }
 

@@ -13,6 +13,14 @@ Each entry records:
 | `verification` | `unit`, `property`, `contract`, `adversarial`, `workflow`, `audio`, `load`, `manual`, `operational` |
 | `aliases` | Tags already used in test titles that resolve to this id (e.g. `SPEC-13.4` -> `SPEC-13.console`); a sub-topic tag is aliased only when every test carrying it verifies the requirement |
 | `externalBlock` | Reason and `PRQ-` prerequisites when verification beyond the offline slice is externally BLOCKED |
+| `register` (invariants only) | The invariant register (FO-02-28): follow-on row (`FO-02-NN`), threat-model rows, positive / direct adversarial / failure-injection tests (`file` plus a distinctive part of the test `title`), evidence artifact, owner role and owning package, activation dependencies (`AIN-NN`), secondary packages and open register gaps (e.g. `AUDIO_RELEASE_BOUNDARY_NOT_BUILT` for ACT-05, AUTH-06, DATA-02) |
+
+`platform/test/invariants/register.test.ts` fails when any register attribute is missing or stale: the
+follow-on row, owner, secondary packages and activation dependencies must equal
+`docs/followon/gap-ledger.yaml`; every threat id must be a row of `docs/security/threat-model.md` that names
+the invariant; every cited test must exist, carry the invariant's tag and serve one role only. Failure-injection
+tests added by WP-01 also carry the role tag `[FAILURE:<invariant>]` (with `[POSITIVE:<invariant>]` and
+`[ADVERSARIAL:<invariant>]` at the evaluation boundary); these role tags are not requirement ids.
 
 ## Tagging tests
 
@@ -24,30 +32,41 @@ platform enforces SAFE-04.
 
 ## Generating the matrix
 
-From `platform/`:
+From `platform/` (two status axes plus qualification, `traceability.v2`):
 
 ```bash
-npx vitest run --reporter=json --outputFile=../evidence/test-reports/vitest-platform.json
+npx vitest run --reporter=json --outputFile=<report-dir>/vitest-platform.json
 npx tsx src/evaluation/traceability.ts \
-  --vitest-report ../evidence/test-reports/vitest-platform.json \
+  --vitest-report <report-dir>/vitest-platform.json \
   [--vitest-report ../evidence/test-reports/vitest-console.json] \
-  [--opa-report ../evidence/test-reports/opa.json] \
-  [--json ../evidence/test-reports/traceability.json]
+  [--opa-report ../evidence/test-reports/opa-vsp.json] \
+  --json ../evidence/test-reports/traceability.json
+npx tsx src/evaluation/traceability.ts --check    # validate the inputs only; writes nothing
 ```
 
-This writes `docs/REQUIREMENTS_TRACEABILITY.md` (or the `--out <md>` path; columns: requirement,
-short text, enforcement location, test ids, latest result, evidence path, release status). Status rules:
+Inputs: this catalogue, `docs/followon/requirements.yaml`, `gap-ledger.yaml`, `capabilities.yaml`,
+`activation-register.yaml` and the fault plans. Output: `docs/REQUIREMENTS_TRACEABILITY.md` (or `--out <md>`)
+and the JSON report. Rules:
 
-- `IMPLEMENTED_OFFLINE` only if at least one tagged test exists and every tagged test passed in a
-  supplied report;
-- `NOT_RUN` when no result is recorded for a tagged test (or it was skipped);
-- `NO_TEST` when no test carries the tag (listed as a gap);
-- `FAILING` when a tagged test failed;
-- `BLOCKED` when `externalBlock` is set: it overrides the release status for sandbox/production
-  readiness (the offline status is shown alongside).
+- Software (`MISSING` < `IMPLEMENTED` < `VERIFIED_LOCAL` < `RELEASE_PACKAGE_VERIFIED`), Environment
+  (`NOT_CONFIGURED` < `CONFIGURED` < `VERIFIED_SANDBOX` < `APPROVED_PILOT` < `VERIFIED_PRODUCTION`) and
+  Qualification (`NOT_RUN`, `FAIL`, `INCONCLUSIVE`, `PASS`) are the gap ledger's values per follow-on
+  requirement; per capability and per catalogue id they are the least advanced follow-on member (qualification
+  PASS only when every member is PASS). The generator never raises a status.
+- Local tests per catalogue id: `PASS` only if at least one tagged test exists and every tagged test passed in a
+  supplied report; `NOT_RUN` when a tagged test has no recorded result (or was skipped); `NO_TEST` when no test
+  carries the tag (listed as a gap); `FAIL` when a tagged test failed. Local tests are software evidence, never
+  qualification. `externalBlock` is listed separately.
+- Invariant register: each role (positive, adversarial, failure injection) is PASS only when every cited test
+  passed in a supplied report; without a report every role is NOT_RUN.
+- The generator exits 1 and writes nothing on an originalId that resolves to no catalogue id or alias, an
+  activation id (`AIN-NN`) used as an originalId, a catalogue id that no follow-on row maps, a follow-on row
+  without a ledger row, an unknown capability, a status value outside the vocabulary, a stale capability
+  roll-up or an incomplete invariant register.
+- Test tags resolve against catalogue ids and aliases and against follow-on ids (`[FO-17-14]`,
+  `[FO-17-24.POLICY_ENGINE_ERROR]`); fault tags `[FAULT:<ID>]` feed the fault registry section.
 
-Tags found in tests but absent from the catalogue are reported as unknown tags. The generator never
-emits `VERIFIED_SANDBOX`, `APPROVED_PILOT` or `VERIFIED_PRODUCTION`.
+Tags found in tests but in neither the catalogue nor the follow-on requirements are reported as unknown tags.
 
 Expected unknown tags (the catalogue format has no list of non-requirement tags):
 

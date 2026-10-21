@@ -1,0 +1,411 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/ModelInvocation.json",
+  "title": "ModelInvocation",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "model-invocation.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "interactionId": "interactionId",
+    "caseId": "caseId",
+    "turnId": "turnId",
+    "requestId": "requestId",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "dataClassification": "input.classification",
+    "versions": "pins",
+    "provenance": "model",
+    "outcome": "status"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "model-invocation.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "requestId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "interactionId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "turnId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^turn_[A-Za-z0-9_-]{4,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "caseId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "invocationId": {
+      "type": "string",
+      "pattern": "^minv_[A-Za-z0-9_-]{16,64}$"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "frontier_planner",
+        "router",
+        "extractor",
+        "summarizer",
+        "retrieval_embedder",
+        "reranker",
+        "safety_auxiliary",
+        "monitor_judge",
+        "asr",
+        "tts",
+        "vad",
+        "native_audio"
+      ]
+    },
+    "model": {
+      "type": "object",
+      "properties": {
+        "registryRef": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{1,63}@[1-9][0-9]{0,5}$"
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "endpointRef": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{2,63}$"
+        },
+        "region": {
+          "type": "string",
+          "pattern": "^[a-z]{2}(-[a-z]+)+-[0-9]$|^local$"
+        }
+      },
+      "required": [
+        "registryRef",
+        "revision",
+        "endpointRef",
+        "region"
+      ],
+      "additionalProperties": false
+    },
+    "pins": {
+      "type": "object",
+      "properties": {
+        "promptTemplate": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "harness": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "policyVersion": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "toolSchemaDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "promptTemplate",
+        "harness",
+        "policyVersion",
+        "toolSchemaDigest"
+      ],
+      "additionalProperties": false
+    },
+    "input": {
+      "type": "object",
+      "properties": {
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "PUBLIC",
+            "INTERNAL",
+            "PHI",
+            "PHI_RESTRICTED",
+            "FINANCIAL",
+            "VERIFICATION_SECRET"
+          ]
+        },
+        "contextSnapshotRef": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^ctx_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "digest",
+        "classification",
+        "contextSnapshotRef"
+      ],
+      "additionalProperties": false
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "allowedTools": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{2,63}$"
+          }
+        },
+        "purposes": {
+          "minItems": 1,
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "support_administration",
+              "identity_verification",
+              "safety_routing",
+              "human_handoff",
+              "case_follow_up",
+              "notification_delivery",
+              "quality_assurance",
+              "evaluation",
+              "model_improvement",
+              "security_audit",
+              "legal_obligation",
+              "analytics_aggregate",
+              "marketing"
+            ]
+          }
+        }
+      },
+      "required": [
+        "allowedTools",
+        "purposes"
+      ],
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "maxInputTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000000
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000000
+        },
+        "deadlineMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600000
+        }
+      },
+      "required": [
+        "maxInputTokens",
+        "maxOutputTokens",
+        "deadlineMs"
+      ],
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "STARTED",
+        "COMPLETED",
+        "REFUSED",
+        "TIMED_OUT",
+        "CANCELLED",
+        "OVERLOADED",
+        "FAILED"
+      ]
+    },
+    "completedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "usage": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "inputTokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            },
+            "outputTokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            },
+            "latencyMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3600000
+            },
+            "costMicroUsd": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000000000
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "costVersion": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "inputTokens",
+            "outputTokens",
+            "latencyMs",
+            "costMicroUsd",
+            "costVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "egress": {
+      "type": "object",
+      "properties": {
+        "endpointAllowlisted": {
+          "type": "boolean",
+          "const": true
+        },
+        "retentionPolicyRef": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{2,63}$"
+        }
+      },
+      "required": [
+        "endpointAllowlisted",
+        "retentionPolicyRef"
+      ],
+      "additionalProperties": false
+    },
+    "contentRecorded": {
+      "type": "boolean"
+    },
+    "errorCode": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "requestId",
+    "occurredAt",
+    "interactionId",
+    "turnId",
+    "caseId",
+    "causationId",
+    "invocationId",
+    "role",
+    "model",
+    "pins",
+    "input",
+    "scope",
+    "budget",
+    "status",
+    "completedAt",
+    "usage",
+    "egress",
+    "contentRecorded",
+    "errorCode"
+  ],
+  "additionalProperties": false
+}

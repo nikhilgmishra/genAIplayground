@@ -1,0 +1,179 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/DatasetItem.json",
+  "title": "DatasetItem",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "dataset-item.v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "dataset-item.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "dataClassification": {
+      "type": "string",
+      "enum": [
+        "PUBLIC",
+        "INTERNAL",
+        "PHI",
+        "PHI_RESTRICTED",
+        "FINANCIAL",
+        "VERIFICATION_SECRET"
+      ]
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "expiresAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "itemId": {
+      "type": "string",
+      "pattern": "^dsi_[A-Za-z0-9_-]{16,64}$"
+    },
+    "datasetRef": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]{2,63}@[1-9][0-9]{0,5}$"
+    },
+    "split": {
+      "type": "string",
+      "enum": [
+        "development",
+        "tuning",
+        "heldout_acceptance",
+        "regression"
+      ]
+    },
+    "familyKey": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.:-]{2,128}$"
+    },
+    "provenance": {
+      "type": "string",
+      "enum": [
+        "SYNTHETIC",
+        "LICENSED",
+        "CONSENTED_REVIEWED_PRODUCTION"
+      ]
+    },
+    "licenseRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "consentRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "purpose": {
+      "type": "string",
+      "enum": [
+        "support_administration",
+        "identity_verification",
+        "safety_routing",
+        "human_handoff",
+        "case_follow_up",
+        "notification_delivery",
+        "quality_assurance",
+        "evaluation",
+        "model_improvement",
+        "security_audit",
+        "legal_obligation",
+        "analytics_aggregate",
+        "marketing"
+      ]
+    },
+    "minimizationApplied": {
+      "type": "boolean"
+    },
+    "leakageCheckRef": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+    },
+    "contentRef": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+    },
+    "contentDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "reviewRefs": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^rvw_[A-Za-z0-9_-]{16,64}$"
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "occurredAt",
+    "dataClassification",
+    "causationId",
+    "expiresAt",
+    "itemId",
+    "datasetRef",
+    "split",
+    "familyKey",
+    "provenance",
+    "licenseRef",
+    "consentRef",
+    "purpose",
+    "minimizationApplied",
+    "leakageCheckRef",
+    "contentRef",
+    "contentDigest",
+    "reviewRefs"
+  ],
+  "additionalProperties": false
+}

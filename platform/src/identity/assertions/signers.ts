@@ -62,8 +62,10 @@ export interface KmsSender {
  * public JWK; the key must be `ECC_NIST_P256` with `SIGN_VERIFY` usage. Both are
  * documented KMS APIs (@aws-sdk/client-kms v3).
  *
- * STATUS: contract-tested with a stub client. Live use is BLOCKED on a provisioned
- * KMS key (infra), IAM grant for the gateway role and security approval.
+ * STATUS: contract-tested with a stub client and VERIFIED against LocalStack KMS (Layer 2,
+ * test/integration/substrate/audit-export.test.ts: a real ES256 JWS verified with the public JWK, a
+ * tampered payload refused). Live use is BLOCKED on a provisioned KMS key (infra), IAM grant for the
+ * gateway role and security approval.
  */
 export class KmsAssertionSigner implements AssertionSigner {
   readonly kind = "live" as const;

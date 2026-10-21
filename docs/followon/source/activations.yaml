@@ -1,0 +1,1595 @@
+# Activation register source (AIN-NN). Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+# patterns are regular expressions over a requirement's environmentDependency; extraIds add requirements by hand.
+rules:
+- Software never creates, signs, extends or fixes an approval or prerequisite record; only the named owner moves a record (docs/prerequisites.yaml, approvals/README.md).
+- A missing input blocks activation of the affected capability only; it never blocks software work and never becomes a code stub.
+- 'currentState is copied from docs/prerequisites.yaml (worst state of the mapped PRQ records). Entries without a PRQ record are UNKNOWN and proposed: they are proposed additions to the prerequisite register, not requests that were sent. relatedPrq names records that touch the same topic but do not cover the entry; it never sets the state.'
+- Activation ids use the AIN-NN prefix so they never collide with the invariant ids ACT-01..ACT-05 of docs/requirements/catalog.yaml.
+- Activation steps name commands that the listed work packages deliver; until those packages land the commands do not exist and the step cannot run. CAPABILITY= values are capability ids of docs/followon/capabilities.yaml.
+entries:
+- id: AIN-01
+  title: AWS sandbox workload account, separately administered audit account, SCPs, CI OIDC deploy role and Terraform state backend; GitHub plan/deploy environments and OIDC subject claims; DNS zones and certificates
+  kind: cloud account and deploy identity
+  ownerRole: Cloud platform owner with security leadership; repository administrator for GitHub environments
+  prq:
+  - PRQ-037
+  - PRQ-053
+  - PRQ-054
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - BILLABLE_TEST_EXECUTION
+  - SECURITY_REVIEW
+  approvalRequests:
+  - AR-02
+  unlocks: VERIFIED_SANDBOX for every AWS-backed adapter (Aurora/PgPoolDb, DynamoDB, SQS, S3, KMS, Secrets Manager, Step Functions, ECS services) and the sandbox deploy/smoke path.
+  workPackages:
+  - WP-04
+  - WP-07
+  - WP-39
+  - WP-41
+  steps:
+  - Cloud platform owner records the account ids, SCPs and state backend as PRQ-037 evidence; repository administrator completes PRQ-053/PRQ-054.
+  - Accountable approvers sign the AR-02 ApprovalRecord (environment sandbox) into approvals/.
+  - make infra-plan ENV=sandbox (plan digest recorded for the release manifest).
+  - make deploy ENV=sandbox RELEASE=<releaseId> (refuses without the AR-02 record), then make smoke ENV=sandbox and make verify-audit ENV=sandbox.
+  evidence: Plan digest, deploy log, smoke report and verify-audit report under evidence/qualification/sandbox/.
+  patterns:
+  - \bAWS\b
+  - Aurora
+  - DynamoDB table
+  - SQS queues
+  - Step Functions
+  - Secrets Manager
+  - \bKMS\b
+  - GitHub/AWS OIDC
+  - cloud resources
+  - Cloud credentials
+  - PRQ-037
+  - AWS plan role
+  - Deployed sandbox
+  - deployed environment
+  - Deployed environment
+  - Non-production environment
+  - Target environments
+  - DNS
+  extraIds: []
+- id: AIN-02
+  title: Executed BAAs and service-specific coverage for AWS and every PHI processor (model, ASR/TTS, notification, CRM, contact centre)
+  kind: BAA and data-processing coverage
+  ownerRole: Privacy counsel and procurement
+  prq:
+  - PRQ-002
+  - PRQ-038
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - PHI_PROCESSING
+  approvalRequests: []
+  unlocks: Any non-synthetic data in sandbox, staging or production; EgressGuard admits PHI to an external endpoint only with this coverage and a PHI_PROCESSING record.
+  workPackages:
+  - WP-08
+  - WP-13
+  - WP-27
+  - WP-40
+  steps:
+  - Privacy counsel records covered processors, services and features per environment in docs/privacy/data-flow-inventory.md (PRQ-002/PRQ-038 evidence).
+  - privacy_counsel signs a PHI_PROCESSING ApprovalRecord per environment and processor scope.
+  - make preflight ENV=<env> confirms every PHI egress endpoint has a matching record; without it the endpoint stays synthetic-only.
+  evidence: Preflight report listing each processor endpoint with its approval id.
+  patterns:
+  - \bBAA\b
+  - \bPHI\b
+  - data-processing approval
+  - zero retention
+  - PRQ-002
+  - PRQ-038
+  - BAA-covered
+  - \bBAAs\b
+  - Vendor answers
+  extraIds: []
+- id: AIN-03
+  title: 'Independent audit account: S3 Object Lock mode, audit retention class, audit signing key and separate verifier role'
+  kind: audit account configuration
+  ownerRole: Security leadership with privacy counsel
+  prq:
+  - PRQ-040
+  - PRQ-037
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - SECURITY_REVIEW
+  approvalRequests: []
+  unlocks: S3 Object Lock audit sink, signed audit manifests and the separate audit verifier at VERIFIED_SANDBOX.
+  workPackages:
+  - WP-04
+  - WP-39
+  steps:
+  - Security leadership records the Object Lock mode and retention class (PRQ-040).
+  - Apply infra/terraform/modules/audit in the audit account through make deploy ENV=sandbox (after AIN-01).
+  - make verify-audit ENV=sandbox reports a complete, signed chain verified by the separate verifier identity.
+  evidence: verify-audit report and manifest signature verification under evidence/qualification/sandbox/audit/.
+  patterns:
+  - audit account
+  - Audit account
+  - Audit AWS account
+  - Object Lock
+  - Audit signing key
+  - verifier role
+  - PRQ-040
+  extraIds: []
+- id: AIN-04
+  title: Primary/secondary US regions, data residency, accepted recovery objectives and DR/AZ drill authority
+  kind: regions and recovery authority
+  ownerRole: Cloud platform owner with SRE lead and executive sponsor
+  prq:
+  - PRQ-039
+  - PRQ-011
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - PRODUCTION_DEPLOYMENT
+  approvalRequests: []
+  unlocks: Secondary-region failover, cloud restore, AZ and region drills and their RTO/RPO evidence.
+  workPackages:
+  - WP-39
+  - WP-41
+  - WP-42
+  steps:
+  - Owners record regions and accepted objectives (PRQ-039) and the drill authority (PRQ-011).
+  - make restore ENV=sandbox FROM=<snapshot> (restores into a new cluster, never over the live one).
+  - Run the DR/AZ drill job defined by WP-39/WP-42 under its signed approval; it records measured RTO/RPO.
+  evidence: Drill records with measured RTO/RPO under evidence/qualification/dr/.
+  patterns:
+  - DR drill
+  - multi-region
+  - failover
+  - AZ drill
+  - Drill
+  - drill authority
+  - drills need
+  - PRQ-039
+  - Deployed environment for drills
+  - DR drill authority
+  extraIds: []
+- id: AIN-05
+  title: Reviewed data-flow inventory, risk analysis of the implemented system, threat model, retention matrix and approved engineering environments
+  kind: security and privacy review
+  ownerRole: Security and privacy
+  prq:
+  - PRQ-003
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - SECURITY_REVIEW
+  approvalRequests: []
+  unlocks: Use of real records or recordings anywhere; SECURITY_REVIEW records for later approvals.
+  workPackages:
+  - WP-44
+  steps:
+  - Security and privacy review the regenerated docs/security and docs/privacy documents (WP-44) and record findings.
+  - security_leadership signs SECURITY_REVIEW records for the reviewed scope.
+  evidence: Review record referenced from docs/prerequisites.yaml PRQ-003.
+  patterns:
+  - PRQ-003
+  - security review
+  - privacy review
+  - Privacy/security officers
+  - storage location
+  extraIds: []
+- id: AIN-06
+  title: 'Talkdesk sandbox tenant isolated from production: licences, routing exports, documented APIs, OAuth client and telephony-control identity'
+  kind: vendor tenant and entitlement
+  ownerRole: Talkdesk administrator
+  prq:
+  - PRQ-004
+  - PRQ-034
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - VENDOR_SANDBOX_INTEGRATION
+  approvalRequests:
+  - AR-01
+  unlocks: Talkdesk events, queues/agents, transfer and Explore connectors at VERIFIED_SANDBOX; drift checks; AI-off and overflow routes in the contact centre.
+  workPackages:
+  - WP-29
+  - WP-45
+  steps:
+  - Talkdesk administrator provisions the sandbox and the integration identity (PRQ-004/PRQ-034); AR-01 record signed.
+  - Store the OAuth client secret as a Secrets Manager reference named in the Talkdesk ConnectorProfile (AIN-36).
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=contact_center.talkdesk (connector wizard suites and drift check against the observed export).
+  evidence: CapabilityEvidence records with tier VENDOR and the drift report under evidence/qualification/<tenant>/talkdesk/.
+  patterns:
+  - Talkdesk
+  - PRQ-004
+  - PRQ-034
+  - sandbox tenant configuration
+  - vendor confirmation
+  extraIds: []
+- id: AIN-07
+  title: Talkdesk transfer-event export and webhook/event authentication mechanism (TB-07, TB-09)
+  kind: vendor documentation
+  ownerRole: Talkdesk administrator with security leadership and support operations
+  prq:
+  - PRQ-019
+  - PRQ-021
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Signed inbound Talkdesk events and transfer acceptance evidence on the Talkdesk path (otherwise reconcile-by-lookup with a recorded limitation).
+  workPackages:
+  - WP-04
+  - WP-29
+  steps:
+  - Record the vendor-documented signing scheme in the Talkdesk ConnectorProfile ingress.auth block (no code change).
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=contact_center.talkdesk SUITE=events (forged and replayed events refused, valid events accepted).
+  evidence: Ingress qualification report under evidence/qualification/<tenant>/talkdesk/events/.
+  patterns:
+  - PRQ-019
+  - PRQ-021
+  - webhook sign
+  - TB-09
+  - transfer event export
+  - vendor event scheme
+  - vendor ordering
+  - documented vendor event
+  - Vendor-documented webhook
+  - documented auth mechanism
+  extraIds: []
+- id: AIN-08
+  title: 'Talkdesk-native conversation path: TB-01 session binding, TB-02 confirmation capture, TB-03 DTMF isolation, TB-04 pre-emission validation, TB-05 crisis input, TB-06 Auth Gate, TB-08 version identifiers, TB-10 quotas; AI Agent Platform and Simulator entitlement'
+  kind: vendor trust boundaries (optional native path)
+  ownerRole: Talkdesk administrator with security leadership, identity owner and clinical safety lead
+  prq:
+  - PRQ-013
+  - PRQ-014
+  - PRQ-015
+  - PRQ-016
+  - PRQ-017
+  - PRQ-018
+  - PRQ-020
+  - PRQ-022
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - VENDOR_SANDBOX_INTEGRATION
+  - BILLABLE_TEST_EXECUTION
+  approvalRequests:
+  - AR-06
+  - AR-09
+  unlocks: Only the optional Talkdesk-native conversation adapter; the LiveKit/SIP reference runtime does not depend on these.
+  workPackages:
+  - WP-29
+  - WP-43
+  - WP-45
+  steps:
+  - Talkdesk administrator records sandbox results for MB/DT/BS/GX/AG/VI matrices (talkdesk/capability-gate.md).
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=conversation.talkdesk_native runs the same invariant suite as the LiveKit path (WP-43 adapters).
+  evidence: Capability gate records CG-01..CG-10 with sandbox evidence references.
+  patterns:
+  - PRQ-013
+  - PRQ-014
+  - PRQ-015
+  - PRQ-016
+  - PRQ-017
+  - PRQ-018
+  - PRQ-020
+  - PRQ-022
+  - AI Agent
+  - '[Ss]imulator'
+  - Studio
+  - TB-03
+  extraIds: []
+- id: AIN-09
+  title: 'Salesforce sandbox without production data: integration identity, Case schema, sharing model, external ID fields, automation inventory, separately authorized write identity and CDC entitlement'
+  kind: vendor tenant and integration identity
+  ownerRole: Salesforce administrator
+  prq:
+  - PRQ-006
+  - PRQ-035
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - VENDOR_SANDBOX_INTEGRATION
+  approvalRequests:
+  - AR-03
+  unlocks: Salesforce read, history sync, CDC and Case write at VERIFIED_SANDBOX; J16 sandbox counterpart; Salesforce Knowledge source.
+  workPackages:
+  - WP-29
+  - WP-20
+  - WP-45
+  steps:
+  - Salesforce administrator provisions the sandbox, read identity and a separate SANDBOX_WRITE identity; AR-03 record signed.
+  - Set accessMode SANDBOX_WRITE only for the write capability in the published tenant configuration (WP-31).
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=crm.salesforce (read, CDC replay, Case upsert with read-back).
+  evidence: VENDOR-tier CapabilityEvidence and J16 sandbox counterpart results.
+  patterns:
+  - Salesforce
+  - PRQ-006
+  - PRQ-035
+  - CRM sandbox
+  - CRM schema
+  - Change Data Capture
+  - write identity
+  extraIds: []
+- id: AIN-10
+  title: Scheduling, billing, claims, provider network, referral/authorization and eligibility APIs with sandboxes, commit semantics, idempotency keys and lookup-by-key; hosted payment page
+  kind: business-system APIs
+  ownerRole: Business-system owners (scheduling, billing, claims, provider network); billing owner with security leadership for payments
+  prq:
+  - PRQ-007
+  - PRQ-050
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Canonical domain adapters against tenant systems, EffectVerification on systems of record, J02-J07 sandbox counterparts, secure payment-link routing.
+  workPackages:
+  - WP-23
+  - WP-25
+  - WP-45
+  steps:
+  - Each system owner supplies the API specification, sandbox and idempotency/lookup semantics (PRQ-007); mappings authored in the onboarding mapping editor (WP-32) and published (WP-31).
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=domain.business_systems SYSTEM=<system> (read, prepare, commit, receipt, reconcile and read-back verification).
+  evidence: VENDOR-tier CapabilityEvidence per domain operation.
+  patterns:
+  - PRQ-007
+  - PRQ-050
+  - '[Dd]omain (system|owner|API)'
+  - domain APIs
+  - '[Bb]usiness-system'
+  - scheduling API
+  - billing
+  - claims
+  - credentialing
+  - referral
+  - eligibility
+  - tenant API specs
+  - tenant system
+  - '[Ii]dempotency'
+  - read-your-writes
+  - payment page
+  - provider contracts
+  - provider access
+  - Provider contract
+  - system API documentation
+  - Each system owner
+  - visibility semantics
+  - provider domain APIs
+  extraIds: []
+- id: AIN-11
+  title: Approved versioned resolution contracts per workflow (audience, assurance, fields, success evidence, owner, deadline, after-hours, prohibited claims) and tenant authorization of create/cancel
+  kind: business approval
+  ownerRole: Business-system owners with the support owner
+  prq:
+  - PRQ-033
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Activation of each supported intent and workflow family; contracts move from DRAFT to APPROVED.
+  workPackages:
+  - WP-30
+  - WP-31
+  steps:
+  - Owners review the generated docs/resolution-contracts.md and record approval per contract id and version (PRQ-033).
+  - Publish the approved contract set through the configuration lifecycle (WP-31); make preflight ENV=<env> shows the intent as eligible.
+  evidence: Contract approval references in the published configuration digest.
+  patterns:
+  - PRQ-033
+  - '[Rr]esolution contract'
+  - business owner approval
+  - owner queues
+  - deadlines
+  - cancellation
+  - complaint policy
+  - '[Cc]ompensation polic'
+  - tenant authorization
+  - tenant timezone
+  - tenant inputs
+  extraIds: []
+- id: AIN-12
+  title: 'Client and provider identity providers: OIDC test clients, account-linking source of truth, registered-channel verification, recovery process; companion IdP client (companion hosting is AIN-52)'
+  kind: identity providers
+  ownerRole: Identity owner
+  prq:
+  - PRQ-005
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - VENDOR_SANDBOX_INTEGRATION
+  approvalRequests:
+  - AR-04
+  unlocks: Live OIDC discovery and portal A2 verification, live IdentityDirectory, secure web companion.
+  workPackages:
+  - WP-05
+  - WP-19
+  - WP-27
+  steps:
+  - Identity owner registers non-production OIDC clients with exact redirect URIs (AR-04) and supplies the directory endpoint.
+  - Configure issuer, client id and callback allowlist in the tenant configuration (secret as a reference).
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=identity.caller (discovery, PKCE exchange, binding to call generation, idle expiry).
+  evidence: Identity qualification report under evidence/qualification/<tenant>/identity/.
+  patterns:
+  - PRQ-005
+  - \bIdP\b
+  - client IdP
+  - '[Ii]dentity directory'
+  - registered channels
+  - companion
+  - SCIM
+  extraIds: []
+- id: AIN-13
+  title: Workforce IdP client, JWKS URI, MFA amr values, console role-group mapping, workforce directory feed and break-glass workforce identities
+  kind: workforce identity
+  ownerRole: Identity owner with security leadership
+  prq:
+  - PRQ-036
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - VENDOR_SANDBOX_INTEGRATION
+  approvalRequests:
+  - AR-04
+  unlocks: Production console SSO, live StaffDirectory, offboarding sync and authenticated human-task approvals.
+  workPackages:
+  - WP-05
+  - WP-38
+  steps:
+  - Identity owner supplies the workforce client, JWKS URI, amr values and group-to-role mapping (PRQ-036, VQ-IDP-08).
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=identity.workforce (each console role, MFA refusal, offboarded user refused).
+  evidence: Workforce identity qualification report.
+  patterns:
+  - '[Ww]orkforce (IdP|OIDC|SSO|directory)'
+  - PRQ-036
+  - role-group
+  - '[Bb]reak-glass'
+  - staff identity
+  - \bSSO\b
+  - security approver roster
+  extraIds: []
+- id: AIN-14
+  title: Authoritative relationship, delegation, partner-contract, guardianship and consent systems of record
+  kind: authority systems of record
+  ownerRole: Identity owner with business-system owners and privacy counsel
+  prq:
+  - PRQ-005
+  - PRQ-007
+  - PRQ-027
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Live RelationshipDirectory, ConsentRegistry and AccountStateLookup connectors; J07-J09 and J17 sandbox counterparts.
+  workPackages:
+  - WP-19
+  - WP-22
+  steps:
+  - Owners supply endpoints and data contracts for each registry; mappings published (WP-31/WP-32).
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=authority.registries REGISTRY=<registry> (expired delegation denied, revocation propagates).
+  evidence: Authority connector qualification reports.
+  patterns:
+  - '[Rr]elationship'
+  - '[Dd]elegation'
+  - '[Gg]uardianship'
+  - '[Pp]artner'
+  - consent system
+  - consent registry
+  - '[Ll]egal authority registry'
+  - authority registries
+  - tenant consent
+  extraIds: []
+- id: AIN-15
+  title: 'Security-approved verification parameters and identity risk assessment: OTP expiry and attempts, secure-link expiry, idle duration, refresh policy, A1 low-risk operations and human-only high-risk changes'
+  kind: security parameters
+  ownerRole: Security leadership with the identity owner
+  prq:
+  - PRQ-029
+  - PRQ-030
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Non-local use of OTP/secure-link verification and idle/refresh settings; A1 operations.
+  workPackages:
+  - WP-05
+  steps:
+  - Security leadership records the approved values (PRQ-029/PRQ-030); they are entered in the tenant configuration and published (WP-31).
+  evidence: Published configuration digest referencing the approval.
+  patterns:
+  - PRQ-029
+  - PRQ-030
+  - \bOTP\b
+  - idle duration
+  - refresh support
+  - high-risk changes
+  - identity-owner approval
+  - identity-owner idle
+  - '[Ii]dentity owner decision'
+  extraIds: []
+- id: AIN-16
+  title: Notification provider contract and BAA scope, sender identities (10DLC, verified domains), approved neutral templates, delivery receipts and STOP webhook
+  kind: notification vendor
+  ownerRole: Identity owner with privacy counsel and procurement; communications owner for templates
+  prq:
+  - PRQ-048
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Live email/SMS senders for secure links, OTP and follow-ups; notification kill switch can be opened.
+  workPackages:
+  - WP-27
+  steps:
+  - Procurement records the contract and BAA scope (PRQ-048); communications approves template versions.
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=notifications.messaging CHANNEL=<channel> (registered recipient only, STOP honoured, receipt ingested).
+  evidence: Notification qualification report with delivery receipts.
+  patterns:
+  - '[Nn]otification'
+  - email
+  - SMS
+  - sender
+  - '[Mm]essaging provider'
+  - PRQ-048
+  - 10DLC
+  - templates
+  - CSAT survey
+  - cap values
+  extraIds: []
+- id: AIN-17
+  title: 'Outbound voice activation: calling-consent policy, caller-ID registration, per-country legal basis, outbound budget and staffed callback queue'
+  kind: outbound calling authority
+  ownerRole: Support operations with privacy counsel and finance
+  prq: []
+  relatedPrq: []
+  proposed: true
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Outbound call placement on the SIP runtime (implemented but disabled by default).
+  workPackages:
+  - WP-27
+  steps:
+  - Owners record the policy and budget; finance signs BILLABLE_TEST_EXECUTION for test calls.
+  - Publish an outbound call profile (country, purpose, consent basis, caller ID, recording, budget) through WP-31; the guard refuses placement without it.
+  evidence: Outbound profile approval reference; no prerequisite record exists yet in docs/prerequisites.yaml.
+  patterns:
+  - '[Oo]utbound'
+  - caller ID
+  - '[Cc]alling-consent'
+  - callback queue
+  - Legal basis per country
+  extraIds: []
+- id: AIN-18
+  title: 'PSTN test calls: test handsets, test-call plan and PSTN test budget ceiling on the Talkdesk path (no synthetic call to a public crisis line); the carrier contract and numbers for the SIP reference route are AIN-50'
+  kind: carrier and paid PSTN tests
+  ownerRole: Finance with operations, telecom, Talkdesk administrator and clinical safety lead
+  prq:
+  - PRQ-043
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - PSTN_TEST_CALLS
+  - BILLABLE_TEST_EXECUTION
+  approvalRequests:
+  - AR-05
+  - AR-07
+  unlocks: PSTN qualification of the SIP reference route, handset-level latency and transfer legs over PSTN.
+  workPackages:
+  - WP-12
+  - WP-17
+  - WP-45
+  steps:
+  - Finance and operations sign AR-05/AR-07 with the budget ceiling and number list.
+  - Register the trunk in the SipTrunkProfile (credentials as references) and publish it.
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=telephony.pstn (scripted synthetic personas only, emergency numbers denylisted).
+  evidence: PSTN test-call log with cost actually incurred.
+  patterns:
+  - SIP trunk
+  - PSTN
+  - '[Cc]arrier'
+  - PRQ-043
+  - test numbers
+  - handset
+  - SIP carrier
+  extraIds: []
+- id: AIN-19
+  title: Independent continuity carrier/route for a whole-AI or whole-contact-centre outage and AI-off/overflow routing configuration
+  kind: continuity route
+  ownerRole: Support operations with procurement and telecom
+  prq:
+  - PRQ-049
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Drilled independent telephony route (OPS-02) outside local.
+  workPackages:
+  - WP-15
+  - WP-45
+  steps:
+  - Owners contract and configure the route; record PRQ-049 evidence.
+  - 'Run the AI-off drill job (WP-15/WP-45) in sandbox: AI health down, calls reach the human queue through the independent route.'
+  evidence: Drill record with timings.
+  patterns:
+  - '[Cc]ontinuity'
+  - AI-off
+  - overflow
+  - '[Ii]ndependent telephony'
+  - PRQ-049
+  - '[Ii]ndependent route'
+  - routing authority
+  - carrier/routing
+  extraIds: []
+- id: AIN-20
+  title: Staffed queues, schedules, skills, interpreter and relay paths, overflow capacity, outage-mode staffing, WFM data and receiver workspace
+  kind: staffed routes and capacity
+  ownerRole: Support operations
+  prq:
+  - PRQ-009
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Live human handoff destinations with real capacity, truthful wait times and receiver acceptance.
+  workPackages:
+  - WP-28
+  - WP-38
+  steps:
+  - Support operations publishes destinations with hours, capacity and skills through the tenant configuration (WP-31).
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=handoff.transfer QUEUE=<queue> (accept, decline and unavailable paths with a real receiver).
+  evidence: Handoff qualification records per destination.
+  patterns:
+  - '[Ss]taffed'
+  - (interpreter|relay|safety|owner|continuity|callback|Talkdesk) queue
+  - '[Qq]ueue references'
+  - '[Qq]ueue capacity'
+  - queue membership
+  - Queue telemetry
+  - '[Ii]nterpreter'
+  - relay
+  - capacity evidence
+  - PRQ-009
+  - '[Ww]orkforce management'
+  - WFM
+  - overflow agreements
+  - '[Ss]taffing'
+  - '[Cc]ontact-cent(er|re) agent'
+  - '[Rr]eceiver'
+  - destination list
+  extraIds: []
+- id: AIN-21
+  title: 'Clinical safety: escalation scripts, staffed safety response plan, external transfer agreements, after-hours and unavailable-responder procedures, safety lexicon and external crisis-contact protocol'
+  kind: clinical safety approval
+  ownerRole: Clinical safety lead
+  prq:
+  - PRQ-008
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - CLINICAL_SCRIPTS
+  approvalRequests: []
+  unlocks: Safety routing outside local (approved procedures, lexicon and destinations).
+  workPackages:
+  - WP-15
+  steps:
+  - Clinical safety lead approves procedures and lexicon versions; clinical_safety_lead signs CLINICAL_SCRIPTS records for them.
+  - make preflight ENV=sandbox shows safety routing eligible only with those records.
+  evidence: Approval records bound to the procedure and lexicon digests.
+  patterns:
+  - PRQ-008
+  - '[Cc]linical safety'
+  - safety responder
+  - '[Ss]afety queue'
+  - lexicon
+  - '[Pp]rocedures'
+  - '[Cc]linical approval'
+  - clinical review
+  - '[Cc]linician'
+  - clinical evaluation
+  - '[Ss]afety owner'
+  - Human safety responder
+  extraIds: []
+- id: AIN-22
+  title: Approved caller-facing template versions (safety acknowledgment, clinical boundary, unavailable-responder update, disclosure, confirmation) and the licensed voice for fallback clips
+  kind: approved wording and voice
+  ownerRole: Clinical safety lead with privacy counsel
+  prq:
+  - PRQ-028
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - CLINICAL_SCRIPTS
+  approvalRequests:
+  - AR-12
+  unlocks: Protected templates and pre-rendered fallback clips outside local.
+  workPackages:
+  - WP-14
+  - WP-15
+  steps:
+  - Approvers sign AR-12 for exact template ids and versions; render clips with scripts/audio (WP-15) and record listen-back approval.
+  - make preflight ENV=sandbox confirms assertCatalogDeployable passes for the approved catalogue.
+  evidence: Template and clip digests bound to approval ids.
+  patterns:
+  - PRQ-028
+  - CLINICAL_SCRIPTS
+  - '[Ww]ording'
+  - script
+  - clip
+  - acknowledgment
+  - approved translations
+  extraIds: []
+- id: AIN-23
+  title: Jurisdiction-approved recording and automated-agent disclosure, consent matrix and recording-declined alternative wording
+  kind: legal approval
+  ownerRole: Privacy counsel
+  prq:
+  - PRQ-026
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Recording/processing consent paths and the recording-declined journey outside local.
+  workPackages:
+  - WP-22
+  - WP-14
+  steps:
+  - Privacy counsel records the matrix and wording (PRQ-026); wording enters the template registry through AIN-22.
+  evidence: Approved matrix reference in the published configuration.
+  patterns:
+  - PRQ-026
+  - '[Dd]isclosure'
+  - recording-declined
+  - consent matrix
+  - approved disclosure
+  extraIds: []
+- id: AIN-24
+  title: Applicability determinations (42 CFR Part 2, psychotherapy notes, state mental-health law, minors and representatives, recording, biometric, accessibility, outbound, PCI) and upkeep of the jurisdiction/purpose matrix
+  kind: legal determinations
+  ownerRole: Privacy counsel
+  prq:
+  - PRQ-027
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Jurisdiction rows leave UNKNOWN; affected capabilities become eligible per jurisdiction.
+  workPackages:
+  - WP-22
+  - WP-44
+  steps:
+  - Counsel fills docs/compliance/jurisdiction-matrix.yaml rows with source, status, reviewer and review dates (WP-44 schema); CI flags rows past nextReviewBy.
+  evidence: Matrix rows with reviewer and dates.
+  patterns:
+  - PRQ-027
+  - '[Cc]ounsel determination'
+  - '[Cc]ounsel definitions'
+  - ^Counsel$
+  - jurisdiction
+  - Part 2
+  - '[Ll]egal basis'
+  - '[Ll]egal approval'
+  - review cadence
+  - Expert determination
+  extraIds: []
+- id: AIN-25
+  title: Retention schedule per data class (transient conversation, business records, restricted QA media, audit evidence), deletion mechanism and legal-hold handling
+  kind: retention schedule
+  ownerRole: Privacy counsel with security leadership
+  prq:
+  - PRQ-025
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - RETENTION_SCHEDULE
+  approvalRequests:
+  - AR-11
+  unlocks: Retention jobs, RESTRICTED_QA_MEDIA storage and subject deletion outside local.
+  workPackages:
+  - WP-22
+  steps:
+  - privacy_counsel signs the RETENTION_SCHEDULE record (AR-11) whose subject binds the retention configuration digest.
+  - make privacy-delete ENV=sandbox SUBJECT=<synthetic> --dry-run lists every dataset; make preflight ENV=sandbox passes the retention gate.
+  evidence: Retention configuration digest bound to the approval.
+  patterns:
+  - PRQ-025
+  - '[Rr]etention (schedule|matrix|horizon|for)'
+  - deletion policy
+  - RETENTION_SCHEDULE
+  - '[Vv]endor deletion APIs'
+  - approved retention
+  - counsel retention
+  - '[Cc]ounsel-approved schedule'
+  - '[Cc]ounsel-approved retention'
+  extraIds: []
+- id: AIN-26
+  title: 'Model and speech provider accounts and entitlements: Amazon Bedrock and/or OpenAI (including GPT-Live and Nova 2.5 Sonic), managed ASR/TTS, approved regions and data controls'
+  kind: model provider access
+  ownerRole: Platform owner with security leadership and procurement
+  prq:
+  - PRQ-002
+  - PRQ-045
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Real-model profile, managed model/speech adapters at VERIFIED_SANDBOX and real model-qualify runs.
+  workPackages:
+  - WP-08
+  - WP-13
+  - WP-16
+  - WP-09
+  steps:
+  - Confirm the exact APIs, endpoints, regions, quotas, session and retention terms of each provider from current documentation (GPT-Live client delegation and Nova 2.5 Sonic in particular; prompt section 23 [T10], [T18]); nothing is assumed from the research cut.
+  - Platform owner provisions provider accounts and records data controls per region; credentials stored as Secrets Manager references (AIN-36).
+  - Bind the registry entry endpoint in platform/config/model-registry (WP-09) and run make model-qualify MODEL=<registryId> PROFILE=sandbox under AIN-30.
+  evidence: Qualification report under evidence/models/ with provider, region and cost.
+  patterns:
+  - Bedrock
+  - OpenAI
+  - '[Mm]odel provider'
+  - '[Mm]odel credential'
+  - '[Mm]odel access'
+  - provider credentials
+  - frontier
+  - '[Nn]ative-voice'
+  - GPT-Live
+  - Nova
+  - Qualified model credentials
+  - ASR/TTS
+  - TTS provider
+  - streaming ASR
+  - speech endpoints
+  - model/voice credentials
+  - Reviewed model credential
+  - reviewed model credential
+  - Models and reviewers
+  - Tenant provider accounts
+  - Credentials for the chosen provider
+  - model credential
+  - Separate entitlements/credentials per provider
+  extraIds: []
+- id: AIN-27
+  title: GPU/compute capacity in approved infrastructure for self-hosted models (vLLM text candidates, real-time ASR, native-audio experiments, embedding service, fine-tuning)
+  kind: compute capacity
+  ownerRole: Platform owner with finance
+  prq:
+  - PRQ-010
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Self-hosted model qualification at real-time throughput (this environment has 4 CPUs and no GPU).
+  workPackages:
+  - WP-08
+  - WP-13
+  - WP-37
+  steps:
+  - Finance approves the compute budget; platform owner provisions hosts through infra (WP-39 GPU option).
+  - make model-qualify MODEL=<self-hosted entry> PROFILE=sandbox.
+  evidence: Throughput and latency results per hardware profile.
+  patterns:
+  - GPU
+  - '[Cc]ompute'
+  - CPU/GPU hosting
+  - Hosting for the small model
+  - hosting in approved infrastructure
+  extraIds: []
+- id: AIN-28
+  title: Model, voice, dataset and benchmark licence reviews, voice rights and gated-access acceptance per artifact and pinned revision (for example WildGuard terms, gated Hugging Face repositories M01-M11, DistressBench, R08 CC-BY-NC-ND)
+  kind: licence and rights review
+  ownerRole: Legal/licensing reviewer with privacy counsel and clinical safety lead
+  prq:
+  - PRQ-044
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Use of gated or licence-restricted models, voices, datasets and benchmarks.
+  workPackages:
+  - WP-09
+  - WP-15
+  - WP-34
+  steps:
+  - Reviewer records the decision per artifact in the registry licence fields (WP-09); gated downloads stay refused until recorded.
+  - Each gated artifact (model weights, voices, datasets, benchmarks) is reviewed at its pinned revision; the review is recorded per artifact type (code, weights, voice, dataset) and a new revision needs a new review.
+  evidence: Registry licence/rights fields with reviewer and date.
+  patterns:
+  - '[Ll]icen[cs]'
+  - '[Vv]oice rights'
+  - '[Vv]oice-rights'
+  - '[Gg]ated'
+  - benchmark
+  extraIds: []
+- id: AIN-29
+  title: MODEL_VOICE_SELECTION approval per role (planner, router, extractor, monitor, judge, embedder, reranker, safety classifier, voice)
+  kind: model and voice selection approval
+  ownerRole: QA language lead with security leadership and clinical safety lead
+  prq:
+  - PRQ-045
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - MODEL_VOICE_SELECTION
+  approvalRequests:
+  - AR-13
+  unlocks: Registry entries move to APPROVED_FOR_ROLE for non-local environments.
+  workPackages:
+  - WP-09
+  steps:
+  - After a qualification report exists, approvers sign MODEL_VOICE_SELECTION records whose subject binds the registry entry digest.
+  - make preflight ENV=sandbox shows the role binding as eligible.
+  evidence: Approval ids recorded in the registry entry.
+  patterns:
+  - MODEL_VOICE_SELECTION
+  - PRQ-045
+  - '[Aa]pproved classifier'
+  - '[Aa]pproved embedding'
+  - '[Aa]pproved reranker'
+  - '[Qq]ualified judge'
+  - '[Aa]pproved voice'
+  - authorized approver
+  - Approved voice/model
+  extraIds: []
+- id: AIN-30
+  title: 'Billable test execution: paid model calls, vendor sandbox usage, Simulator, load and soak at scale, bounded optimizer compute'
+  kind: billable execution
+  ownerRole: Finance with the platform owner
+  prq:
+  - PRQ-010
+  - PRQ-024
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - BILLABLE_TEST_EXECUTION
+  approvalRequests:
+  - AR-02
+  - AR-05
+  - AR-06
+  - AR-07
+  unlocks: Any job whose execution profile is billable.
+  workPackages:
+  - WP-41
+  - WP-42
+  - WP-45
+  steps:
+  - finance signs BILLABLE_TEST_EXECUTION with a ceiling; the runner execution profile references the approval id.
+  - Run the job (for example make load PROFILE=cloud ENV=sandbox); the runner refuses without the record and reports cost actually incurred.
+  evidence: Job evidence with cost incurred.
+  patterns:
+  - BILLABLE
+  - '[Pp]aid'
+  - '[Ss]pend'
+  - '[Bb]udget'
+  - PRQ-010
+  - '[Rr]ate cards'
+  - OPS-05 authorization
+  - '[Ee]xecution scope'
+  - '[Rr]eserve'
+  - GPU/compute approval
+  extraIds: []
+- id: AIN-31
+  title: 'Human reviewers and labelled data: corpus reviewers (>=50 intents x 8 families, >=500 risk cases), clinicians, native speakers, judge labellers, warmth raters and consented voice fixtures'
+  kind: human reviewers and labelled data
+  ownerRole: QA and language leads with the clinical safety lead
+  prq:
+  - PRQ-012
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - PSTN_TEST_CALLS
+  approvalRequests:
+  - AR-10
+  unlocks: HUMAN_REVIEWED scenarios, held-out acceptance sets, judge qualification and human-voice audio cases.
+  workPackages:
+  - WP-35
+  - WP-01
+  steps:
+  - Reviewers are granted console review roles (AIN-13) and record ReviewRecords in the review queue (WP-35); no record is ever created by software.
+  evidence: ReviewRecord counts per split and intent.
+  patterns:
+  - '[Rr]eviewer'
+  - PRQ-012
+  - '[Ll]abeler'
+  - '[Ll]abels'
+  - raters
+  - '[Cc]onsented voice'
+  - Consented speech
+  - human-labelled
+  - '[Hh]uman reviewers'
+  - Genuine human
+  - Independent reviewer
+  - Human labelers
+  - Approved review access
+  - Human raters
+  extraIds: []
+- id: AIN-32
+  title: Approved public FAQ and runbook corpus snapshot, knowledge-source access (Salesforce Knowledge, buckets, KB APIs) and per-source metadata conventions
+  kind: knowledge release
+  ownerRole: Knowledge owner with clinical safety lead and privacy counsel
+  prq:
+  - PRQ-032
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - KNOWLEDGE_RELEASE
+  approvalRequests: []
+  unlocks: Knowledge snapshots served outside local.
+  workPackages:
+  - WP-20
+  - WP-33
+  steps:
+  - Knowledge owners review items in the knowledge review queue (WP-33); approvals bind item digests.
+  - Sign a KNOWLEDGE_RELEASE record binding the snapshot digest; make preflight ENV=sandbox accepts the snapshot.
+  evidence: Snapshot digest bound to the approval.
+  patterns:
+  - PRQ-032
+  - '[Kk]nowledge owner'
+  - \bKB\b
+  - KNOWLEDGE_RELEASE
+  - tenant-approved knowledge
+  - tenant-approved KB
+  - portal recovery content
+  extraIds: []
+- id: AIN-33
+  title: Reviewed OPA policy bundle version and digest with golden probes, approved for the target environment
+  kind: policy release
+  ownerRole: Policy approver with security leadership
+  prq:
+  - PRQ-031
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - POLICY_RELEASE
+  approvalRequests: []
+  unlocks: Policy bundle use outside local.
+  workPackages:
+  - WP-40
+  steps:
+  - bash scripts/policy.sh build produces the bundle digest; the approver signs POLICY_RELEASE bound to it.
+  evidence: Policy digest in the release manifest with its approval id.
+  patterns:
+  - PRQ-031
+  - POLICY_RELEASE
+  extraIds:
+  - FO-02-27
+  - FO-19-91
+- id: AIN-34
+  title: Trusted approval signing keys (per role, in KMS) and signed ApprovalRecord files for the requested scopes
+  kind: approval signing
+  ownerRole: Security leadership (keys); accountable approvers named in approvals/README.md (records)
+  prq:
+  - PRQ-023
+  - PRQ-024
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Every approval-gated scope; without trusted keys no record counts outside local.
+  workPackages:
+  - WP-07
+  - WP-31
+  - WP-40
+  steps:
+  - Security leadership creates per-role signing keys and records their references (PRQ-023).
+  - Approvers sign records offline; make preflight ENV=<env> verifies signatures, scopes, subjects and expiry.
+  evidence: Preflight approval verification report.
+  patterns:
+  - PRQ-023
+  - PRQ-024
+  - '[Ss]igning key'
+  - '[Ss]igned approvals'
+  - scoped human approvals
+  - approvals/
+  - KMS signing key
+  - tenant approvals and credentials
+  - tenant inputs
+  extraIds: []
+- id: AIN-35
+  title: Reviewed GitHub Action commit SHAs, base image digests, container registry and Sigstore/OIDC publish role, protected GitHub environments
+  kind: supply-chain inputs
+  ownerRole: Platform owner with security leadership; repository administrator
+  prq:
+  - PRQ-041
+  - PRQ-042
+  - PRQ-053
+  - PRQ-054
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - SECURITY_REVIEW
+  approvalRequests:
+  - AR-15
+  unlocks: Publishing signed images and releases from CI.
+  workPackages:
+  - WP-40
+  steps:
+  - Reviewers record the SHA and digest review (PRQ-041/PRQ-042); administrator configures environments (PRQ-054).
+  - 'Tag a release: release.yml runs make build-release, signs and publishes; the deploy gate verifies the signature.'
+  evidence: Signed manifest and attestation references.
+  patterns:
+  - PRQ-041
+  - PRQ-042
+  - PRQ-053
+  - PRQ-054
+  - container registry
+  - Registry, Sigstore
+  - Sigstore
+  - GitHub
+  - CI runner
+  - AR-15
+  extraIds: []
+- id: AIN-36
+  title: 'Secret custody: request-hash pepper, per-connector Secrets Manager entries and rotation owners, separate per-capability integration identities, static credential exception if OAuth2 is unavailable'
+  kind: secrets and credential custody
+  ownerRole: Security administrator with connector owners
+  prq:
+  - PRQ-055
+  - PRQ-052
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - STATIC_CREDENTIAL_EXCEPTION
+  approvalRequests:
+  - AR-08
+  unlocks: Live connectors resolve credentials at runtime; rotation drills.
+  workPackages:
+  - WP-06
+  steps:
+  - Owners create the secrets and rotation schedules; references are entered in the ConnectorProfiles and published.
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=connectors.runtime SUITE=credentials (resolution, rotation without restart, revocation drill).
+  evidence: Rotation drill record.
+  patterns:
+  - PRQ-055
+  - PRQ-052
+  - Secrets Manager entries
+  - '[Rr]otation'
+  - '[Ss]ecrets and rotation owners'
+  - '[Cc]redentials per'
+  - Sandbox credentials per connector
+  - per-capability integration users
+  - tenant sandbox credentials
+  - OAuth clients
+  - IdP client credentials per environment
+  - tenant credentials
+  - Tenant credentials
+  - sandbox credentials
+  - tenant approvals and credentials
+  extraIds: []
+- id: AIN-37
+  title: Observability export approval (OpenTelemetry to CloudWatch or an approved backend; content disabled by default)
+  kind: observability export approval
+  ownerRole: Security leadership with privacy counsel and SRE lead
+  prq:
+  - PRQ-047
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: OTLP export endpoints on the egress allowlist outside local.
+  workPackages:
+  - WP-07
+  steps:
+  - Approvers record the backend and retention (PRQ-047); the endpoint enters PlatformConfig.observability and the egress allowlist.
+  evidence: Preflight report showing the approved export endpoint.
+  patterns:
+  - PRQ-047
+  - observability backend
+  extraIds: []
+- id: AIN-38
+  title: 'Data platforms and event sources for context: Snowflake account with read-only role, secure views and key-pair; Glue/Athena with Lake Formation; CDP workspace with a privacy-approved event contract; tenant event streams'
+  kind: data platforms and event sources
+  ownerRole: Data platform owner with privacy counsel
+  prq: []
+  relatedPrq: []
+  proposed: true
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Warehouse, lakehouse, CDP and stream connectors at VERIFIED_SANDBOX; real timeline sources.
+  workPackages:
+  - WP-21
+  - WP-18
+  - WP-04
+  steps:
+  - Owners provision read-only roles and the event delivery; privacy counsel approves the CDP event contract.
+  - make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=data.warehouse|data.cdp|context.store SOURCE=<source> (bounded template reads, deletion respected, watermark reported).
+  evidence: VENDOR-tier CapabilityEvidence per data source; no prerequisite record exists yet in docs/prerequisites.yaml.
+  patterns:
+  - Snowflake
+  - Glue
+  - Athena
+  - Lake Formation
+  - Segment
+  - \bCDP\b
+  - event streams
+  - stream access
+  - event feeds
+  - event sources
+  - Event feeds
+  - '[Ee]vent feeds'
+  - tenant stream
+  - '[Ss]ource system schemas'
+  - tenant event
+  extraIds: []
+- id: AIN-39
+  title: At least 30 days of half-hour arrivals, handle times, language/queue mix, transfer and abandonment rates via approved rate-limited exports (no raw audio or transcripts)
+  kind: traffic data export
+  ownerRole: Support operations with Talkdesk administrator and privacy counsel
+  prq:
+  - PRQ-046
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Measured capacity inputs (scripts/capacity_model.py --inputs) instead of illustrative assumptions.
+  workPackages:
+  - WP-42
+  - WP-29
+  steps:
+  - Owners run the approved export; python3 -I scripts/capacity_model.py --inputs <export> regenerates the capacity tables.
+  evidence: Capacity model output with input provenance.
+  patterns:
+  - PRQ-046
+  - traffic export
+  - '[Mm]easured traffic'
+  - traffic distributions
+  - Explore
+  - traffic exports
+  extraIds: []
+- id: AIN-40
+  title: Funded scope, prioritized workflow catalogue, success measures, named incident authority and pilot exposure approval
+  kind: executive authority
+  ownerRole: Executive sponsor and support owner
+  prq:
+  - PRQ-001
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - PILOT_EXPOSURE
+  approvalRequests: []
+  unlocks: APPROVED_PILOT environment status and canary exposure.
+  workPackages:
+  - WP-37
+  - WP-45
+  steps:
+  - Executive sponsor records scope and incident authority (PRQ-001) and signs PILOT_EXPOSURE for a bounded cohort.
+  - Publish a signed CanarySpec (WP-37); the canary controller enforces the limits.
+  evidence: Pilot approval and canary report.
+  patterns:
+  - PRQ-001
+  - '[Pp]ilot authority'
+  - '[Gg]overnance body'
+  - Organizational owners
+  - Org decision
+  - operations owner commitment
+  extraIds: []
+- id: AIN-41
+  title: Independent security review and penetration test of the backend, the telephone journey and the self-hosted media plane (LiveKit server, LiveKit SIP, TURN, media hosts) with no unresolved critical finding
+  kind: independent security testing
+  ownerRole: Security leadership
+  prq:
+  - PRQ-051
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - SECURITY_REVIEW
+  approvalRequests: []
+  unlocks: Production deployment eligibility.
+  workPackages:
+  - WP-43
+  - WP-39
+  steps:
+  - Engage the tester against a deployed sandbox; run the hostile-request job (WP-43) as the baseline; record findings.
+  evidence: Pentest report reference and finding status.
+  patterns:
+  - PRQ-051
+  - '[Pp]entest'
+  - Security leadership review
+  extraIds: []
+- id: AIN-42
+  title: Control owners, SOC 2 scope decision and auditor, operating evidence (access reviews, training, vendor reviews, incident drills, physical controls) and on-call roster
+  kind: compliance programme
+  ownerRole: Compliance lead with security and privacy officers and the SRE lead
+  prq:
+  - PRQ-011
+  relatedPrq: []
+  proposed: false
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Control register rows leave UNKNOWN; operating evidence linked to controls.
+  workPackages:
+  - WP-44
+  steps:
+  - Owners fill docs/compliance/control-register.yaml owner and evidence-collector fields; operating evidence uploaded by its owners.
+  evidence: Control register rows with owners and evidence references.
+  patterns:
+  - SOC 2
+  - '[Cc]ontrol owners'
+  - compliance sign-off
+  - PRQ-011
+  extraIds: []
+- id: AIN-43
+  title: Production deployment approval with on-call roster, dashboards on an approved metrics export, paging and recovery drill evidence
+  kind: production authority
+  ownerRole: Executive sponsor, operations and SRE lead
+  prq:
+  - PRQ-011
+  - PRQ-039
+  relatedPrq: []
+  proposed: false
+  approvalScopes:
+  - PRODUCTION_DEPLOYMENT
+  approvalRequests: []
+  unlocks: VERIFIED_PRODUCTION; production deploy, rollback and restore.
+  workPackages:
+  - WP-41
+  - WP-40
+  steps:
+  - Approvers sign PRODUCTION_DEPLOYMENT bound to the release manifest digest.
+  - make deploy ENV=production RELEASE=<releaseId>; make smoke ENV=production; make rollback ENV=production stays available to the manifest rollback target.
+  evidence: Production deploy and smoke evidence bound to the manifest.
+  patterns:
+  - PRODUCTION_DEPLOYMENT
+  - (?<![Nn]on-)[Pp]roduction (deploy|environment)
+  extraIds:
+  - FO-19-79
+  - FO-19-85
+  - FO-16-07
+- id: AIN-44
+  title: Consented or licensed production-derived data for evaluation, tuning and training (DATASET_USE approval bound to the dataset digest)
+  kind: data use approval
+  ownerRole: Privacy counsel with data governance and clinical safety approvers
+  prq: []
+  relatedPrq: []
+  proposed: true
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Production-derived scenarios, improvement observations and training datasets.
+  workPackages:
+  - WP-35
+  - WP-36
+  - WP-37
+  steps:
+  - Counsel records the approval with purpose and retention; datasets without it are refused by the provenance check (WP-35).
+  evidence: Dataset registry entries with approval references; no prerequisite record exists yet in docs/prerequisites.yaml.
+  patterns:
+  - consented production
+  - licensed data
+  - Approved observation sources
+  - '[Dd]ata governance'
+  - DATASET_USE
+  - approved processing
+  - Bounded optimizer environment
+  - Approved optimization environment
+  extraIds: []
+- id: AIN-45
+  title: 'Merge of PR #26 into main after review (brings PR #2 KMS grant narrowing onto main)'
+  kind: repository administration
+  ownerRole: Repository owner
+  prq: []
+  relatedPrq: []
+  proposed: true
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Main-branch infrastructure hardening matches the reviewed feature branch.
+  workPackages:
+  - WP-39
+  steps:
+  - 'Repository owner reviews and merges PR #26; git merge-base --is-ancestor 7d7ccfc origin/main then succeeds.'
+  evidence: Merge commit on main.
+  patterns:
+  - 'PR #26'
+  - repository owner
+  extraIds: []
+- id: AIN-46
+  title: 'Security review of the self-hosted media plane: LiveKit server, LiveKit SIP, TURN, media hosts and their network exposure (UDP/RTP ranges, signalling allowlists, DTMF isolation under LiveKit SIP)'
+  kind: security review (media plane)
+  ownerRole: Security leadership with the platform owner and telecom
+  prq: []
+  relatedPrq:
+  - PRQ-051
+  - PRQ-015
+  proposed: true
+  approvalScopes:
+  - SECURITY_REVIEW
+  approvalRequests: []
+  unlocks: Exposure of the media plane outside local (sandbox and later environments) and enabling OTP over DTMF on the SIP route.
+  workPackages:
+  - WP-11
+  - WP-12
+  - WP-39
+  steps:
+  - Security leadership reviews the deployed media plane in sandbox (ports, TURN credentials, signalling allowlists, host hardening, DTMF isolation evidence from WP-12) and records findings.
+  - security_leadership signs a SECURITY_REVIEW record scoped to the media plane; make preflight ENV=sandbox lists the media plane as eligible only with it.
+  evidence: Media-plane review record and its finding status; no prerequisite record exists yet in docs/prerequisites.yaml (proposed).
+  patterns:
+  - LiveKit security
+  - self-hosted (LiveKit|media)
+  - media-plane security
+  - media plane review
+  extraIds:
+  - FO-03-46
+  - FO-03-47
+  - FO-10-01
+  - FO-10-03
+  - FO-03-17
+  - FO-03-40
+  - FO-06-39
+  - FO-06-40
+  - FO-06-100
+  - FO-01-15
+  - FO-16-34
+- id: AIN-47
+  title: TURN and SIP TLS certificates and DNS records for the media ingress (SIP over TLS, TURN/TLS on 443, SRTP/DTLS keys), with expiry owners
+  kind: certificates and DNS (media ingress)
+  ownerRole: Cloud platform owner with telecom
+  prq: []
+  relatedPrq:
+  - PRQ-037
+  proposed: true
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: SIP over TLS and TURN/TLS endpoints outside local; DaysToExpiry alarms with named owners.
+  workPackages:
+  - WP-12
+  - WP-39
+  steps:
+  - The platform owner creates the DNS names and certificates (ACM or the self-hosted reference CA) and records their expiry owners.
+  - make infra-plan ENV=sandbox shows the certificate and DNS resources; make smoke ENV=sandbox checks SIP TLS and TURN/TLS handshakes.
+  evidence: Certificate inventory with expiry owners and the smoke report; no prerequisite record exists yet (proposed).
+  patterns:
+  - \bTURN\b
+  - SIP (over )?TLS
+  - \bSRTP\b
+  - \bDTLS\b
+  extraIds:
+  - FO-03-46
+  - FO-03-47
+  - FO-01-15
+  - FO-06-100
+  - FO-15-23
+  - FO-15-27
+  - FO-16-34
+  - FO-16-35
+- id: AIN-48
+  title: Standing spend ceilings for media hosts (EC2 with Elastic IPs, NLB, TURN egress) and GPU inference hosts, with budget actions and owners
+  kind: spend ceilings (media and GPU hosts)
+  ownerRole: Finance with the platform owner
+  prq: []
+  relatedPrq:
+  - PRQ-010
+  proposed: true
+  approvalScopes:
+  - BILLABLE_TEST_EXECUTION
+  approvalRequests: []
+  unlocks: Running media and GPU hosts in sandbox and later environments within an approved ceiling (AIN-30 covers billable test execution, not standing host spend).
+  workPackages:
+  - WP-39
+  - WP-42
+  steps:
+  - Finance records the monthly ceilings per environment for media and GPU hosts; infra budgets (infra/terraform/modules/budgets) carry them with budget actions.
+  - make infra-plan ENV=sandbox shows the budget resources; the spend ledger (WP-42) reports host spend against the ceiling.
+  evidence: Budget definitions and the spend-ledger report; no prerequisite record exists yet (proposed).
+  patterns:
+  - media host
+  - media-host
+  - GPU (host|inference|capacity)
+  - warm minimum capacity
+  extraIds:
+  - FO-03-46
+- id: AIN-49
+  title: BAA coverage, data retention and zero-retention settings evidenced per managed model and speech provider, endpoint and region (Bedrock model and region, OpenAI endpoint, managed ASR/TTS, native voice)
+  kind: data-processing evidence per model and speech endpoint
+  ownerRole: Privacy counsel with procurement and the platform owner
+  prq: []
+  relatedPrq:
+  - PRQ-002
+  - PRQ-038
+  - PRQ-045
+  proposed: true
+  approvalScopes:
+  - PHI_PROCESSING
+  approvalRequests: []
+  unlocks: PHI on a specific model or speech endpoint; the registry entry for that endpoint can reach APPROVED_FOR_ROLE for PHI-bearing roles.
+  workPackages:
+  - WP-08
+  - WP-09
+  - WP-13
+  - WP-16
+  steps:
+  - Privacy counsel records, per provider endpoint and region, the BAA coverage, retention and logging settings actually configured (evidence from the provider console or contract).
+  - The registry entry (WP-09) references that record; make preflight ENV=<env> refuses PHI on an endpoint without it.
+  evidence: Per-endpoint data-processing records referenced from registry entries; no prerequisite record exists yet (proposed).
+  patterns:
+  - (model|speech|ASR|TTS)[^.]{0,60}(retention|zero retention)
+  - per (provider|endpoint)[^.]{0,40}(region|data path)
+  - data path
+  extraIds:
+  - FO-03-34
+  - FO-09-05
+  - FO-09-13
+  - FO-09-17
+  - FO-09-22
+  - FO-15-14
+  - FO-15-15
+- id: AIN-50
+  title: SIP carrier contract, trunk and DIDs for the LiveKit SIP reference route (independent of Talkdesk), with caller-ID registration and emergency-number handling
+  kind: carrier contract (SIP reference route)
+  ownerRole: Telecom with procurement and support operations
+  prq: []
+  relatedPrq:
+  - PRQ-043
+  - PRQ-049
+  proposed: true
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Inbound and outbound PSTN calls on the reference route; PSTN qualification of WP-12 beyond local softphones.
+  workPackages:
+  - WP-12
+  - WP-27
+  - WP-45
+  steps:
+  - Telecom contracts the carrier and records trunk endpoints, DIDs and caller-ID registration; credentials are stored as Secrets Manager references.
+  - Register the trunk in a SipTrunkProfile and publish it (WP-31); make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=telephony.pstn under AIN-18.
+  evidence: Trunk profile digest and PSTN qualification record; no prerequisite record exists yet (proposed).
+  patterns:
+  - SIP trunk
+  - '[Cc]arrier (trunk|contract)'
+  - \bDIDs?\b
+  - trunk/number
+  extraIds:
+  - FO-01-15
+  - FO-01-15a
+- id: AIN-51
+  title: 'Talkdesk answer to VQ-TD-42: whether a documented SIP or BYOC interface lets Talkdesk-numbered calls reach the LiveKit runtime'
+  kind: vendor documentation (Talkdesk SIP)
+  ownerRole: Talkdesk administrator with telecom
+  prq: []
+  relatedPrq:
+  - PRQ-004
+  - PRQ-034
+  proposed: true
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: Talkdesk-numbered calls on the LiveKit runtime; without it the reference route needs its own carrier (AIN-50).
+  workPackages:
+  - WP-12
+  - WP-29
+  steps:
+  - The Talkdesk administrator records the vendor answer in talkdesk/vendor-questions.md (VQ-TD-42) with the documented interface, if any.
+  - If an interface exists, configure it as a SipTrunkProfile and qualify it with make qualify-tenant TENANT=<id> ENV=sandbox CAPABILITY=contact_center.talkdesk SUITE=sip.
+  evidence: Vendor answer reference; no prerequisite record exists yet (proposed).
+  patterns:
+  - \bBYOC\b
+  - VQ-TD-42
+  extraIds:
+  - FO-03-43
+- id: AIN-52
+  title: 'Caller-facing companion origin: registered domain and DNS name, TLS certificate with an expiry owner, public-exposure review of the companion (WAF rules, CSP, origin separation from gateway and console) and its hosting in the workload account'
+  kind: domain, certificate and exposure review (companion)
+  ownerRole: Cloud platform owner with security
+  prq: []
+  relatedPrq:
+  - PRQ-037
+  - PRQ-005
+  - PRQ-051
+  proposed: true
+  approvalScopes: []
+  approvalRequests: []
+  unlocks: The secure web companion reachable outside local (FO-06-84 to FO-06-87) on its own origin.
+  workPackages:
+  - WP-27
+  - WP-39
+  steps:
+  - The platform owner registers the companion host name under an approved domain, issues its certificate (ACM) and records the expiry owner.
+  - Security reviews the companion's public exposure (WAF rule set, CSP, origin separation, the gateway calls it may make); the review is recorded with the AIN-41 review or separately.
+  - make infra-plan ENV=sandbox shows companion_service; make smoke ENV=sandbox checks the companion origin's TLS, CSP and that it reaches only the gateway API.
+  evidence: DNS and certificate inventory entry with expiry owner, the exposure review record and the smoke report; no prerequisite record exists yet (proposed).
+  patterns:
+  - hosting for the companion
+  - companion (origin|hosting|domain)
+  extraIds:
+  - FO-06-84
+  - FO-06-85
+  - FO-06-86
+  - FO-06-87

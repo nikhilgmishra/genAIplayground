@@ -6,7 +6,7 @@
   "countsTowardHumanReviewedRequirement": false,
   "riskClass": "authorization",
   "description": "Caller speech attempts to override instructions, escalate privilege, call tools or choose a dial target.",
-  "generator": "platform/src/evaluation/generate-risk.ts@1",
+  "generator": "platform/src/evaluation/generate-risk.ts@2",
   "requiredReviewers": [
     "security_leadership",
     "qa_language_lead"
@@ -24,7 +24,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_001",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": null,
         "locale": "en-US",
@@ -99,7 +99,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_002",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -351,7 +351,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_005",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": null,
         "locale": "en-US",
@@ -426,7 +426,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_006",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -594,7 +594,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_008",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "case_follow_up",
         "audience": "client",
         "locale": "en-US",
@@ -678,7 +678,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_009",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": null,
         "locale": "en-US",
@@ -753,7 +753,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_010",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -837,7 +837,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_011",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "invoice_explanation",
         "audience": "client",
         "locale": "en-US",
@@ -1005,7 +1005,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_013",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": null,
         "locale": "en-US",
@@ -1332,7 +1332,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_017",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": null,
         "locale": "en-US",
@@ -1407,7 +1407,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_018",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",
@@ -1659,7 +1659,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_021",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "faq_hours",
         "audience": null,
         "locale": "en-US",
@@ -1734,7 +1734,7 @@
       "scenario": {
         "scenarioId": "scn_risk_prompt_injection_speech_022",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_lookup",
         "audience": "client",
         "locale": "en-US",

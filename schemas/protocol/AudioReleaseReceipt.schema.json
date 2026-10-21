@@ -1,0 +1,332 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/AudioReleaseReceipt.json",
+  "title": "AudioReleaseReceipt",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "audio-release-receipt.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "interactionId": "interactionId",
+    "sessionGeneration": "sessionGeneration",
+    "turnId": "turnId",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "provenance": "source",
+    "outcome": "status"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "audio-release-receipt.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "interactionId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "sessionGeneration": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000000
+    },
+    "turnId": {
+      "type": "string",
+      "pattern": "^turn_[A-Za-z0-9_-]{4,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "receiptId": {
+      "type": "string",
+      "pattern": "^arr_[A-Za-z0-9_-]{16,64}$"
+    },
+    "source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "speech_plan"
+            },
+            "planId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            "outputDecisionDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "kind",
+            "planId",
+            "outputDecisionDigest"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "fallback_clip"
+            },
+            "clipRef": {
+              "type": "string",
+              "pattern": "^clip_[a-z0-9_]{3,64}@v[1-9][0-9]{0,5}$"
+            },
+            "clipManifestDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "planId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "clipRef",
+            "clipManifestDigest",
+            "planId"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "renderer": {
+      "type": "string",
+      "enum": [
+        "controlled_tts",
+        "fallback_clip",
+        "native_buffer_checked"
+      ]
+    },
+    "approvedContentDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "renderedAudioDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "enqueueCheck": {
+      "type": "object",
+      "properties": {
+        "generationCurrent": {
+          "type": "boolean"
+        },
+        "turnCurrent": {
+          "type": "boolean"
+        },
+        "notCancelled": {
+          "type": "boolean"
+        },
+        "notExpired": {
+          "type": "boolean"
+        },
+        "notRevoked": {
+          "type": "boolean"
+        },
+        "digestVerified": {
+          "type": "boolean"
+        },
+        "fencingTokenCurrent": {
+          "type": "boolean"
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        }
+      },
+      "required": [
+        "generationCurrent",
+        "turnCurrent",
+        "notCancelled",
+        "notExpired",
+        "notRevoked",
+        "digestVerified",
+        "fencingTokenCurrent",
+        "checkedAt"
+      ],
+      "additionalProperties": false
+    },
+    "emissionCheck": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "generationCurrent": {
+              "type": "boolean"
+            },
+            "turnCurrent": {
+              "type": "boolean"
+            },
+            "notCancelled": {
+              "type": "boolean"
+            },
+            "notExpired": {
+              "type": "boolean"
+            },
+            "notRevoked": {
+              "type": "boolean"
+            },
+            "digestVerified": {
+              "type": "boolean"
+            },
+            "fencingTokenCurrent": {
+              "type": "boolean"
+            },
+            "checkedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            }
+          },
+          "required": [
+            "generationCurrent",
+            "turnCurrent",
+            "notCancelled",
+            "notExpired",
+            "notRevoked",
+            "digestVerified",
+            "fencingTokenCurrent",
+            "checkedAt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "EMITTED_COMPLETE",
+        "EMITTED_PARTIAL_INTERRUPTED",
+        "PLAYBACK_UNCONFIRMED",
+        "NOT_EMITTED_REJECTED",
+        "NOT_EMITTED_CANCELLED",
+        "NOT_EMITTED_EXPIRED"
+      ]
+    },
+    "rejectionReason": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "playback": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "firstFrameAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "lastFrameAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "emittedMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3600000
+            },
+            "framesEmitted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            },
+            "interruptedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "firstFrameAt",
+            "lastFrameAt",
+            "emittedMs",
+            "framesEmitted",
+            "interruptedAt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "interactionId",
+    "sessionGeneration",
+    "turnId",
+    "occurredAt",
+    "causationId",
+    "receiptId",
+    "source",
+    "renderer",
+    "approvedContentDigest",
+    "renderedAudioDigest",
+    "enqueueCheck",
+    "emissionCheck",
+    "status",
+    "rejectionReason",
+    "playback"
+  ],
+  "additionalProperties": false
+}

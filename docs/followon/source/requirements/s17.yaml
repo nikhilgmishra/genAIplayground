@@ -1,0 +1,2966 @@
+# Follow-on requirement source records, prompt section 17. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '17'
+requirements:
+- id: FO-17-01
+  section: '17'
+  kind: software
+  text: Build an evaluation platform, not a folder of generated dialogues.
+  acceptance: Corpus store, runner, drivers per layer, scorer, append-only results, aggregation, API and studio.
+  originalIds:
+  - SPEC-14.test-layers
+  - SPEC-14.scorecard
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/README.md
+  - platform/src/evaluation/runner.ts
+  - platform/src/evaluation/scorer.ts
+  - platform/src/evaluation/aggregate.ts
+  - platform/src/evaluation/driver/local-driver.ts
+  gap: CLI-only; only a LOCAL SIMULATED COORDINATOR driver (keyword rules); no API/studio, no model or audio drivers.
+  remediation: Add evaluation service API and drivers for model/text and audio layers.
+  size: L
+  environmentDependency: none
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+    repair:
+    - stale "fix wave 5 in progress" text refreshed against 8c0f5a0 (critic gap 3)
+- id: FO-17-02
+  section: '17'
+  kind: evaluation
+  text: 'Layer 1: deterministic/property/state-machine tests for identity, consent, ACLs, schema, digests, concurrency, idempotency, UNKNOWN reconciliation, deletion, event ordering, workflow grants, stale speech, audit and release gating.'
+  acceptance: Tagged property/state-machine tests exist and pass for each listed area.
+  originalIds:
+  - SPEC-14.test-layers
+  - ACT-02
+  - ACT-03
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - test/invariants/property.test.ts
+  - test/invariants/evaluation-boundary.test.ts
+  gap: Concurrency is covered on single-connection PGlite only.
+  remediation: Add deletion and session-generation property suites.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - evidence
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: deletion has no property tests and stale-speech coverage is limited to the text speech queue.'
+    repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+  workPackage: WP-01
+- id: FO-17-03
+  section: '17'
+  kind: evaluation
+  text: 'Layer 2: production adapters over real protocols against local emulators (Postgres transactions/locking, OIDC, message redelivery, real SIP/media where possible).'
+  acceptance: Compose-based suite passes against Postgres, OIDC realm, queue, workflow, LiveKit/SIP emulators.
+  originalIds:
+  - SPEC-14.test-layers
+  derivedFrom: []
+  capabilityIds:
+  - platform.workspace
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/integration/_harness/postgres.test.ts (transactions and locking via PgPoolDb)
+  - platform/test/integration/_harness/oidc.test.ts (OIDC realms, three live verifiers)
+  - platform/test/integration/_harness/queue.test.ts (forced-overlap dispatch, redelivery, DLQ)
+  - platform/test/integration/_harness/workflow.test.ts (Step Functions Local with task tokens)
+  - 'platform/test/integration/_harness/livekit.test.ts: ''[FO-17-03] two WebRTC participants exchange audio through livekit-server; the server API lists and removes them'''
+  - 'livekit.test.ts: ''[FO-17-03] a SIP INVITE is dispatched into a LiveKit room by the inbound trunk, answered once an agent publishes audio, and ended by BYE''; ''[FO-17-03] an INVITE for a number no inbound trunk serves is refused with a final 4xx'''
+  - 'make test-integration SUITE=_harness: 10 files, 71/71 passed (two consecutive runs)'
+  gap: RTP media on the SIP leg and the SIP test agents are WP-12. Carrier trunks, TURN, PSTN codecs and carrier DTMF stay NOT_RUN. The CI integration job has not run on GitHub yet.
+  remediation: Build compose Layer-2 suite.
+  size: L
+  environmentDependency: none
+  regressionPackage: WP-03
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B1
+      package: WP-03
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-17-04
+  section: '17'
+  kind: evaluation
+  text: 'Layer 3: real model text tasks and grounded multi-turn simulation with verifiable environment state; no network/model call when credentials/authorization absent.'
+  acceptance: Model-driven agent and simulated user over the synthetic world; skipped (NOT_RUN, not PASS) without credentials.
+  originalIds:
+  - SPEC-14.test-layers
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/coordinator.ts:1-10 (deterministic keyword stand-in, NOT a language model)
+  gap: No model-driven evaluation.
+  remediation: Implement model harness driver and user simulator with credential gating.
+  size: L
+  environmentDependency: Reviewed model credential
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+- id: FO-17-05
+  section: '17'
+  kind: evaluation
+  text: 'Layer 4: full-duplex audio with noise, accents, codecs, overlap, delayed tools, disfluency, backchannels and unrelated speech; simulated-time and real-time results separate; independent caller-heard capture.'
+  acceptance: Audio driver over LiveKit/SIP with augmentation, real-time clock results and handset-side capture.
+  originalIds:
+  - SPEC-14.test-layers
+  - SPEC-11.barge-in
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/evaluation.ts:43 (channel simulated_voice unused)
+  gap: No audio.
+  remediation: After the speech runtime exists (section 10), add an audio driver in platform/src/evaluation/driver that plays synthetic caller audio into a LiveKit room or SIP endpoint in the local compose, with augmentation (noise, G.711/Opus codec round trips, overlap, disfluency, backchannels). It captures the bot leg as heard by the receiver client and records simulated-time and wall-clock results separately in EvaluationResult.
+  size: XL
+  environmentDependency: none (local); vendor ASR/TTS for some runs
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-17-06
+  section: '17'
+  kind: evaluation
+  text: 'Layer 5: authorized vendor sandbox/PSTN, human acceptance, security, load/soak, restore/failover and drills with actual version and spend evidence.'
+  acceptance: Runnable jobs per category; results recorded with versions and spend.
+  originalIds:
+  - SPEC-14.test-layers
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - telephony.pstn
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/TEST_EVIDENCE.md:65 (vendor, telephone, load and drill layers BLOCKED/NOT_RUN)
+  gap: No jobs exist.
+  remediation: Create gated job definitions (scripts/qualify/*.ts plus workflow_dispatch workflows) for vendor sandbox, PSTN, human acceptance sessions, load and soak, restore and failover drills. Each refuses to run without an execution-scope approval (FO-16-64), records the actual versions and spend, and writes EvaluationResult and evidence records.
+  size: L
+  environmentDependency: Sandbox/PSTN authority, spend approval, human testers
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-17-07
+  section: '17'
+  kind: evaluation
+  text: 'tau-bench/tau2 patterns: executable task worlds, dual-control user actions, policy adherence and final source-state verification.'
+  acceptance: Task worlds with initial state, user-side tools, policy checks and final-state assertions from systems of record.
+  originalIds:
+  - SPEC-14.hard-gates
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/fixtures/synthetic-world.ts
+  - platform/src/evaluation/driver/evidence.ts (authoritative_backend committed state)
+  - platform/src/evaluation/scorer.ts (transactionResult)
+  gap: No dual-control user actions (simulated user cannot act on the world, e.g., open link, change setting); worlds are fixture sets not executable environments for models.
+  remediation: Add user-side tool actions and world-state diff scoring.
+  size: M
+  environmentDependency: none
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+- id: FO-17-08
+  section: '17'
+  kind: evaluation
+  text: Adapt tau-Voice for full-duplex task AND conversation metrics and tau-Knowledge for retrieval plus action tasks.
+  acceptance: Voice task suites with conversation metrics; knowledge retrieval+action tasks.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: After the licence check (FO-17-09), port the tau2 task-world structure (domain database, user-simulator tools, policy document, final-state checks) into ScenarioDefinition extensions. Adapt the tau-Voice task and conversation metrics to the audio driver, and the tau-Knowledge retrieval-plus-action tasks to the approved knowledge corpus.
+  size: L
+  environmentDependency: License review of benchmark assets
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-17-09
+  section: '17'
+  kind: constraint
+  text: Check licenses before reuse; benchmarks are not healthcare release approval; MedAgentBench informs API-state testing only (no clinical actions, no unsecured environment).
+  acceptance: License record per reused asset; benchmark results never counted as release evidence.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/INVENTORY.md:61 (dependency licence table)
+  gap: No benchmark assets reused yet; becomes applicable on import.
+  remediation: Add docs/evaluation/benchmark-licences.yaml (asset, source, licence, permitted use, attribution, reviewer) with a CI check that every imported benchmark file has an entry. Add a rule in platform/src/evaluation/manifest.ts that benchmark-derived results are never release evidence.
+  size: S
+  environmentDependency: none
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: NOT_APPLICABLE
+- id: FO-17-10
+  section: '17'
+  kind: evaluation
+  text: 'Scorer repair: rerun and investigate historical FAIL/INCONCLUSIVE cases, distinguishing product defect, fixture defect, impossible task and unmet precondition with evidence.'
+  acceptance: Every historical non-PASS run classified in the four categories with evidence and a rerun; reports retained.
+  originalIds:
+  - OPS-03
+  - SPEC-14.hard-gates
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - historical-classification.test.ts
+  - corpus-local-20261019w5.historical-classification.json
+  gap: Category judgements are recorded analysis, and 283 runs remain non-PASS awaiting product decisions.
+  remediation: Map root causes to the four categories, fix product defects, rerun and keep both records.
+  size: M
+  environmentDependency: none
+  workPackage: WP-01
+  provenance:
+    origin: extraction
+    repair:
+    - stale "fix wave 5 in progress" text refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-17-11
+  section: '17'
+  kind: evaluation
+  text: A fault scenario passes only if the intended failure path was reached AND postconditions asserted (crash-after-commit must reach commit).
+  acceptance: Scorer requires independent proof the fault point was reached; unreached fault is INCONCLUSIVE or FAIL, never PASS.
+  originalIds:
+  - OPS-03
+  - ACT-02
+  - SPEC-16.fault-crash-after-commit
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - fault-reach.test.ts driver_self_report
+  - test/invariants/fault-reach-driver.test.ts [FO-17-44]
+  - scorer.test.ts verifier probe p1
+  gap: Four WP-34 local-driver tests still assert PASS on the outbox self-report and fail until the handed-off patch is applied.
+  remediation: Require fault-point evidence (e.g., ledger commit row before crash) per fault plan.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: reach is cross-checked against fixture state for 10 of 25 fault kinds only; the others are counted when armed or when the targeted tool is called (see the FO-17-24.* rows).'
+    repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+  workPackage: WP-01
+- id: FO-17-12
+  section: '17'
+  kind: evaluation
+  text: Preserve the original failing result and the corrected rerun.
+  acceptance: Results append-only; rerun linked to original with reason.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - corpus-run.test.ts
+  - reach-erratum.test.ts [FO-17-12]
+  gap: Run directories are gitignored; the committed record is the summaries, errata and addenda.
+  remediation: Add supersedes/rerunOf fields to results.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-17-13
+  section: '17'
+  kind: constraint
+  text: Do not remove hard cases, relabel unmet assertions or weaken gates to get green.
+  acceptance: Corpus/gate changes reviewed and versioned; automated check flags removed scenarios or relaxed expectations.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - corpus-guard.test.ts disclosure (g40) and backend_record collection (g24) tests
+  - corpus-guard.test.ts expectation-relabel and gate-registration tests
+  - 'r3mut/results.txt: 79/82 KILLED, 0 survivors'
+  gap: Relaxations need a human ReviewRecord whose signature is not yet cryptographically verified (AIN-31), and the lock baseline was set by engineering.
+  remediation: Add a corpus diff check requiring review records for expectation changes.
+  size: S
+  environmentDependency: Independent reviewer
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-17-14
+  section: '17'
+  kind: evaluation
+  text: Keep a fixed required denominator; skipped/NOT_RUN/INCONCLUSIVE cases do not count as PASS.
+  acceptance: Gate fails when any required scenario is missing or not PASS; completion rates use the full required denominator.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - aggregate.test.ts [FO-17-14]
+  - scenarios/manifests/required-scenarios.json (scenarios:check)
+  gap: None locally.
+  remediation: Add required scenario manifest per gate and compute rates over the fixed denominator.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-17-15
+  section: '17'
+  kind: evaluation
+  text: Report coverage holes and unsupported intents explicitly.
+  acceptance: Report section lists uncovered intents/faults/populations and unsupported driver steps.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - aggregate.test.ts coverage-hole fields
+  gap: None locally.
+  remediation: Add coverage-hole section to aggregate report.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-17-16
+  section: '17'
+  kind: evaluation
+  text: Maintain development, tuning, held-out acceptance and regression corpora with lineage.
+  acceptance: Four splits with lineage metadata (source, generator version, parent).
+  originalIds:
+  - SPEC-14.intent-corpus
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - corpus.test.ts [FO-17-16] buildLineage parent
+  - lineage-erratum.test.ts
+  gap: No committed held-out scenario is independent (0 of 225); a human-reviewed held-out set is needed.
+  remediation: Extend CorpusSplit and add lineage fields.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-17-17
+  section: '17'
+  kind: evaluation
+  text: Splits at scenario family/account/conversation level to prevent leakage.
+  acceptance: All variants of a family/account land in the same split; leakage test.
+  originalIds:
+  - SPEC-14.intent-corpus
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - split.ts family-split.v2
+  - scenarios:check leakage 0
+  gap: Synthetic accounts appear in several splits through different intents (6); this is reported, not prevented.
+  remediation: Split by family key (intent skeleton/account) with a leakage check; version the change.
+  size: S
+  environmentDependency: none
+  workPackage: WP-01
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-17-18
+  section: '17'
+  kind: constraint
+  text: Synthetic or licensed/consented data by default; real support data only with approved processing; never copy PHI to normal CI or a consumer judge.
+  acceptance: Loader refuses unapproved real data; CI synthetic only.
+  originalIds:
+  - DATA-01
+  - SPEC-14.production-derived
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/fixtures/synthetic-world.ts
+  - platform/src/knowledge/corpus.ts (refused outside local/CI)
+  - docs/privacy/data-flow-inventory.md:108,112
+  gap: No technical gate for future production-derived scenarios.
+  remediation: Add approval-bound import path for production-derived scenarios.
+  size: S
+  environmentDependency: none
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+- id: FO-17-19
+  section: '17'
+  kind: evaluation
+  text: Separate synthetic expected labels from actual human review.
+  acceptance: Review status per scenario; gates require HUMAN_REVIEWED.
+  originalIds:
+  - OPS-03
+  - SPEC-14.risk-corpus
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/evaluation.ts:63-67
+  - platform/src/evaluation/aggregate.ts:204-210
+  gap: Review status is a self-declared field; no reviewer identity/signature verification.
+  remediation: Replace the in-file review fields with a ReviewRecord store (reviewer staff id from workforce SSO, scenario digest, decision, timestamp, signed by the review service). Make aggregate.ts accept HUMAN_REVIEWED only with a matching record for the current scenario digest, and test that editing a scenario after review invalidates the review.
+  size: S
+  environmentDependency: none
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-17-20
+  section: '17'
+  kind: evaluation
+  text: '>=50 reviewed support intents across clients/providers/partners, each with eight variant families.'
+  acceptance: '>=50 intents x 8 families generated and HUMAN_REVIEWED.'
+  originalIds:
+  - SPEC-14.intent-corpus
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/skeletons/*.yaml (66 intents)
+  - scenarios/generated (528 variants, all UNREVIEWED)
+  gap: All UNREVIEWED.
+  remediation: Use the ReviewRecord workflow (FO-17-19) and a reviewer queue in Evaluation Studio (FO-14-30). The gate counts an intent as reviewed only when all eight variant families have a current ReviewRecord.
+  size: M
+  environmentDependency: Genuine human reviewers (PRQ-012)
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-17-21
+  section: '17'
+  kind: evaluation
+  text: '>=500 human-reviewed privacy/authorization/clinical-boundary/safety-routing cases separate from routine; generate candidates now; review PENDING; no synthesized signatures.'
+  acceptance: '>=500 risk candidates generated, review PENDING until genuine reviewers act.'
+  originalIds:
+  - SPEC-14.risk-corpus
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/generate-risk.ts (522 drafts, 22 families)
+  - scenarios/risk/*.json
+  - platform/src/evaluation/aggregate.ts:206-209
+  gap: Unreviewed drafts.
+  remediation: Same ReviewRecord workflow as FO-17-19, with a separate risk-review queue restricted to clinical safety, privacy and security reviewers. The production gate counts only risk scenarios with a current ReviewRecord toward the >=500 minimum (aggregate.ts:206-209).
+  size: M
+  environmentDependency: Genuine human reviewers (PRQ-012)
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-17-22
+  section: '17'
+  kind: evaluation
+  text: Repeat selected stochastic cases >=5 times; measure all-k reliability and pass@1; never report best-of-many as first-attempt success.
+  acceptance: Aggregates report pass@1 and pass^k (all repetitions pass) per scenario.
+  originalIds:
+  - SPEC-14.repetitions
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/generate.ts:111,145
+  - platform/src/evaluation/generate-risk.ts:158
+  gap: Repetitions configured but no all-k metric; local coordinator is deterministic so repetitions are not stochastic.
+  remediation: Add pass^k/pass@1 to aggregate.ts; run with stochastic model driver.
+  size: S
+  environmentDependency: none
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+- id: FO-17-23
+  section: '17'
+  kind: evaluation
+  text: Include shared devices, proxies/minors, role switching, culturally varied speech, speech impairment, relay/interpreter, long pauses and OOD intents; do not infer protected traits from live audio.
+  acceptance: Scenarios for each population (audio where relevant); no protected-trait inference in analytics.
+  originalIds:
+  - SPEC-14.edge-populations
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/skeletons/shared_device_recap.yaml
+  - scenarios/skeletons/representative_minor_access.yaml
+  - scenarios/skeletons/role_switch_mid_call.yaml
+  - scenarios/skeletons/relay_service_caller.yaml
+  - scenarios/skeletons/accessibility_long_pauses.yaml
+  gap: Text-only; no culturally varied speech, speech impairment audio or OOD intent family. The constraint 'do not infer protected traits from live audio for analytics' has no enforcement point because no audio analytics exist.
+  remediation: Add OOD family and audio variants in Layer 4.
+  size: M
+  environmentDependency: Consented speech data for audio variants
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+- id: FO-17-24
+  section: '17'
+  kind: evaluation
+  text: 'Fault matrix denominator and gate: the fixed fault registry (the 25 plans in scenarios/fixtures/failures plus every prompt section 17 fault-matrix item, 50 fault ids, rows FO-17-24.<FAULT_ID>) is the denominator; every id has a plan, an injection point and a reached-and-asserted run, and an uninjectable or unreached fault is a coverage hole, never PASS.'
+  acceptance: A release gate (WP-42) fails unless every FO-17-24.<FAULT_ID> has a reached-and-asserted run; the evaluation aggregate lists unreached and uninjectable faults as coverage holes.
+  originalIds:
+  - SPEC-16.fault-injection
+  - SPEC-14.failure-injection
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/*.json (25 plans)
+  - platform/src/evaluation/fault-plan.ts
+  - platform/src/evaluation/driver/local-driver.ts:189-193 (UNINJECTABLE REGIONAL_FAILOVER, REDACTION_FAILURE)
+  - platform/src/evaluation/scorer.ts:197-198 (fault scenarios need the fault reached)
+  gap: 25 of 50 fault ids have plans; 2 registry faults are uninjectable; reach is cross-checked against fixture state for 10 faults, 6 are counted when the targeted tool is called and 7 when armed; no gate fails on a fault id without a reached-and-asserted run.
+  remediation: Fault plans for all 50 ids (WP-01); injection points in the packages named per row; the fault-matrix gate in WP-42.
+  size: L
+  environmentDependency: none
+  workPackage: WP-42
+  provenance:
+    origin: extraction
+    repair:
+    - split into 50 FO-17-24.<FAULT_ID> rows (critic gap 4); the umbrella row is the fault-matrix gate, moved WP-01 -> WP-42
+- id: FO-17-24.AUTH_EXPIRY_IDLE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix AUTH_EXPIRY_IDLE: Auth expires while idle. The fault is injected at its real injection point (session idle expiry (lastActivityAt) in the identity service and the DynamoDB session store), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan AUTH_EXPIRY_IDLE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:AUTH_EXPIRY_IDLE] injects it at session idle expiry (lastActivityAt) in the identity service and the DynamoDB session store and asserts that it was reached and that the next protected read or commit fails closed, the caller is re-verified or routed, nothing is disclosed; EvaluationResult records requestedFault=AUTH_EXPIRY_IDLE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-16.fault-auth-expiry
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - caller-identity.test.ts [FAULT:AUTH_EXPIRY_IDLE] (L2)
+  gap: The EvaluationResult requestedFault/reachedFault registration belongs to WP-34/WP-42.
+  remediation: WP-04 builds the injection point (session idle expiry (lastActivityAt) in the identity service and the DynamoDB session store) together with WP-05; WP-05 owns the Layer-2 test tagged [FAULT:AUTH_EXPIRY_IDLE] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-05
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  - WP-05
+  postconditionPackages:
+  - WP-05
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-17-24.AUTH_EXPIRY_DURING_SPEECH
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix AUTH_EXPIRY_DURING_SPEECH: Auth expires during speech. The fault is injected at its real injection point (emission-time session re-check at the audio release boundary), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan AUTH_EXPIRY_DURING_SPEECH exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:AUTH_EXPIRY_DURING_SPEECH] injects it at emission-time session re-check at the audio release boundary and asserts that it was reached and that no protected audio is emitted after expiry, queued protected speech is flushed, the receipt records the cut-off; EvaluationResult records requestedFault=AUTH_EXPIRY_DURING_SPEECH and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-16.fault-auth-expiry
+  - AUTH-04
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-14 builds the injection point (emission-time session re-check at the audio release boundary) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:AUTH_EXPIRY_DURING_SPEECH]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-14
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-14
+  postconditionPackages:
+  - WP-14
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.AUTH_EXPIRY_MID_CALL
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix AUTH_EXPIRY_MID_CALL: Session expires between prepare and commit. The fault is injected at its real injection point (session expiry between prepare and commit (injected clock)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan AUTH_EXPIRY_MID_CALL exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:AUTH_EXPIRY_MID_CALL] injects it at session expiry between prepare and commit (injected clock) and asserts that it was reached and that commit fails closed with zero provider calls although the session row still exists; EvaluationResult records requestedFault=AUTH_EXPIRY_MID_CALL and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-16.fault-auth-expiry
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - composition/faults.test.ts [FAULT:AUTH_EXPIRY_MID_CALL] (passes x9)
+  gap: There is no real prepare or provider path (WP-23) and no EvaluationResult record (WP-34).
+  remediation: WP-04 and WP-05 build the injection point (session expiry between prepare and commit (injected clock)); WP-07 owns the Layer-2 test tagged [FAULT:AUTH_EXPIRY_MID_CALL] and drives that seam; the asserted postconditions also observe components of WP-04, which WP-07 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-07
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  - WP-05
+  postconditionPackages:
+  - WP-04
+  - WP-07
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-07: the commit path with zero provider calls is observable only through the composed live gateway over the DynamoDB Local session store, which WP-07 composes after WP-04 and WP-05.'
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-17-24.DELEGATION_REVOKED
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix DELEGATION_REVOKED: Revoked delegation. The fault is injected at its real injection point (relationship-directory revocation while work is pending (recheck under durable grants)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan DELEGATION_REVOKED exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:DELEGATION_REVOKED] injects it at relationship-directory revocation while work is pending (recheck under durable grants) and asserts that it was reached and that the pending disclosure or action is refused and recorded as POLICY_CHANGED_PENDING_ACTION; nothing is disclosed; EvaluationResult records requestedFault=DELEGATION_REVOKED and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - AUTH-05
+  - SPEC-7.privilege-expiry
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  - 'related, outside the fault matrix: platform/src/business/recheck.ts (representation recheck) and platform/test/journeys/j2-billing-dispute.test.ts:243'
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-19 builds the injection point (relationship-directory revocation while work is pending (recheck under durable grants)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:DELEGATION_REVOKED]; the asserted postconditions also observe components of WP-04, which WP-19 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-19
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-19
+  postconditionPackages:
+  - WP-04
+  - WP-19
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-19: the injection point is the relationship directory, whose live connector and emulator WP-19 builds; the recheck under durable grants runs on postgres:16 (WP-04) with that live adapter.'
+- id: FO-17-24.CONSENT_REVOKED
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix CONSENT_REVOKED: Revoked consent. The fault is injected at its real injection point (consent-registry revocation during a call and while work is pending), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan CONSENT_REVOKED exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:CONSENT_REVOKED] injects it at consent-registry revocation during a call and while work is pending and asserts that it was reached and that recording/processing and pending outreach stop; the revocation applies on the next request; EvaluationResult records requestedFault=CONSENT_REVOKED and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - DATA-03
+  - SPEC-7.privilege-expiry
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  - 'related, outside the fault matrix: platform/src/workflows/engine.test.ts:719 and platform/test/journeys/j2-billing-dispute.test.ts:243 test revocation without a fault plan'
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-19 and WP-22 build the injection point (consent-registry revocation during a call and while work is pending); WP-30 owns the Layer-2 test tagged [FAULT:CONSENT_REVOKED] and drives that seam; the asserted postconditions also observe components of WP-11, WP-17, WP-22 and WP-27, each of which WP-30 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-30
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-19
+  - WP-22
+  postconditionPackages:
+  - WP-11
+  - WP-17
+  - WP-22
+  - WP-27
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-30: the consent registry (WP-19) and revocation propagation (WP-22) are phase D, and the asserted postconditions need the media-path recording and processing control (WP-11, WP-17) and pending outreach (WP-27, phase E); WP-30 is the first package that depends on all of them.'
+- id: FO-17-24.CONCURRENT_SAME_ACCOUNT
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix CONCURRENT_SAME_ACCOUNT: Two concurrent calls change the same appointment. The fault is injected at its real injection point (a second call commits to the same record while the first awaits confirmation (two gateway sessions on two postgres:16 connections with the WP-04 race helper, against the WP-23 reference business API; never PGlite)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan CONCURRENT_SAME_ACCOUNT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:CONCURRENT_SAME_ACCOUNT] injects it at a second call commits to the same record while the first awaits confirmation (two gateway sessions on two postgres:16 connections with the WP-04 race helper, against the WP-23 reference business API; never PGlite) and asserts that it was reached and that exactly one effect; the stale prepared action is invalidated with STATE_CHANGED; EvaluationResult records requestedFault=CONCURRENT_SAME_ACCOUNT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-16.fault-concurrent-calls
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/CONCURRENT_SAME_ACCOUNT.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case CONCURRENT_SAME_ACCOUNT (in-process fixture stack; counted only when the fixture state shows the fault manifested)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:CONCURRENT_SAME_ACCOUNT] test.
+  remediation: WP-04 and WP-23 build the injection point (a second call commits to the same record while the first awaits confirmation (two gateway sessions on two postgres:16 connections with the WP-04 race helper, against the WP-23 reference business API; never PGlite)); WP-25 owns the Layer-2 test tagged [FAULT:CONCURRENT_SAME_ACCOUNT] and drives that seam; the asserted postconditions also observe components of WP-23, which WP-25 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-25
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  - WP-23
+  postconditionPackages:
+  - WP-23
+  - WP-25
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-25: the multi-connection run needs postgres:16 (WP-04 race helper, never PGlite: ADR-0018 decision 7.2), the reference business API as the shared record (WP-23) and the action protocol that invalidates the stale prepared action (WP-25).'
+- id: FO-17-24.CHANGED_SLOT_DURING_CONFIRMATION
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix CHANGED_SLOT_DURING_CONFIRMATION: Changed slot during confirmation. The fault is injected at its real injection point (the scheduling source changes the slot version between read-back and commit), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan CHANGED_SLOT_DURING_CONFIRMATION exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:CHANGED_SLOT_DURING_CONFIRMATION] injects it at the scheduling source changes the slot version between read-back and commit and asserts that it was reached and that commit re-reads the version, refuses, refreshes the proposal and needs a new confirmation; EvaluationResult records requestedFault=CHANGED_SLOT_DURING_CONFIRMATION and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - ACT-01
+  - SPEC-8.commit-recheck
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-23 builds the injection point (the scheduling source changes the slot version between read-back and commit); WP-25 owns the Layer-2 test tagged [FAULT:CHANGED_SLOT_DURING_CONFIRMATION] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-25
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-25
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-25: the slot version changes in the reference business API (WP-23) and the refusal, proposal refresh and new confirmation run through the action protocol and business services WP-25 owns (J02 conflict refresh).'
+- id: FO-17-24.INTERRUPTED_CONFIRMATION
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix INTERRUPTED_CONFIRMATION: Caller barges in during the confirmation prompt. The fault is injected at its real injection point (barge-in during the confirmation read-back at the audio boundary), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan INTERRUPTED_CONFIRMATION exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:INTERRUPTED_CONFIRMATION] injects it at barge-in during the confirmation read-back at the audio boundary and asserts that it was reached and that the original prepared action is invalidated; an earlier yes never confirms the changed request; EvaluationResult records requestedFault=INTERRUPTED_CONFIRMATION and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-16.fault-interrupted-confirmation
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - voice.release_boundary
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/INTERRUPTED_CONFIRMATION.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case INTERRUPTED_CONFIRMATION (in-process fixture stack; counted as injected when it is armed, not when it manifests)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:INTERRUPTED_CONFIRMATION] test.
+  remediation: WP-13 builds the injection point (barge-in during the confirmation read-back at the audio boundary) together with WP-14; WP-14 owns the Layer-2 test tagged [FAULT:INTERRUPTED_CONFIRMATION] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-14
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-13
+  - WP-14
+  postconditionPackages:
+  - WP-14
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.STALE_SOURCE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix STALE_SOURCE: Stale source. The fault is injected at its real injection point (a context source older than its freshness budget (warehouse snapshot older than a payment)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan STALE_SOURCE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:STALE_SOURCE] injects it at a context source older than its freshness budget (warehouse snapshot older than a payment) and asserts that it was reached and that the fact is not spoken as current; a live lookup runs or an honest unknown is given; EvaluationResult records requestedFault=STALE_SOURCE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-12.bounded-caching
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-21 builds the injection point (a context source older than its freshness budget (warehouse snapshot older than a payment)) together with WP-24; WP-24 owns the Layer-2 test tagged [FAULT:STALE_SOURCE] and drives that seam; the asserted postconditions also observe components of WP-14 and WP-23, each of which WP-24 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-24
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-21
+  - WP-24
+  postconditionPackages:
+  - WP-14
+  - WP-23
+  - WP-24
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.CONTRADICTORY_EVENT
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix CONTRADICTORY_EVENT: Contradictory event. The fault is injected at its real injection point (two sources or events disagree on a field used by the snapshot), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan CONTRADICTORY_EVENT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:CONTRADICTORY_EVENT] injects it at two sources or events disagree on a field used by the snapshot and asserts that it was reached and that the snapshot surfaces the contradiction by source precedence; no proposed answer uses the contradicted value; EvaluationResult records requestedFault=CONTRADICTORY_EVENT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-3.trust-boundaries
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-18 builds the injection point (two sources or events disagree on a field used by the snapshot) together with WP-24; WP-24 owns the Layer-2 test tagged [FAULT:CONTRADICTORY_EVENT] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-24
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-18
+  - WP-24
+  postconditionPackages:
+  - WP-24
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.EVENTS_OUT_OF_ORDER
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix EVENTS_OUT_OF_ORDER: Transfer events arrive out of order. The fault is injected at its real injection point (carrier transfer events delivered out of order to the carrier_event_inbox), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan EVENTS_OUT_OF_ORDER exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:EVENTS_OUT_OF_ORDER] injects it at carrier transfer events delivered out of order to the carrier_event_inbox and asserts that it was reached and that early events are held and applied in order; nothing is applied early; EvaluationResult records requestedFault=EVENTS_OUT_OF_ORDER and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SAFE-04
+  - SPEC-10.transfer
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/EVENTS_OUT_OF_ORDER.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case EVENTS_OUT_OF_ORDER (in-process fixture stack; counted only when the fixture state shows the fault manifested)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:EVENTS_OUT_OF_ORDER] test.
+  remediation: WP-28 builds the injection point (carrier transfer events delivered out of order to the carrier_event_inbox) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:EVENTS_OUT_OF_ORDER]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-28
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-28
+  postconditionPackages:
+  - WP-28
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.DUPLICATE_WEBHOOK
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix DUPLICATE_WEBHOOK: Vendor redelivers the same event twice. The fault is injected at its real injection point (inbound inbox redelivery with the same (tenant, source, event_id) and outbox redelivery), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan DUPLICATE_WEBHOOK exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:DUPLICATE_WEBHOOK] injects it at inbound inbox redelivery with the same (tenant, source, event_id) and outbox redelivery and asserts that it was reached and that one effect; consumers deduplicate; the duplicate is recorded; EvaluationResult records requestedFault=DUPLICATE_WEBHOOK and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-16.fault-duplicate-webhooks
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - ingress.events
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'ingress/http.test.ts [FAULT:DUPLICATE_WEBHOOK] two-replica race and redeliveries: one row, one effect'
+  gap: The EvaluationResult requestedFault/reachedFault element is WP-34's.
+  remediation: WP-04 builds the injection point (inbound inbox redelivery with the same (tenant, source, event_id) and outbox redelivery) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:DUPLICATE_WEBHOOK]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-04
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  postconditionPackages:
+  - WP-04
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-17-24.MISSING_WEBHOOK
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix MISSING_WEBHOOK: Missing webhook. The fault is injected at its real injection point (a vendor event that never arrives (Talkdesk/Salesforce emulator drops it)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan MISSING_WEBHOOK exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:MISSING_WEBHOOK] injects it at a vendor event that never arrives (Talkdesk/Salesforce emulator drops it) and asserts that it was reached and that the gap is detected by watermark or reconcile-by-lookup; state is never assumed; EvaluationResult records requestedFault=MISSING_WEBHOOK and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-8.webhook-auth
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-29 builds the injection point (a vendor event that never arrives (Talkdesk/Salesforce emulator drops it)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:MISSING_WEBHOOK]; the asserted postconditions also observe components of WP-04 and WP-06, each of which WP-29 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-29
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-29
+  postconditionPackages:
+  - WP-04
+  - WP-06
+  - WP-29
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.SCHEDULING_TIMEOUT_AFTER_COMMIT
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix SCHEDULING_TIMEOUT_AFTER_COMMIT: Scheduling commit times out after it was applied. The fault is injected at its real injection point (the reference business API applies the change and times out the response), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan SCHEDULING_TIMEOUT_AFTER_COMMIT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:SCHEDULING_TIMEOUT_AFTER_COMMIT] injects it at the reference business API applies the change and times out the response and asserts that it was reached and that UNKNOWN, reconciliation by idempotency key before any retry or success, no duplicate; EvaluationResult records requestedFault=SCHEDULING_TIMEOUT_AFTER_COMMIT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - ACT-03
+  - SPEC-8.timeout-states
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/SCHEDULING_TIMEOUT_AFTER_COMMIT.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case SCHEDULING_TIMEOUT_AFTER_COMMIT (in-process fixture stack; counted only when the fixture state shows the fault manifested)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:SCHEDULING_TIMEOUT_AFTER_COMMIT] test.
+  remediation: WP-23 builds the injection point (the reference business API applies the change and times out the response); WP-25 owns the Layer-2 test tagged [FAULT:SCHEDULING_TIMEOUT_AFTER_COMMIT] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-25
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-25
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.CRASH_AFTER_COMMIT
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix CRASH_AFTER_COMMIT: Process crashes after the external system committed. The fault is injected at its real injection point (worker process death between the provider commit and the ledger record (two workers on postgres:16)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan CRASH_AFTER_COMMIT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:CRASH_AFTER_COMMIT] injects it at worker process death between the provider commit and the ledger record (two workers on postgres:16) and asserts that it was reached and that no duplicate effect; the action is reconciled to COMMITTED with its receipt; the caller is never told success early; EvaluationResult records requestedFault=CRASH_AFTER_COMMIT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-16.fault-crash-after-commit
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/CRASH_AFTER_COMMIT.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case CRASH_AFTER_COMMIT (in-process fixture stack; counted only when the fixture state shows the fault manifested)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:CRASH_AFTER_COMMIT] test.
+  remediation: WP-04 builds the injection point (worker process death between the provider commit and the ledger record (two workers on postgres:16)) together with WP-25; WP-25 owns the Layer-2 test tagged [FAULT:CRASH_AFTER_COMMIT] and drives that seam; the asserted postconditions also observe components of WP-23, which WP-25 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-25
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  - WP-25
+  postconditionPackages:
+  - WP-23
+  - WP-25
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.RECEIPT_LOST
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix RECEIPT_LOST: Lost receipt. The fault is injected at its real injection point (the commit receipt or completion event never arrives), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan RECEIPT_LOST exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:RECEIPT_LOST] injects it at the commit receipt or completion event never arrives and asserts that it was reached and that the outcome stays unverified until EffectVerification reads the system of record; never RESOLVED on the request alone; EvaluationResult records requestedFault=RECEIPT_LOST and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - ACT-04
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-23 builds the injection point (the commit receipt or completion event never arrives) together with WP-25; WP-25 owns the Layer-2 test tagged [FAULT:RECEIPT_LOST] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-25
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-23
+  - WP-25
+  postconditionPackages:
+  - WP-25
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.RECEIPT_LATE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix RECEIPT_LATE: Late receipt. The fault is injected at its real injection point (the receipt arrives after the reconcile budget or after a newer turn), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan RECEIPT_LATE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:RECEIPT_LATE] injects it at the receipt arrives after the reconcile budget or after a newer turn and asserts that it was reached and that a late receipt updates the case but never speaks into a new turn and never reverses a verified outcome; EvaluationResult records requestedFault=RECEIPT_LATE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - ACT-04
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-23 builds the injection point (the receipt arrives after the reconcile budget or after a newer turn) together with WP-25; WP-25 owns the Layer-2 test tagged [FAULT:RECEIPT_LATE] and drives that seam; the asserted postconditions also observe components of WP-14, which WP-25 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-25
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-23
+  - WP-25
+  postconditionPackages:
+  - WP-14
+  - WP-25
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.SALESFORCE_OUTAGE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix SALESFORCE_OUTAGE: Salesforce unavailable during case creation. The fault is injected at its real injection point (the Salesforce emulator refuses connections for the whole call), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan SALESFORCE_OUTAGE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:SALESFORCE_OUTAGE] injects it at the Salesforce emulator refuses connections for the whole call and asserts that it was reached and that an encrypted internal support request and reference persist; replay later creates exactly one Case; EvaluationResult records requestedFault=SALESFORCE_OUTAGE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-16.fault-salesforce-outage
+  - SPEC-8.salesforce-outage
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/SALESFORCE_OUTAGE.json (fault plan v2)
+  - platform/src/evaluation/driver/local-driver.ts inject() case SALESFORCE_OUTAGE (in-process fixture stack; counted as injected when it is armed, not when it manifests)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:SALESFORCE_OUTAGE] test.
+  remediation: WP-29 builds the injection point (the Salesforce emulator refuses connections for the whole call) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:SALESFORCE_OUTAGE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-29
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-29
+  postconditionPackages:
+  - WP-29
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.SCHEMA_DRIFT
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix SCHEMA_DRIFT: Drifted schema. The fault is injected at its real injection point (a connector response or metadata whose fields differ from the profile mapping), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan SCHEMA_DRIFT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:SCHEMA_DRIFT] injects it at a connector response or metadata whose fields differ from the profile mapping and asserts that it was reached and that the mapping refuses the record with a typed drift error and readiness turns the capability UNKNOWN; no partial write; EvaluationResult records requestedFault=SCHEMA_DRIFT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-16.integration-records
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-06 builds the injection point (a connector response or metadata whose fields differ from the profile mapping); WP-32 owns the Layer-2 test tagged [FAULT:SCHEMA_DRIFT] and drives that seam; the asserted postconditions also observe components of WP-06, which WP-32 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-32
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-06
+  postconditionPackages:
+  - WP-06
+  - WP-32
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-06 -> WP-32: the asserted postcondition "readiness turns the capability UNKNOWN" needs the readiness registry, which WP-32 builds in phase F; WP-06 builds the drifted-metadata injection point and the typed drift error.'
+- id: FO-17-24.DLQ_FULL
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix DLQ_FULL: Full DLQ. The fault is injected at its real injection point (the dead-letter destination is at capacity or unwritable (ElasticMQ)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: 'A fault plan DLQ_FULL exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:DLQ_FULL] injects it at the dead-letter destination is at capacity or unwritable (ElasticMQ) and asserts that it was reached and that deliveries are not dropped: the connector stops consuming, alarms and keeps the source checkpoint; EvaluationResult records requestedFault=DLQ_FULL and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.'
+  originalIds:
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - composition/faults.test.ts [FAULT:DLQ_FULL] (passes x9)
+  gap: The EvaluationResult record for the fault run is WP-34.
+  remediation: WP-04 builds the injection point (the dead-letter destination is at capacity or unwritable (ElasticMQ)); WP-07 owns the Layer-2 test tagged [FAULT:DLQ_FULL] and drives that seam; the asserted postconditions also observe components of WP-06, which WP-07 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-07
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  postconditionPackages:
+  - WP-06
+  - WP-07
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-06 -> WP-07: the dead-letter destination is the WP-04 SqsPublisher DLQ on ElasticMQ and WP-06 runs in parallel with WP-04; WP-07 composes the connector runtime with that DLQ and owns the alarm rules (observability group, phase B).'
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-17-24.MODEL_REFUSAL
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix MODEL_REFUSAL: Model refusal. The fault is injected at its real injection point (the model emulator returns a provider refusal), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan MODEL_REFUSAL exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:MODEL_REFUSAL] injects it at the model emulator returns a provider refusal and asserts that it was reached and that the refusal classifier routes to an approved template or the human route; no improvised speech; EvaluationResult records requestedFault=MODEL_REFUSAL and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SAFE-03
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-08 builds the injection point (the model emulator returns a provider refusal); WP-17 owns the Layer-2 test tagged [FAULT:MODEL_REFUSAL] and drives that seam; the asserted postconditions also observe components of WP-08, WP-14 and WP-15, each of which WP-17 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-17
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-08
+  postconditionPackages:
+  - WP-08
+  - WP-14
+  - WP-15
+  - WP-17
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-08 -> WP-17: "no improvised speech" and the approved template or human route are observable only at the audio boundary of the composed cascade (WP-14, WP-15, WP-17); WP-08 builds the emulator refusal.'
+- id: FO-17-24.MODEL_HANG
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix MODEL_HANG: Model hang. The fault is injected at its real injection point (the model stream stalls past its deadline), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan MODEL_HANG exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:MODEL_HANG] injects it at the model stream stalls past its deadline and asserts that it was reached and that the deadline cancels the call, the breaker opens and the approved fallback plays; safety is unaffected; EvaluationResult records requestedFault=MODEL_HANG and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SAFE-03
+  - SPEC-12.resilience
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-08 builds the injection point (the model stream stalls past its deadline); WP-15 owns the Layer-2 test tagged [FAULT:MODEL_HANG] and drives that seam; the asserted postconditions also observe components of WP-08 and WP-10, each of which WP-15 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-15
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-08
+  postconditionPackages:
+  - WP-08
+  - WP-10
+  - WP-15
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-08 -> WP-15: the asserted postconditions "the approved fallback plays" and "safety is unaffected" need the fallback player and safety runtime WP-15 builds; the stall comes from the WP-08 emulator through the WP-10 harness deadline (WP-15 now depends on WP-10).'
+- id: FO-17-24.MODEL_OVERLOAD
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix MODEL_OVERLOAD: Model overload. The fault is injected at its real injection point (the model emulator returns overload/rate-limit errors), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan MODEL_OVERLOAD exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:MODEL_OVERLOAD] injects it at the model emulator returns overload/rate-limit errors and asserts that it was reached and that bounded retries honour Retry-After, admission sheds model work first and the safe route stays usable; EvaluationResult records requestedFault=MODEL_OVERLOAD and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-12.admission
+  derivedFrom: []
+  capabilityIds:
+  - models.providers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-08 builds the injection point (the model emulator returns overload/rate-limit errors); WP-17 owns the Layer-2 test tagged [FAULT:MODEL_OVERLOAD] and drives that seam; the asserted postconditions also observe components of WP-08 and WP-15, each of which WP-17 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-17
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-08
+  postconditionPackages:
+  - WP-08
+  - WP-15
+  - WP-17
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-08 -> WP-17: "admission sheds model work first" changes platform/src/ops/admission.ts (ops shared group, phase C owner WP-17) and "the safe route stays usable" needs WP-15; WP-08 builds the overload responses.'
+- id: FO-17-24.ASR_FAILURE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix ASR_FAILURE: ASR failure. The fault is injected at its real injection point (the ASR sidecar or managed ASR fails or returns no partials), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan ASR_FAILURE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:ASR_FAILURE] injects it at the ASR sidecar or managed ASR fails or returns no partials and asserts that it was reached and that uncertain speech is treated as uncertain (safety signal UNRESOLVED where relevant) and the caller is offered a human; EvaluationResult records requestedFault=ASR_FAILURE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-10.safety-signals
+  - SAFE-02
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-13 builds the injection point (the ASR sidecar or managed ASR fails or returns no partials); WP-15 owns the Layer-2 test tagged [FAULT:ASR_FAILURE] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-15
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-13
+  postconditionPackages:
+  - WP-15
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-13 -> WP-15: the asserted postconditions (safety signal UNRESOLVED, a human offered) belong to the safety runtime and continuity route WP-15 builds (J11 ASR failure); WP-13 builds the sidecar and adapter failure.'
+- id: FO-17-24.TTS_FAILURE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix TTS_FAILURE: TTS failure. The fault is injected at its real injection point (the TTS sidecar or managed TTS fails mid-utterance), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan TTS_FAILURE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:TTS_FAILURE] injects it at the TTS sidecar or managed TTS fails mid-utterance and asserts that it was reached and that the pre-rendered fallback clip plays; protected content is never improvised; EvaluationResult records requestedFault=TTS_FAILURE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - ACT-05
+  - SAFE-02
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-13 builds the injection point (the TTS sidecar or managed TTS fails mid-utterance); WP-15 owns the Layer-2 test tagged [FAULT:TTS_FAILURE] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-15
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-13
+  postconditionPackages:
+  - WP-15
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-13 -> WP-15: the asserted postcondition "the pre-rendered fallback clip plays" needs the fallback clip player WP-15 builds; WP-13 builds the sidecar and adapter failure.'
+- id: FO-17-24.JUDGE_FAILURE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix JUDGE_FAILURE: Judge failure. The fault is injected at its real injection point (the pre-release or monitor judge times out or errors), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan JUDGE_FAILURE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:JUDGE_FAILURE] injects it at the pre-release or monitor judge times out or errors and asserts that it was reached and that release fails closed to the approved template or fallback clip; the safety route is unaffected; EvaluationResult records requestedFault=JUDGE_FAILURE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - ACT-05
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-35 builds the injection point (the pre-release or monitor judge times out or errors) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:JUDGE_FAILURE]; the asserted postconditions also observe components of WP-14 and WP-15, each of which WP-35 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-35
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-35
+  postconditionPackages:
+  - WP-14
+  - WP-15
+  - WP-35
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.RECEIVER_UNAVAILABLE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix RECEIVER_UNAVAILABLE: No human receiver available. The fault is injected at its real injection point (no staffed receiver accepts within the attempt window), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan RECEIVER_UNAVAILABLE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:RECEIVER_UNAVAILABLE] injects it at no staffed receiver accepts within the attempt window and asserts that it was reached and that truthful status, ownership retained, next approved staffed route; EvaluationResult records requestedFault=RECEIVER_UNAVAILABLE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SAFE-04
+  - SPEC-10.transfer-failure
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/RECEIVER_UNAVAILABLE.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case RECEIVER_UNAVAILABLE (in-process fixture stack; counted only when the fixture state shows the fault manifested)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:RECEIVER_UNAVAILABLE] test.
+  remediation: WP-28 builds the injection point (no staffed receiver accepts within the attempt window) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:RECEIVER_UNAVAILABLE]; the asserted postconditions also observe components of WP-15, which WP-28 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-28
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-28
+  postconditionPackages:
+  - WP-15
+  - WP-28
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.RECEIVER_DECLINED
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix RECEIVER_DECLINED: Human declines. The fault is injected at its real injection point (the receiver client declines the transfer), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan RECEIVER_DECLINED exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:RECEIVER_DECLINED] injects it at the receiver client declines the transfer and asserts that it was reached and that RECEIVER_DECLINED is recorded, the next staffed destination is tried, never counted as connected; EvaluationResult records requestedFault=RECEIVER_DECLINED and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SAFE-04
+  - SPEC-10.transfer-failure
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-28 builds the injection point (the receiver client declines the transfer) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:RECEIVER_DECLINED]; the asserted postconditions also observe components of WP-15, which WP-28 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-28
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-28
+  postconditionPackages:
+  - WP-15
+  - WP-28
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.TRANSFER_FAILED
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix TRANSFER_FAILED: Transfer to the first destination fails. The fault is injected at its real injection point (the first allowlisted destination rejects the transfer), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan TRANSFER_FAILED exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:TRANSFER_FAILED] injects it at the first allowlisted destination rejects the transfer and asserts that it was reached and that the next staffed route from trusted configuration is invoked; EvaluationResult records requestedFault=TRANSFER_FAILED and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-16.fault-failed-transfer
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/TRANSFER_FAILED.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case TRANSFER_FAILED (in-process fixture stack; counted only when the fixture state shows the fault manifested)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:TRANSFER_FAILED] test.
+  remediation: WP-28 builds the injection point (the first allowlisted destination rejects the transfer) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:TRANSFER_FAILED]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-28
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-28
+  postconditionPackages:
+  - WP-28
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.BRIDGE_DROPPED
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix BRIDGE_DROPPED: Bridge drops after receiver acceptance. The fault is injected at its real injection point (the bridge drops after receiver acceptance (LiveKit/SIP warm transfer)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan BRIDGE_DROPPED exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:BRIDGE_DROPPED] injects it at the bridge drops after receiver acceptance (LiveKit/SIP warm transfer) and asserts that it was reached and that not counted as connected; fallback re-entered with the caller kept on the line; EvaluationResult records requestedFault=BRIDGE_DROPPED and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/BRIDGE_DROPPED.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case BRIDGE_DROPPED (in-process fixture stack; counted only when the fixture state shows the fault manifested)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:BRIDGE_DROPPED] test.
+  remediation: WP-12 builds the injection point (the bridge drops after receiver acceptance (LiveKit/SIP warm transfer)) together with WP-28; WP-28 owns the Layer-2 test tagged [FAULT:BRIDGE_DROPPED] and drives that seam; the asserted postconditions also observe components of WP-15, which WP-28 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-28
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-12
+  - WP-28
+  postconditionPackages:
+  - WP-15
+  - WP-28
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.RECORDING_REFUSED
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix RECORDING_REFUSED: Recording refusal. The fault is injected at its real injection point (the caller declines recording on the media path), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan RECORDING_REFUSED exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:RECORDING_REFUSED] injects it at the caller declines recording on the media path and asserts that it was reached and that the actual recorder and processing state match the disclosure; the configured alternative is offered; EvaluationResult records requestedFault=RECORDING_REFUSED and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - DATA-03
+  - SPEC-6.consent-before-recording
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-11 builds the injection point (the caller declines recording on the media path); WP-25 owns the Layer-2 test tagged [FAULT:RECORDING_REFUSED] and drives that seam; the asserted postconditions also observe components of WP-11 and WP-17, each of which WP-25 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-25
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-11
+  postconditionPackages:
+  - WP-11
+  - WP-17
+  - WP-25
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.AUDIT_OUTAGE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix AUDIT_OUTAGE: Durable audit evidence cannot be written. The fault is injected at its real injection point (the central sink and local audit outbox cannot be written (MinIO Object Lock and Postgres in Layer 2)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan AUDIT_OUTAGE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:AUDIT_OUTAGE] injects it at the central sink and local audit outbox cannot be written (MinIO Object Lock and Postgres in Layer 2) and asserts that it was reached and that consequential actions are blocked; safety and human routes stay usable; no unaudited commit; EvaluationResult records requestedFault=AUDIT_OUTAGE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-16.fault-audit-outage
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - substrate/faults.test.ts [FAULT:AUDIT_OUTAGE] fail closed before any provider call; routes journaled
+  gap: The EvaluationResult requestedFault/reachedFault element is WP-34's.
+  remediation: WP-04 builds the injection point (the central sink and local audit outbox cannot be written (MinIO Object Lock and Postgres in Layer 2)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:AUDIT_OUTAGE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-04
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  postconditionPackages:
+  - WP-04
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-17-24.LOCAL_PERSISTENCE_FAILURE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix LOCAL_PERSISTENCE_FAILURE: Local persistence failure. The fault is injected at its real injection point (the primary database write fails (postgres:16 stopped or read-only)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan LOCAL_PERSISTENCE_FAILURE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:LOCAL_PERSISTENCE_FAILURE] injects it at the primary database write fails (postgres:16 stopped or read-only) and asserts that it was reached and that protected reads and writes are refused, the telephone route remains usable, no mutation is acknowledged; EvaluationResult records requestedFault=LOCAL_PERSISTENCE_FAILURE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-12.db-outage
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  - 'related, outside the fault matrix: platform/src/gateway/pipeline.db-outage.test.ts and platform/src/business/db-outage.test.ts (PGlite outage tests)'
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-04 builds the injection point (the primary database write fails (postgres:16 stopped or read-only)); WP-15 owns the Layer-2 test tagged [FAULT:LOCAL_PERSISTENCE_FAILURE] and drives that seam; the asserted postconditions also observe components of WP-12, which WP-15 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-15
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-04
+  postconditionPackages:
+  - WP-12
+  - WP-15
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-04 -> WP-15: the asserted postcondition "the telephone route remains usable" needs the SIP route (WP-12) and the AI-off continuity route WP-15 builds; WP-04 builds the postgres:16 stopped or read-only injection point.'
+- id: FO-17-24.REDACTION_FAILURE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix REDACTION_FAILURE: Redaction of a transcript fails. The fault is injected at its real injection point (the redaction stage fails on a transcript segment), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan REDACTION_FAILURE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:REDACTION_FAILURE] injects it at the redaction stage fails on a transcript segment and asserts that it was reached and that the segment is quarantined, never shipped to general logs, analytics or judges; EvaluationResult records requestedFault=REDACTION_FAILURE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-6.redaction
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/REDACTION_FAILURE.json (fault plan v1)
+  - 'platform/src/evaluation/driver/local-driver.ts:189-193 (UNINJECTABLE_FAULTS: NO_REDACTION_STAGE_IN_LOCAL_CALL_PATH; refused, never simulated as success)'
+  gap: 'The local driver refuses the plan: no injection point exists.'
+  remediation: WP-22 builds the injection point (the redaction stage fails on a transcript segment); WP-35 owns the Layer-2 test tagged [FAULT:REDACTION_FAILURE] and drives that seam; the asserted postconditions also observe components of WP-17, WP-21 and WP-22, each of which WP-35 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-35
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-22
+  postconditionPackages:
+  - WP-17
+  - WP-21
+  - WP-22
+  - WP-35
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-22 -> WP-35: the asserted postcondition "never shipped to general logs, analytics or judges" needs transcript segments from the media path (WP-17), the CDP/analytics export (WP-21) and the judges and monitors WP-35 builds; WP-22 builds the redaction-stage failure and the quarantine.'
+- id: FO-17-24.SOURCE_DELETED
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix SOURCE_DELETED: Source deletion. The fault is injected at its real injection point (a subject or source record is deleted while work is pending), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan SOURCE_DELETED exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:SOURCE_DELETED] injects it at a subject or source record is deleted while work is pending and asserts that it was reached and that timeline, memory, embeddings and caches drop it; later disclosure does not use it; tombstones survive restore; EvaluationResult records requestedFault=SOURCE_DELETED and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-22 builds the injection point (a subject or source record is deleted while work is pending); WP-24 owns the Layer-2 test tagged [FAULT:SOURCE_DELETED] and drives that seam; the asserted postconditions also observe components of WP-18, WP-20 and WP-22, each of which WP-24 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-24
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-22
+  postconditionPackages:
+  - WP-18
+  - WP-20
+  - WP-22
+  - WP-24
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-22 -> WP-24: the asserted postconditions "caches drop it" and "later disclosure does not use it" need the ContextCacheKey caches and snapshot assembly WP-24 builds; WP-22 builds the deletion while work is pending and the tombstones.'
+- id: FO-17-24.SOURCE_MERGED
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix SOURCE_MERGED: Source merge. The fault is injected at its real injection point (the identity directory merges two subjects), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan SOURCE_MERGED exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:SOURCE_MERGED] injects it at the identity directory merges two subjects and asserts that it was reached and that reviewed merge only; caches invalidated; no automatic authority transfer; EvaluationResult records requestedFault=SOURCE_MERGED and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-19 builds the injection point (the identity directory merges two subjects); WP-24 owns the Layer-2 test tagged [FAULT:SOURCE_MERGED] and drives that seam; the asserted postconditions also observe components of WP-19, which WP-24 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-24
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-19
+  postconditionPackages:
+  - WP-19
+  - WP-24
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-19 -> WP-24: the asserted postcondition "caches invalidated" covers the ContextCacheKey caches WP-24 builds; WP-19 builds the identity-directory merge.'
+- id: FO-17-24.SOURCE_SPLIT
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix SOURCE_SPLIT: Source split. The fault is injected at its real injection point (the identity directory splits one subject into two), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan SOURCE_SPLIT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:SOURCE_SPLIT] injects it at the identity directory splits one subject into two and asserts that it was reached and that links are quarantined until reviewed; nothing is disclosed across the split; EvaluationResult records requestedFault=SOURCE_SPLIT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-19 builds the injection point (the identity directory splits one subject into two); WP-24 owns the Layer-2 test tagged [FAULT:SOURCE_SPLIT] and drives that seam; the asserted postconditions also observe components of WP-19, which WP-24 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-24
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-19
+  postconditionPackages:
+  - WP-19
+  - WP-24
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-19 -> WP-24: the asserted postcondition "nothing is disclosed across the split" covers context snapshots and caches WP-24 builds; WP-19 builds the identity-directory split.'
+- id: FO-17-24.REGIONAL_FAILOVER
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix REGIONAL_FAILOVER: Primary region fails during a call. The fault is injected at its real injection point (regional uncertainty with the application write fence (FO-16-44a)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan REGIONAL_FAILOVER exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:REGIONAL_FAILOVER] injects it at regional uncertainty with the application write fence (FO-16-44a) and asserts that it was reached and that writes fenced, in-doubt actions reconciled before unfence, no split-brain effect; EvaluationResult records requestedFault=REGIONAL_FAILOVER and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-12.recovery
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/REGIONAL_FAILOVER.json (fault plan v1)
+  - 'platform/src/evaluation/driver/local-driver.ts:189-193 (UNINJECTABLE_FAULTS: WRITE_FENCE_NEEDS_CONTAINER_RESTART; refused, never simulated as success)'
+  gap: 'The local driver refuses the plan: no injection point exists.'
+  remediation: WP-42 builds the injection point (regional uncertainty with the application write fence (FO-16-44a)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:REGIONAL_FAILOVER]; the asserted postconditions also observe components of WP-25, which WP-42 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none for software; DR drill authority for VERIFIED_SANDBOX
+  workPackage: WP-42
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-42
+  postconditionPackages:
+  - WP-25
+  - WP-42
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.QUOTA_EXHAUSTED
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix QUOTA_EXHAUSTED: AI or budget quota exhausted mid-call. The fault is injected at its real injection point (vendor or AI quota exhausted mid-call (shared quota counters)), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan QUOTA_EXHAUSTED exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:QUOTA_EXHAUSTED] injects it at vendor or AI quota exhausted mid-call (shared quota counters) and asserts that it was reached and that nonessential automation stops, the continuity route takes over, active safety handoffs continue; EvaluationResult records requestedFault=QUOTA_EXHAUSTED and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-12.quotas
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/QUOTA_EXHAUSTED.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case QUOTA_EXHAUSTED (in-process fixture stack; counted as injected when it is armed, not when it manifests)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:QUOTA_EXHAUSTED] test.
+  remediation: WP-42 builds the injection point (vendor or AI quota exhausted mid-call (shared quota counters)) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:QUOTA_EXHAUSTED]; the asserted postconditions also observe components of WP-15 and WP-28, each of which WP-42 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-42
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-42
+  postconditionPackages:
+  - WP-15
+  - WP-28
+  - WP-42
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.BUDGET_EXHAUSTED
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix BUDGET_EXHAUSTED: Budget exhaustion. The fault is injected at its real injection point (the spend ledger reaches a tenant/cohort/model ceiling mid-call), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan BUDGET_EXHAUSTED exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:BUDGET_EXHAUSTED] injects it at the spend ledger reaches a tenant/cohort/model ceiling mid-call and asserts that it was reached and that new nonessential automation is refused, the safety reserve is used, the caller reaches a human; EvaluationResult records requestedFault=BUDGET_EXHAUSTED and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-12.budget-cutoff
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - operations.resilience_cost
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
+  gap: No fault plan, no injection point and no reached-and-asserted run.
+  remediation: WP-42 builds the injection point (the spend ledger reaches a tenant/cohort/model ceiling mid-call) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:BUDGET_EXHAUSTED]; the asserted postconditions also observe components of WP-15, which WP-42 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: M
+  environmentDependency: none
+  workPackage: WP-42
+  faultSource: registry and prompt section 17
+  injectionPointPackages:
+  - WP-42
+  postconditionPackages:
+  - WP-15
+  - WP-42
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.BILLING_TIMEOUT
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix BILLING_TIMEOUT: Billing system times out on read. The fault is injected at its real injection point (reference business API billing read timeout), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan BILLING_TIMEOUT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:BILLING_TIMEOUT] injects it at reference business API billing read timeout and asserts that it was reached and that honest unavailability; bounded retry of a safe read only; EvaluationResult records requestedFault=BILLING_TIMEOUT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-14.failure-injection
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/BILLING_TIMEOUT.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case BILLING_TIMEOUT (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:BILLING_TIMEOUT] test.
+  remediation: WP-23 builds the injection point (reference business API billing read timeout) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:BILLING_TIMEOUT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-23
+  faultSource: registry
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-23
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.CLAIMS_TIMEOUT
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix CLAIMS_TIMEOUT: Claims system times out. The fault is injected at its real injection point (reference business API claims read timeout), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan CLAIMS_TIMEOUT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:CLAIMS_TIMEOUT] injects it at reference business API claims read timeout and asserts that it was reached and that honest unavailability; no invented claim status; EvaluationResult records requestedFault=CLAIMS_TIMEOUT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-14.failure-injection
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/CLAIMS_TIMEOUT.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case CLAIMS_TIMEOUT (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:CLAIMS_TIMEOUT] test.
+  remediation: WP-23 builds the injection point (reference business API claims read timeout) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:CLAIMS_TIMEOUT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-23
+  faultSource: registry
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-23
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.PROVIDER_API_TIMEOUT
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix PROVIDER_API_TIMEOUT: Provider network API times out. The fault is injected at its real injection point (reference business API provider-network timeout before send), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan PROVIDER_API_TIMEOUT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:PROVIDER_API_TIMEOUT] injects it at reference business API provider-network timeout before send and asserts that it was reached and that NOT_STARTED; bounded retry; provider told the status is unavailable; EvaluationResult records requestedFault=PROVIDER_API_TIMEOUT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-14.failure-injection
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/PROVIDER_API_TIMEOUT.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case PROVIDER_API_TIMEOUT (in-process fixture stack; counted as injected when it is armed, not when it manifests)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:PROVIDER_API_TIMEOUT] test.
+  remediation: WP-23 builds the injection point (reference business API provider-network timeout before send) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:PROVIDER_API_TIMEOUT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-23
+  faultSource: registry
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-23
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.SCHEDULING_UNAVAILABLE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix SCHEDULING_UNAVAILABLE: Scheduling system unavailable on read. The fault is injected at its real injection point (reference business API scheduling read refused before send), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan SCHEDULING_UNAVAILABLE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:SCHEDULING_UNAVAILABLE] injects it at reference business API scheduling read refused before send and asserts that it was reached and that nothing committed; honest unavailability and a human or callback offer; EvaluationResult records requestedFault=SCHEDULING_UNAVAILABLE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-14.failure-injection
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/SCHEDULING_UNAVAILABLE.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case SCHEDULING_UNAVAILABLE (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:SCHEDULING_UNAVAILABLE] test.
+  remediation: WP-23 builds the injection point (reference business API scheduling read refused before send) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:SCHEDULING_UNAVAILABLE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-23
+  faultSource: registry
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-23
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.PARTIAL_WRITE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix PARTIAL_WRITE: Dependency reports a partial write. The fault is injected at its real injection point (reference business API applies the first step of a multi-step write then fails), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan PARTIAL_WRITE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:PARTIAL_WRITE] injects it at reference business API applies the first step of a multi-step write then fails and asserts that it was reached and that UNKNOWN, reconciled by idempotency key, completed without duplicates; EvaluationResult records requestedFault=PARTIAL_WRITE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - ACT-02
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/PARTIAL_WRITE.json (fault plan v2)
+  - platform/src/evaluation/driver/local-driver.ts inject() case PARTIAL_WRITE (in-process fixture stack; counted only when the fixture state shows the fault manifested)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:PARTIAL_WRITE] test.
+  remediation: WP-23 builds the injection point (reference business API applies the first step of a multi-step write then fails) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:PARTIAL_WRITE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-23
+  faultSource: registry
+  injectionPointPackages:
+  - WP-23
+  postconditionPackages:
+  - WP-23
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.KNOWLEDGE_STALE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix KNOWLEDGE_STALE: Matching article is expired. The fault is injected at its real injection point (the only matching approved article expires or is superseded), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan KNOWLEDGE_STALE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:KNOWLEDGE_STALE] injects it at the only matching approved article expires or is superseded and asserts that it was reached and that the expired article is never served; an honest unknown or human route; EvaluationResult records requestedFault=KNOWLEDGE_STALE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-14.failure-injection
+  derivedFrom: []
+  capabilityIds:
+  - knowledge.retrieval
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/KNOWLEDGE_STALE.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case KNOWLEDGE_STALE (in-process fixture stack; counted only when the fixture state shows the fault manifested)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted only when the fixture state shows the fault manifested; no run over the real protocol or emulator of its injection point and no [FAULT:KNOWLEDGE_STALE] test.
+  remediation: WP-20 builds the injection point (the only matching approved article expires or is superseded) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:KNOWLEDGE_STALE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-20
+  faultSource: registry
+  injectionPointPackages:
+  - WP-20
+  postconditionPackages:
+  - WP-20
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.IDP_UNAVAILABLE
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix IDP_UNAVAILABLE: Identity provider unavailable. The fault is injected at its real injection point (the OIDC provider (Keycloak) is unavailable during secure-link approval), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan IDP_UNAVAILABLE exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:IDP_UNAVAILABLE] injects it at the OIDC provider (Keycloak) is unavailable during secure-link approval and asserts that it was reached and that no assurance raised; generic response; human route offered; EvaluationResult records requestedFault=IDP_UNAVAILABLE and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-14.failure-injection
+  - AUTH-01
+  derivedFrom: []
+  capabilityIds:
+  - identity.caller
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - workforce-sso.test.ts [FAULT:IDP_UNAVAILABLE] (L2)
+  - sso.test.ts [FAULT:IDP_UNAVAILABLE seam]
+  gap: The EvaluationResult registration belongs to WP-34/WP-42.
+  remediation: WP-05 builds the injection point (the OIDC provider (Keycloak) is unavailable during secure-link approval) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:IDP_UNAVAILABLE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-05
+  faultSource: registry
+  injectionPointPackages:
+  - WP-05
+  postconditionPackages:
+  - WP-05
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-17-24.NOTIFICATION_PROVIDER_DOWN
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix NOTIFICATION_PROVIDER_DOWN: Notification provider unavailable. The fault is injected at its real injection point (the email/SMS sender (Mailpit/LocalStack) is unavailable), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan NOTIFICATION_PROVIDER_DOWN exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:NOTIFICATION_PROVIDER_DOWN] injects it at the email/SMS sender (Mailpit/LocalStack) is unavailable and asserts that it was reached and that generic response; nothing bound; no send to a new destination; EvaluationResult records requestedFault=NOTIFICATION_PROVIDER_DOWN and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SPEC-14.failure-injection
+  derivedFrom: []
+  capabilityIds:
+  - notifications.messaging
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/NOTIFICATION_PROVIDER_DOWN.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case NOTIFICATION_PROVIDER_DOWN (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:NOTIFICATION_PROVIDER_DOWN] test.
+  remediation: WP-27 builds the injection point (the email/SMS sender (Mailpit/LocalStack) is unavailable) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:NOTIFICATION_PROVIDER_DOWN]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-27
+  faultSource: registry
+  injectionPointPackages:
+  - WP-27
+  postconditionPackages:
+  - WP-27
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-24.POLICY_ENGINE_ERROR
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix POLICY_ENGINE_ERROR: Policy evaluation errors. The fault is injected at its real injection point (the in-process OPA evaluation throws or is undefined), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan POLICY_ENGINE_ERROR exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:POLICY_ENGINE_ERROR] injects it at the in-process OPA evaluation throws or is undefined and asserts that it was reached and that protected reads and actions fail closed; safety and human routes stay allowed; EvaluationResult records requestedFault=POLICY_ENGINE_ERROR and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - AUTH-02
+  - SAFE-02
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - test/invariants/policy-engine-error.fault.test.ts [FAULT:POLICY_ENGINE_ERROR]
+  gap: The engine is decorated through a private-field seam; a public seam is requested from WP-05.
+  remediation: WP-01 builds the injection point (the in-process OPA evaluation throws or is undefined) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:POLICY_ENGINE_ERROR]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  faultSource: registry
+  injectionPointPackages:
+  - WP-01
+  postconditionPackages:
+  - WP-01
+  regressionPackage: WP-01
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-17-24.GUARDRAIL_LIMIT
+  section: '17'
+  subsection: Fault matrix
+  kind: evaluation
+  text: 'Fault matrix GUARDRAIL_LIMIT: Refusal / turn limit reached in a crisis conversation. The fault is injected at its real injection point (the conversation guard reaches its refusal count or turn limit during a safety interaction), the run proves the fault point was reached, and the postconditions are asserted.'
+  acceptance: A fault plan GUARDRAIL_LIMIT exists in scenarios/fixtures/failures; a Layer-2 test tagged [FAULT:GUARDRAIL_LIMIT] injects it at the conversation guard reaches its refusal count or turn limit during a safety interaction and asserts that it was reached and that the safety flow continues to a human; never silently terminated; EvaluationResult records requestedFault=GUARDRAIL_LIMIT and reachedFault from independent evidence; an unreached or uninjectable fault is INCONCLUSIVE, never PASS.
+  originalIds:
+  - SAFE-03
+  - SPEC-2.guardrail-exit
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scenarios/fixtures/failures/GUARDRAIL_LIMIT.json (fault plan v1)
+  - platform/src/evaluation/driver/local-driver.ts inject() case GUARDRAIL_LIMIT (in-process fixture stack; counted as injected when it is armed, not when it manifests)
+  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted as injected when it is armed, not when it manifests; no run over the real protocol or emulator of its injection point and no [FAULT:GUARDRAIL_LIMIT] test.
+  remediation: WP-15 builds the injection point (the conversation guard reaches its refusal count or turn limit during a safety interaction) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:GUARDRAIL_LIMIT]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-15
+  faultSource: registry
+  injectionPointPackages:
+  - WP-15
+  postconditionPackages:
+  - WP-15
+  provenance:
+    origin: repair-split
+    splitFrom: FO-17-24
+    repair:
+    - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+- id: FO-17-25
+  section: '17'
+  kind: software
+  text: 'Input/output monitors: ASR entity accuracy, uncertainty, language support, intent routing, prompt injection, scope, minimization, retrieved-source relevance, stale/unsupported facts, commitments, authorization, false completion/transfer, stigma/sycophancy, loops, inappropriate reassurance, safety-routing outcomes.'
+  acceptance: Monitor framework evaluating each boundary online and offline with metrics and alerts.
+  originalIds:
+  - SPEC-10.safety-signals
+  - SPEC-11.response-gate
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/safety/detector.ts
+  - platform/src/knowledge/injection.ts
+  - platform/src/voice/gate.ts
+  - platform/src/privacy/egress.ts
+  gap: Individual deterministic guards exist; no monitor framework covering the listed dimensions.
+  remediation: Build monitor registry with deterministic and judge monitors per boundary.
+  size: L
+  environmentDependency: none
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+- id: FO-17-26
+  section: '17'
+  kind: software
+  text: Deterministic checks for facts/actions plus qualified semantic judges at each model input and output boundary, including tool and TTS outputs.
+  acceptance: Every model I/O boundary has a deterministic check and, where semantic, a qualified judge.
+  originalIds:
+  - SPEC-11.response-gate
+  - SPEC-2.model-evidence
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/gate.ts (template response gate)
+  gap: No model boundaries or judges.
+  remediation: With the model harness, register each model input and output boundary (context assembly, tool arguments, tool results, response text, TTS text) with a deterministic validator (schema; facts, amounts and dates matched against tool results; allowed wording). Where a check is semantic, attach a judge from a registry that records version and qualification status. Block on validator failure.
+  size: L
+  environmentDependency: Qualified judge model
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-17-27
+  section: '17'
+  kind: evaluation
+  text: Judges need test sets, blind human labels, severity definitions, precision/recall, sensitivity/specificity with confidence intervals, calibration and drift checks.
+  acceptance: Judge qualification report per judge version.
+  originalIds:
+  - SPEC-14.uncertainty
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/runner.ts:151 (qualityScoreSource enum)
+  gap: No judge qualification.
+  remediation: Build judge qualification pipeline reusing stats.ts intervals.
+  size: L
+  environmentDependency: Human labelers
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+- id: FO-17-28
+  section: '17'
+  kind: evaluation
+  text: Include a random sample of unflagged conversations to estimate missed cases.
+  acceptance: Sampling job selects random unflagged conversations for review with rates reported.
+  originalIds:
+  - SPEC-14.uncertainty
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: Add a sampler that selects a seeded random sample of unflagged conversations per period (rate set in configuration) and queues them for blind review alongside flagged ones. Report the estimated miss rate with an interval (platform/src/evaluation/stats.ts).
+  size: M
+  environmentDependency: Approved review access
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-17-29
+  section: '17'
+  kind: evaluation
+  text: Separate generator and judge model families when feasible; human adjudication resolves material disagreements.
+  acceptance: Judge config records family; disagreement queue adjudicated by humans.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not present.
+  remediation: Add judgeFamily and generatorFamily to the judge registry and EvaluationResult, and warn when they match. Route judge-human and judge-judge disagreements above a severity threshold to a human adjudication queue whose decision becomes the label of record.
+  size: M
+  environmentDependency: Models and reviewers
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-17-30
+  section: '17'
+  kind: constraint
+  text: Judge scores cannot prove external effects, caller authority or accepted human connection.
+  acceptance: Scorer derives those only from authoritative records; quality scores never change verdicts.
+  originalIds:
+  - SAFE-04
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/scorer.test.ts:83 (committed state from an LLM judge or transcript cannot establish a commit), :92 (perfect quality scores do not rescue a missed safety handoff), :107 (TRANSFERRED needs receiver acceptance and verified connection), :220 (assurance comes from session records)
+  - platform/src/evaluation/scorer.ts
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-35
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+- id: FO-17-31
+  section: '17'
+  kind: evaluation
+  text: Usable support routing availability >=99.95% monthly end to end.
+  acceptance: SLO defined and measured from synthetic probes and production data.
+  originalIds:
+  - SPEC-13.slo-definitions
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - safety.routing
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/slo.ts:68-70
+  - platform/src/observability/slo.test.ts
+  gap: Defined, not measured; no synthetic end-to-end probe.
+  remediation: Emit vsp_routing_outcomes_total at the routing decision points (gateway session admission and the safety, human and callback routes). Add a gated synthetic-probe job that places periodic test calls through the telephony path, and evaluate the objective monthly with evaluateSlo.
+  size: M
+  environmentDependency: Deployed environment
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-17-32
+  section: '17'
+  kind: evaluation
+  text: Warm simple turn latency p50 <=800 ms, p95 <=1.5 s (goal 500 ms/1 s) from end of caller speech to first meaningful handset audio; cold starts, acknowledgments and tool-backed turns separate.
+  acceptance: Measured at handset with separation by turn type.
+  originalIds:
+  - SPEC-13.slo-definitions
+  - SPEC-11.endpointing
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/slo.ts:85-115
+  gap: Definition only; optimization goal not defined; no audio measurement path.
+  remediation: In the speech runtime, emit vsp_turn_latency_ms labelled by turn_kind (cold, warm_simple, acknowledgment, tool_backed), measured from the endpointing timestamp to the first meaningful audio frame, and vsp_barge_in_stop_ms with onset, detection and last-frame timestamps. Verify both with handset-side capture in the Layer-4 harness (FO-17-05), and report the optimization goals separately.
+  size: M
+  environmentDependency: none
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-17-33
+  section: '17'
+  kind: evaluation
+  text: Healthy-dependency tool-backed meaningful response p95 <=3 s.
+  acceptance: Measured.
+  originalIds:
+  - SPEC-13.slo-definitions
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/slo.ts:102-104
+  gap: Not measured end to end.
+  remediation: In the speech runtime, emit vsp_turn_latency_ms labelled by turn_kind (cold, warm_simple, acknowledgment, tool_backed), measured from the endpointing timestamp to the first meaningful audio frame, and vsp_barge_in_stop_ms with onset, detection and last-frame timestamps. Verify both with handset-side capture in the Layer-4 harness (FO-17-05), and report the optimization goals separately.
+  size: S
+  environmentDependency: none
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-17-34
+  section: '17'
+  kind: evaluation
+  text: Interruption stop p95 <=250 ms from detected interruption to last handset audio; separately report onset -> detection -> stop.
+  acceptance: Both intervals measured.
+  originalIds:
+  - SPEC-11.barge-in
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/slo.ts:119-121
+  gap: Onset->detection decomposition not defined; no measurement.
+  remediation: In the speech runtime, emit vsp_turn_latency_ms labelled by turn_kind (cold, warm_simple, acknowledgment, tool_backed), measured from the endpointing timestamp to the first meaningful audio frame, and vsp_barge_in_stop_ms with onset, detection and last-frame timestamps. Verify both with handset-side capture in the Layer-4 harness (FO-17-05), and report the optimization goals separately.
+  size: S
+  environmentDependency: none
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-17-35
+  section: '17'
+  kind: evaluation
+  text: 100% protected actions/utterances have valid checks; all accepted consequential actions have durable audit; zero duplicate effects in required failure tests.
+  acceptance: SLOs defined; corpus hard gates pass with zero critical failures.
+  originalIds:
+  - OPS-01
+  - ACT-02
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: FAIL
+  qualificationEvidence: 'evidence/evaluation/corpus-local-20261018w4.summary.json: 7 critical failures (crash-after-commit and partial-write reconciliation assertions, safety required handoff), local_fixture'
+  evidence:
+  - corpus-local-20261019w5.reach-erratum.md
+  gap: vsp_duplicate_effects_total is not emitted, and the w5 local gate FAILs.
+  remediation: Re-run the corpus after fix wave 5 and keep the w4 results. Fix the risk-draft generator so that the crash_after_commit slot-conflict scripts reach commit before the injected crash (root cause AFTER_COMMIT_FAULT_NOT_REACHED_SLOT_CONFLICT, 6 of the 7 critical runs in evidence/evaluation/corpus-local-20261018w4.root-causes.md), without relabelling expectations. Emit vsp_duplicate_effects_total wherever reconciliation finds more than one provider effect for one idempotency key.
+  size: S
+  environmentDependency: none
+  workPackage: WP-01
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    - remediation
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-17-36
+  section: '17'
+  kind: evaluation
+  text: CRM synchronization >=99.9% within 60 s under normal dependencies; outage backlog and recovery reported separately.
+  acceptance: Measured in Layer 2/5.
+  originalIds:
+  - SPEC-13.slo-definitions
+  - SPEC-8.salesforce-outage
+  derivedFrom: []
+  capabilityIds:
+  - crm.salesforce
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/slo.ts:170-176
+  gap: Not measured.
+  remediation: Measure against emulator and sandbox.
+  size: S
+  environmentDependency: CRM sandbox
+  workPackage: WP-29
+  provenance:
+    origin: extraction
+- id: FO-17-37
+  section: '17'
+  kind: evaluation
+  text: '>=99.5% accepted transfer attempts connect when a receiver is available; publish all attempts, unavailable/declined receivers and failed connections.'
+  acceptance: Transfer report with full attempt breakdown.
+  originalIds:
+  - SAFE-04
+  - SPEC-10.transfer-failure
+  derivedFrom: []
+  capabilityIds:
+  - handoff.transfer
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/slo.ts:204-206
+  - platform/src/workflows/transfer.ts
+  gap: No report publishing all attempt categories.
+  remediation: Emit vsp_transfers_total from TransferCoordinator transitions. Add a transfer report to aggregate.ts and the insights read model that lists every attempt by outcome (connected, receiver unavailable, declined, connection failed, abandoned), and compute the >=99.5% rate only over attempts where a receiver was available.
+  size: S
+  environmentDependency: Receiver/telephony
+  workPackage: WP-28
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-17-38
+  section: '17'
+  kind: evaluation
+  text: '>=95% verified goal completion per supported routine launch intent under declared conditions; no critical failure; no blending unsupported requests or eligibility relabeling.'
+  acceptance: Per-intent verified completion over fixed denominators.
+  originalIds:
+  - SPEC-14.goal-completion
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: FAIL
+  qualificationEvidence: 'evidence/evaluation/corpus-local-20261018w4.summary.json: taskCompletionRate 0.887 against the 0.95 target with 7 critical failures, local_fixture (LOCAL SIMULATED COORDINATOR)'
+  evidence:
+  - platform/src/evaluation/aggregate.ts:321-381 (verified resolution by intent)
+  - evidence/evaluation/corpus-local-20261018w4.summary.json (taskCompletionRate 0.887)
+  gap: Task completion excludes INCONCLUSIVE (aggregate.ts:335), an eligibility relabeling risk; local coordinator only.
+  remediation: Fixed denominators; model driver.
+  size: S
+  environmentDependency: none
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+- id: FO-17-39
+  section: '17'
+  kind: evaluation
+  text: Human warmth/clarity >=4/5 (goal 4.3) with predeclared rubric, reviewer count, uncertainty and unacceptable subgroup outcomes.
+  acceptance: Rubric and protocol predeclared; ratings collected.
+  originalIds:
+  - SPEC-14.scorecard
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/evaluation.ts:109 (qualityScores field)
+  gap: No rubric or protocol.
+  remediation: Write rubric/protocol doc and rating capture.
+  size: S
+  environmentDependency: Human raters
+  workPackage: WP-35
+  provenance:
+    origin: extraction
+- id: FO-17-40
+  section: '17'
+  kind: constraint
+  text: Any critical privacy/authorization/clinical-boundary/effect failure blocks the affected release regardless of averages or cost.
+  acceptance: Gate FAIL on any critical; manifest blocks.
+  originalIds:
+  - OPS-03
+  - SPEC-14.hard-gates
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/aggregate.test.ts (a rare critical failure fails the gate whatever the average)
+  - targeted run green
+  gap: none locally
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
+- id: FO-17-41
+  section: '17'
+  kind: evaluation
+  text: Publish p50/p95/p99 by intent/language/audience/assurance/model/voice/load/region with sample counts, exclusions, missing observations and confidence intervals.
+  acceptance: Slice tables with all dimensions and intervals.
+  originalIds:
+  - SPEC-14.aggregation
+  - SPEC-14.uncertainty
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - stats.test.ts [FO-17-41] value tests (N14 killed)
+  - aggregate.test.ts w5 latency addendum
+  - corpus-local-20261019w5.latency-addendum.md
+  gap: Latencies come from the local driver's simulated clock, not measured audio latency.
+  remediation: Extend slices and intervals.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-17-42
+  section: '17'
+  kind: evaluation
+  text: Report ASR important-entity error and WER; completion latency, total silence, interruptions, backchannel selectivity and user effort.
+  acceptance: Metrics computed in Layer 4.
+  originalIds:
+  - SPEC-11.endpointing
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/metrics.ts:510 (vsp_interruptions_total only)
+  gap: No ASR evaluation.
+  remediation: In the Layer-4 harness, compute WER and important-entity error (names, dates, amounts, ids) of ASR transcripts against the scripted references, plus completion latency, total silence, interruption counts, backchannel selectivity and user-effort turns. Add them to EvaluationResult and the slices.
+  size: M
+  environmentDependency: none
+  workPackage: WP-34
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-17-43
+  section: '17'
+  kind: constraint
+  text: Finite zero observed errors never proves zero risk (~3/n bound); related simulations are not n independent people.
+  acceptance: Bounds reported per scenario and per run with caveat.
+  originalIds:
+  - SPEC-14.uncertainty
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/aggregate.test.ts 'uncertainty bounds' and per-run / per-scenario bounds tests
+  - targeted run green
+  gap: none locally
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
+- id: FO-17-44
+  section: '17'
+  kind: software
+  text: EvaluationResult records scenario/run/seed/split, expected scope and initial world, all version digests, requested/reached fault, observed tools, deterministic checks, final source state, audio evidence, privacy/safety/auth results, human/judge labels and disagreements, latency, cost, outcome, reviewer, errors and evidence refs.
+  acceptance: Schema includes all fields; results populated.
+  originalIds:
+  - SPEC-14.scorecard
+  - SPEC-16.scenario-definition
+  - SPEC-2.version-proof
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - test/invariants/fault-reach-driver.test.ts
+  - result-context.ts
+  gap: The EvaluationResult contract lacks world digest, observed tools, errors, audio and judge fields (WP-02/WP-34).
+  remediation: Extend schema (version bump) and populate from drivers.
+  size: S
+  environmentDependency: none
+  workPackage: WP-01
+  provenance:
+    origin: extraction
+    repair:
+    - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-2.version-proof'
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-17-45
+  section: '17'
+  kind: software
+  text: Append-only results and reproducible rerun commands.
+  acceptance: Results never overwritten; each result carries its rerun command.
+  originalIds:
+  - SPEC-14.scorecard
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - corpus-run.test.ts rerun
+  gap: Reruns are reproducible on the local driver only.
+  remediation: Record command and versions.
+  size: S
+  environmentDependency: none
+  workPackage: WP-01
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-17-46
+  section: '17'
+  kind: constraint
+  text: Acceptance targets are engineering proposals, not legal thresholds or measurements. Each target stays labelled PROPOSED until it is measured, and no report states a target as met without real measurements from an eligible execution mode.
+  acceptance: Every SLO definition carries targetStatus PROPOSED and measured false until evidence exists. evaluateSlo reports MEETS_/MISSES_PROPOSED_TARGET and labels the evidence kind. Tests enforce both.
+  originalIds:
+  - OPS-03
+  - SPEC-13.slo-definitions
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - aggregate.test.ts goal line
+  - observability/slo.test.ts
+  gap: The target stays PROPOSED until it is approved and measured.
+  remediation: Keep the slo.test.ts rule. When FO-17-14 fixes the denominator, add a test that the report's goal-completion line names the target as PROPOSED and states the execution mode and sample size.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: challenge-missed
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the report goal-completion check (platform/src/evaluation/aggregate.ts:312) uses a denominator that excludes INCONCLUSIVE runs (FO-17-14), so "meets proposed target" is inflated there.'
+    repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL

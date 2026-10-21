@@ -105,6 +105,11 @@ describe("audit writer input schema", () => {
     expect(validateAuditInput({ ...base(), idempotencyKey: "v3:ACCEPT" }).idempotencyKey).toBe("v3:ACCEPT");
   });
 
+  it("[FO-15-45][OPS-01] occurredAt must be a time the audit store holds: year 0000 (accepted by the ISO grammar, refused by timestamptz) and times before 1970 are invalid", () => {
+    for (const bad of ["0000-01-01T00:00:00Z", "1969-12-31T23:59:59.999Z", "0001-01-01T00:00:00Z"]) rejects({ ...base(), occurredAt: bad });
+    for (const ok of ["1970-01-01T00:00:00Z", "2026-10-19T10:00:00Z", "9999-12-31T23:59:59.999Z"]) expect(validateAuditInput({ ...base(), occurredAt: ok }).occurredAt).toBe(ok);
+  });
+
   it("[AUTH-03] rejects non-opaque actor and subject references", () => {
     rejects({ ...base(), actorRef: "Avery Synthetic-Client" });
     rejects({ ...base(), subjectRef: "1990-01-01" });

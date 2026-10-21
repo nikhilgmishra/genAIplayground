@@ -121,7 +121,7 @@ export interface GatewayHarnessOptions {
   mode?: SessionBindingMode;
   exceptionApprovalId?: string | null;
   policy?: PolicyEngine;
-  extraTools?: (h: { fixtures: LocalFixtureSet; faults: FixtureFaults }) => ToolModule[];
+  extraTools?: (h: { fixtures: LocalFixtureSet; faults: FixtureFaults; identity: IdentityHarness }) => ToolModule[];
   mutationsEnabled?: boolean;
   timers?: TimerPort;
   useAdmission?: boolean;
@@ -154,7 +154,9 @@ export interface GatewayHarness {
 }
 
 export async function createGatewayHarness(opts: GatewayHarnessOptions = {}): Promise<GatewayHarness> {
-  const identity = await createIdentityHarness();
+  const killSwitches = new StaticKillSwitchesFixture();
+  // Like the composition root: verification reads the same switch state before any lookup (OPS-KS-01).
+  const identity = await createIdentityHarness({ notificationSwitches: () => killSwitches.snapshot() });
   const clock = identity.clock;
   const db = await createTestDb();
   const fixtures = createLocalFixtureSet({ clock });
@@ -164,7 +166,6 @@ export async function createGatewayHarness(opts: GatewayHarnessOptions = {}): Pr
   const { logger, records } = createMemoryLogger();
   const metrics = new InMemoryMetrics({ catalogue: createMetricCatalogue({ toolNames: FIXTURE_TOOL_NAMES }) });
   const engine = opts.policy ?? (await loadTestPolicyEngine());
-  const killSwitches = new StaticKillSwitchesFixture();
   const admission = new ScriptedAdmissionFixture();
   const templates = loadDefaultTemplateRegistry();
   const tools: ToolModule[] = [
@@ -174,7 +175,7 @@ export async function createGatewayHarness(opts: GatewayHarnessOptions = {}): Pr
     fixtureSafetyToolWithoutSessionless(faults) as unknown as ToolModule,
     fixtureIntakeTool(faults) as unknown as ToolModule,
     fixtureCommitTool(faults) as unknown as ToolModule,
-    ...(opts.extraTools ? opts.extraTools({ fixtures, faults }) : []),
+    ...(opts.extraTools ? opts.extraTools({ fixtures, faults, identity }) : []),
   ];
   const catalog = buildCatalog(tools);
   const lookup = new LocalInteractionLookupFixture();

@@ -14,9 +14,12 @@ import type { BusinessModule } from "../business/contract.js";
 import { FakeClock } from "../shared/clock.js";
 import { ConflictError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
+import { PLATFORM_METRIC_CATALOGUE } from "../observability/catalog/index.js";
 import { InMemoryMetrics } from "../observability/metrics.js";
+import { alarmRule, evaluateAlarm } from "../observability/alarms.js";
 import type { RetentionRunReport } from "../retention/ports.js";
-import { ActionReconcileLoop, MeteredLoop, OutboxConsumeLoop, OutboxDispatchLoop, LocalConsumerQueueFixture, RetentionLoop, SupportSyncRetryLoop } from "./loops.js";
+import { PgOutboxDispatcher } from "../outbox/dispatcher.js";
+import { ActionReconcileLoop, MeteredLoop, OutboxConsumeLoop, OutboxDispatchLoop, LocalConsumerQueueFixture, PgOutboxRetryBacklog, RetentionLoop, SupportSyncRetryLoop } from "./loops.js";
 import type { LoopReport, WorkerLoop } from "./loops.js";
 import { ManualLoopScheduler } from "./scheduler.js";
 import { Worker, buildWorkerHealthApp, workerLoopsFor } from "./worker.js";
@@ -117,6 +120,25 @@ describe("worker loop metrics (content-free, closed labels)", () => {
     expect(metrics.counterValue("vsp_worker_loop_processed_total", { loop: "outbox.dispatch" })).toBe(3);
     expect(metrics.observations("vsp_worker_loop_duration_ms", { loop: "outbox.dispatch" })).toEqual([40, 40]);
     expect(metrics.observations("vsp_worker_loop_lag_ms", { loop: "outbox.dispatch" })).toEqual([250]);
+  });
+
+  it("[OPS-01][FO-21-10][SPEC-8.outbox] outbox.dispatch fails the run when any claimed message failed to publish or was dead-lettered, and counts it", async () => {
+    const metrics = new InMemoryMetrics({ catalogue: PLATFORM_METRIC_CATALOGUE });
+    const results = [
+      { dispatched: 0, failed: 2, deadLettered: 0 },
+      { dispatched: 1, failed: 0, deadLettered: 1 },
+      { dispatched: 3, failed: 0, deadLettered: 0 },
+    ];
+    const loop = new OutboxDispatchLoop({ runOnce: async () => results.shift() as (typeof results)[number] }, 1_000, 100, metrics);
+    expect(await loop.runOnce()).toEqual({ ok: false, processed: 0, reasonCode: "OUTBOX_PUBLISH_FAILED", details: { failed: 2, deadLettered: 0 } });
+    expect(await loop.runOnce()).toEqual({ ok: false, processed: 1, reasonCode: "OUTBOX_DEAD_LETTERED", details: { failed: 0, deadLettered: 1 } });
+    expect(await loop.runOnce()).toEqual({ ok: true, processed: 3, reasonCode: null, details: { failed: 0, deadLettered: 0 } });
+    expect(metrics.counterValue("vsp_outbox_publish_failures_total", { reason: "publish_failed" })).toBe(2);
+    expect(metrics.counterValue("vsp_outbox_publish_failures_total", { reason: "dead_lettered" })).toBe(1);
+    // A failing metrics sink never hides the failed run.
+    const broken = { increment: () => { throw new Error("sink down"); }, observe: () => undefined, gauge: () => undefined };
+    const r = await new OutboxDispatchLoop({ runOnce: async () => ({ dispatched: 0, failed: 1, deadLettered: 0 }) }, 1_000, 100, broken).runOnce();
+    expect(r).toMatchObject({ ok: false, reasonCode: "OUTBOX_PUBLISH_FAILED" });
   });
 
   it("[SPEC-15.worker] a throwing loop is reported as failed, and a failing metrics sink never breaks the loop", async () => {
@@ -234,11 +256,48 @@ describe("worker loops over the local composition", () => {
       },
     };
     const provider = { lookup: async () => ({ outcome: "UNKNOWN" }) } as never;
-    const loop = new ActionReconcileLoop(fakeActions, { "appointment.reschedule": provider }, ["tnt_synthTenantPrimary01"], logger);
+    const metrics = new InMemoryMetrics({ catalogue: PLATFORM_METRIC_CATALOGUE });
+    const loop = new ActionReconcileLoop(fakeActions, { "appointment.reschedule": provider }, ["tnt_synthTenantPrimary01"], logger, undefined, undefined, metrics);
     const r = await loop.runOnce();
-    expect(r).toMatchObject({ ok: true, processed: 0, details: { inconclusive: 1, noProvider: 1 } });
+    // Nothing could be settled: the run is degraded (failed), counted and alarmable; never a healthy loop.
+    expect(r).toMatchObject({ ok: false, processed: 0, reasonCode: "ACTION_RECONCILE_INCONCLUSIVE", details: { inconclusive: 1, noProvider: 1 } });
+    expect(metrics.counterValue("vsp_action_reconcile_degraded_total", { reason: "all_inconclusive" })).toBe(1);
+    expect(metrics.counterValue("vsp_action_reconcile_degraded_total", { reason: "no_provider" })).toBe(1);
     expect(records.map((x) => x.fields?.reasonCode)).toEqual(expect.arrayContaining(["COMMIT_IN_PROGRESS", "RECONCILE_PROVIDER_MISSING"]));
     expect(JSON.stringify(records)).not.toContain("lookup");
+  });
+
+  it("[OPS-01][ACT-03] reconcile loop health: degraded only when work was found and none settled; the alarm fires on repeated degraded runs", async () => {
+    const { logger } = createMemoryLogger();
+    const metrics = new InMemoryMetrics({ catalogue: PLATFORM_METRIC_CATALOGUE });
+    const a = (kind: string) => ({ actionId: newId("act"), kind }) as never;
+    const provider = { lookup: async () => ({ outcome: "UNKNOWN" }) } as never;
+    let queue: never[] = [];
+    let fail = new Set<string>();
+    const fakeActions = {
+      listNeedingReconciliation: async () => queue,
+      reconcile: async (actionId: string) => {
+        if (fail.has(actionId)) throw new ConflictError("PROVIDER_LOOKUP_INCONCLUSIVE");
+      },
+    };
+    const loop = new ActionReconcileLoop(fakeActions as never, { "appointment.reschedule": provider }, ["tnt_synthTenantPrimary01"], logger, undefined, undefined, metrics);
+    // Nothing to reconcile: healthy.
+    expect(await loop.runOnce()).toMatchObject({ ok: true, processed: 0 });
+    // One settled, one inconclusive: progress was made, healthy.
+    const settled = a("appointment.reschedule");
+    const stuck = a("appointment.reschedule");
+    queue = [settled, stuck];
+    fail = new Set([(stuck as { actionId: string }).actionId]);
+    expect(await loop.runOnce()).toMatchObject({ ok: true, processed: 1, details: { inconclusive: 1 } });
+    // Only a kind without a provider: degraded with its own reason.
+    queue = [a("billing.review.submit")];
+    expect(await loop.runOnce()).toMatchObject({ ok: false, reasonCode: "ACTION_RECONCILE_PROVIDER_MISSING" });
+    // Every lookup inconclusive, three runs: the alarm rule fires.
+    queue = [stuck];
+    for (let i = 0; i < 3; i++) expect(await loop.runOnce()).toMatchObject({ ok: false, reasonCode: "ACTION_RECONCILE_INCONCLUSIVE" });
+    const samples = metrics.find("vsp_action_reconcile_degraded_total").map((x) => ({ metric: x.name, labels: x.labels, value: x.value }));
+    expect(evaluateAlarm(alarmRule("action-reconcile-degraded"), samples)).toMatchObject({ state: "ALARM" });
+    expect(evaluateAlarm(alarmRule("action-reconcile-degraded"), samples.filter((x) => x.labels.reason === "no_provider"))).toMatchObject({ state: "OK" });
   });
 
   it("[DATA-03][OPS-03] every loop runs bounded and green on the local composition; retention reports BLOCKED classes and deletes nothing; audit is shipped to the LOCAL FIXTURE sink", async () => {
@@ -281,6 +340,53 @@ describe("worker loops over the local composition", () => {
     expect(c.metrics.gaugeValue("vsp_retention_classes_blocked", { data_class: "BUSINESS_RECORD", reason: "BLOCKED_RETENTION_UNSET" })).toBe(1);
     expect(c.metrics.counterValue("vsp_retention_deleted_total")).toBe(0);
   }, 60_000);
+
+  it("[OPS-01][FO-21-10] a publisher that refuses every message: the failed publish and the retry backlog fail outbox.dispatch, readiness turns 503 after three runs, and the first successful publish clears it", async () => {
+    const { container, clock } = await stubContainer();
+    c = container;
+    // Unit fake (labelled): a message publisher that refuses every message until `accept` is set.
+    let accept = false;
+    const published: string[] = [];
+    const publisher = {
+      kind: "local_fixture" as const,
+      publish: async (ms: { messageId: string }[]) => {
+        const ids = ms.map((m) => m.messageId);
+        if (!accept) return { published: [], failed: ids };
+        published.push(...ids);
+        return { published: ids, failed: [] };
+      },
+    };
+    const dispatcher = new PgOutboxDispatcher({ db: c.db, publisher, clock, tenants: c.tenantIds, random: () => 0 });
+    const loop = new OutboxDispatchLoop(dispatcher, 1_000, 100, c.metrics, new PgOutboxRetryBacklog(c.db, c.tenantIds));
+    w = new Worker({ loops: [loop], scheduler: new ManualLoopScheduler(clock), clock, logger: c.logger });
+    const app = await buildWorkerHealthApp(w, c.logger);
+    try {
+      w.start();
+      const id = await enqueue(c, "support_request.sync", newId("spr"));
+      const runs: { reasonCode: string | null; ready: number }[] = [];
+      for (let i = 0; i < 3; i++) {
+        const r = await w.runLoop(loop.name);
+        expect(r.ok).toBe(false);
+        runs.push({ reasonCode: r.reasonCode, ready: (await app.inject({ method: "GET", url: "/health/ready" })).statusCode });
+      }
+      // The first run fails the publish; the next two find nothing due (backoff) but the message still waits.
+      expect(runs).toEqual([
+        { reasonCode: "OUTBOX_PUBLISH_FAILED", ready: 200 },
+        { reasonCode: "OUTBOX_PUBLISH_RETRYING", ready: 200 },
+        { reasonCode: "OUTBOX_PUBLISH_RETRYING", ready: 503 },
+      ]);
+      expect((await app.inject({ method: "GET", url: "/health/ready" })).json()).toMatchObject({ ready: false, reasonCode: "OUTBOX_PUBLISH_RETRYING" });
+      expect(c.metrics.counterValue("vsp_outbox_publish_failures_total", { reason: "publish_failed" })).toBe(1);
+      // The queue accepts again: once the backoff elapsed the message is published and readiness recovers.
+      accept = true;
+      clock.advanceMs(1_000);
+      expect(await w.runLoop(loop.name)).toMatchObject({ ok: true, processed: 1, reasonCode: null });
+      expect(published).toEqual([id]);
+      expect((await app.inject({ method: "GET", url: "/health/ready" })).statusCode).toBe(200);
+    } finally {
+      await app.close();
+    }
+  });
 
   it("[SPEC-15.worker] readiness over HTTP: 503 until loops ran, 200 when green, 503 when a loop stalls (FakeClock)", async () => {
     const { container, clock } = await stubContainer();

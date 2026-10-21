@@ -1,0 +1,74 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "AUTH_EXPIRY_DURING_SPEECH",
+  "version": 1,
+  "title": "Session expires while protected speech is being released",
+  "description": "The session expires or is revoked between the gateway issuing a SpeechPlan and the audio release guard emitting it; the emission-time re-check must stop the protected utterance.",
+  "category": "identity",
+  "target": {
+    "components": [
+      "media/src/egress",
+      "platform/src/gateway",
+      "platform/src/identity"
+    ],
+    "dependency": "session_store"
+  },
+  "trigger": {
+    "kind": "DURING_SPEECH",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "SESSION_EXPIRED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_protected_success_with_invalid_session",
+      "gate": "authentication"
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The protected sentence stops at the boundary; the caller hears the approved re-verification notice or a connecting prompt.",
+  "backendEvidence": [
+    "Audio release receipt with a refused emission and the session generation it was checked against",
+    "No playback status for the protected segment after expiry"
+  ],
+  "requirementIds": [
+    "AUTH-04",
+    "ACT-05",
+    "SPEC-16.fault-auth-expiry"
+  ],
+  "appliesToIntents": [
+    "appointment_lookup",
+    "invoice_explanation"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:AUTH_EXPIRY_DURING_SPEECH] owned by WP-14 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.AUTH_EXPIRY_DURING_SPEECH",
+    "origin": "prompt_section_17",
+    "injectionPoint": "emission-time session re-check at the audio release boundary",
+    "injectionPointPackages": [
+      "WP-14"
+    ],
+    "postconditionPackages": [
+      "WP-14"
+    ],
+    "layer2Owner": "WP-14",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "The emission-time session re-check refuses every protected segment queued before the expiry",
+    "The release receipt records the refusal with the session generation; no protected audio reaches the caller",
+    "The fallback notice is a pre-approved non-protected utterance"
+  ]
+}

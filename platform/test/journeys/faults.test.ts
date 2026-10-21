@@ -140,7 +140,7 @@ describe("[SPEC-16.faults] injected faults on the local composition", () => {
     await hh.expectAuditChainIntact();
   }, 120_000);
 
-  it("[SPEC-16.fault-duplicate-webhooks][ACT-02][SAFE-04][TB-09] transfer events delivered twice and out of order through the webhook: state stays correct, one dial, each transition applied once", async () => {
+  it("[SPEC-16.fault-duplicate-webhooks][SPEC-14.faults][ACT-02][SAFE-04][TB-09] transfer events delivered twice and out of order through the webhook: an early event is deferred, never applied early, then applied after its predecessor; one dial, each transition applied once", async () => {
     const hh = await start();
     const call = hh.call();
     await call.start();
@@ -150,11 +150,22 @@ describe("[SPEC-16.faults] injected faults on the local composition", () => {
     const transferId = req.body.transferId as string;
     const handoffId = req.body.handoffId as string;
     const ev = (event: string, n: number) => ({ transferId, event, eventId: `td-evt-${transferId.slice(4, 16)}-${n}` });
+    const attemptStates = async () => (await journeyOf(hh, handoffId)).attempts.find((a) => a.transferId === transferId)?.history.map((x) => x.state);
 
-    // Out of order: BRIDGED before RECEIVER_ACCEPTED is rejected, never skipping the acceptance.
-    expect((await hh.transferEvent(ev("BRIDGED", 3))).body).toMatchObject({ decision: "rejected" });
+    // Out of order: BRIDGED before RECEIVER_ACCEPTED is held (accepted, so the sender does not redeliver) and never skips the acceptance.
+    expect((await hh.transferEvent(ev("BRIDGED", 3))).body).toEqual({ accepted: true, decision: "deferred" });
+    // SAFE-04, right after the early event: the attempt is unchanged and nobody counts as connected.
+    let j = await journeyOf(hh, handoffId);
+    expect(j.attempts.find((a) => a.transferId === transferId)?.state).toBe("REQUESTED");
+    expect(await attemptStates()).toEqual(["REQUESTED"]);
+    expect(j.connectedAt).toBeNull();
+    expect(j.status).toBe("ROUTING");
     expect((await hh.transferEvent(ev("QUEUED", 1))).body).toMatchObject({ decision: "applied" });
+    expect(await attemptStates()).toEqual(["REQUESTED", "QUEUED"]);
+    // Its predecessor arrives: the held BRIDGED is applied right after it.
     expect((await hh.transferEvent(ev("RECEIVER_ACCEPTED", 2))).body).toMatchObject({ decision: "applied" });
+    expect(await attemptStates()).toEqual(["REQUESTED", "QUEUED", "RECEIVER_ACCEPTED", "BRIDGED"]);
+    expect((await journeyOf(hh, handoffId)).connectedAt).toBeNull();
     // Duplicate (same event id, fresh signature): idempotent.
     hh.clock.advanceMs(1000);
     expect((await hh.transferEvent(ev("RECEIVER_ACCEPTED", 2))).body).toMatchObject({ decision: "duplicate" });
@@ -164,23 +175,74 @@ describe("[SPEC-16.faults] injected faults on the local composition", () => {
     expect(first.body).toMatchObject({ decision: "duplicate" });
     const replay = await hh.transferEvent(replayBody);
     expect(replay.status).toBe(401);
-    // Late, in order now.
-    expect((await hh.transferEvent(ev("BRIDGED", 3))).body).toMatchObject({ decision: "applied" });
+    // The sender's late copy of the held BRIDGED (same event id) is now a duplicate.
+    expect((await hh.transferEvent(ev("BRIDGED", 3))).body).toMatchObject({ decision: "duplicate" });
     expect((await hh.transferEvent(ev("CALLER_CONFIRMED_CONNECTED", 4))).body).toMatchObject({ decision: "applied" });
     hh.clock.advanceMs(1000);
     expect((await hh.transferEvent(ev("CALLER_CONFIRMED_CONNECTED", 4))).body).toMatchObject({ decision: "duplicate" });
 
-    const j = await journeyOf(hh, handoffId);
+    j = await journeyOf(hh, handoffId);
     expect(j.status).toBe("CONNECTED");
     const attempt = j.attempts.find((a) => a.transferId === transferId);
     expect(attempt?.history.map((x) => x.state)).toEqual(["REQUESTED", "QUEUED", "RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED"]);
+    expect(attempt?.history.slice(1).every((x) => x.source === "webhook.local_fixture")).toBe(true);
     expect(hh.c.fixtures.telephony.dials.filter((d) => d.callId === call.callId)).toHaveLength(1);
     const events = await hh.auditFor(call.callId);
     const applied = events.filter((e) => e.action === "transfer.state_changed");
     expect(applied).toHaveLength(4);
+    expect(events.filter((e) => e.action === "transfer.event_deferred").map((e) => [e.outcome, e.reasonCode])).toEqual([["PENDING", "TRANSFER_EVENT_AWAITING_PREDECESSOR"]]);
     expect((await call.end("TRANSFERRED")).outcome).toBe("TRANSFERRED");
     await hh.expectAuditChainIntact();
   }, 120_000);
+
+  it.each(["STANDARD", "SAFETY"] as const)(
+    "[SPEC-14.faults][SAFE-04][SAFE-03][ACT-02][TB-07] %s transfer events delivered out of order only (no duplicate copies, no redelivery) through the worker delivery loop: one attempt, one dial, no update prompt, outcome TRANSFERRED",
+    async (priority) => {
+      const hh = await start();
+      const call = hh.call();
+      await call.start();
+      const tel = hh.c.fixtures.telephony;
+      let handoffId: string;
+      if (priority === "SAFETY") {
+        tel.scriptDestination("dst_safety_priority", { outcome: "CONNECTED" }, { outOfOrder: true });
+        const screened = await call.screen("i want to kill myself");
+        expect(screened.body).toMatchObject({ route: "SAFETY_PRIORITY_HUMAN", destinationId: "dst_safety_priority" });
+        handoffId = screened.body.handoffId as string;
+      } else {
+        tel.scriptNextTransfer({ outcome: "CONNECTED" }, { outOfOrder: true });
+        const req = await call.human({ reason: "CALLER_REQUESTED_HUMAN", language: "en", issueCategory: null });
+        handoffId = req.body.handoffId as string;
+      }
+      await hh.runWorker(["telephony.local_fixture_delivery"]);
+      // The fixture swapped pairs (RECEIVER_ACCEPTED, QUEUED, CALLER_CONFIRMED_CONNECTED, BRIDGED) and sent each event once.
+      const delivered = tel.delivered.filter((e) => e.callId === call.callId);
+      expect(delivered.map((e) => e.state)).toEqual(["REQUESTED", "RECEIVER_ACCEPTED", "QUEUED", "CALLER_CONFIRMED_CONNECTED", "BRIDGED"]);
+      expect(delivered.some((e) => e.delivery.duplicate || e.delivery.redelivery)).toBe(false);
+      let j = await journeyOf(hh, handoffId);
+      expect(j.status).toBe("CONNECTED");
+      expect(j.attempts).toHaveLength(1);
+      expect(j.attempts[0]?.history.map((x) => x.state)).toEqual(["REQUESTED", "RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED"]);
+      expect(j.updatesPlayed).toBe(0);
+
+      // Later sweeps find nothing to time out: no failover, no update prompt, no second dial.
+      for (let i = 0; i < 3; i++) {
+        hh.clock.advanceMs(61_000);
+        await hh.runWorker(["transfers.sweep", "telephony.local_fixture_delivery"]);
+      }
+      j = await journeyOf(hh, handoffId);
+      expect(j.status).toBe("CONNECTED");
+      expect(j.attempts).toHaveLength(1);
+      expect(tel.dials.filter((d) => d.callId === call.callId)).toHaveLength(1);
+      expect(tel.updates.filter((u) => u.callId === call.callId)).toHaveLength(0);
+      const events = await hh.auditFor(call.callId);
+      expect(events.filter((e) => e.action === "transfer.event_deferred")).toHaveLength(1);
+      expect(events.some((e) => e.action === "transfer.fallback" || e.action === "transfer.update_played")).toBe(false);
+      // TC-11 at call end sees the confirmed connection (SAFE-04 evidence complete on the first leg).
+      expect((await call.end()).outcome).toBe("TRANSFERRED");
+      await hh.expectAuditChainIntact();
+    },
+    120_000,
+  );
 
   it("[SPEC-16.fault-crash-after-commit][ACT-02][ACT-03] provider commits, then the process dies before recording it: the caller is never told success; the worker reconciler records COMMITTED once (one effect)", async () => {
     const hh = await start();

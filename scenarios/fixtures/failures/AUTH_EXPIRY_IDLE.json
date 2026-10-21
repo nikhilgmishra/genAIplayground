@@ -1,0 +1,89 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "AUTH_EXPIRY_IDLE",
+  "version": 1,
+  "title": "Session idle expiry while the caller is silent",
+  "description": "The session reaches its idle limit (lastActivityAt plus the idle timeout) while no caller turn is in progress; the record still exists in the session store because TTL cleanup has not run.",
+  "category": "identity",
+  "target": {
+    "components": [
+      "platform/src/identity",
+      "platform/src/gateway"
+    ],
+    "dependency": "session_store"
+  },
+  "trigger": {
+    "kind": "WHILE_IDLE",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "SESSION_IDLE_EXPIRED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_protected_success_with_invalid_session",
+      "gate": "authentication"
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "After the idle limit the caller is asked to verify again or is offered a person; nothing protected is read out.",
+  "backendEvidence": [
+    "Protected request refused with a session-expired reason while the session row still exists",
+    "Audit event for the refused request"
+  ],
+  "requirementIds": [
+    "AUTH-04",
+    "SPEC-16.fault-auth-expiry"
+  ],
+  "appliesToIntents": [
+    "appointment_lookup",
+    "invoice_explanation",
+    "case_follow_up"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:AUTH_EXPIRY_IDLE] owned by WP-05 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.AUTH_EXPIRY_IDLE",
+    "origin": "prompt_section_17",
+    "injectionPoint": "session idle expiry (lastActivityAt) in the identity service and the DynamoDB session store",
+    "injectionPointPackages": [
+      "WP-04",
+      "WP-05"
+    ],
+    "postconditionPackages": [
+      "WP-05"
+    ],
+    "layer2Owner": "WP-05",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [
+    {
+      "source": "tool_response",
+      "tools": null,
+      "statuses": [
+        "POLICY_DENIED"
+      ],
+      "reasonCodes": [
+        "SESSION_EXPIRED",
+        "SESSION_IDLE_EXPIRED"
+      ],
+      "sessionStates": [
+        "expired"
+      ]
+    }
+  ],
+  "postconditions": [
+    "A protected read or action after the idle limit fails closed even though the session record still exists",
+    "Safety and human routes stay available without re-authentication",
+    "No speech prepared before the expiry discloses protected data after it"
+  ]
+}

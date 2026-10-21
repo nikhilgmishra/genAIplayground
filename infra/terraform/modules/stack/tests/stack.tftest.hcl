@@ -118,6 +118,11 @@ run "primary_sandbox_composition" {
   }
 
   assert {
+    condition     = contains(keys(local.secret_refs["gateway"]), "request-hash-pepper") && !contains(keys(local.secret_refs["worker"]), "request-hash-pepper") && local.secret_defs["request-hash-pepper"].owner == "security_admin"
+    error_message = "[DATA-01][DP-02] the request-hash pepper container is readable by the gateway only (value loaded by its owner, never by Terraform)"
+  }
+
+  assert {
     condition     = strcontains(module.kms.key_policies["sessions"], "vsp-sandbox-gateway-task") && !strcontains(module.kms.key_policies["sessions"], "worker-task")
     error_message = "session key usable only by the gateway task role"
   }
@@ -180,6 +185,27 @@ run "production_primary_with_dr_replica" {
   assert {
     condition     = length(aws_kms_key.session_replica) == 1 && aws_kms_key.session_replica[0].region == "us-west-2"
     error_message = "[SPEC-12.recovery] the DR replica gets its own regional CMK"
+  }
+
+  # Wildcard-aware (same check as modules/kms): kms:Create* would match kms:CreateGrant.
+  assert {
+    condition = alltrue([
+      for s in jsondecode(aws_kms_key.session_replica[0].policy).Statement : try(s.Condition.Bool["kms:GrantIsForAWSResource"], null) == "true"
+      if s.Effect == "Allow" && (try(s.Principal.AWS, null) != null || try(s.Principal, null) == "*") && (
+        try(s.NotAction, null) == null
+        ? anytrue([for a in flatten([try(s.Action, [])]) : can(regex("^(?i)${replace(replace(a, "*", ".*"), "?", ".")}$", "kms:CreateGrant"))])
+        : !anytrue([for a in flatten([s.NotAction]) : can(regex("^(?i)${replace(replace(a, "*", ".*"), "?", ".")}$", "kms:CreateGrant"))])
+      )
+    ])
+    error_message = "[SPEC-14.kms] no Allow for an IAM principal on the DR replica key (key admins include gha-apply) may match kms:CreateGrant without Bool kms:GrantIsForAWSResource = true"
+  }
+
+  assert {
+    condition = anytrue([
+      for s in jsondecode(aws_kms_key.session_replica[0].policy).Statement : contains(s.Action, "kms:CreateGrant") && s.Condition.Bool["kms:GrantIsForAWSResource"] == "true" && contains(s.Principal.AWS, "arn:aws:iam::111111111111:role/vsp-production-gha-apply")
+      if s.Sid == "AttachKeyToAwsResourcesOnly"
+    ])
+    error_message = "key administrators (including the CI apply role) keep grants for AWS resources (the DynamoDB replica)"
   }
 
   assert {

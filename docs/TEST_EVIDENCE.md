@@ -77,6 +77,50 @@ observed file; it was not run (no tenant observation exists, PRQ-004).
 | Runbook drills (all) | NOT_RUN | PRQ-011 |
 | Restore and regional failover drills | NOT_RUN | PRQ-037, PRQ-039 |
 
+## Layer-2 integration: live composition (WP-07, phase B)
+
+Production code over real protocols against the local emulators of `make up PROFILE=core` (SYNTHETIC data
+only; [`../platform/test/integration/composition/README.md`](../platform/test/integration/composition/README.md)).
+Not evidence of AWS, a tenant IdP, a vendor or Talkdesk behaviour; environment status stays NOT_CONFIGURED.
+Run of 2026-10-21 on the host described above, the shared composition left running (no `make down`).
+
+| Suite | Command | Result | Tests passed / failed | Emulated services | Evidence |
+|---|---|---|---|---|---|
+| Composition (boot, no-dev-bypass, approval-trust, `[FAULT:AUTH_EXPIRY_MID_CALL]`, `[FAULT:DLQ_FULL]`, console, inbound-auth, routing, telemetry, transfer-store, worker), after the WP-07 refix round 3 | `make test-integration SUITE=composition` | PASS, three consecutive runs (44 s to 46 s each) | 48 / 0 per run, in 10 files | postgres:16, DynamoDB Local, ElasticMQ, LocalStack KMS and Secrets Manager, Keycloak 26, a throwaway OpenTelemetry Collector | runner reports in the session scratch directory (not committed) |
+| Round-3 additions inside the runs above | `routing.test.ts`; `worker.test.ts` (dispatch over a missing queue, foreign-tenant envelope); `boot.test.ts` ("only its capability": connector profile and OTP pepper, full state-and-reason comparison); `telemetry.test.ts` (spans of SafeTracer and the raw tracer at the collector) | PASS | included in 48 / 0 | as above | — |
+| No development bypass (now with the zero-request override probe and connector credential reuse) | `make test-integration SUITE=composition FILTER=no-dev-bypass` | PASS (inside the runs above) | 7 / 0 | as above | — |
+| Approval trust on KMS | `make test-integration SUITE=composition FILTER=approval-trust` | PASS (inside the runs above) | 5 / 0 | LocalStack KMS | — |
+| Composition after the B4 residual round 3 (key and secret separation: connector profile credentials as secrets, connector credentials compared by identity, runtime signing keys resolved by bare key id, unresolved keys refused) | `make test-integration SUITE=composition` | PASS, nine consecutive runs (47 s to 56 s each; the last three on the final code) and once from a fresh worktree | 68 / 0 per run, in 11 files | as above | — |
+| Secret separation with a real connector profile directory | `make test-integration SUITE=composition FILTER=secret-separation` | PASS (inside the runs above) | 6 / 0 | LocalStack Secrets Manager | — |
+| Residual round-3 mutants (served in memory by a vitest load plugin; nothing edited in the tree) | unit: `src/config`, `src/main/live-modules.test.ts`, `src/main/audit-exporter.test.ts`; Layer 2: `approval-trust`, `secret-separation` | 17 / 17 distinct mutants killed: profiles dropped from the purpose comparison, connector pairs widened or skipped across environments, cross-environment connector pairs skipped although the connector rule cannot see that environment, exact-string connector comparison, identity canonicalisation, configured-adapter fallback, bare ids skipped, unresolved keys skipped, both (the original behaviour), live container or audit unit or startup without the separation resolver, anchor still used when a key is unresolved, unparsable committed files skipped, credential reader without the file check, audit unit without the committed key sets (V_AE_NOCOMMITTED) | — | — | — |
+| Round-3 mutants (each a mutated copy served to vitest by a plugin, nothing edited in the tree) | the named Layer-2 file or unit file | 17 / 17 distinct mutants killed (23 runs: 10 Layer 2, 13 unit). Layer 2: routing status back to TRANSFER_REQUESTED (`routing.test.ts`); dispatch loop always ok, retry backlog ignored, publish metric dropped (`worker.test.ts`); envelope tenant unchecked (`worker.test.ts`); a missing OTP pepper or a missing connector profile also disabling `workflows.durable` (verifier M7 and a variant), the profile fact ignored (`boot.test.ts`); span attribute allowlist off (verifier U5), span name checked by shape only (`telemetry.test.ts`). Unit: the same routing, dispatch and span mutants plus unreachable-route transfer id kept, "connecting you now" spoken, URI parameters open, URI host unchecked, `sslrootcert` unchecked, SafeTracer name by shape only, guard-port coercion starting an operation | — | as above | — |
+| Refix mutants of round 2 (owned code mutated in place, restored after each run) | `make test-integration SUITE=composition FILTER=<file>` and the unit files | 25 / 25 killed: console limiter on the raw URL, X-Forwarded-For ignored behind trusted proxies, consume loop always ok, transfer-store CAS dropped, duplicate insert as outage, emulator check removed (unit and Layer 2), credential sets not passed, session service on the system clock, inbound auth config with `kind`, canned call-session `null` (static and runtime), TLS not required, legacy `ssl` accepted, gateway limit null accepted, other environments dropped, private JWK accepted, retention ignored, exporter without policy, public trusted proxy range, XFF believed from any peer, limiter clearing its table, console role writes, image digest unchecked, guard operation answering `null` | — | as above | — |
+| Every Layer-2 suite (regression check after the composition changes: `_harness`, `composition`, `connectors`, `identity`, `ingress` and `substrate`) | `make test-integration` | PASS (395 s), after the WP-07 refix round 3 | 269 / 0 in 44 files | the running `core` profile | — |
+
+Unit layer and gates on the same tree after the WP-07 refix round 3 (2026-10-21): `cd platform && npx vitest run`
+PASS, 4 388 / 0 in 258 files (1 245 s; then the changed modules again, 234 / 0 in 27 files, after two late
+hardening edits); `npx tsc -p tsconfig.json --noEmit` PASS; ESLint on every changed platform
+module PASS; `schemas:check` (67 files), `catalog:check` (18 tools, digest `a4d479dd…1cc4` unchanged),
+`openapi:check` (OpenAPI and the generated gateway client), `asl:check`, `contracts:check`, `scenarios:check`
+PASS; `node scripts/ci/check-metric-names.mjs` PASS (44 Terraform metric names, 121 catalogue metrics) and its
+test 2 / 0; `npx vitest run test/docs test/architecture` 83 / 0; `python3 -I docs/tools/followon/generate.py
+--check` OK (7 outputs; the composition metric fragment moved to `observability/composition-catalog.ts` and the
+client generator into `gateway/generate-openapi.ts`, both owned in phase B).
+
+Mutation checks of this package (each mutant applied alone, the named test run, the mutant reverted):
+dead-letter refusal swallowed in the connector feed (`[FAULT:DLQ_FULL]` fails), the session service given the
+system clock instead of the container's (`[FAULT:AUTH_EXPIRY_MID_CALL]` fails), the sandbox rule accepting a
+non-KMS trust reference (`approval-trust.test.ts` and `guard.test.ts` fail), the emulator-host check of endpoint
+overrides removed and the verifier/exporter identity separation dropped (`src/config` tests fail), the
+capability gate's admission and hold checks removed (`capability-gate.test.ts` fails), the OTLP metric-label
+and resource-attribute allowlists removed (`otlp.test.ts` fails), and an alarm rule naming an unindexed runbook
+(`alarms.test.ts` fails). All killed.
+
+Emulator fidelity findings recorded by this suite: LocalStack 4.14 KMS answers `GetPublicKey` for a disabled
+key (AWS refuses it); `docker0` gets an address only while a container uses the default bridge; ElasticMQ 1.7.1
+stores no per-queue maximum message size; Keycloak needs a `frontendUrl` with the port when the TLS front is
+not on 443; the built policy bundle keeps owner-only file modes, so a non-root container needs them widened.
+
 ## Evaluation (local conversation driver)
 
 > **LOCAL FIXTURE — SYNTHETIC DATA — NOT PRODUCTION.** `executionMode: local_fixture`. The

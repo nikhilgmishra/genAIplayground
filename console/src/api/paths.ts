@@ -29,6 +29,9 @@ const PARAM_RE: Readonly<Record<PathParamName, RegExp>> = {
   messageId: new RegExp(PATH_PARAM_PATTERNS.messageId),
   taskId: new RegExp(PATH_PARAM_PATTERNS.taskId),
   releaseId: new RegExp(PATH_PARAM_PATTERNS.releaseId),
+  requestId: new RegExp(PATH_PARAM_PATTERNS.requestId),
+  reviewId: new RegExp(PATH_PARAM_PATTERNS.reviewId),
+  identityId: new RegExp(PATH_PARAM_PATTERNS.identityId),
 };
 
 export const isOpaqueId = (value: string): boolean => OPAQUE_RE.test(value);

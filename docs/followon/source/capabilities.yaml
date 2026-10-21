@@ -1,0 +1,170 @@
+# Capability catalogue (source). Members, activation ids, owning packages and per-axis status counts are derived by the generator into docs/followon/capabilities.yaml.
+capabilities:
+- id: platform.contracts
+  title: Strict contract registry
+  description: Versioned zod contracts, generated JSON Schemas and OpenAPI, the common envelope and the two-axis status types.
+- id: platform.workspace
+  title: Workspace and Layer-2 emulator stack
+  description: Pinned dependency set, workspace packages, local emulator composition, runner skeleton and integration harness.
+- id: platform.substrate
+  title: Durable storage, queues and keys
+  description: Postgres, DynamoDB sessions, SQS with DLQ, KMS signing and migrations on real protocols.
+- id: audit.independent
+  title: Independent audit evidence
+  description: Append-only audit chain, durable route-audit journal, S3 Object Lock export, signed manifests and a separate verifier.
+- id: ingress.events
+  title: Authenticated inbound event inbox
+  description: Webhook and stream ingestion with per-source verification, dedupe, ordering, quarantine and audited replay.
+- id: identity.caller
+  title: Caller identity and session assurance
+  description: OIDC portal, OTP, secure links, assurance tiers, session generations, idle expiry and refresh.
+- id: identity.workforce
+  title: Workforce identity and RBAC
+  description: Workforce SSO with MFA, live staff directory, role separation and break-glass.
+- id: authority.registries
+  title: Identity graph and authority registries
+  description: Deterministic identity links with quarantine and reviewed merge/split, and relationship, delegation, consent and account-state connectors.
+- id: connectors.runtime
+  title: Connector runtime and credentials
+  description: ConnectorProfile enforcement, secret resolution, token management, budgets, checkpoints, the egress-classified HTTP client, the mapping DSL and module boundaries.
+- id: platform.composition
+  title: Live composition
+  description: Live container with a per-capability activation map, fixture refusal, OpenTelemetry export and the live console composition.
+- id: models.providers
+  title: Model provider adapters
+  description: ModelPort with OpenAI, Bedrock and vLLM adapters and protocol-exact emulators.
+- id: models.registry
+  title: Model registry and qualification
+  description: Pinned model and voice registry, licences, approval states and model-qualify bake-offs.
+- id: conversation.harness
+  title: Bounded conversation and investigation harness
+  description: Typed bounded harness, specialist loops, prompt assembly and output validation behind the trusted gateway.
+- id: voice.media_runtime
+  title: Media runtime
+  description: LiveKit worker, codecs, call lifecycle, CallBinding issuance and recovery.
+- id: telephony.sip
+  title: SIP reference route
+  description: LiveKit SIP trunks, peer authentication, isolated DTMF and the local softphone and receiver path.
+- id: telephony.pstn
+  title: PSTN qualification
+  description: Calls over a contracted carrier trunk with recorded audio, latency and transfer evidence.
+- id: voice.speech
+  title: Speech input and output
+  description: Streaming ASR, VAD, endpointing, barge-in and controlled TTS.
+- id: voice.release_boundary
+  title: Protected audio release boundary
+  description: SpeechPlan, pre-emission checks at enqueue and emission, release receipts, response-class routing and turn/session fencing.
+- id: voice.native
+  title: Native full-duplex voice mode
+  description: Qualified native audio adapters with class routing, context scoping and buffer revocation.
+- id: voice.cascade
+  title: Controlled cascade and audio-to-action journey
+  description: Voice mode A wiring, audio journeys, test-audio and latency instrumentation.
+- id: safety.routing
+  title: Safety routing and fallback audio
+  description: Safety detection and routing without authentication, configurable procedures and pre-rendered fallback clips.
+- id: continuity.ai_off
+  title: Independent continuity route
+  description: An AI-off route to human queues that does not depend on the AI service.
+- id: handoff.transfer
+  title: Accepted human transfer
+  description: Durable transfer store, carrier events, receiver verification and decline, and warm transfer.
+- id: context.store
+  title: Context store and projections
+  description: Support timeline, bitemporal ContextFact store, event-fed projections and source watermarks.
+- id: context.assembly
+  title: Context assembly
+  description: Task-specific ContextSnapshot with coverage, precedence, freshness budgets, cache keys and live updates.
+- id: knowledge.retrieval
+  title: Knowledge and grounding
+  description: Knowledge sources, accountable approval, hybrid retrieval, reranking and grounding verification.
+- id: data.warehouse
+  title: Warehouse and lakehouse connectors
+  description: Snowflake SQL API and Iceberg via Athena/Glue through bounded, reviewed read templates.
+- id: data.cdp
+  title: CDP event connector
+  description: Segment-compatible CDP events as low-authority signals through the inbox.
+- id: privacy.operations
+  title: Privacy operations
+  description: Consent dimensions and revocation, memory governance, retention, subject deletion, correction and export, and the jurisdiction matrix loader.
+- id: domain.business_systems
+  title: Canonical domain adapters
+  description: Scheduling, billing and claims, provider and remittance, and referral adapters over canonical contracts and the reference business API.
+- id: actions.effects
+  title: Controlled actions and effect verification
+  description: Prepare, confirm, commit and reconcile through one executor, independent EffectVerification and issue-level outcomes.
+- id: workflows.durable
+  title: Durable case ownership
+  description: Step Functions drivers, system-step drivers, new states, continue-as-new and version migration.
+- id: workflows.families
+  title: Workflow families and resolution contracts
+  description: Every workflow family, ResolutionContracts per intent, long-horizon plans and multi-issue calls.
+- id: notifications.messaging
+  title: Notifications
+  description: Email and SMS senders with consent, preference, quiet-hour and frequency checks and delivery receipts.
+- id: voice.outbound
+  title: Outbound voice
+  description: Outbound call profiles and SIP placement, implemented but separately activated.
+- id: companion.web
+  title: Secure web companion
+  description: Authenticated companion bound to one call generation for review, confirmation and asynchronous replies.
+- id: contact_center.talkdesk
+  title: Talkdesk contact-centre connector
+  description: Talkdesk events, queues, transfers and historical exports through documented transports.
+- id: conversation.talkdesk_native
+  title: Talkdesk-native conversation path (optional)
+  description: The optional Talkdesk AI Agent Platform adapter and Auth Gate path, held to the same invariants.
+- id: crm.salesforce
+  title: Salesforce Service Cloud connector
+  description: Salesforce reads, history sync, CDC and Case writes with disposition read-back.
+- id: operator.configuration
+  title: Tenant configuration publication
+  description: Versioned draft, test, review, publish and rollback of tenant configuration with a per-capability activation map.
+- id: operator.onboarding
+  title: Tenant onboarding and readiness
+  description: Connector catalogue, credential references, mapping, the test wizard and capability readiness.
+- id: operator.studio
+  title: Agent Studio and knowledge management
+  description: Bounded agent configuration and knowledge review surfaces.
+- id: operator.console
+  title: Operations console
+  description: Calls, cases, investigations, evidence views, work queues, controls, incidents and insights.
+- id: evaluation.test_truth
+  title: Test truth and invariant register
+  description: Scorer gates, fixed denominators, family splits, the fault registry, the invariant register and two-axis traceability.
+- id: evaluation.drivers
+  title: Evaluation drivers and metrics
+  description: Model/text and audio simulation drivers, pass^k, WER and the differentiator metrics.
+- id: evaluation.monitors
+  title: Monitors, judges and review
+  description: Monitors, qualified judges, ReviewRecords, review queues and the Evaluation Studio.
+- id: improvement.pipeline
+  title: Controlled improvement pipeline
+  description: Approved observations, failure clusters, ChangeProposals, replay and offline optimizers with independent review.
+- id: improvement.canary_training
+  title: Canary and training governance
+  description: Signed canaries, cohorts, automatic rollback and governed training artifacts.
+- id: deploy.infrastructure
+  title: Infrastructure and reference deployment
+  description: Terraform for media/SIP/TURN hosts, services, perimeter, multi-AZ and secondary region, and the self-hosted reference deployment.
+- id: release.supply_chain
+  title: Supply chain and release bundle
+  description: Images, pinning, SBOM, provenance and signing, ReleaseManifest bindings, preflight and the release bundle.
+- id: operations.commands
+  title: Entry point and operational commands
+  description: The 26 named runner commands, expand/contract migrations, backup, restore and rollback.
+- id: operations.resilience_cost
+  title: Load, chaos, DR and cost
+  description: Load, soak, chaos and DR jobs, the fault-matrix gate, application region fencing, and the capacity and cost model with spend ledger.
+- id: platform.invariants
+  title: Acceptance invariants
+  description: The 27 invariants with enforcement, threats and positive, adversarial and failure-injection tests at every boundary.
+- id: journeys.end_to_end
+  title: Mandatory end-to-end journeys
+  description: J01-J20 in local protocol-realistic mode with sandbox and PSTN counterparts.
+- id: governance.documents
+  title: Delivery documents and compliance registers
+  description: Generated status documents, architecture, threat and data-flow documents, wording checks and compliance support registers.
+- id: activation.qualification
+  title: Activation and qualification
+  description: qualify-tenant, Layer-5 job definitions, ActivationRecords and authorized external executions.

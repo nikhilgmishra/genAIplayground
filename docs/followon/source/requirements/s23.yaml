@@ -1,0 +1,402 @@
+# Follow-on requirement source records, prompt section 23. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '23'
+requirements:
+- id: FO-23-01
+  section: '23'
+  kind: constraint
+  text: Verify changeable API, model and licence details at implementation time; the research cut (October 18-19, 2026) is design input, not a verified fact.
+  acceptance: Registry, connector and adapter records carry a verification date and source for each API, model and licence detail; a detail without one is UNVERIFIED and blocks role approval.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no verification-date fields exist (no model registry)
+  gap: No registry records verification dates or sources.
+  remediation: WP-09 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: none
+  workPackage: WP-09
+  relatedIds:
+  - FO-09-33
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-02
+  section: '23'
+  kind: constraint
+  text: Do not use research papers as training data by default.
+  acceptance: The training-dataset registry refuses an item whose provenance is a research article unless a recorded licence permits training.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no training-dataset registry exists
+  gap: No dataset registry, so nothing refuses paper-derived training items.
+  remediation: WP-37 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: none
+  workPackage: WP-37
+  relatedIds:
+  - FO-18-17
+  - FO-09-54
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-03
+  section: '23'
+  kind: constraint
+  text: Licences for articles, datasets, code, weights and voices are separate and are recorded separately per artifact.
+  acceptance: Registry entries record licence, usage terms and reviewer separately for code, weights, voice and dataset artifacts; one licence never implies another.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no registry licence fields exist
+  gap: No per-artifact licence fields exist.
+  remediation: WP-09 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: Legal/licensing review (PRQ-044)
+  workPackage: WP-09
+  relatedIds:
+  - FO-09-14
+  - FO-09-29
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-04
+  section: '23'
+  kind: constraint
+  text: 'R08 (CC-BY-NC-ND): cite its findings only; never bundle, mine or train on its text or data without permission.'
+  acceptance: The dataset registry and the release bundle content check refuse R08 text or data; documentation may cite it.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no dataset registry or bundle content check exists
+  gap: No check prevents bundling or training on licence-restricted article content.
+  remediation: WP-37 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: Legal/licensing review (PRQ-044)
+  workPackage: WP-37
+  relatedIds:
+  - FO-17-09
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-05
+  section: '23'
+  kind: constraint
+  text: 'R03: never report tau-Voice model rankings or simulated-time latency as current PSTN measurements or mental-health safety rates.'
+  acceptance: Evaluation reports label every latency with its measurement path and time base (simulated or real time, local loop, sandbox or PSTN); a report check refuses simulated-time or benchmark-derived figures labelled as PSTN or safety results.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - evaluation.drivers
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/labels.ts (local-fixture labels only)
+  gap: No measurement-path or time-base label on latency results; no claim check.
+  remediation: WP-34 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: none
+  workPackage: WP-34
+  relatedIds:
+  - FO-17-05
+  - FO-17-09
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-06
+  section: '23'
+  kind: constraint
+  text: 'R06: a judge sensitivity measured on few positives (for example 6/6 with a 95% CI of 54.1-100%) is not proven perfect detection; report intervals and distinguish flagged-pipeline rates from random deployment samples.'
+  acceptance: Judge qualification reports give sample counts and confidence intervals and refuse to state "100%" without them; flagged-pipeline and random-sample rates are reported separately.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - evaluation.monitors
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no judge qualification report exists
+  gap: No judge qualification exists.
+  remediation: WP-35 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: none
+  workPackage: WP-35
+  relatedIds:
+  - FO-17-27
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-07
+  section: '23'
+  kind: constraint
+  text: Recommendations and targets are our design choices, not thresholds imposed by papers; public research establishes no company-specific deployment or approval, and study limits (R04, R05, R07, R09, R10, R11) are never turned into claims of clinical validation, equivalence, causal superiority or published results.
+  acceptance: A docs-pack wording check rejects claims that a paper validates, approves or certifies the product and claims of equivalence or superiority drawn from the cited studies.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/docs/docs-pack.test.ts (no research-claim check)
+  gap: No wording check for research-derived claims.
+  remediation: WP-44 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  relatedIds:
+  - FO-00-24
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-08
+  section: '23'
+  kind: constraint
+  text: 'V01: the Personal Agent Protocol is not an assumed stable dependency.'
+  acceptance: No component depends on the Personal Agent Protocol unless a decision record qualifies it.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - decision-gates.test.ts [FO-23-08]
+  gap: 'Not triggered yet: no Personal Agent Protocol dependency exists.'
+  remediation: 'WP-06 adds the decision-gated dependency check (platform/architecture/modules.yaml and platform/test/architecture): it fails when a Personal Agent Protocol client or schema appears in a package manifest, lockfile, import or declared module without an Accepted ADR recorded against it.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-06
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+    - 'Phase A repair round 2 (critic re-check): NOT_APPLICABLE is not in the software vocabulary (prompt section 0, ADR-0018 decision 7.1); the constraint holds only because nothing it governs exists yet, so it is IMPLEMENTED with a not-yet-triggered gap and WP-06 owns the check that fails when the Personal Agent Protocol appears without a decision record'
+    repairStatusFrom: NOT_APPLICABLE
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-23-09
+  section: '23'
+  kind: constraint
+  text: 'V05: vendor public trust and reliability commitments are not this product''s audit or BAA evidence.'
+  acceptance: Compliance registers and the activation register never cite a vendor public page as BAA, audit or control evidence; a docs check rejects it.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no docs check for vendor-page evidence
+  gap: No check prevents a vendor public page from being cited as BAA or audit evidence.
+  remediation: WP-44 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  relatedIds:
+  - FO-15-15
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-10
+  section: '23'
+  kind: constraint
+  text: 'V06/V07: never use clinical notes or internal workforce material as support training data.'
+  acceptance: The training-dataset registry refuses items whose provenance is clinical notes or internal workforce tooling.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - improvement.canary_training
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no training-dataset registry exists
+  gap: No dataset registry exists.
+  remediation: WP-37 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: none
+  workPackage: WP-37
+  relatedIds:
+  - FO-09-54
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-11
+  section: '23'
+  kind: constraint
+  text: 'V07: customers never get broad coding or data capabilities: no coding, SQL, shell or data-exploration tool is reachable from a customer-facing runtime.'
+  acceptance: The customer-facing tool catalogue contains only domain tools; a catalogue test and the WP-06 module-boundary test refuse general coding or data tools.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - schemas/tools/catalog.json (18 domain tools, none general-purpose)
+  - platform/src/gateway/catalog.test.ts
+  gap: 'Not yet triggered: no customer-facing model runtime exists; the catalogue constraint holds for the gateway only.'
+  remediation: WP-10 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: none
+  workPackage: WP-10
+  relatedIds:
+  - FO-09-41
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-12
+  section: '23'
+  kind: constraint
+  text: 'T10: no context-window size, quota or endpoint is assumed for Nova 2.5 Sonic or any model; capability fields stay unverified until confirmed from current provider documentation.'
+  acceptance: Registry capability fields (context window, quotas, endpoints, regions) are null and UNVERIFIED until a dated source is recorded; the guard refuses role approval with unverified fields.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no model registry exists
+  gap: No registry capability fields exist.
+  remediation: WP-09 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: Model provider access (PRQ-045)
+  workPackage: WP-09
+  relatedIds:
+  - FO-09-13
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-13
+  section: '23'
+  kind: constraint
+  text: 'M01-M11: exact model revisions and licences are pinned at release.'
+  acceptance: Each Hugging Face candidate used by any role is pinned by revision and weight digest with its licence in the registry, and the release manifest binds those pins.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - models.registry
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no model registry or model manifest exists
+  gap: No revision or licence pins exist.
+  remediation: WP-09 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: none
+  workPackage: WP-09
+  relatedIds:
+  - FO-09-35
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-14
+  section: '23'
+  kind: constraint
+  text: 'L01-L08: legal and security references require an applicability review; eligible services alone do not make an application compliant, and SOC 2 mapping uses the authoritative criteria and auditor scope.'
+  acceptance: Compliance registers record an applicability review (reviewer, date, status) per legal reference; the docs check rejects compliance claims and SOC 2 phrasing without an auditor scope.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/test/docs/docs-pack.test.ts ([OPS-03] rejects affirmative HIPAA-compliance and production-readiness claims)
+  gap: No applicability-review record per legal reference; no SOC 2 phrasing check.
+  remediation: WP-44 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: Privacy counsel review (PRQ-027)
+  workPackage: WP-44
+  relatedIds:
+  - FO-15-05
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'
+- id: FO-23-15
+  section: '23'
+  kind: constraint
+  text: 'Company material (V01-V08) is attributed public description, not independent assurance: reproduce measurable responsibilities, not proprietary model names or performance claims.'
+  acceptance: The docs check rejects proprietary vendor model names presented as our components and vendor performance figures presented as our results.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-23
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no docs check for vendor claims
+  gap: No wording check.
+  remediation: WP-44 delivers the check named in the acceptance (section 23 deliverable in docs/followon/work-packages.yaml).
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  relatedIds:
+  - FO-00-24
+  provenance:
+    origin: repair-added
+    repair:
+    - 'Phase A repair (critic gap 11): section 23 constraint row'

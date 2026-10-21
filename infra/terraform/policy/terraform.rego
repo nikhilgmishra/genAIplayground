@@ -613,9 +613,40 @@ ci_foreign_role_actions := {"iam:AttachRolePolicy", "iam:PutRolePolicy", "iam:Up
 ci_data_plane_probe_actions := {"dynamodb:GetItem", "dynamodb:Scan", "secretsmanager:GetSecretValue", "sqs:ReceiveMessage", "logs:FilterLogEvents", "kms:Decrypt"}
 
 # Calls that copy data out or share it under the caller's own authorization; the stack never makes them.
+# Object ACLs (s3:PutObjectAcl, s3:PutObjectVersionAcl) can grant another account read access to a
+# single object (or one version of it), so they are probed like the bucket ACL.
 ci_data_export_probe_actions := {
 	"dynamodb:ExportTableToPointInTime", "dynamodb:PutResourcePolicy", "rds:ModifyDBClusterSnapshotAttribute", "rds:ModifyDBSnapshotAttribute",
-	"rds:StartExportTask", "logs:CreateExportTask", "logs:PutSubscriptionFilter", "s3:PutReplicationConfiguration", "s3:PutBucketAcl", "sqs:AddPermission",
+	"rds:StartExportTask", "logs:CreateExportTask", "logs:PutSubscriptionFilter", "s3:PutReplicationConfiguration", "s3:PutBucketAcl",
+	"s3:PutObjectAcl", "s3:PutObjectVersionAcl", "sqs:AddPermission",
+}
+
+# The resource an export probe names, as IAM authorizes the call: an object for the object-level
+# S3 calls, the bucket for every other S3 call (bucket ACL, replication), a table otherwise. A
+# deny scoped to the wrong resource type (objects only for a bucket call, or the reverse) does
+# not stop the call and is reported.
+ci_s3_object_probe_actions := {"s3:PutObjectAcl", "s3:PutObjectVersionAcl"}
+
+ci_export_probe_resource(part, _, _, a) := sprintf("arn:%s:s3:::probe-bucket/probe-object", [part]) if a in ci_s3_object_probe_actions
+
+ci_export_probe_resource(part, _, _, a) := sprintf("arn:%s:s3:::probe-bucket", [part]) if {
+	startswith(a, "s3:")
+	not a in ci_s3_object_probe_actions
+}
+
+ci_export_probe_resource(part, region, acct, a) := sprintf("arn:%s:dynamodb:%s:%s:table/probe", [part, region, acct]) if not startswith(a, "s3:")
+
+# Every bucket the boundary itself names in a Resource or NotResource (wildcards instantiated). The
+# object-ACL calls are probed on an object in each of them as well, so a deny that exempts one
+# bucket's objects (for example NotResource on the Terraform state's objects) is reported for it;
+# the generic probe object alone would not see such an exemption.
+ci_boundary_named_buckets(doc) := {b |
+	some st in iam_statements(doc)
+	some key in ["Resource", "NotResource"]
+	some r in as_list(object.get(st, key, []))
+	is_string(r)
+	some m in regex.find_all_string_submatch_n(`^arn:[a-z-]+:s3:::([^/]+)`, r, 1)
+	b := strings.replace_n({"*": "probe", "?": "p"}, m[1])
 }
 
 # Sharing calls Terraform does make: probed without the request keys that would scope them
@@ -624,7 +655,7 @@ ci_scoped_share_probe_actions := {"kms:CreateGrant", "secretsmanager:PutResource
 
 ci_account_level_actions := {"iam:CreateOpenIDConnectProvider", "iam:CreateAccessKey", "iam:AttachGroupPolicy", "iam:CreatePolicyVersion"}
 
-ci_probes(part, acct, prefix, boundary, region) := (((((self_p | foreign_p) | assume_p) | data_p) | export_p) | share_p) | account_p if {
+ci_probes(part, acct, prefix, boundary, region, buckets) := ((((((self_p | foreign_p) | assume_p) | data_p) | export_p) | object_acl_p) | share_p) | account_p if {
 	roles := {sprintf("arn:%s:iam::%s:role/%s-gha-plan", [part, acct, prefix]), sprintf("arn:%s:iam::%s:role/%s-gha-apply", [part, acct, prefix])}
 	foreign := sprintf("arn:%s:iam::%s:role/PreExistingAdministratorRole", [part, acct])
 	self_p := {{"desc": sprintf("%s on its own role %s", [a, r]), "action": a, "resource": r, "ctx": {"aws:RequestedRegion": region, "iam:PermissionsBoundary": boundary}} |
@@ -639,9 +670,15 @@ ci_probes(part, acct, prefix, boundary, region) := (((((self_p | foreign_p) | as
 		some r in roles
 		some a in ci_data_plane_probe_actions
 	}
-	export_p := {{"desc": sprintf("%s (export or share) by CI role %s", [a, r]), "action": a, "resource": sprintf("arn:%s:dynamodb:%s:%s:table/probe", [part, region, acct]), "ctx": {"aws:RequestedRegion": region, "aws:PrincipalArn": r}} |
+	export_p := {{"desc": sprintf("%s (export or share) by CI role %s", [a, r]), "action": a, "resource": ci_export_probe_resource(part, region, acct, a), "ctx": {"aws:RequestedRegion": region, "aws:PrincipalArn": r}} |
 		some r in roles
 		some a in ci_data_export_probe_actions
+	}
+	object_acl_p := {{"desc": sprintf("%s (export or share) by CI role %s on %s", [a, r, res]), "action": a, "resource": res, "ctx": {"aws:RequestedRegion": region, "aws:PrincipalArn": r}} |
+		some r in roles
+		some a in ci_s3_object_probe_actions
+		some b in buckets
+		res := sprintf("arn:%s:s3:::%s/probe-object", [part, b])
 	}
 	share_p := {{"desc": sprintf("%s outside an AWS-service grant or a non-public policy by CI role %s", [a, r]), "action": a, "resource": "*", "ctx": {"aws:RequestedRegion": region, "aws:PrincipalArn": r}} |
 		some r in roles
@@ -655,7 +692,7 @@ ci_probes(part, acct, prefix, boundary, region) := (((((self_p | foreign_p) | as
 ci_escalations(doc) := {probe.desc |
 	some arn in ci_boundary_arns(doc)
 	m := regex.find_all_string_submatch_n(`^arn:([a-z-]+):iam::([0-9]{12}):policy/(.+)-ci-boundary$`, arn, 1)[0]
-	some probe in ci_probes(m[1], m[2], m[3], arn, ci_probe_region(doc))
+	some probe in ci_probes(m[1], m[2], m[3], arn, ci_probe_region(doc), ci_boundary_named_buckets(doc))
 	iam_allows(doc, probe.action, probe.resource, probe.ctx)
 }
 
@@ -732,6 +769,298 @@ deny contains msg if {
 	action in {"update", "delete"}
 	msg := sprintf("CI-IDENTITY: %s would be changed by CI; changes to the CI identity are applied by an account administrator", [rc.address])
 }
+
+# ---------------------------------------------------------------- 12. edge rate limits never block the safety routes (SAFE-02, SAFE-03)
+
+# Request paths of the safety and human-route calls: the MCP tools request_safety_route and
+# request_human_transfer, and Studio telephony control (utterance screening, human request,
+# handoff). WAF cannot tell these calls apart from the other Talkdesk calls on the same paths and
+# source IPs, so a rate-based rule that can stop a call (any action but Count, see waf_blocks) must
+# provably not apply to any of them; the ingress module counts them instead (ADR-0012).
+waf_safety_route_paths := {"/mcp", "/mcp/", "/telephony/v1/session/utterance-screening", "/telephony/v1/session/human-request", "/telephony/v1/session/handoff"}
+
+# Web ACLs, and custom rule groups (a web ACL can reference their rules), are checked alike.
+waf_rule_sets := of_type("aws_wafv2_web_acl") | of_type("aws_wafv2_rule_group")
+
+# rule_json is unknown at plan time when it references a computed IP set ARN (the plan that creates
+# the supplemental allowlist): the gate cannot see the rules then, and that configuration is
+# covered by the ingress module's terraform test (infra/terraform/README.md, residual risk).
+waf_acl_rules(acl) := rules if {
+	raw := object.get(after(acl), "rule_json", null)
+	is_string(raw)
+	rules := json.unmarshal(raw)
+	is_array(rules)
+}
+
+# Only a Count action is known never to stop a call. Block refuses the call, and Captcha and Challenge
+# answer a non-browser client (Talkdesk's MCP client, Studio's HTTP steps) with a puzzle or an
+# interstitial it cannot solve, which stops the call as surely. Allow, a missing action or any
+# other value is refused rather than reasoned about (fail closed).
+waf_blocks(rule) if not waf_count_only(rule)
+
+waf_count_only(rule) if {
+	action := object.get(rule, "Action", null)
+	is_object(action)
+	object.keys(action) == {"Count"}
+}
+
+deny contains msg if {
+	some acl in waf_rule_sets
+	some rule in waf_acl_rules(acl)
+	waf_blocks(rule)
+	rate := rule.Statement.RateBasedStatement
+	some path in waf_safety_route_paths
+	waf_scope_may_match(rate, path)
+	msg := sprintf("WAF-RATE: %s rule %s can rate-block %s (safety and human-route calls); scope the blocking rule to other paths and count these instead", [acl.address, rule.Name, path])
+}
+
+# A rate-based rule with any action, Count included, labels the requests it counts once its limit is
+# exceeded (RuleLabels), and a later rule can block on that label (LabelMatchStatement): together they
+# rate-block as surely as a blocking rate rule. The gate does not follow label keys, namespaces or rule
+# priorities, so it refuses the pair whenever the labelling rule can match a safety-route path (fail closed).
+deny contains msg if {
+	some acl in waf_rule_sets
+	rules := waf_acl_rules(acl)
+	some labeller in rules
+	waf_emits_labels(labeller)
+	rate := labeller.Statement.RateBasedStatement
+	some path in waf_safety_route_paths
+	waf_scope_may_match(rate, path)
+	some blocker in rules
+	waf_blocks(blocker)
+	waf_matches_labels(blocker)
+	msg := sprintf("WAF-RATE: %s rule %s blocks on labels and rate-based rule %s labels requests that can be %s (a rate block through labels); do not label those requests, or block only on labels no rate-based rule emits", [acl.address, blocker.Name, labeller.Name, path])
+}
+
+# A custom rule group can hold rate-based rules too, and the gate does not evaluate its rules: a
+# reference whose rule actions apply (any OverrideAction but Count) is refused (fail closed). AWS
+# managed rule groups are not evaluated either (infra/terraform/README.md, residual risk).
+deny contains msg if {
+	some acl in of_type("aws_wafv2_web_acl")
+	some rule in waf_acl_rules(acl)
+	waf_has_statement(rule, "RuleGroupReferenceStatement")
+	not waf_override_count(rule)
+	msg := sprintf("WAF-RATE: %s rule %s references a custom rule group, whose rules (rate-based rules included) this gate does not evaluate; reference it with OverrideAction Count, or declare its rules in the web ACL", [acl.address, rule.Name])
+}
+
+# The gate reads rule_json only; rules declared as `rule {}` blocks would bypass it.
+deny contains msg if {
+	some acl in waf_rule_sets
+	not waf_empty(object.get(after(acl), "rule", []))
+	msg := sprintf("WAF-RATE: %s declares rule blocks, which this gate does not evaluate; declare its rules in rule_json", [acl.address])
+}
+
+waf_empty(x) if x == null
+
+waf_empty(x) if x == []
+
+waf_emits_labels(rule) if not waf_empty(object.get(rule, "RuleLabels", []))
+
+waf_matches_labels(rule) if waf_has_statement(rule, "LabelMatchStatement")
+
+waf_has_statement(rule, kind) if {
+	walk(object.get(rule, "Statement", {}), [_, node])
+	is_object(node)
+	object.get(node, kind, null) != null
+}
+
+waf_override_count(rule) if {
+	override := object.get(rule, "OverrideAction", null)
+	is_object(override)
+	object.keys(override) == {"Count"}
+}
+
+waf_scope_may_match(rate, _) if not rate.ScopeDownStatement
+
+waf_scope_may_match(rate, path) if waf_may4(rate.ScopeDownStatement, path)
+
+# Three-valued evaluation of a statement for a request that differs only in its URI path. A
+# RegexMatchStatement on the untransformed URI path is decided exactly, but only when its pattern
+# is portable (waf_portable_regex): AWS WAF accepts PCRE constructs RE2 rejects (lookaround,
+# backreferences), and a pattern RE2 compiles can still match differently in PCRE, so any other
+# pattern is unknown here, never "does not match". Every other leaf, and nesting deeper than four
+# levels, is unknown too. `may` over-approximates and `must`
+# under-approximates, so a blocking rule passes only if it provably excludes every safety-route
+# path (fail closed).
+waf_composite(st) if st.NotStatement
+
+waf_composite(st) if st.OrStatement
+
+waf_composite(st) if st.AndStatement
+
+waf_exact_leaf(st) if {
+	rm := st.RegexMatchStatement
+	is_string(rm.RegexString)
+	waf_portable_regex(rm.RegexString)
+	object.keys(rm.FieldToMatch) == {"UriPath"}
+	count(rm.TextTransformations) > 0
+	every t in rm.TextTransformations {
+		t.Type == "NONE"
+	}
+}
+
+# The subset in which RE2 (OPA) and AWS WAF's PCRE agree on the fixed ASCII probe paths: a pattern
+# RE2 compiles, of printable ASCII, with "(?" only as the non-capturing "(?:" (no inline flags,
+# lookaround or named groups) and no backslash before a letter or digit (no class escapes such as
+# \s, \w, \b or \p{..}, no \Q..\E). Outside it RE2 can match differently: under (?i) it folds U+017F
+# (long s) to "s", which PCRE matching byte-wise does not, so an exclusion would hold in OPA only.
+waf_portable_regex(re) if {
+	regex.is_valid(re)
+	regex.match(`^[ -~]*$`, re)
+	not regex.match(`\(\?[^:]`, re)
+	not regex.match(`\\[0-9A-Za-z]`, re)
+}
+
+waf_leaf_may(st, _) if {
+	not waf_composite(st)
+	not waf_exact_leaf(st)
+}
+
+waf_leaf_may(st, path) if {
+	waf_exact_leaf(st)
+	regex.match(st.RegexMatchStatement.RegexString, path)
+}
+
+waf_leaf_must(st, path) if {
+	waf_exact_leaf(st)
+	regex.match(st.RegexMatchStatement.RegexString, path)
+}
+
+waf_may1(st, path) if waf_leaf_may(st, path)
+
+waf_may1(st, _) if waf_composite(st)
+
+waf_must1(st, path) if waf_leaf_must(st, path)
+
+waf_may2(st, path) if waf_leaf_may(st, path)
+
+waf_may2(st, path) if {
+	inner := st.NotStatement.Statement
+	not waf_must1(inner, path)
+}
+
+waf_may2(st, path) if {
+	some c in st.OrStatement.Statements
+	waf_may1(c, path)
+}
+
+waf_may2(st, path) if {
+	cs := st.AndStatement.Statements
+	every c in cs {
+		waf_may1(c, path)
+	}
+}
+
+waf_must2(st, path) if waf_leaf_must(st, path)
+
+waf_must2(st, path) if {
+	inner := st.NotStatement.Statement
+	not waf_may1(inner, path)
+}
+
+waf_must2(st, path) if {
+	some c in st.OrStatement.Statements
+	waf_must1(c, path)
+}
+
+waf_must2(st, path) if {
+	cs := st.AndStatement.Statements
+	every c in cs {
+		waf_must1(c, path)
+	}
+}
+
+waf_may3(st, path) if waf_leaf_may(st, path)
+
+waf_may3(st, path) if {
+	inner := st.NotStatement.Statement
+	not waf_must2(inner, path)
+}
+
+waf_may3(st, path) if {
+	some c in st.OrStatement.Statements
+	waf_may2(c, path)
+}
+
+waf_may3(st, path) if {
+	cs := st.AndStatement.Statements
+	every c in cs {
+		waf_may2(c, path)
+	}
+}
+
+waf_must3(st, path) if waf_leaf_must(st, path)
+
+waf_must3(st, path) if {
+	inner := st.NotStatement.Statement
+	not waf_may2(inner, path)
+}
+
+waf_must3(st, path) if {
+	some c in st.OrStatement.Statements
+	waf_must2(c, path)
+}
+
+waf_must3(st, path) if {
+	cs := st.AndStatement.Statements
+	every c in cs {
+		waf_must2(c, path)
+	}
+}
+
+waf_may4(st, path) if waf_leaf_may(st, path)
+
+waf_may4(st, path) if {
+	inner := st.NotStatement.Statement
+	not waf_must3(inner, path)
+}
+
+waf_may4(st, path) if {
+	some c in st.OrStatement.Statements
+	waf_may3(c, path)
+}
+
+waf_may4(st, path) if {
+	cs := st.AndStatement.Statements
+	every c in cs {
+		waf_may3(c, path)
+	}
+}
+
+# ---------------------------------------------------------------- 13. KMS grants in key policies
+
+# An IAM principal (key administrators, the account root that delegates to IAM policies, or
+# "*") may create grants only for AWS resources. Matching uses the evaluator's action globs,
+# so kms:Create* or a NotAction that leaves kms:CreateGrant in counts, and the statement must
+# carry a Bool kms:GrantIsForAWSResource condition that holds for "true" and not for "false".
+# Other conditions do not count (fail closed). Service principals (e.g. Fargate) are not IAM principals.
+deny contains msg if {
+	some k in of_type("aws_kms_key")
+	is_string(after(k).policy)
+	some st in iam_statements(json.unmarshal(after(k).policy))
+	st.Effect == "Allow"
+	kms_iam_principal(st.Principal)
+	iam_action_in(st, "kms:CreateGrant")
+	not kms_grant_for_aws_resources_only(st)
+	msg := sprintf("KMS-GRANT: %s statement %s lets an IAM principal create grants that are not for AWS resources (needs Bool kms:GrantIsForAWSResource = true; kms:Create* matches kms:CreateGrant)", [k.address, object.get(st, "Sid", "(no Sid)")])
+}
+
+kms_iam_principal("*")
+
+kms_iam_principal(p) if {
+	is_object(p)
+	"AWS" in object.keys(p)
+}
+
+kms_grant_for_aws_resources_only(st) if {
+	vals := kms_condition_values(st.Condition.Bool["kms:GrantIsForAWSResource"])
+	iam_condition("Bool", "true", vals)
+	not iam_condition("Bool", "false", vals)
+}
+
+kms_condition_values(x) := x if is_array(x)
+
+kms_condition_values(x) := [x] if not is_array(x)
 
 # ---------------------------------------------------------------- summary
 

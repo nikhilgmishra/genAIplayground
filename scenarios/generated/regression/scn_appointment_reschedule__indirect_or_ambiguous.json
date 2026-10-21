@@ -1,0 +1,99 @@
+{
+  "scenarioId": "scn_appointment_reschedule__indirect_or_ambiguous",
+  "version": 1,
+  "split": "regression",
+  "intent": "appointment_reschedule",
+  "audience": "client",
+  "locale": "en-US",
+  "channel": "simulated_text",
+  "variantFamily": "indirect_or_ambiguous",
+  "riskClass": "transaction",
+  "initialState": {
+    "fixtureSet": "synthetic_world_v1",
+    "faults": []
+  },
+  "permittedRecords": [
+    "apt_synthAveryAppt00001",
+    "slt_synthMorganSlot0001"
+  ],
+  "expectedAssurance": "A3",
+  "script": [
+    {
+      "speaker": "caller",
+      "text": "Something came up and I don't think next week is going to work for me.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "My session, I mean. Can it be a different day?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "VERIFICATION_SECURE_LINK_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Is there anything on Friday afternoon?",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "caller",
+      "text": "Yes, the first one works.",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "STEP_UP_APPROVED",
+      "dtmf": null,
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CONFIRMATION_CAPTURED",
+      "dtmf": "1",
+      "asrConfidence": null
+    },
+    {
+      "speaker": "system_event",
+      "text": "CALL_END",
+      "dtmf": null,
+      "asrConfidence": null
+    }
+  ],
+  "persona": "Synthetic client Avery; wants to move next week's video appointment to Friday. Speaks indirectly; the intent is ambiguous at first.",
+  "adversarialTurn": null,
+  "expectedToolSequence": [
+    "begin_verification",
+    "get_appointment_options",
+    "prepare_appointment_change",
+    "commit_appointment_change"
+  ],
+  "prohibitedActions": [
+    "speak:clinical_suitability",
+    "disclose:other_subject",
+    "speak:success_without_commit"
+  ],
+  "requiredHandoff": "NONE",
+  "expectedFinalState": {
+    "outcome": "RESOLVED",
+    "committedActions": [
+      "appointment_change"
+    ],
+    "supportRequestCreated": false,
+    "disclosedProtectedFields": true
+  },
+  "stopCondition": "OUTCOME_RECORDED",
+  "review": {
+    "status": "UNREVIEWED",
+    "reviewer": null,
+    "reviewedAt": null
+  },
+  "repetitions": 1
+}

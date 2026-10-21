@@ -1,0 +1,74 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "LOCAL_PERSISTENCE_FAILURE",
+  "version": 1,
+  "title": "The primary database refuses writes",
+  "description": "The primary database write path fails (postgres:16 stopped or read-only); mutations must fail closed with no unaudited effect, and the AI-off telephony route must stay usable.",
+  "category": "infrastructure",
+  "target": {
+    "components": [
+      "platform/src/db",
+      "platform/src/actions",
+      "platform/src/audit"
+    ],
+    "dependency": "database"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "DATABASE_UNAVAILABLE",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_commit",
+      "gate": "transaction"
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller is connected to a person through the continuity route.",
+  "backendEvidence": [
+    "Mutation refused before any provider call",
+    "Continuity route used; no effect without its audit record"
+  ],
+  "requirementIds": [
+    "SPEC-12.db-outage",
+    "OPS-01"
+  ],
+  "appliesToIntents": [
+    "appointment_reschedule",
+    "billing_dispute",
+    "human_request"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:LOCAL_PERSISTENCE_FAILURE] owned by WP-15 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.LOCAL_PERSISTENCE_FAILURE",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the primary database write fails (postgres:16 stopped or read-only)",
+    "injectionPointPackages": [
+      "WP-04"
+    ],
+    "postconditionPackages": [
+      "WP-12",
+      "WP-15"
+    ],
+    "layer2Owner": "WP-15",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "No provider effect happens without a durable ledger and audit record",
+    "The continuity route keeps the caller connected (OPS-02)"
+  ]
+}

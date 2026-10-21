@@ -1,0 +1,71 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "SCHEMA_DRIFT",
+  "version": 1,
+  "title": "A connector response no longer matches its mapping",
+  "description": "A connector response or metadata document has fields that differ from the ConnectorProfile mapping (renamed, retyped or missing); the runtime must refuse the record instead of guessing.",
+  "category": "dependency",
+  "target": {
+    "components": [
+      "platform/src/connectors"
+    ],
+    "dependency": "connector"
+  },
+  "trigger": {
+    "kind": "BEFORE_TOOL",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "SCHEMA_DRIFT",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "no_consequential_success",
+      "gate": "transaction"
+    },
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller is told the information cannot be confirmed right now and is offered a person.",
+  "backendEvidence": [
+    "Connector mapping refusal with a schema-drift reason",
+    "Capability evidence downgraded until requalified"
+  ],
+  "requirementIds": [
+    "SPEC-16.integration-records"
+  ],
+  "appliesToIntents": [
+    "invoice_explanation",
+    "claim_status",
+    "remittance_lookup"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:SCHEMA_DRIFT] owned by WP-32 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.SCHEMA_DRIFT",
+    "origin": "prompt_section_17",
+    "injectionPoint": "a connector response or metadata whose fields differ from the profile mapping",
+    "injectionPointPackages": [
+      "WP-06"
+    ],
+    "postconditionPackages": [
+      "WP-06",
+      "WP-32"
+    ],
+    "layer2Owner": "WP-32",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "A drifted record is refused, never partially mapped",
+    "The capability is marked unqualified until a new mapping is approved"
+  ]
+}

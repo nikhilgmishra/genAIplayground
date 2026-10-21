@@ -1,0 +1,768 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/SpeechPlan.json",
+  "title": "SpeechPlan",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "speech-plan.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "interactionId": "interactionId",
+    "sessionGeneration": "sessionGeneration",
+    "turnId": "turnId",
+    "requestId": "requestId",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "expiresAt": "expiresAt",
+    "dataClassification": "dataClassification",
+    "versions": "versions",
+    "provenance": "sourceRefs"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "speech-plan.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "interactionId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "sessionGeneration": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000000
+    },
+    "turnId": {
+      "type": "string",
+      "pattern": "^turn_[A-Za-z0-9_-]{4,64}$"
+    },
+    "requestId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "planId": {
+      "type": "string",
+      "pattern": "^spl_[A-Za-z0-9_-]{16,64}$"
+    },
+    "turnRevision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "utteranceClass": {
+      "type": "string",
+      "enum": [
+        "IDENTITY",
+        "FINANCIAL_FACT",
+        "COMMITMENT",
+        "CLINICAL_BOUNDARY",
+        "RECORDING_DISCLOSURE",
+        "SAFETY",
+        "PROTECTED_FACT",
+        "LOW_RISK_GROUNDED",
+        "GENERIC_STATUS"
+      ]
+    },
+    "route": {
+      "type": "string",
+      "enum": [
+        "CONTROLLED",
+        "NATIVE_ALLOWED"
+      ]
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$"
+    },
+    "segments": {
+      "minItems": 1,
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "TEMPLATE_EXACT"
+              },
+              "templateId": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+              },
+              "templateVersion": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 600
+              },
+              "slotNames": {
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-zA-Z0-9]{0,40}$"
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "templateId",
+              "templateVersion",
+              "text",
+              "slotNames"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "BOUNDED_PARAPHRASE"
+              },
+              "paraphrasePolicyId": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400
+              },
+              "maxChars": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 400
+              },
+              "allowedSourceRefs": {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 256,
+                  "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+                }
+              }
+            },
+            "required": [
+              "kind",
+              "paraphrasePolicyId",
+              "text",
+              "maxChars",
+              "allowedSourceRefs"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "FALLBACK_CLIP"
+              },
+              "clipRef": {
+                "type": "string",
+                "pattern": "^clip_[a-z0-9_]{3,64}@v[1-9][0-9]{0,5}$"
+              },
+              "clipManifestDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "kind",
+              "clipRef",
+              "clipManifestDigest"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "protectedSlots": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "MONEY"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]{0,40}$"
+              },
+              "value": {
+                "type": "object",
+                "properties": {
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "AED",
+                      "AFN",
+                      "ALL",
+                      "AMD",
+                      "AOA",
+                      "ARS",
+                      "AUD",
+                      "AWG",
+                      "AZN",
+                      "BAM",
+                      "BBD",
+                      "BDT",
+                      "BGN",
+                      "BHD",
+                      "BIF",
+                      "BMD",
+                      "BND",
+                      "BOB",
+                      "BOV",
+                      "BRL",
+                      "BSD",
+                      "BTN",
+                      "BWP",
+                      "BYN",
+                      "BZD",
+                      "CAD",
+                      "CDF",
+                      "CHE",
+                      "CHF",
+                      "CHW",
+                      "CLF",
+                      "CLP",
+                      "CNY",
+                      "COP",
+                      "COU",
+                      "CRC",
+                      "CUP",
+                      "CVE",
+                      "CZK",
+                      "DJF",
+                      "DKK",
+                      "DOP",
+                      "DZD",
+                      "EGP",
+                      "ERN",
+                      "ETB",
+                      "EUR",
+                      "FJD",
+                      "FKP",
+                      "GBP",
+                      "GEL",
+                      "GHS",
+                      "GIP",
+                      "GMD",
+                      "GNF",
+                      "GTQ",
+                      "GYD",
+                      "HKD",
+                      "HNL",
+                      "HTG",
+                      "HUF",
+                      "IDR",
+                      "ILS",
+                      "INR",
+                      "IQD",
+                      "IRR",
+                      "ISK",
+                      "JMD",
+                      "JOD",
+                      "JPY",
+                      "KES",
+                      "KGS",
+                      "KHR",
+                      "KMF",
+                      "KPW",
+                      "KRW",
+                      "KWD",
+                      "KYD",
+                      "KZT",
+                      "LAK",
+                      "LBP",
+                      "LKR",
+                      "LRD",
+                      "LSL",
+                      "LYD",
+                      "MAD",
+                      "MDL",
+                      "MGA",
+                      "MKD",
+                      "MMK",
+                      "MNT",
+                      "MOP",
+                      "MRU",
+                      "MUR",
+                      "MVR",
+                      "MWK",
+                      "MXN",
+                      "MXV",
+                      "MYR",
+                      "MZN",
+                      "NAD",
+                      "NGN",
+                      "NIO",
+                      "NOK",
+                      "NPR",
+                      "NZD",
+                      "OMR",
+                      "PAB",
+                      "PEN",
+                      "PGK",
+                      "PHP",
+                      "PKR",
+                      "PLN",
+                      "PYG",
+                      "QAR",
+                      "RON",
+                      "RSD",
+                      "RUB",
+                      "RWF",
+                      "SAR",
+                      "SBD",
+                      "SCR",
+                      "SDG",
+                      "SEK",
+                      "SGD",
+                      "SHP",
+                      "SLE",
+                      "SOS",
+                      "SRD",
+                      "SSP",
+                      "STN",
+                      "SVC",
+                      "SYP",
+                      "SZL",
+                      "THB",
+                      "TJS",
+                      "TMT",
+                      "TND",
+                      "TOP",
+                      "TRY",
+                      "TTD",
+                      "TWD",
+                      "TZS",
+                      "UAH",
+                      "UGX",
+                      "USD",
+                      "USN",
+                      "UYI",
+                      "UYU",
+                      "UYW",
+                      "UZS",
+                      "VED",
+                      "VES",
+                      "VND",
+                      "VUV",
+                      "WST",
+                      "XAF",
+                      "XCD",
+                      "XCG",
+                      "XOF",
+                      "XPF",
+                      "YER",
+                      "ZAR",
+                      "ZMW",
+                      "ZWG"
+                    ]
+                  },
+                  "minorUnits": {
+                    "type": "integer",
+                    "minimum": -10000000000000,
+                    "maximum": 10000000000000
+                  }
+                },
+                "required": [
+                  "currency",
+                  "minorUnits"
+                ],
+                "additionalProperties": false
+              },
+              "sourceRef": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "value",
+              "sourceRef"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "DATE"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]{0,40}$"
+              },
+              "value": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "timeZone": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 64,
+                "pattern": "^(UTC|[A-Za-z]+(\\/[A-Za-z0-9_+-]+){1,2})$"
+              },
+              "sourceRef": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "value",
+              "timeZone",
+              "sourceRef"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "DATETIME"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]{0,40}$"
+              },
+              "value": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "timeZone": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 64,
+                "pattern": "^(UTC|[A-Za-z]+(\\/[A-Za-z0-9_+-]+){1,2})$"
+              },
+              "sourceRef": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "value",
+              "timeZone",
+              "sourceRef"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "COUNT"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]{0,40}$"
+              },
+              "value": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "sourceRef": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "value",
+              "sourceRef"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "IDENTIFIER_SUFFIX"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]{0,40}$"
+              },
+              "value": {
+                "type": "string",
+                "pattern": "^[A-Z0-9]{2,6}$"
+              },
+              "sourceRef": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "value",
+              "sourceRef"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "SUPPORT_REFERENCE"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]{0,40}$"
+              },
+              "value": {
+                "type": "string",
+                "pattern": "^SR-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$"
+              },
+              "sourceRef": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "value",
+              "sourceRef"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ENUM_CODE"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]{0,40}$"
+              },
+              "value": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]{1,63}$"
+              },
+              "sourceRef": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "value",
+              "sourceRef"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "authorizationRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceRefs": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9._~:/#@+=-]+$"
+      }
+    },
+    "receiptRefs": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+      }
+    },
+    "versions": {
+      "type": "object",
+      "properties": {
+        "policyVersion": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "configVersion": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "templateCatalogDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "voice": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+        },
+        "contextSnapshotRef": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "contextRevision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "policyVersion",
+        "configVersion",
+        "templateCatalogDigest",
+        "voice",
+        "contextSnapshotRef",
+        "contextRevision"
+      ],
+      "additionalProperties": false
+    },
+    "allowedRenderers": {
+      "minItems": 1,
+      "maxItems": 3,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "controlled_tts",
+          "fallback_clip",
+          "native_buffer_checked"
+        ]
+      }
+    },
+    "dataClassification": {
+      "type": "string",
+      "enum": [
+        "PUBLIC",
+        "INTERNAL",
+        "PHI",
+        "PHI_RESTRICTED",
+        "FINANCIAL",
+        "VERIFICATION_SECRET"
+      ]
+    },
+    "outputDecisionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "interactionId",
+    "sessionGeneration",
+    "turnId",
+    "requestId",
+    "occurredAt",
+    "expiresAt",
+    "causationId",
+    "planId",
+    "turnRevision",
+    "utteranceClass",
+    "route",
+    "language",
+    "segments",
+    "protectedSlots",
+    "authorizationRef",
+    "sourceRefs",
+    "receiptRefs",
+    "versions",
+    "allowedRenderers",
+    "dataClassification",
+    "outputDecisionDigest"
+  ],
+  "additionalProperties": false
+}

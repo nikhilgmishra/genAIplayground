@@ -1,0 +1,1548 @@
+# Follow-on requirement source records, prompt section 15. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '15'
+requirements:
+- id: FO-15-01
+  section: '15'
+  kind: document
+  text: Maintain a control register with requirement/criterion, control, owner, frequency, evidence collector, exact scope, exceptions, test, last result, expiry and human sign-off.
+  acceptance: Machine-readable control register (YAML) with all fields, validated in CI, linking each control to tests/evidence collectors.
+  originalIds:
+  - SPEC-14.threat-model
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/security/threat-model.md:113-129 (control list without owner, frequency, expiry or sign-off)
+  gap: No control register exists.
+  remediation: Create docs/compliance/control-register.yaml plus schema and CI check; populate from existing controls with owners UNKNOWN and sign-off PENDING.
+  size: M
+  environmentDependency: Control owners and compliance sign-off
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-15-02
+  section: '15'
+  kind: document
+  text: Control register covers HIPAA administrative, physical and technical safeguards, risk analysis, access, audit, integrity, transmission, incident/breach response, contingency and workforce/vendor responsibilities.
+  acceptance: Each HIPAA Security Rule area mapped to at least one control or an explicit gap with owner.
+  originalIds:
+  - SPEC-6.data-classes
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/IMPLEMENTATION_STATUS.md:8 (disclaimer only)
+  gap: No HIPAA safeguard mapping.
+  remediation: Add safeguard mapping section to the control register citing 45 CFR 164.308/310/312/314/316 areas without inventing control ids.
+  size: M
+  environmentDependency: Privacy/security officers
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-15-03
+  section: '15'
+  kind: document
+  text: Map chosen SOC 2 scope to Security, Availability, Confidentiality, Processing Integrity and Privacy criteria where applicable; do not invent control IDs or claim every category in scope.
+  acceptance: SOC 2 scope statement and criteria mapping with in-scope categories decided by the owner; Type II operating-period evidence plan.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: No SOC 2 mapping.
+  remediation: Add a SOC 2 scope document with category applicability marked UNKNOWN until decided and evidence collectors listed.
+  size: M
+  environmentDependency: SOC 2 scope decision and auditor
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-15-04
+  section: '15'
+  kind: constraint
+  text: HIPAA compliance and SOC 2 attestation are not claimed from code, checklists, BAAs or green builds.
+  acceptance: Docs and status outputs never claim compliance; docs-pack tests check disclaimers.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/IMPLEMENTATION_STATUS.md:8 | platform/src/audit/README.md:3-6 | platform/test/docs/docs-pack.test.ts:101-113
+  gap: 'An automated check already exists: platform/test/docs/docs-pack.test.ts:101-113 fails on affirmative ''HIPAA compliant/compliance'' and ''production ready/readiness'' lines that have no negation. It does not cover SOC 2 phrasing (''SOC 2 compliant/certified/attested'', ''Type II report''), HITRUST or ''HIPAA certified''. It scans only the docs pack, not console UI strings or the generated release manifest.'
+  remediation: Extend the regex at platform/test/docs/docs-pack.test.ts:107 to SOC 2, HITRUST and 'certified' phrasing, and apply the same check to console/src strings and the release-manifest output of scripts/ci/check-release-manifest.ts.
+  size: S
+  environmentDependency: none
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - evidence
+    - gap
+    - remediation
+- id: FO-15-05
+  section: '15'
+  kind: document
+  text: 'Jurisdiction/processing-purpose policy matrix for counsel: HIPAA, HITECH breach, 42 CFR Part 2, psychotherapy/SUD-counseling notes, state mental-health/consumer-health laws, minors/proxies, recording, AI disclosure, biometrics, TCPA/FCC outbound, accessibility, PCI.'
+  acceptance: Matrix document and machine-readable policy data (jurisdiction x purpose x rule) with status per rule and counsel approval field.
+  originalIds:
+  - SPEC-6.consent-before-recording
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/PREREQUISITES.md:58 (PRQ-027)
+  - docs/privacy/data-flow-inventory.md:132
+  gap: Only a prerequisite entry; no matrix.
+  remediation: Create the matrix with every cell UNKNOWN-pending-counsel and a data file the policy engine can consume.
+  size: M
+  environmentDependency: Privacy counsel approval (PRQ-027, VQ-LEG-03)
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-15-06
+  section: '15'
+  kind: document
+  text: Assess FTC Health Breach Notification Rule for non-HIPAA portions and FDA/intended-use implications if scope expands.
+  acceptance: Assessment section in the matrix with owner and decision status.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: Not assessed anywhere.
+  remediation: Add assessment placeholders with triggers (non-HIPAA data flows, clinical scope).
+  size: S
+  environmentDependency: Counsel
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-15-07
+  section: '15'
+  kind: document
+  text: Distinguish enacted/effective rules from proposals and guidance.
+  acceptance: Each matrix rule carries status enacted/effective date/proposed/guidance and source.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence: []
+  gap: No rule register.
+  remediation: Include status and effective-date fields in the matrix schema.
+  size: S
+  environmentDependency: Counsel
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-15-08
+  section: '15'
+  kind: software
+  text: Unknown jurisdictions do not silently inherit the least restrictive policy.
+  acceptance: Policy input includes jurisdiction; unknown jurisdiction resolves to the most restrictive/blocked profile; tests prove it.
+  originalIds:
+  - OPS-03
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/policy/input.ts (no jurisdiction field)
+  - policy/vsp/authz.rego
+  gap: Jurisdiction is not a policy dimension.
+  remediation: Add caller/subject jurisdiction to policy input with fail-restrictive defaults and golden probes.
+  size: M
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-15-09
+  section: '15'
+  kind: software
+  text: Part 2 applicability is program/record-specific; do not label all mental-health records Part 2.
+  acceptance: Records carry program/record-type classification; Part 2 handling applies only to flagged programs; tests for both.
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/privacy/classification.ts (no record-type/program dimension)
+  gap: No Part 2 or program flag in data model or policy.
+  remediation: Add record-type and program attributes to classification and policy with Part 2 consent/redisclosure rules behind configuration.
+  size: M
+  environmentDependency: Counsel determination per program (PRQ-027)
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-15-10
+  section: '15'
+  kind: software
+  text: Psychotherapy and SUD-counseling notes are not treated as ordinary support context.
+  acceptance: Special-note record types are excluded from support retrieval and model context by policy, with tests.
+  originalIds:
+  - DATA-01
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - context.store
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/privacy/classification.ts:96 (PHI_RESTRICTED forbidden in model context)
+  - platform/src/memory/support-memory.ts:13,62-68 (clinical keys refused)
+  gap: Exclusion is by classification and keyword, not by an explicit special-note record type from source connectors.
+  remediation: Introduce explicit special-note record types in connector mappings that are never ingested into support context.
+  size: S
+  environmentDependency: none
+  workPackage: WP-18
+  provenance:
+    origin: extraction
+- id: FO-15-11
+  section: '15'
+  kind: software
+  text: Exclude therapy notes/transcripts, diagnoses, medication histories and clinical scores from default support retrieval.
+  acceptance: Retrieval and memory reject clinical content; tests cover each category.
+  originalIds:
+  - DATA-01
+  - DATA-04
+  - SPEC-9.memory
+  - SPEC-10.no-clinical-advice
+  derivedFrom: []
+  capabilityIds:
+  - context.assembly
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/memory/support-memory.test.ts
+  - platform/src/privacy/classification.test.ts
+  - platform/src/knowledge/search.ts:225-238 (sensitivity/audience filters)
+  gap: No live source connectors yet, so field-level exclusion at ingestion from EHR/CRM is untested.
+  remediation: When the context engine lands, apply a field and record-type deny list at ingestion (therapy notes, session transcripts, diagnoses, medication lists, PHQ/GAD-style scores). Add one test per category on the retrieval path and a memory test for score-shaped values.
+  size: S
+  environmentDependency: none
+  workPackage: WP-24
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-15-12
+  section: '15'
+  kind: constraint
+  text: Volunteered clinical speech makes the actual audio processing path sensitive.
+  acceptance: All audio/ASR/TTS paths classified PHI_RESTRICTED regardless of intent; only approved endpoints.
+  originalIds:
+  - DATA-02
+  derivedFrom: []
+  capabilityIds:
+  - voice.speech
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/privacy/classification.ts:8
+  - docs/privacy/data-flow-inventory.md:41
+  gap: No audio path exists in the repository to enforce on.
+  remediation: Apply classification and egress guard to the speech runtime when built.
+  size: S
+  environmentDependency: BAA-covered speech endpoints
+  workPackage: WP-13
+  provenance:
+    origin: extraction
+- id: FO-15-13
+  section: '15'
+  kind: constraint
+  text: US-only deployment is a configurable organizational default, not a claim that HIPAA requires US hosting.
+  acceptance: Region allowlist is configuration with documented rationale; docs avoid legal claim.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/envs/production/production.tfvars:9-12 (PROPOSED US regions)
+  - infra/terraform/modules/ingress/variables.tf:63 (certificate ARN regex fixed to US regions)
+  gap: Ingress hard-codes a US-region regex (not configurable); no application-level region policy for model/vendor endpoints.
+  remediation: Make the allowed-region list a variable/config consumed by Terraform validations and the egress guard.
+  size: S
+  environmentDependency: Org decision
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-15-14
+  section: '15'
+  kind: document
+  text: Inventory every processor, model, subprocessor, region, storage/index/cache, support-access path, backup, telemetry sink and deletion path.
+  acceptance: Inventory complete for the follow-on architecture (speech runtime, LiveKit/SIP, models, embeddings, caches) with no blank cells (UNKNOWN allowed).
+  originalIds:
+  - DATA-01
+  - SPEC-16.integration-records
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/privacy/data-flow-inventory.md:86-113 (DF-01..DF-26)
+  - platform/src/adapters/integration-inventory.ts
+  gap: Inventory is Talkdesk-centric; LiveKit/SIP media, model providers, embeddings/vector stores, caches and evaluation stores of the follow-on are missing.
+  remediation: Extend the inventory and integration-inventory.ts for the follow-on components.
+  size: S
+  environmentDependency: Vendor answers
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-15-15
+  section: '15'
+  kind: environment
+  text: Contract coverage, BAA, permitted purpose and actual feature/endpoint settings must be evidenced.
+  acceptance: 'Per processor: contract/BAA reference, purpose, and an evidence collector that captures actual endpoint settings (e.g., zero retention flags) periodically.'
+  originalIds:
+  - DATA-01
+  - OPS-05
+  - SPEC-16.phi-endpoints-disabled
+  derivedFrom: []
+  capabilityIds:
+  - activation.qualification
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/privacy/data-flow-inventory.md:88-113 (BAA status UNKNOWN everywhere)
+  - talkdesk/drift-check.md
+  gap: No evidence collector for endpoint settings; all BAA cells UNKNOWN.
+  remediation: Build per-vendor settings collectors (where APIs exist) writing SECURITY_AUDIT evidence; register BAA references in the control register.
+  size: M
+  environmentDependency: BAAs and vendor configuration access
+  workPackage: WP-45
+  provenance:
+    origin: extraction
+    repair:
+    - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-16.phi-endpoints-disabled'
+- id: FO-15-16
+  section: '15'
+  kind: software
+  text: Separate transient conversation, support business records, restricted QA media and security/audit metadata.
+  acceptance: Every dataset registered with exactly one data class; tests enforce registration.
+  originalIds:
+  - SPEC-6.data-classes
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/retention/datasets.ts
+  - platform/src/retention/datasets.test.ts
+  - docs/privacy/retention-matrix.md
+  gap: New follow-on stores (audio, projections, embeddings, eval media) not registered yet.
+  remediation: Register new datasets as they are created.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-22
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-15-17
+  section: '15'
+  kind: software
+  text: Signed per-class retention policies with owner, legal holds, expiry, deletion verification and backup expiry; no universal retention value.
+  acceptance: Retention durations require a verified RETENTION_SCHEDULE approval; holds scoped; deletion verification recorded; backups reported unverifiable until verified.
+  originalIds:
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/migrations/0800_retention.sql
+  - platform/src/retention/policies.ts
+  - platform/src/retention/job.ts
+  - platform/src/retention/retention.test.ts
+  gap: Only a test-only approval verifier is composed; backup expiry is reported UNVERIFIABLE; support records are append-only (RETENTION_PURGE_PATH_REQUIRED).
+  remediation: Implement a RetentionApprovalVerifier over platform/src/config/approvals.ts (RETENTION_SCHEDULE scope, KMS trust key). Compose RetentionPolicyStorePg in the container and make RetentionJob read durations from it instead of config.retention. Test that an unsigned or demo-signed schedule leaves the class BLOCKED_RETENTION_UNSET. Add a reviewed purge path for append-only stores and backup-expiry evidence.
+  size: M
+  environmentDependency: Counsel-approved schedule (PRQ-025)
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-15-18
+  section: '15'
+  kind: software
+  text: Raw audio and pre-redaction transcripts are sensitive; redaction is not de-identification; failed redaction is quarantined.
+  acceptance: Redaction failure routes content to a durable restricted quarantine store approved by the egress guard; output keeps PHI class.
+  originalIds:
+  - DATA-02
+  - SPEC-6.redaction
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/privacy/redaction-service.ts:1-13,39-60
+  - platform/src/privacy/redaction.test.ts
+  - platform/src/main/container.ts:376 (InMemoryQuarantineStoreFixture)
+  gap: Only an in-memory quarantine fixture exists; no durable restricted store.
+  remediation: Implement an S3 quarantine store (SSE-KMS, access-logged, private, no general readers) with its egress destination registered as PHI_RESTRICTED, and register it in platform/src/retention/datasets.ts. Call RedactionService.process from the transcript/QA artifact pipeline when it exists. Test against MinIO in the local compose.
+  size: M
+  environmentDependency: Approved restricted storage location
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+- id: FO-15-19
+  section: '15'
+  kind: constraint
+  text: Do not export raw payloads to general telemetry or judges.
+  acceptance: Egress guard checks every destination by classification; startup refuses unapproved telemetry targets; judge inputs pass the guard.
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  - privacy.operations
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - transport.test.ts [FO-15-19]
+  - connector.test.ts [DATA-01] egress failure injection
+  gap: The Salesforce, notification and OTLP clients are not on the transport yet (WP-07).
+  remediation: Route every outbound HTTP client through an EgressGuard-checking wrapper (destination id plus data class), with a test that an unapproved destination is refused at call time. Require the same wrapper on the future judge client.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    - remediation
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: EgressGuard sits on no outbound path: it is called only by RedactionService (platform/src/privacy/redaction-service.ts:109), which nothing calls (built in platform/src/main/container.ts:375-376); enforcement is the startup check alone (WP-06 egress-classified HTTP client).'
+    repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+  workPackage: WP-06
+- id: FO-15-20
+  section: '15'
+  kind: constraint
+  text: Formal de-identification needs its separately supported method and evidence.
+  acceptance: No artifact is labelled de-identified without a recorded expert-determination or safe-harbor method record.
+  originalIds:
+  - DATA-02
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/privacy/redaction-service.ts:12-13
+  gap: No de-identification method record type exists (none claimed).
+  remediation: Add a de-identification evidence record type if ever required.
+  size: S
+  environmentDependency: Expert determination if ever needed
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-15-21
+  section: '15'
+  kind: software
+  text: No PHI or secrets in metric labels, trace baggage, resource names, URLs, exception text, alert payloads, CI logs or ordinary support tickets.
+  acceptance: Closed-enum metric labels, content-free logs/traces/errors, fixed alarm text, minimized cases, secret scanning; tests for each sink.
+  originalIds:
+  - DATA-01
+  - SPEC-6.no-phi-in-identifiers
+  - AUTH-06
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  - release.supply_chain
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/observability/metrics.ts
+  - platform/src/observability/logger.test.ts
+  - platform/src/observability/tracing.test.ts
+  - scripts/ci/check-metric-names.mjs
+  - platform/src/audit/schema.ts
+  - platform/src/business/support/summaries.ts
+  - .github/gitleaks.toml
+  gap: 'No PHI-pattern scan of CI logs; follow-on components (media, model harness) not yet covered. IMPLEMENTED, not VERIFIED_LOCAL: No PHI-pattern scan of CI logs, a named sink; follow-on components (media, model harness) are not covered.'
+  remediation: Add CI log PHI-pattern scan step and extend sink tests to new components.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: no PHI-pattern scan of CI logs, a named sink; follow-on components (media, model harness) are not covered.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-40
+- id: FO-15-22
+  section: '15'
+  kind: software
+  text: Restricted investigation records use opaque IDs and short-lived permission-checked evidence retrieval.
+  acceptance: Restricted records visible only via break-glass decision; content via short-lived signed references with audit.
+  originalIds:
+  - AUTH-02
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - operator.console
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/console-api/break-glass.ts
+  - platform/migrations/0900_console.sql
+  - docs/privacy/data-flow-inventory.md:95 (DP-01)
+  gap: Break-glass metadata gating exists; there is no short-lived evidence retrieval mechanism.
+  remediation: Implement an evidence broker issuing short-lived, audited references (presigned URL with KMS context) after policy decision.
+  size: M
+  environmentDependency: none
+  workPackage: WP-38
+  provenance:
+    origin: extraction
+- id: FO-15-23
+  section: '15'
+  kind: software
+  text: Encryption at rest and in transit.
+  acceptance: CMKs per class, TLS-only policies, Aurora TLS forced; Terraform tests and OPA rules prove configuration.
+  originalIds:
+  - SPEC-3.ingress
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/kms/main.tf
+  - infra/terraform/modules/aurora/main.tf
+  - infra/terraform/modules/ingress/main.tf
+  - infra/terraform/modules/sqs/tests/sqs.tftest.hcl
+  - evidence/test-reports/opa-terraform.json
+  gap: Offline mock-provider plans only; media (SRTP/DTLS) encryption not covered.
+  remediation: Add SRTP/DTLS and TLS-only requirements for the media path (FO-16-34). Apply the module to LocalStack/MinIO in the local compose through scripts/terraform-emulator.sh (shared plan in the FO-16-04 remediation) and assert the applied state with the AWS CLI. Record what emulators cannot evaluate (IAM evaluation, VPC/AZ, WAF/ALB) as a sandbox plan plus IAM policy simulator output (environment evidence).
+  size: S
+  environmentDependency: AWS accounts to apply
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-15-24
+  section: '15'
+  kind: software
+  text: Private networking and egress allowlists.
+  acceptance: Stateful services private; outbound traffic limited to allowlisted destinations at network and application level.
+  originalIds:
+  - DATA-01
+  - SPEC-3.trust-boundaries
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/network/main.tf:1-15 (private subnets, endpoints)
+  - platform/src/privacy/egress.ts
+  gap: NAT gateway allows unrestricted outbound at network level; no network firewall/egress proxy allowlist.
+  remediation: Add AWS Network Firewall or egress proxy with domain allowlist matching the egress policy.
+  size: M
+  environmentDependency: AWS accounts
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-15-25
+  section: '15'
+  kind: software
+  text: KMS grants scoped to service/resource/context and key rotation.
+  acceptance: Key policies restrict principals, kms:ViaService and encryption context; rotation enabled; OPA KMS-GRANT rule passes.
+  originalIds:
+  - SPEC-3.trust-boundaries
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/kms/main.tf:150-155
+  - infra/terraform/modules/kms/tests/kms.tftest.hcl
+  - infra/terraform/policy/terraform.rego (KMS-GRANT)
+  gap: Encryption-context conditions are not enforced/tested.
+  remediation: Add kms:EncryptionContext conditions per resource and a tftest that asserts them. Then apply the kms module to LocalStack in the local compose (scripts/terraform-emulator.sh, shared plan in the FO-16-04 remediation) and check key policy and rotation with `aws kms get-key-policy` / `get-key-rotation-status`. Prove the condition denies a wrong context in a sandbox (environment evidence).
+  size: S
+  environmentDependency: AWS accounts
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-15-26
+  section: '15'
+  kind: software
+  text: Workload identities, short-lived OAuth, secret rotation and revocation.
+  acceptance: Per-service roles, IAM DB auth, client-credential tokens cached briefly; rotation lambdas configured and rotation/revocation tested.
+  originalIds:
+  - SPEC-8.service-identities
+  derivedFrom: []
+  capabilityIds:
+  - connectors.runtime
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - runtime.test.ts [FO-15-26]
+  - resolver.test.ts [FO-15-26]
+  gap: Rotation Lambdas and Terraform hooks are WP-39's.
+  remediation: Implement rotation handlers and a revocation drill test in Layer 5.
+  size: M
+  environmentDependency: Secrets and rotation owners
+  workPackage: WP-06
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-06
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-15-27
+  section: '15'
+  kind: operations
+  text: Certificate expiry monitoring and recovery procedures.
+  acceptance: Alarms on ACM DaysToExpiry and runbook for certificate recovery.
+  originalIds: []
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/ingress/variables.tf:57-64 (certificate ARN input only)
+  gap: No certificate expiry alarm or runbook.
+  remediation: Add CloudWatch DaysToExpiry alarms and a certificate runbook.
+  size: S
+  environmentDependency: DNS/certificate owner
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-15-28
+  section: '15'
+  kind: software
+  text: Separate key administration, application use, audit writing and audit reading.
+  acceptance: Distinct IAM principals and DB roles; tests model each identity.
+  originalIds:
+  - OPS-01
+  - SPEC-13.audit-access
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - substrate/pg-pool.test.ts [FO-15-28][FO-15-42] database roles separated
+  - substrate/audit-export.test.ts MinIO STS writer/reader sessions
+  gap: LocalStack and MinIO do not enforce the KMS key-admin vs key-use split or distinct IAM principals (AIN-03, WP-39).
+  remediation: Keep the DB role tests and run them on postgres:16. Prove the key-admin, key-user, audit-writer and audit-reader split with the IAM policy simulator for each role in a sandbox under authority (environment evidence); LocalStack community does not evaluate IAM policies.
+  size: S
+  environmentDependency: Audit account
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-15-29
+  section: '15'
+  kind: software
+  text: Review SCPs, permission boundaries and deployment identity so an unrestricted IAM/key-policy editor cannot bypass narrow grants; test paths.
+  acceptance: Permission boundaries on CI and service roles, SCP guardrails for audit/KMS, and probes of escalation paths.
+  originalIds:
+  - SPEC-14.supply-chain
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/iam_ci/main.tf:505-530
+  - infra/terraform/policy/terraform.rego (CI-BOUNDARY)
+  - infra/terraform/modules/iam_ci/tests/iam_ci.tftest.hcl
+  gap: No SCPs (no aws_organizations_policy); human admin/break-glass identities not modeled.
+  remediation: Add SCP module (deny audit bucket/KMS policy changes outside break-glass) and tests.
+  size: M
+  environmentDependency: AWS Organizations admin
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-15-30
+  section: '15'
+  kind: software
+  text: Implement deletion across transcripts, audio, projections, summaries, embeddings, exports and vendor copies.
+  acceptance: Subject/record deletion request fans out to every registered dataset and derivative, records verification per copy, queues vendor deletions; end-to-end test proves absence.
+  originalIds:
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/retention/job.ts (time-based purge only)
+  - platform/src/retention/README.md (CRYPTO_SHRED STRATEGY_BLOCKED; APPEND_ONLY_PURGE_REQUIRED)
+  - platform/src/retention/policies.ts:319-370 (manual vendor queue)
+  gap: No subject-scoped deletion workflow; append-only support stores cannot be purged; crypto-shred blocked; embeddings/projections not covered.
+  remediation: Build a deletion orchestrator over the dataset registry with per-derivative verifiers, reviewed purge paths and crypto-shredding per subject key.
+  size: XL
+  environmentDependency: Vendor deletion APIs; counsel rules
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-15-31
+  section: '15'
+  kind: constraint
+  text: Preserve only legally required audit metadata/holds; Object Lock must not freeze all patient content.
+  acceptance: Audit stream holds metadata only (schema-enforced); Object Lock only on audit bucket; holds scoped.
+  originalIds:
+  - DATA-03
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/audit/schema.ts and platform/src/audit/schema.test.ts (audit events carry metadata only)
+  - platform/src/retention/retention.test.ts:174 (holds scoped by class, dataset and tenant)
+  - infra/terraform/modules/audit/tests/audit.tftest.hcl:33-46 (the audit bucket is Object Locked)
+  - infra/terraform/modules/audit/main.tf:324 and modules/ingress/main.tf:108 (the only other buckets are access-log buckets, without Object Lock)
+  - docs/privacy/retention-matrix.md (RM-04)
+  gap: '"Object Lock only on the audit bucket" holds because no other content bucket exists yet (not yet triggered): no tftest or policy check fails when another bucket enables Object Lock. WP-22 (raw-audio quarantine store) and WP-39 (new buckets) introduce the trigger.'
+  remediation: 'WP-39: terraform test or policy check that fails when any bucket other than the audit bucket enables Object Lock or default retention.'
+  size: S
+  environmentDependency: none
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL -> IMPLEMENTED: the "only on the audit bucket" element has no test and holds only because no other content bucket exists'
+    repairStatusFrom: VERIFIED_LOCAL
+- id: FO-15-32
+  section: '15'
+  kind: software
+  text: Tombstones and restore procedures prevent deleted data reappearing from backups.
+  acceptance: Deletion tombstones persisted outside the restored store and re-applied after restore; restore drill verifies.
+  originalIds:
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/RUNBOOKS/restore-drill.md (no tombstone replay step)
+  gap: No tombstone mechanism.
+  remediation: Persist deletion tombstones in the audit/retention ledger and add a post-restore replay job and drill step.
+  size: M
+  environmentDependency: none
+  workPackage: WP-22
+  provenance:
+    origin: extraction
+- id: FO-15-33
+  section: '15'
+  kind: software
+  text: Every accepted consequential action has durable evidence before acknowledgment.
+  acceptance: Audit appended in the same transaction as the mutation; health gate blocks when evidence cannot be written; tests with real Postgres.
+  originalIds:
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - substrate/faults.test.ts [FAULT:AUDIT_OUTAGE] commit/prepare blocked before any provider call
+  gap: Not Aurora.
+  remediation: Add a test-database switch (e.g. VSP_TEST_DB=pg) so createTestDb returns PgPoolDb over a postgres:16 container. Run the src/audit and src/actions suites on it, and add a two-connection test where a mutation and its audit append race a concurrent writer and a killed connection.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-15-34
+  section: '15'
+  kind: software
+  text: Audit records carry event ID/schema, source sequence, UTC time, correlation/causation, opaque tenant/actor/subject, role/assurance, interaction/session/turn, action/digest/key, policy decision/reason, source/context/config/model/tool/voice versions, outcome, before/after hashes, receipts and evidence pointers.
+  acceptance: Schema includes every listed field; tests validate.
+  originalIds:
+  - SPEC-13.audit-model
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/audit.ts new fields; schemas:check passes
+  gap: Only the ingress fills the new fields; context snapshot, config digest and receipt refs belong to WP-05, WP-07 and WP-25.
+  remediation: Add sourceSequence, contextSnapshotId, configDigest and receiptRef fields (schema version bump) and populate.
+  size: S
+  environmentDependency: none
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-15-35
+  section: '15'
+  kind: constraint
+  text: Use structured decision summaries, not raw hidden chain-of-thought.
+  acceptance: Audit schema rejects free text; model reasoning never stored.
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/audit/README.md (integration rule 5)
+  - platform/src/audit/schema.test.ts
+  gap: 'Model harness not built; decision summary type not yet defined for model proposals. IMPLEMENTED, not VERIFIED_LOCAL: The decision-summary type for model proposals does not exist (WP-10).'
+  remediation: Define a structured ModelDecisionSummary for the harness.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: the decision-summary type for model proposals does not exist (WP-10).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-10
+- id: FO-15-36
+  section: '15'
+  kind: software
+  text: Append-only transactional ledger/outbox.
+  acceptance: Triggers/grants refuse updates/deletes; tests prove for every role.
+  originalIds:
+  - OPS-01
+  - SPEC-8.ledger
+  - SPEC-8.outbox
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'regression: substrate/pg-pool.test.ts append-only grants and triggers on postgres:16'
+  - src/audit unit suites green (1044/1044 with dependents)
+  gap: None found.
+  remediation: Re-run on Postgres container.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
+- id: FO-15-37
+  section: '15'
+  kind: software
+  text: Independently administered audit sink.
+  acceptance: S3 Object Lock sink in a separate audit account; integration test against an S3-compatible emulator with Object Lock; sandbox run.
+  originalIds:
+  - OPS-01
+  - SPEC-13.audit-integrity
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - substrate/audit-export.test.ts GOVERNANCE retention and SSE-KMS on MinIO
+  - substrate/audit-signatures.test.ts locked original manifest version retained
+  gap: Independent administration (separate account, SCPs) is on the environment axis (AIN-01, AIN-03).
+  remediation: Test against MinIO/LocalStack with Object Lock in the compose and compose the sink in the live worker.
+  size: M
+  environmentDependency: Audit AWS account, bucket, KMS key, approved retention (PRQ-040)
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-15-38
+  section: '15'
+  kind: software
+  text: Immutable manifests with signatures.
+  acceptance: Each shipped manifest is digest-chained and signed (KMS asymmetric key); verifier checks signatures.
+  originalIds:
+  - SPEC-13.audit-integrity
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/audit/exporter/verifier.test.ts [FO-15-38] unsigned / invalid signature FAIL
+  - substrate/audit-signatures.test.ts [FO-15-38] insider manifest versions FAIL (60/60 x3)
+  gap: The audit KMS key and its key policy in AWS are WP-39's.
+  remediation: Add KMS Sign over manifest digests and signature verification in IntegrityVerifier.
+  size: S
+  environmentDependency: Audit signing key
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-15-39
+  section: '15'
+  kind: software
+  text: Ingestion gap alerts.
+  acceptance: Gap detection runs continuously and alarms (missing data breaching).
+  originalIds:
+  - SPEC-13.audit-integrity
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - ingress.events
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'regression: src/audit/monitor.test.ts and verifier ingestion-gap tests green'
+  gap: None found locally; monitor.test.ts needs the policy bundle that CI builds (scripts/policy.sh).
+  remediation: Add independent per-source counters (e.g., gateway request counts) to detectIngestionGaps.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
+- id: FO-15-40
+  section: '15'
+  kind: software
+  text: Separate audit verifier.
+  acceptance: Verifier runs under a read-only identity distinct from the writer; verdict INCONCLUSIVE without sink reader.
+  originalIds:
+  - SPEC-13.audit-integrity
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - substrate/audit-export.test.ts [FO-15-40][FO-15-42] verifier judged by its login
+  - src/audit/exporter/verifier.test.ts [FO-15-40] INCONCLUSIVE without a sink reader
+  gap: The AWS verifier task role and separate IAM principals are WP-39's (AIN-03).
+  remediation: 'Run AuditCompletenessMonitor as a separate verifier task with its own DB role (new app_audit_verifier: SELECT on the audit tables only) and an S3 client built from the verifier role''s credentials. Compose it outside the worker, and add a test that the verifier role cannot insert audit rows.'
+  size: S
+  environmentDependency: Audit account verifier role
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'Phase A repair (critic gap 2): IMPLEMENTED -> MISSING: the composed verifier runs as the shipper identity with the same sink client (platform/src/worker/worker.ts:163-176); no separate verifier exists'
+    repairStatusFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-15-41
+  section: '15'
+  kind: software
+  text: Reconcile source action counts/IDs against exported evidence (a perfect chain can omit events).
+  acceptance: Keyed reconciliation of every committed action, provider receipt and CRM write against audit events.
+  originalIds:
+  - OPS-01
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - substrate/audit-reconciliation.test.ts [FO-15-41] cross-tenant / non-commit / re-pointed deferral decoys FAIL
+  - src/audit/exporter/verifier.test.ts keyed action, receipt, CRM and route reconciliation
+  gap: Provider and CRM counts are reconciled against the platform's ledger, not pulled from vendor APIs.
+  remediation: Add provider receipt and CRM sync counts as reconciliation sources.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-15-42
+  section: '15'
+  kind: software
+  text: Separate audit read and write privileges.
+  acceptance: DB roles and IAM roles split; auditors cannot write, writers cannot read.
+  originalIds:
+  - SPEC-13.audit-access
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - substrate/pg-pool.test.ts [FO-15-28][FO-15-42] verifier and auditor cannot write
+  - substrate/audit-export.test.ts [FO-15-42] MinIO enforces STS session policies
+  gap: MinIO enforces the STS session policies locally and AWS IAM remains WP-39's; app_runtime still reads its own tenant's audit rows by design.
+  remediation: Keep the DB grant tests and run them on postgres:16. Verify the IAM half with the IAM policy simulator for the writer, auditor and verifier roles in a sandbox under authority, recorded as environment evidence.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-15-43
+  section: '15'
+  kind: operations
+  text: Restrict Object Lock/KMS administrative access; test break-glass, export integrity and deletion.
+  acceptance: Admin restrictions in Terraform; executed drill of break-glass, export integrity verification and deletion attempts on real bucket.
+  originalIds:
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/audit/main.tf (deny-delete bucket policy)
+  - infra/terraform/modules/audit/tests/audit.tftest.hcl
+  gap: No executed break-glass/export/deletion tests.
+  remediation: Write a sandbox qualification job for these drills.
+  size: M
+  environmentDependency: Audit account
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+- id: FO-15-44
+  section: '15'
+  kind: software
+  text: During central audit outage, a bounded durable journal/outbox may buffer under policy.
+  acceptance: Local Postgres audit outbox buffers within backlog count/age bounds; beyond bounds consequential actions blocked.
+  originalIds:
+  - OPS-01
+  - SPEC-13.audit-outage
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'regression: substrate/faults.test.ts bounded journal during AUDIT_OUTAGE (3/3 runs)'
+  gap: None found.
+  remediation: Approve bounds; test on Postgres container.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
+- id: FO-15-45
+  section: '15'
+  kind: software
+  text: Replace process-local emergency-route deferral with recoverable persistence or independently journaled carrier events plus reconciliation.
+  acceptance: Deferred route evidence survives process crash (durable journal on separate storage or carrier event journal) and is reconciled; crash test proves no loss.
+  originalIds:
+  - OPS-01
+  - OPS-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/audit/journal.test.ts [FO-15-45] forged-time, CHECK-refusal, privilege-loss and clock-skew tests
+  - substrate/route-audit-crash.test.ts [FO-15-45] forged '2026'/year-0000 and CHECK-refused items quarantined on postgres:16
+  - substrate/dynamo.test.ts [FO-15-45] newestPendingMs across filtered pages
+  gap: 'Not composed: WP-07/WP-25 must replace the process-local queue in container.ts and the handoff, and carrier-event reconciliation is absent.'
+  remediation: Add a durable local journal (append-only file with fsync on a separate volume, or a DynamoDB/SQS journal independent of the audit DB) plus carrier-event reconciliation; crash-injection test.
+  size: M
+  environmentDependency: Approved storage location for the journal
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+    repair:
+    - gap refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: IMPLEMENTED
+- id: FO-15-46
+  section: '15'
+  kind: software
+  text: If no durable action evidence can be recorded, block consequential actions.
+  acceptance: assertCanAcceptConsequential fails closed; DB-outage tests show no mutation acknowledged.
+  originalIds:
+  - OPS-01
+  - SPEC-12.db-outage
+  derivedFrom: []
+  capabilityIds:
+  - platform.substrate
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'regression: substrate/faults.test.ts prepare/commit blocked with AUDIT_STORE_UNWRITABLE (3/3 runs)'
+  gap: None found.
+  remediation: Repeat in Layer 2.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'originalIds extended so every catalog id is mapped (critic gap 8): SPEC-12.db-outage'
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: VERIFIED_LOCAL
+      to: VERIFIED_LOCAL
+- id: FO-15-47
+  section: '15'
+  kind: software
+  text: Preserve unauthenticated human/safety routing through the independent telephony path; audit availability is never an authentication barrier to seeking help.
+  acceptance: Session-less safety/human routing works during audit and DB outage; carrier-level route independent of the app.
+  originalIds:
+  - OPS-02
+  - SAFE-02
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - continuity.ai_off
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/main/sessionless-routing.test.ts
+  - platform/src/worker/deferred-audit.test.ts
+  - docs/adr/ADR-0012-safety-routes-exempt-from-limits.md
+  - talkdesk/README.md
+  gap: Independent path is the Talkdesk Studio design; the follow-on SIP/LiveKit path has no independent route.
+  remediation: Configure and drill a carrier-level fallback (SIP trunk failover, or a contact-centre static route to a staffed queue) that works with the platform stopped, kept as deployable configuration. Add a local-compose test that stops the platform container and still reaches the receiver client (FO-16-20) through the SIP service.
+  size: M
+  environmentDependency: Carrier/contact-centre independent route configuration
+  workPackage: WP-15
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-15-48
+  section: '15'
+  kind: software
+  text: Surface every audit gap.
+  acceptance: Metrics, alarms and console overview expose deferred depth, drops, gaps and backlog.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - audit.independent
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - src/audit/journal.test.ts [FO-15-48] health-gated flush recounts (real PgAuditHealth); fresh process reports no postgres value
+  - substrate/route-audit-crash.test.ts [FO-15-48] dynamodb gauge on read-only postgres:16
+  - src/audit/exporter/verifier.test.ts [FO-15-48] pending deferral past grace is a discrepancy
+  gap: The console overview (WP-38) and the alarms, including missing-data handling (WP-39), are not built.
+  remediation: Make the detached route-tool execution write its deferred event to the durable journal (FO-15-45) before the tool timeout answers. Alarm on any TIMEOUT for request_human_transfer or request_safety_route that has no matching audit or journal entry.
+  size: S
+  environmentDependency: none
+  workPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: IMPLEMENTED
+- id: FO-15-49
+  section: '15'
+  kind: document
+  text: Threat-model spoofing, replay, SIM swap, enumeration, session swapping, cross-tenant access, confused deputy, prompt/tool/document injection, SSRF, callback forgery, approval replay, arbitrary dial targets, insider misuse, sensitive logs, supply chain, model/voice replacement and DoS.
+  acceptance: Threat model rows for each listed threat with controls and tests, updated for the follow-on architecture, reviewed.
+  originalIds:
+  - SPEC-14.threat-model
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'docs/security/threat-model.md section 8 (follow-on trust-boundary diagram and FT-01.. STRIDE rows, added in the Phase A repair working tree after 8c0f5a0; design-level: every row names the package that builds its mitigation and stays software MISSING until it lands)'
+  - docs/security/threat-model.md:50-111 (T-01..T-33)
+  - docs/security/adversarial-review.md
+  gap: 'Follow-on rows now exist (section 8) but are design-level: no mitigation or planned test has run, model/voice replacement and speech-runtime rows are unverified, and the review is NOT_RUN.'
+  remediation: Add rows for media-path and model/voice substitution threats and STRIDE for new components.
+  size: S
+  environmentDependency: Security leadership review
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+    repair:
+    - 'evidence refreshed: follow-on threat rows added to docs/security/threat-model.md section 8 in the Phase A repair; status unchanged (controls and tests are not built, review NOT_RUN)'
+- id: FO-15-50
+  section: '15'
+  kind: software
+  text: Validate webhook schemas and authentication before processing; handle payload limits, timestamps and signature key rotation.
+  acceptance: Production webhook verifier per vendor documented mechanism with key set rotation, timestamp window, replay cache and size limit; tests.
+  originalIds:
+  - SPEC-8.webhook-auth
+  derivedFrom: []
+  capabilityIds:
+  - ingress.events
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - ingress/livekit-webhook.test.ts [FO-15-50] livekit-server webhooks verify; foreign key refused
+  - ingress/http.test.ts [FO-15-50] rotation, timestamp window, 413, replay cache, lifetime
+  - src/ingress/ingress.test.ts [FO-15-50] JWT without exp refused
+  gap: The carrier/Talkdesk signature scheme is UNKNOWN (AIN-07, PRQ-021) and is never invented.
+  remediation: Implement verifier interface with key-set rotation and per-vendor implementations (LiveKit webhook JWT, carrier signatures) and tests.
+  size: M
+  environmentDependency: Vendor-documented webhook auth mechanism (TB-09)
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-15-51
+  section: '15'
+  kind: software
+  text: CI pins dependencies, actions and images.
+  acceptance: 'Exact dependency versions and frozen lockfile; every uses: pinned to a commit SHA; base images pinned by digest; check script fails otherwise.'
+  originalIds:
+  - SPEC-14.supply-chain
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - package.json
+  - pnpm-lock.yaml
+  - .github/workflows/ci.yml:33,37 (tags, pin TODO)
+  - platform/Dockerfile:13-18 (tag, not digest)
+  - scripts/ci/check-workflows.mjs
+  gap: Actions referenced by tag; base image by tag (PRQ-041).
+  remediation: Resolve SHAs/digests (registry reachable via proxy) and make check-workflows enforce pins.
+  size: S
+  environmentDependency: none
+  workPackage: WP-40
+  provenance:
+    origin: extraction
+- id: FO-15-52
+  section: '15'
+  kind: software
+  text: CI scans secrets, dependencies and IaC.
+  acceptance: gitleaks, dependency audit and IaC policy checks run and block on findings, with run evidence.
+  originalIds:
+  - SPEC-14.supply-chain
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - .github/workflows/ci.yml:176-233
+  - scripts/ci/gitleaks.sh
+  - scripts/terraform-policy.sh
+  - evidence/test-reports/opa-terraform.json
+  gap: No CI run evidence; IaC scanning is custom OPA only; image scan only in release workflow.
+  remediation: Run the pipeline (or locally replicate) and archive results; consider adding checkov/trivy config scanning.
+  size: S
+  environmentDependency: CI runner
+  workPackage: WP-40
+  provenance:
+    origin: extraction
+- id: FO-15-53
+  section: '15'
+  kind: software
+  text: Generate SBOM and provenance and sign artifacts.
+  acceptance: CycloneDX SBOM, build provenance and cosign signatures produced and verified at deploy.
+  originalIds:
+  - SPEC-14.supply-chain
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - release.supply_chain
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - scripts/ci/sbom.mjs
+  - scripts/ci/sbom.test.mjs
+  - .github/workflows/release.yml:80-158
+  - .github/workflows/deploy.yml:109-125
+  gap: Never executed; no image built.
+  remediation: Build the image locally with Docker and produce SBOM/provenance as local evidence; run release in an authorized account.
+  size: S
+  environmentDependency: Registry, Sigstore OIDC, AWS account (PRQ-037, PRQ-042)
+  workPackage: WP-40
+  provenance:
+    origin: extraction
+- id: FO-15-54
+  section: '15'
+  kind: software
+  text: Protected OIDC deployment identities.
+  acceptance: CI roles trust exact repo/environment/workflow subject; no long-lived keys; boundary tests.
+  originalIds:
+  - SPEC-14.supply-chain
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - deploy.infrastructure
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - infra/terraform/modules/iam_ci/main.tf
+  - infra/terraform/modules/iam_ci/tests/iam_ci.tftest.hcl
+  - infra/terraform/policy/terraform.rego (CI-IDENTITY, IAM)
+  gap: Not applied.
+  remediation: Add a tftest asserting that the trust policy's token.actions.githubusercontent.com:sub condition matches only the protected environment refs. Apply iam_ci in a sandbox under authority and record one successful OIDC assume from the protected environment and one denied assume from another ref (environment evidence).
+  size: S
+  environmentDependency: AWS account and GitHub environment configuration
+  workPackage: WP-39
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-15-55
+  section: '15'
+  kind: evaluation
+  text: Run direct gateway attacks and independent security/pentest qualification; critical findings cannot be averaged away.
+  acceptance: Hostile-request suite against the deployed gateway; independent pentest report; any critical blocks release manifest.
+  originalIds:
+  - SPEC-14.hostile-gateway-tests
+  - SPEC-14.pentest
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/pipeline.test.ts
+  - docs/security/adversarial-review.md
+  - platform/src/evaluation/manifest.ts (failing evidence blocks)
+  gap: Only in-process hostile tests; no deployed-attack harness; no pentest.
+  remediation: Create a parameterized hostile-request job runnable against any gateway URL and feed results into the manifest.
+  size: M
+  environmentDependency: Independent pentest vendor (PRQ-051); deployed sandbox
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+- id: FO-15-56
+  section: '15'
+  kind: document
+  text: Document operating evidence for access reviews, training, vendor review, incident drills and physical controls that software cannot perform.
+  acceptance: Templates and evidence locations for each operating control, referenced from the control register.
+  originalIds:
+  - SPEC-13.incident-playbooks
+  derivedFrom: []
+  capabilityIds:
+  - governance.documents
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/RUNBOOKS/access-review.md
+  - docs/RUNBOOKS/restore-drill.md (Last drilled NEVER)
+  gap: Access review and drill runbooks exist; no training, vendor review or physical-control evidence templates.
+  remediation: Add operating-evidence templates and link them from the control register.
+  size: S
+  environmentDependency: Organizational owners
+  workPackage: WP-44
+  provenance:
+    origin: extraction
+- id: FO-15-57
+  section: '15'
+  kind: document
+  text: 'Keep the jurisdiction/processing-purpose policy matrix current (prompt section 15: ''for counsel to approve and keep current''). Each rule row records its source, its enacted/effective/proposed/guidance status, the counsel reviewer, the last review date and the next review date. A row past its review date counts as UNKNOWN for the capabilities that depend on it.'
+  acceptance: The matrix data file's schema has source, status, reviewedBy, reviewedAt and nextReviewBy. A CI check fails on rows past nextReviewBy. Stale or UNKNOWN rows appear as blocking reasons in the per-capability readiness map (FO-14-09, FO-14-55).
+  originalIds:
+  - DATA-03
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - privacy.operations
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - docs/PREREQUISITES.md:58 (PRQ-027 applicability determination, UNKNOWN)
+  - docs/privacy/data-flow-inventory.md:132 (open question only)
+  gap: No matrix exists (FO-15-05), so there is no review date, expiry or change history, and nothing detects a stale legal determination.
+  remediation: 'WP-22: define docs/compliance/jurisdiction-matrix.yaml with a JSON Schema (rule id, jurisdiction, purpose, source citation, status, effectiveDate, reviewedBy, reviewedAt, nextReviewBy, decision UNKNOWN|APPLIES|NOT_APPLICABLE), a loader used by policy input with fail-restrictive defaults and a check that fails on schema errors and on rows past nextReviewBy. WP-32 shows stale or UNKNOWN rows as blocking reasons in readiness; WP-44 owns only the counsel-facing content.'
+  size: S
+  environmentDependency: Privacy counsel review cadence and approvals (PRQ-027, VQ-LEG-03)
+  workPackage: WP-22
+  provenance:
+    origin: challenge-missed
+    repair:
+    - 'work package WP-44 -> WP-22: jurisdiction matrix schema, loader and staleness check belong with the privacy policy defaults (critic gap 6f); WP-32 consumes it in readiness and WP-44 owns only the counsel-facing content'

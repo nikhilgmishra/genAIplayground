@@ -1,0 +1,815 @@
+# Follow-on requirement source records, prompt section 11. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '11'
+requirements:
+- id: FO-11-01
+  section: '11'
+  kind: software
+  text: Preserve the prepare -> confirm -> commit -> reconcile protocol.
+  acceptance: Ledger state machine with DB-enforced transitions; unit, property and fault tests pass.
+  originalIds:
+  - ACT-01
+  - ACT-02
+  - ACT-03
+  - SPEC-8.ledger
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.ts:344 prepare, :462 confirm, :650 commit, :885 reconcile
+  - platform/migrations/0100_action_ledger.sql, 0101, 0102
+  - 'platform/src/actions/action-service.test.ts, action-service.property.test.ts, action-service.reconciliation.test.ts, action-service.invalidation.test.ts (passed in this review run: 31 files / 828 tests across src/voice, src/safety, src/actions, src/workflows, src/outbox)'
+  gap: Verified on PGlite with fixture providers; the live composition that would run it on Aurora is refused.
+  remediation: Keep; add Docker Postgres multi-connection run (Layer 2).
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-25
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-11-02
+  section: '11'
+  kind: software
+  text: Extend the protocol across real connectors (live ProviderCommitPort implementations for scheduling, billing, CRM and other domain systems).
+  acceptance: Each live adapter passes the same commit/lookup/currentVersion contract tests against an emulator over its real protocol.
+  originalIds:
+  - ACT-02
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - domain.business_systems
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/adapters/live/business-systems-blocked.ts:40-123 (SchedulingLiveBlocked, BillingLiveBlocked, ClaimsLiveBlocked, ProviderSystemLiveBlocked, RelationshipDirectoryLiveBlocked: every method throws BLOCKED_CAPABILITY_UNVERIFIED)'
+  - platform/src/business/providers.ts (commit ports over the SchedulingSystem/BillingSystem ports, backed only by local fixtures)
+  - 'platform/src/main/README.md (sandbox/staging/production composition refused: LIVE_COMPOSITION_NOT_IMPLEMENTED)'
+  gap: Every live domain adapter is a BLOCKED stub; per section 21 that is MISSING.
+  remediation: Configurable REST/FHIR-style domain adapters (ConnectorProfile) with emulators; wire into live composition.
+  size: XL
+  environmentDependency: Domain system API documentation, sandboxes and credentials (PRQ-005 family)
+  workPackage: WP-23
+  provenance:
+    origin: extraction
+- id: FO-11-03
+  section: '11'
+  kind: constraint
+  text: Model proposals cannot set actor, target authority, fees or success.
+  acceptance: Server-established fields refused in tool arguments; fees and targets resolved from authoritative records; success only from receipts.
+  originalIds:
+  - AUTH-03
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - conversation.harness
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/common.ts:138 SERVER_ESTABLISHED_FIELDS
+  - platform/src/gateway/pipeline.ts step (c) forbidden identity fields
+  - platform/src/gateway/catalog.test.ts
+  - platform/src/business/outcomes.ts decideOutcome
+  gap: 'No model attached yet; verified with direct tool calls. IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: verified with direct tool calls; no model proposes arguments yet (WP-10).'
+  remediation: Keep; add harness-level tests (FO-09-43).
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: verified with direct tool calls; no model proposes arguments yet (WP-10).'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-10
+- id: FO-11-04
+  section: '11'
+  kind: software
+  text: PreparedAction contains source-grounded target, operation, exact parameters, before-state/version, impact/fees, policy decision, expiration and canonical digest.
+  acceptance: Strict schema; digest recomputed over every field except digest/state; tampering detected.
+  originalIds:
+  - ACT-01
+  - SPEC-8.ledger
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/actions.ts:57-84
+  - platform/src/actions/digest.ts:29 computeActionDigest
+  - platform/src/actions/digest.test.ts
+  - platform/src/actions/action-service.test.ts:78,495
+  gap: Fees are USD-only (MoneyAmount currency literal USD).
+  remediation: Keep; generalize currency when needed.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-25
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-11-05
+  section: '11'
+  kind: software
+  text: PreparedAction records explicit preconditions and source provenance (source record refs/watermarks used to build it).
+  acceptance: Preconditions list and SourceWatermark refs are digest-covered and rechecked at commit.
+  originalIds:
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/actions.ts:57-84 (no preconditions or source-provenance field; only target.beforeVersion)
+  gap: Only the optimistic version is carried; other preconditions are implicit in code.
+  remediation: Add preconditions[] and sourceRefs[] to PreparedAction and recheck them in commitConfirmed.
+  size: M
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-06
+  section: '11'
+  kind: software
+  text: Present material consequences to the caller before confirmation.
+  acceptance: Confirmation templates read back before/after values, visit type, provider and review reason; TC-07 renders the server-side prepared action.
+  originalIds:
+  - ACT-01
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/voice/templates/en-US.json appointment.change_confirmation, appointment.create_confirmation, billing.review_confirmation (ACT-F5 material readback)
+  - platform/src/gateway/http/routes.test.ts:246
+  gap: Templates are DRAFT.
+  remediation: Approval only.
+  size: S
+  environmentDependency: Approved confirmation wording
+  regressionPackage: WP-25
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-11-07
+  section: '11'
+  kind: software
+  text: ConfirmationReceipt binds a fresh affirmation on a trusted channel to the digest, actor, session and expiry.
+  acceptance: Confirmation accepted only from telephony_control/portal with digest, session, generation and turn; freshness window enforced at commit.
+  originalIds:
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/actions.ts:87-97 ActionConfirmation (actionId, digest, sessionRef, sessionGeneration, turnId, method, capturedBy, capturedAt)
+  - platform/src/actions/action-service.ts:190-191 trusted channels, :527 freshness
+  - platform/src/actions/action-service.test.ts:156-313
+  gap: Behaviour verified, but the receipt has no explicit actor or expiresAt field (actor is implied by the session binding, expiry by config), and the contract is not named ConfirmationReceipt.
+  remediation: Add actorRef and expiresAt to the confirmation record; rename/alias to ConfirmationReceipt in the contract source.
+  size: S
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-08
+  section: '11'
+  kind: constraint
+  text: An earlier 'yes', a provider approval for another subject, or a model-generated confirmation is never usable.
+  acceptance: 'Tests: confirmation captured before preparedAt rejected; mcp_tools/console/worker/webhook channels cannot confirm; other session rejected; staff retry never replaces the caller''s authority.'
+  originalIds:
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.test.ts:181,190,230
+  - platform/src/actions/action-service.reconciliation.test.ts (ACT-F3 staff retry re-authorization)
+  gap: None beyond PGlite-only verification.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-25
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-11-09
+  section: '11'
+  kind: software
+  text: Material parameter changes require a new confirmation.
+  acceptance: A different digest invalidates the pending action; a changed request supersedes the earlier one.
+  originalIds:
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.test.ts:141,169,509
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-25
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-11-10
+  section: '11'
+  kind: software
+  text: Commit atomically records durable intent, unique action/idempotency identity and authorization (with audit) before dispatch.
+  acceptance: tx1 sets COMMITTING with attempt id and audits action.commit.started before any provider call; audit failure means no provider call.
+  originalIds:
+  - ACT-02
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.ts:760-781
+  - platform/src/actions/action-service.test.ts:661 (audit outage blocks commit before any provider call), :681 (failed commit.started append rolls back tx1, no provider call), :689, :708
+  - platform/src/actions/README.md commit protocol steps 7-8 (documentation)
+  gap: Verified on PGlite only.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-25
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+    - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL kept after re-opening the cited tests; README, header-comment and ADR citations now evidence only documentation elements, and every behaviour element cites the test line that exercises it'
+- id: FO-11-11
+  section: '11'
+  kind: software
+  text: Record an outbox entry for the dispatch before dispatch (transactional outbox) where the connector is asynchronous.
+  acceptance: Async connectors are dispatched by an outbox consumer from a row written in the intent transaction; crash between intent and dispatch loses nothing.
+  originalIds:
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/support/support-request-service.ts create() (support_request.sync outbox in the creating transaction, then consumer dispatch)
+  - platform/src/outbox/outbox.ts, dispatcher.ts
+  - platform/src/actions/action-service.ts (action dispatch is synchronous after tx1; outbox action.committed is written only in tx2 after the effect)
+  gap: CRM sync uses outbox-before-dispatch; ledger actions dispatch synchronously after the durable intent (covered by stale-COMMITTING reconciliation) without an outbox dispatch record.
+  remediation: For long-running/async action kinds, dispatch from an outbox row written in tx1.
+  size: M
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-12
+  section: '11'
+  kind: software
+  text: Commit rechecks current authority, source state, confirmation and policy.
+  acceptance: Deny/policy error, version change, stale confirmation, generation change, safety escalation, expired/revoked session each block commit with zero provider calls.
+  originalIds:
+  - ACT-01
+  - AUTH-02
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.test.ts:222,267,450,488,795,827,836
+  gap: PGlite + fixture providers.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-25
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-11-13
+  section: '11'
+  kind: software
+  text: Enforce optimistic concurrency, action ownership leases, fencing and uniqueness.
+  acceptance: row_version predicates, one in-doubt commit per record, commit_attempt_id fencing, stale COMMITTING lease expiry.
+  originalIds:
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - substrate/contention.test.ts two-connection race on the partial unique index; row_version race
+  gap: Emulators only.
+  remediation: 'Add a Layer-2 suite that runs postgres:16 in Docker with PgPoolDb (platform/src/db/pg.ts, which currently has no test). Parameterize action-service.test.ts and action-service.property.test.ts over the db engine, and add a two-pool race test: two LedgerActionService instances commit the same action and the same record concurrently, and the test asserts one in-doubt row, commit_attempt_id fencing, a single provider call and correct row_version conflicts.'
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-04
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: PGlite single connection: leases, fencing and optimistic concurrency were never contended by concurrent connections (ADR-0018 decision 7.2; WP-04 postgres:16 contention suite).'
+    repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B2
+      package: WP-04
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
+- id: FO-11-14
+  section: '11'
+  kind: software
+  text: Retries use the same provider idempotency key, never a new action.
+  acceptance: Stable key derived from action id on every attempt and reconciliation; property test with provider dedup disabled.
+  originalIds:
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/digest.ts:72 providerIdempotencyKeyFor
+  - platform/src/actions/action-service.test.ts:562,615
+  - platform/src/actions/action-service.property.test.ts (150 interleavings)
+  gap: None.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-25
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-11-15
+  section: '11'
+  kind: software
+  text: Track NOT_STARTED, DISPATCHED, COMMITTED, FAILED, UNKNOWN and reconciled states.
+  acceptance: State model distinguishes not-started, dispatched/in-flight, committed, failed, unknown and reconciled, persisted with transitions.
+  originalIds:
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/protocol/actions.ts:24-40 (ActionState incl. COMMITTING/UNKNOWN; CommitOutcome NOT_STARTED/COMMITTED/FAILED/UNKNOWN; CommitReceipt.reconciled)
+  - platform/migrations/0101_action_reconciliations.sql
+  gap: 'No explicit DISPATCHED state: COMMITTING conflates ''intent recorded'' and ''request sent''.'
+  remediation: Add DISPATCHED (request handed to transport) between COMMITTING and terminal states.
+  size: S
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-16
+  section: '11'
+  kind: software
+  text: 'A timeout may occur after the effect: reconcile with authoritative lookup, external key or receipt before any retry or announcement.'
+  acceptance: Ambiguous timeout -> UNKNOWN; retry reconciles first; lookup COMMITTED records receipt with no second commit; lookup UNKNOWN keeps UNKNOWN.
+  originalIds:
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.test.ts:530-598
+  - platform/test/journeys/faults.test.ts:247
+  gap: Fixture provider only.
+  remediation: Keep.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-25
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-11-17
+  section: '11'
+  kind: software
+  text: '''Not found'' is not definitive before the provider''s documented visibility window.'
+  acceptance: Per-connector visibility window in ConnectorProfile; NOT_FOUND inside the window keeps UNKNOWN; test with delayed-visibility emulator.
+  originalIds:
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/README.md BLOCKED 'Provider lookup must be read-your-writes consistent' (NOT_FOUND returns the action to CONFIRMED immediately)
+  gap: Reconciliation treats NOT_FOUND as not started immediately.
+  remediation: visibilityWindowMs per provider port; reconcileRow keeps UNKNOWN until committingSince + window.
+  size: S
+  environmentDependency: Each system owner's documented read-your-writes/visibility semantics
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-18
+  section: '11'
+  kind: software
+  text: Route unreconcilable operations to a human; never guess or retry an uncertain non-idempotent effect.
+  acceptance: After a bounded reconcile budget an UNKNOWN action opens an owned human task with a deadline; no blind retry.
+  originalIds:
+  - ACT-03
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/worker/loops.ts:295-330 ActionReconcileLoop (polls every 30 s without a budget or escalation). A per-row counter exists (platform/migrations/0100_action_ledger.sql:48 reconcile_attempts, incremented at platform/src/actions/action-service.ts:1544, shown at platform/src/console-api/plugin.ts:869), but nothing caps it or escalates on it.
+  gap: 'No reconcile budget, no automatic human-task creation: the loop can poll forever.'
+  remediation: Reconcile budget + escalation to a WAITING_FOR_HUMAN task with owner/deadline.
+  size: M
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - evidence
+- id: FO-11-19
+  section: '11'
+  kind: software
+  text: 'EffectVerification independent of the model and response text: query the source or validate a trusted completion event, check exact target/new state/version, record receipt/evidence.'
+  acceptance: After COMMITTED, a separate read of the source system (or a verified vendor event) confirms target, new state and version; EffectVerification record persisted; mismatch alarms.
+  originalIds:
+  - ACT-04
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.ts (receipt built from the provider's commit response evidence; no post-commit verification read)
+  - platform/src/protocol (no EffectVerification contract)
+  gap: Required contract and step are absent; success equals the commit response.
+  remediation: EffectVerification contract + verifier step (sync read or event match) before RESOLVED_WITH_EVIDENCE.
+  size: L
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-20
+  section: '11'
+  kind: software
+  text: For eventual consistency report accepted/pending until verified.
+  acceptance: Outcome stays REQUEST_ACCEPTED/WAITING_FOR_SYSTEM until EffectVerification succeeds.
+  originalIds:
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/outcomes.ts decideOutcome (OUTCOME_UNKNOWN / REQUEST_ACCEPTED without verified receipts)
+  - platform/src/protocol/tools.ts ToolResult PENDING
+  gap: Without EffectVerification the 'verified' state means 'receipt recorded'.
+  remediation: Gate RESOLVED on EffectVerification (FO-11-19).
+  size: S
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-21
+  section: '11'
+  kind: constraint
+  text: Compensation requires domain policy and current authority; it is not a generic inverse call.
+  acceptance: No automatic compensation; any compensation is a separately prepared and confirmed domain action.
+  originalIds:
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/README.md ('Compensation is never automatic')
+  - platform/src/workflows/definitions/billing-dispute-review.ts (no CANCEL after commit submission)
+  gap: No domain compensation flows exist (none required yet).
+  remediation: Model compensation as explicit ActionKinds when a domain approves one.
+  size: S
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-22
+  section: '11'
+  kind: software
+  text: Reconcile case state and external state after restart.
+  acceptance: Stale COMMITTING/UNKNOWN actions and stale sync claims are reconciled by workers after a restart.
+  originalIds:
+  - ACT-03
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - workflows.durable
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/action-service.test.ts:346,628
+  - platform/src/business/support/support-request-service.ts handleSyncMessage (stale-claim recovery)
+  - platform/test/journeys/faults.test.ts:247
+  gap: Fixture providers; workflow-vs-external-state reconciliation not implemented (no system drivers, FO-12-10).
+  remediation: Extend to workflow instances once system drivers exist.
+  size: S
+  environmentDependency: none
+  workPackage: WP-26
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-11-23
+  section: '11'
+  kind: software
+  text: Allow synchronous approved actions within voice deadlines.
+  acceptance: Commit completes within the tool deadline; over-deadline commits return UNKNOWN/PENDING with an approved status utterance.
+  originalIds: []
+  derivedFrom:
+  - FOLLOWON-17 (latency targets)
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/pipeline.ts step (l) execution with timeout
+  - platform/src/resilience/timeout.ts (timeout = UNKNOWN)
+  gap: Voice deadline is not measured end to end (no media).
+  remediation: Measure with FO-10-51.
+  size: S
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-24
+  section: '11'
+  kind: software
+  text: Long-running work uses a narrow durable ActionGrant tied to actor/subject, enumerated permitted steps, expiry and revocation, issued in the accepting transaction.
+  acceptance: Grant check valid only for declared action, before expiry, while unrevoked; tenant isolated; issued atomically with workflow start.
+  originalIds:
+  - SPEC-7.privilege-expiry
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/grants.ts
+  - platform/migrations/0402_durable_action_grants.sql
+  - platform/src/business/grants.ts:59-75 issueWorkflowGrant
+  - platform/src/workflows/grants.test.ts:53-331
+  - platform/src/main/container.ts:397-411 (grantStore wired)
+  gap: Store labels itself local_fixture on PGlite; live DynamoDB/Aurora store not composed.
+  remediation: Keep; compose on live Postgres.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-25
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-11-25
+  section: '11'
+  kind: software
+  text: ActionGrant also binds purpose, the exact prepared action (digest) or explicit parameter bounds, maximum uses and approval evidence.
+  acceptance: Grant schema has purpose, digest or bounds, maxUses with atomic decrement, approvalRef; tests for overuse and out-of-bounds parameters.
+  originalIds:
+  - ACT-01
+  - SPEC-7.privilege-expiry
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/grants.ts DurableGrantIssueInput (tenantId, subjectId, actorId, actions, expiresAt, sourceRef only)
+  gap: Purpose, digest/parameter bounds, max uses and approval evidence are absent.
+  remediation: Add migration 0403 with purpose, action_digest (nullable), parameter_bounds jsonb, max_uses, uses (decremented atomically in check()) and approval_ref columns on durable_action_grants. Add an ActionGrant protocol contract and tests for overuse, out-of-bounds parameters and digest mismatch. Retire or merge the second, uncomposed grant mechanism, the JWT durable grant in platform/src/identity/assertions/assertion-service.ts:193 (mintDurableActionGrant), so that exactly one ActionGrant model remains.
+  size: M
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - remediation
+- id: FO-11-26
+  section: '11'
+  kind: constraint
+  text: A grant never reuses an expired call token and never waives fresh confirmation for a different consequential transaction.
+  acceptance: Grants are independent records (no session bearer); a different consequential transaction requires a new PreparedAction confirmation.
+  originalIds:
+  - ACT-01
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/workflows/grants.ts (content rules: no session bearer or call token)'
+  - platform/src/workflows/definitions/*.ts grantActions (closed action lists)
+  gap: Without digest binding (FO-11-25) a grant action like billing.review.commit is not tied to one exact transaction.
+  remediation: Bind grants to digests/bounds.
+  size: S
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-27
+  section: '11'
+  kind: software
+  text: Recheck authority before each disclosure or effect performed under a grant.
+  acceptance: Guarded transitions call PreDisclosureRecheck with current consent/representation/account state/policy; deny records POLICY_CHANGED_PENDING_ACTION.
+  originalIds:
+  - AUTH-04
+  - SPEC-9.recheck
+  derivedFrom: []
+  capabilityIds:
+  - authority.registries
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/recheck.ts BusinessPreDisclosureRecheck
+  - platform/src/workflows/engine.test.ts:603-719
+  - platform/test/journeys/recheck.test.ts
+  gap: Consent/account-state lookups are LOCAL FIXTURES (business/fixtures/recheck.fixture.ts).
+  remediation: Live consent registry/account-state adapters (section 5/6 chunks).
+  size: S
+  environmentDependency: none
+  workPackage: WP-19
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+- id: FO-11-28
+  section: '11'
+  kind: software
+  text: Ask through the secure companion when a material change needs new confirmation during long-running work.
+  acceptance: Workflow material change creates a new PreparedAction and sends a secure-link approval; portal_approval confirmation resumes the workflow.
+  originalIds:
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - companion.web
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/http/portal-routes.ts (secure-link describe/approve/step-up for a call's prepared action)
+  - platform/src/workflows/engine.ts (no path from a workflow state to a portal re-confirmation)
+  gap: Portal approval exists only for in-call actions; workflows cannot request re-confirmation.
+  remediation: WAITING_FOR_CALLER step that prepares an action and issues a secure-link approval request.
+  size: L
+  environmentDependency: Notification channel activation (FO-12-28)
+  workPackage: WP-27
+  provenance:
+    origin: extraction
+- id: FO-11-29
+  section: '11'
+  kind: software
+  text: Suspended work retains an owner and a deadline.
+  acceptance: Validator rejects any nonterminal state without owner queue, deadline, retry budget and routed escalation.
+  originalIds:
+  - SPEC-9.workflow
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/workflows/validator.ts:123-147
+  - platform/src/workflows/definitions.test.ts
+  - platform/src/workflows/engine.test.ts:213,247
+  gap: Values are engineering defaults pending approval.
+  remediation: Support-operations approval of deadlines.
+  size: S
+  environmentDependency: none
+  regressionPackage: WP-25
+  provenance:
+    origin: extraction
+    repair:
+    - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
+- id: FO-11-30
+  section: '11'
+  kind: software
+  text: Support per-issue outcome labels RESOLVED_WITH_EVIDENCE / INFORMATION_PROVIDED / REQUEST_ACCEPTED / WAITING_FOR_SYSTEM / WAITING_FOR_HUMAN / WAITING_FOR_CALLER / TRANSFERRED_WITH_ACCEPTANCE / DECLINED_BY_POLICY / CALLER_DISCONNECTED / FAILED / OUTCOME_UNKNOWN.
+  acceptance: Issue-level outcome table keyed by issue/case; each label reachable only with its evidence rule; a call can carry several issues with different labels.
+  originalIds:
+  - ACT-04
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'platform/src/protocol/common.ts:99-108 Outcome (8 call-level values: RESOLVED, REQUEST_ACCEPTED, TRANSFERRED, ...)'
+  - platform/src/business/outcomes.ts (one outcome per call in interaction_outcomes)
+  - platform/src/console-api/schemas.ts:61
+  gap: Outcomes are per call with 8 labels; the three WAITING_* labels and the RESOLVED_WITH_EVIDENCE/TRANSFERRED_WITH_ACCEPTANCE semantics are absent; no per-issue record.
+  remediation: Issue outcome model (issue_outcomes table, append-only) and decision rules; migrate call outcome to an aggregate view.
+  size: L
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-31
+  section: '11'
+  kind: software
+  text: Preserve reopened and partially resolved states.
+  acceptance: Issue outcome history keeps REOPENED and PARTIALLY_RESOLVED transitions append-only; repeat contact links to the reopened issue.
+  originalIds:
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/business/support/support-request-service.ts:1025 observeCaseStatus (CLOSED->OPEN observed and counted; not scheduled)
+  - platform/migrations/0302_support_case_observations.sql
+  gap: Reopen is measured from Case status only; no issue-level reopened/partial states.
+  remediation: Add to the issue outcome model (FO-11-30).
+  size: M
+  environmentDependency: none
+  workPackage: WP-25
+  provenance:
+    origin: extraction
+- id: FO-11-32
+  section: '11'
+  kind: software
+  text: Classify every provider operation as idempotent (honours the provider idempotency key), lookup-capable (authoritative lookup by key or external reference within a documented visibility window) or neither; an uncertain non-idempotent or non-lookup-capable effect is never retried automatically and goes to an owned human task.
+  acceptance: ProviderCommitPort (and the ConnectorProfile operation) declares {idempotencyKeyHonoured, lookupByKey, visibilityWindowMs}; stale-COMMITTING retry and retryAfterReconcile are refused for operations that do not honour keys when the outcome was UNKNOWN; contract tests with an emulator that ignores idempotency keys and one with delayed visibility show no duplicate effect.
+  originalIds:
+  - ACT-02
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - actions.effects
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/actions/ports.ts:29-44 ProviderCommitPort (commit/lookup/currentVersion only; no capability declaration)
+  - platform/src/actions/action-service.ts:1093-1128 recordNotFound (NOT_FOUND returns the action to CONFIRMED and permits a retry with the same key, which is safe only if the provider dedupes on the key)
+  - platform/src/actions/digest.ts:72 providerIdempotencyKeyFor (the key is sent whether or not the provider honours it)
+  gap: The ledger assumes that every provider dedupes on the idempotency key and that lookup is authoritative and immediate. Neither assumption is declared or checked per operation. The prompt's 'never ... retry an uncertain non-idempotent effect' cannot be enforced without that classification.
+  remediation: Add an OperationCapabilities declaration to ProviderCommitPort and ConnectorProfile. Gate retryAfterReconcile and stale-COMMITTING retries on it. Route non-idempotent UNKNOWN outcomes to a WAITING_FOR_HUMAN reconciliation task with an owner and deadline (FO-11-18). Add contract tests with a key-ignoring emulator and a delayed-visibility emulator (FO-11-17).
+  size: M
+  environmentDependency: Each system owner's documented idempotency and read-your-writes semantics (PRQ-005 family)
+  workPackage: WP-25
+  provenance:
+    origin: challenge-missed

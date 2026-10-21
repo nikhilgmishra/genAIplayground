@@ -1,0 +1,602 @@
+/**
+ * Worker loops (spec sections 8, 10, 11, 12, 15), free of fixtures: the live worker composes them
+ * (worker/live-loops.ts) and so does the regression worker (worker/loops.ts re-exports them together with
+ * its LOCAL FIXTURE queue and telephony delivery). Every loop is:
+ *  - bounded: a fixed maximum of items per run;
+ *  - idempotent: re-running after a crash or with duplicates is safe (each
+ *    underlying operation is conditional / deduplicated);
+ *  - content-free: logs and reports carry counts, opaque ids and reason codes only;
+ *  - isolated: an error is caught and reported (reason code), never thrown to
+ *    the scheduler, and never stops the other loops;
+ *  - observable: MeteredLoop emits content-free per-loop metrics (runs, errors,
+ *    processed items, schedule lag, duration) through the Metrics port; a
+ *    metrics failure never affects the loop.
+ */
+import type { LedgerActionService } from "../actions/action-service.js";
+import type { ToolRequestIdempotency } from "../actions/tool-idempotency.js";
+import type { ProviderCommitPort } from "../actions/ports.js";
+import type { DeferredFlushResult } from "../audit/deferred.js";
+import type { AuditCompletenessMonitor } from "../audit/monitor.js";
+import type { AuditShipper } from "../audit/shipper.js";
+import type { BusinessModule } from "../business/contract.js";
+import type { Db } from "../db/types.js";
+import { noopMetrics } from "../observability/metrics.js";
+import type { Logger, Metrics } from "../observability/ports.js";
+import { PgConsumerDedup } from "../outbox/consumer-dedup.js";
+import type { PgOutboxDispatcher } from "../outbox/dispatcher.js";
+import type { OutboxMessage } from "../outbox/ports.js";
+import type { ActionKind } from "../protocol/index.js";
+import type { RetentionJob } from "../retention/job.js";
+import type { Clock } from "../shared/clock.js";
+import { PlatformError } from "../shared/errors.js";
+import type { PgWorkflowEngine } from "../workflows/engine.js";
+import type { TransferCoordinator } from "../workflows/transfer.js";
+
+export interface LoopReport {
+  ok: boolean;
+  /** Items handled in this run (meaning is loop-specific; counts only). */
+  processed: number;
+  reasonCode: string | null;
+  details: Record<string, number | string | boolean | null>;
+}
+
+export interface WorkerLoop {
+  readonly name: string;
+  readonly intervalMs: number;
+  runOnce(): Promise<LoopReport>;
+}
+
+const reasonOf = (err: unknown): string => (err instanceof PlatformError && /^[A-Z][A-Z0-9_]{2,63}$/.test(err.reasonCode) ? err.reasonCode : "UNCLASSIFIED_ERROR");
+const ok = (processed: number, details: LoopReport["details"] = {}): LoopReport => ({ ok: true, processed, reasonCode: null, details });
+const failed = (err: unknown, details: LoopReport["details"] = {}): LoopReport => ({ ok: false, processed: 0, reasonCode: reasonOf(err), details });
+
+/** Metrics must never break a loop (or a safety-relevant flow): emission errors are swallowed. */
+function safeMetric(fn: () => void): void {
+  try {
+    fn();
+  } catch {
+    // content-free metrics are best effort here; the loop report and logs still carry the outcome
+  }
+}
+
+/**
+ * Wraps a loop with content-free metrics (labels are the closed loop-name enum and ok/failed):
+ * vsp_worker_loop_runs_total{loop,result}, vsp_worker_loop_errors_total{loop},
+ * vsp_worker_loop_processed_total{loop}, vsp_worker_loop_lag_ms{loop} (how far this run started
+ * behind the previous start plus the interval) and vsp_worker_loop_duration_ms{loop}.
+ */
+export class MeteredLoop implements WorkerLoop {
+  readonly name: string;
+  readonly intervalMs: number;
+  private lastStartMs: number | null = null;
+
+  constructor(
+    private readonly inner: WorkerLoop,
+    private readonly metrics: Metrics,
+    private readonly clock: Clock,
+  ) {
+    this.name = inner.name;
+    this.intervalMs = inner.intervalMs;
+  }
+
+  async runOnce(): Promise<LoopReport> {
+    const start = this.clock.now().getTime();
+    const labels = { loop: this.name };
+    if (this.lastStartMs !== null) {
+      const lag = Math.max(0, start - (this.lastStartMs + this.intervalMs));
+      safeMetric(() => this.metrics.observe("vsp_worker_loop_lag_ms", lag, labels));
+    }
+    this.lastStartMs = start;
+    const report = await guarded(() => this.inner.runOnce());
+    const duration = Math.max(0, this.clock.now().getTime() - start);
+    safeMetric(() => this.metrics.observe("vsp_worker_loop_duration_ms", duration, labels));
+    safeMetric(() => this.metrics.increment("vsp_worker_loop_runs_total", { loop: this.name, result: report.ok ? "ok" : "failed" }));
+    if (!report.ok) safeMetric(() => this.metrics.increment("vsp_worker_loop_errors_total", labels));
+    if (report.processed > 0) safeMetric(() => this.metrics.increment("vsp_worker_loop_processed_total", labels, report.processed));
+    return report;
+  }
+}
+
+/** Small helper so each loop's body is wrapped identically. */
+async function guarded(fn: () => Promise<LoopReport>): Promise<LoopReport> {
+  try {
+    return await fn();
+  } catch (err) {
+    return failed(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Outbox: dispatch (claim -> publish -> settle) and consume (dedup -> business consumer)
+// ---------------------------------------------------------------------------
+
+/** Outbox messages whose last publish failed and that wait for their retry (bounded count). */
+export interface OutboxRetryBacklog {
+  count(): Promise<number>;
+}
+
+/**
+ * PENDING outbox rows that carry a publish error code (they failed at least once and wait out their backoff),
+ * per configured tenant under the worker role and the tenant's row-level security, at most `cap` per tenant.
+ */
+export class PgOutboxRetryBacklog implements OutboxRetryBacklog {
+  constructor(
+    private readonly db: Db,
+    private readonly tenantIds: readonly string[],
+    private readonly cap = 1_000,
+  ) {}
+  async count(): Promise<number> {
+    let n = 0;
+    for (const tenantId of this.tenantIds) {
+      const r = await this.db.tx(
+        (tx) =>
+          tx.query<{ n: number | string }>(
+            "select count(*)::int as n from (select 1 from outbox_messages where tenant_id = $1 and status = 'PENDING' and last_error_code is not null limit $2) s",
+            [tenantId, this.cap],
+          ),
+        { role: "app_worker", rls: { tenantId } },
+      );
+      n += Number(r.rows[0]?.n ?? 0);
+    }
+    return n;
+  }
+}
+
+/**
+ * Claims due outbox rows and publishes them (PgOutboxDispatcher). A run in which any claimed message failed
+ * to publish (left PENDING with backoff) or was moved to DEAD FAILS (OUTBOX_PUBLISH_FAILED /
+ * OUTBOX_DEAD_LETTERED) and counts vsp_outbox_publish_failures_total{reason}. A run that claimed nothing
+ * while earlier failures still wait out their backoff also FAILS (OUTBOX_PUBLISH_RETRYING), so a queue that
+ * refuses every publish is never reported healthy between retries: worker readiness turns 503 after three
+ * consecutive failing runs and the outbox-publish-failures alarm fires (OPS-01). The messages stay in
+ * PostgreSQL (retried, or repaired from DEAD), so nothing is lost; the first successful publish of the backlog
+ * clears it.
+ */
+export class OutboxDispatchLoop implements WorkerLoop {
+  readonly name = "outbox.dispatch";
+  constructor(
+    private readonly dispatcher: Pick<PgOutboxDispatcher, "runOnce">,
+    readonly intervalMs = 1_000,
+    private readonly limit = 100,
+    private readonly metrics: Metrics = noopMetrics,
+    private readonly backlog: OutboxRetryBacklog | null = null,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      const r = await this.dispatcher.runOnce(this.limit);
+      if (r.failed > 0) safeMetric(() => this.metrics.increment("vsp_outbox_publish_failures_total", { reason: "publish_failed" }, r.failed));
+      if (r.deadLettered > 0) safeMetric(() => this.metrics.increment("vsp_outbox_publish_failures_total", { reason: "dead_lettered" }, r.deadLettered));
+      if (r.failed > 0 || r.deadLettered > 0) {
+        return { ok: false, processed: r.dispatched, reasonCode: r.deadLettered > 0 ? "OUTBOX_DEAD_LETTERED" : "OUTBOX_PUBLISH_FAILED", details: { failed: r.failed, deadLettered: r.deadLettered } };
+      }
+      const retrying = this.backlog ? await this.backlog.count() : 0;
+      if (retrying > 0) return { ok: false, processed: r.dispatched, reasonCode: "OUTBOX_PUBLISH_RETRYING", details: { failed: 0, deadLettered: 0, retrying } };
+      return ok(r.dispatched, { failed: 0, deadLettered: 0 });
+    });
+  }
+}
+
+export interface QueueEntry {
+  message: OutboxMessage;
+  attempts: number;
+  nextAttemptAt: number;
+}
+
+export interface DeadLetter {
+  messageId: string;
+  topic: string;
+  reasonCode: string;
+  attempts: number;
+}
+
+/** The consumer queue OutboxConsumeLoop drains (the regression worker's LocalConsumerQueueFixture). */
+export interface ConsumerQueue {
+  readonly depth: number;
+  due(limit: number): QueueEntry[];
+  ack(messageId: string): void;
+  retry(entry: QueueEntry, delayMs: number): void;
+  deadLetter(entry: QueueEntry, reasonCode: string): void;
+}
+
+const TENANT = /^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$/;
+
+export interface OutboxConsumeLoopOptions {
+  db: Db;
+  clock: Clock;
+  logger: Logger;
+  queue: ConsumerQueue;
+  consumers: BusinessModule["consumers"];
+  intervalMs?: number;
+  maxPerRun?: number;
+  maxAttempts?: number;
+  /** Base retry delay; doubled per attempt up to maxDelayMs. */
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+}
+
+/**
+ * Runs the business consumers for delivered outbox messages with worker-level
+ * deduplication (ConsumerDedup, consumer name `worker.<topic>`), in addition to
+ * the consumers' own idempotency. The business consumer runs OUTSIDE any
+ * transaction (it opens its own; PGlite serializes connections), then the
+ * dedup row is recorded. A crash between the two re-runs the consumer on
+ * redelivery, which is safe because every business consumer is idempotent.
+ */
+export class OutboxConsumeLoop implements WorkerLoop {
+  readonly name = "outbox.consume";
+  readonly intervalMs: number;
+  private readonly dedup: PgConsumerDedup;
+  private readonly maxPerRun: number;
+  private readonly maxAttempts: number;
+  private readonly baseDelayMs: number;
+  private readonly maxDelayMs: number;
+
+  constructor(private readonly opts: OutboxConsumeLoopOptions) {
+    this.intervalMs = opts.intervalMs ?? 1_000;
+    this.maxPerRun = opts.maxPerRun ?? 50;
+    this.maxAttempts = opts.maxAttempts ?? 5;
+    this.baseDelayMs = opts.baseDelayMs ?? 1_000;
+    this.maxDelayMs = opts.maxDelayMs ?? 60_000;
+    this.dedup = new PgConsumerDedup({ db: opts.db, clock: opts.clock, role: "app_worker" });
+  }
+
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      let consumed = 0;
+      let duplicates = 0;
+      let retried = 0;
+      let dead = 0;
+      for (const entry of this.opts.queue.due(this.maxPerRun)) {
+        const m = entry.message;
+        const tenantId = m.tenantId;
+        const consumerName = `worker.${m.topic}`;
+        const handler = (this.opts.consumers as Record<string, ((id: string, p: Record<string, unknown>) => Promise<void>) | undefined>)[m.topic];
+        if (!tenantId || !TENANT.test(tenantId)) {
+          this.opts.queue.deadLetter(entry, "OUTBOX_TENANT_MISSING");
+          dead += 1;
+          continue;
+        }
+        if (!handler) {
+          this.opts.queue.deadLetter(entry, "OUTBOX_NO_CONSUMER");
+          this.opts.logger.warn("worker.outbox.no_consumer", { topic: m.topic, messageId: m.messageId, reasonCode: "OUTBOX_NO_CONSUMER" });
+          dead += 1;
+          continue;
+        }
+        try {
+          if (await this.dedup.isProcessed(tenantId, consumerName, m.messageId)) {
+            this.opts.queue.ack(m.messageId);
+            duplicates += 1;
+            continue;
+          }
+          await handler(m.messageId, m.payload);
+          await this.dedup.processOnceForTenant(tenantId, consumerName, m.messageId, async () => null);
+          this.opts.queue.ack(m.messageId);
+          consumed += 1;
+        } catch (err) {
+          if (entry.attempts + 1 >= this.maxAttempts) {
+            this.opts.queue.deadLetter(entry, reasonOf(err));
+            dead += 1;
+            this.opts.logger.warn("worker.outbox.dead_lettered", { topic: m.topic, messageId: m.messageId, reasonCode: reasonOf(err) });
+          } else {
+            this.opts.queue.retry(entry, Math.min(this.maxDelayMs, this.baseDelayMs * 2 ** entry.attempts));
+            retried += 1;
+          }
+        }
+      }
+      return ok(consumed, { duplicates, retried, deadLettered: dead, depth: this.opts.queue.depth });
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Action ledger: reconciliation of UNKNOWN / stale COMMITTING, and expiry
+// ---------------------------------------------------------------------------
+
+/**
+ * Reconciles UNKNOWN / stale COMMITTING actions with their provider (spec section 8). A run that found actions to
+ * reconcile and reconciled NONE of them (every lookup inconclusive, or no provider for the kind) is degraded
+ * (OPS-01): it fails with ACTION_RECONCILE_INCONCLUSIVE / ACTION_RECONCILE_PROVIDER_MISSING, counts
+ * vsp_action_reconcile_degraded_total{reason} (alarm `action-reconcile-degraded`) and, after repeated failing
+ * runs, turns worker readiness to 503; a failing provider is never reported as a healthy loop.
+ */
+export class ActionReconcileLoop implements WorkerLoop {
+  readonly name = "actions.reconcile";
+  constructor(
+    private readonly actions: Pick<LedgerActionService, "listNeedingReconciliation" | "reconcile">,
+    private readonly providers: Partial<Record<ActionKind, ProviderCommitPort>>,
+    private readonly tenantIds: readonly string[],
+    private readonly logger: Logger,
+    readonly intervalMs = 30_000,
+    private readonly limit = 25,
+    private readonly metrics: Metrics = noopMetrics,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      let reconciled = 0;
+      let inconclusive = 0;
+      let noProvider = 0;
+      for (const tenantId of this.tenantIds) {
+        for (const action of await this.actions.listNeedingReconciliation(tenantId, this.limit)) {
+          const provider = this.providers[action.kind];
+          if (!provider) {
+            noProvider += 1;
+            this.logger.warn("worker.reconcile.no_provider", { actionId: action.actionId, reasonCode: "RECONCILE_PROVIDER_MISSING" });
+            continue;
+          }
+          try {
+            await this.actions.reconcile(action.actionId, provider);
+            reconciled += 1;
+          } catch (err) {
+            inconclusive += 1;
+            this.logger.warn("worker.reconcile.inconclusive", { actionId: action.actionId, reasonCode: reasonOf(err) });
+          }
+        }
+      }
+      if (reconciled === 0 && inconclusive + noProvider > 0) {
+        // Degraded: there was work and none of it could be settled.
+        if (inconclusive > 0) safeMetric(() => this.metrics.increment("vsp_action_reconcile_degraded_total", { reason: "all_inconclusive" }));
+        if (noProvider > 0) safeMetric(() => this.metrics.increment("vsp_action_reconcile_degraded_total", { reason: "no_provider" }));
+        return { ok: false, processed: 0, reasonCode: inconclusive > 0 ? "ACTION_RECONCILE_INCONCLUSIVE" : "ACTION_RECONCILE_PROVIDER_MISSING", details: { inconclusive, noProvider } };
+      }
+      return ok(reconciled, { inconclusive, noProvider });
+    });
+  }
+}
+
+export class ActionExpiryLoop implements WorkerLoop {
+  readonly name = "actions.expire";
+  constructor(
+    private readonly actions: Pick<LedgerActionService, "expireDue">,
+    private readonly tenantIds: readonly string[],
+    readonly intervalMs = 15_000,
+    private readonly limit = 100,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      let expired = 0;
+      for (const t of this.tenantIds) expired += await this.actions.expireDue(t, this.limit);
+      return ok(expired);
+    });
+  }
+}
+
+export class ToolIdempotencyPurgeLoop implements WorkerLoop {
+  readonly name = "tools.idempotency_purge";
+  constructor(
+    private readonly store: Pick<ToolRequestIdempotency, "purgeExpired">,
+    private readonly tenantIds: readonly string[],
+    readonly intervalMs = 300_000,
+    private readonly limit = 500,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      let purged = 0;
+      for (const t of this.tenantIds) purged += await this.store.purgeExpired(t, this.limit);
+      return ok(purged);
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Audit shipping, workflows, transfers, retention
+// ---------------------------------------------------------------------------
+
+export class AuditShipLoop implements WorkerLoop {
+  readonly name = "audit.ship";
+  constructor(
+    private readonly shipper: Pick<AuditShipper, "runOnce">,
+    readonly intervalMs = 10_000,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      const r = await this.shipper.runOnce();
+      const blocked = r.streams.filter((s) => s.reasonCode !== null).length;
+      return ok(r.eventsShipped, { batches: r.batchesShipped, streamsWithReason: blocked });
+    });
+  }
+}
+
+/**
+ * Audit completeness monitoring (audit/monitor.ts; OPS-01, OPS-AUD-01): local and shipped integrity,
+ * writer-head vs present rows, shipping lag, and committed-ledger-vs-audit reconciliation, emitting
+ * vsp_audit_ingestion_gaps_total / vsp_audit_export_completeness_ratio / vsp_audit_backlog_events.
+ * A FAIL verdict is reported in the loop details and through the metrics and alarms, not as a loop
+ * failure (restarting the worker cannot repair evidence); a monitor that cannot run reports failure.
+ */
+export class AuditVerifyLoop implements WorkerLoop {
+  readonly name = "audit.verify";
+  constructor(
+    private readonly monitor: Pick<AuditCompletenessMonitor, "runOnce">,
+    readonly intervalMs = 60_000,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      const r = await this.monitor.runOnce();
+      return ok(r.streams, {
+        verdict: r.verdict,
+        reasonCode: r.reasonCodes[0] ?? null,
+        integrityFindings: r.integrityFindings,
+        ingestionGaps: r.ingestionGaps,
+        reconciliationDiscrepancies: r.reconciliationDiscrepancies,
+        committedActionsChecked: r.committedActionsChecked,
+        backlog: r.backlog,
+      });
+    });
+  }
+}
+
+/**
+ * Deferred route-audit flush (audit/deferred.ts): appends the human / safety handoff audit events
+ * that were deferred during an audit outage, FIFO, once the audit store is writable again (the
+ * queue skips the attempt while AuditHealth reports AUDIT_STORE_UNWRITABLE). Bounded per run.
+ * The queue is process-local, so this loop must run in the process that holds it (the local
+ * composition runs gateway and worker in one process). A store that is still unavailable is
+ * reported as the run's reason code, not as a loop failure (the outage is already signalled by
+ * audit health, vsp_audit_deferred_depth and the error logs).
+ */
+export class DeferredAuditFlushLoop implements WorkerLoop {
+  readonly name = "audit.deferred_flush";
+  constructor(
+    private readonly queue: { flush(limit?: number): Promise<DeferredFlushResult> },
+    readonly intervalMs = 5_000,
+    private readonly limit = 100,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      const r = await this.queue.flush(this.limit);
+      return { ok: true, processed: r.written, reasonCode: r.reasonCode, details: { remaining: r.remaining, dropped: r.dropped } };
+    });
+  }
+}
+
+export class WorkflowTickLoop implements WorkerLoop {
+  readonly name = "workflows.tick";
+  constructor(
+    private readonly workflows: Pick<PgWorkflowEngine, "tickDetailed">,
+    private readonly clock: Clock,
+    readonly intervalMs = 5_000,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      const r = await this.workflows.tickDetailed(this.clock.now());
+      return { ok: r.failures.length === 0, processed: r.events.length, reasonCode: r.failures[0]?.reasonCode ?? null, details: { failures: r.failures.length } };
+    });
+  }
+}
+
+/**
+ * Support-request Salesforce sync retry sweep (spec section 8 "Salesforce behavior"; ACT-02).
+ * Calls `SupportRequestService.retryDue(tenantId, limit)` per tenant: due RETRY_SCHEDULED
+ * requests and stale SYNCING claims are re-enqueued as `support_request.sync` outbox messages
+ * (dedupe key per attempt, so a repeated sweep before delivery enqueues nothing new); the
+ * outbox dispatch / consume loops deliver them and the business consumer settles each attempt
+ * as SYNCED, RETRY_SCHEDULED (bounded exponential backoff) or DEAD_LETTER once the attempt
+ * budget is exhausted (operator repair: console `supportRequests.repair`). Bounded: at most
+ * `limit` requests per tenant per run. A business module without the sweep fails this loop
+ * closed (`SUPPORT_SYNC_RETRY_UNAVAILABLE`), so worker readiness reports it instead of a request
+ * silently staying RETRY_SCHEDULED forever.
+ */
+export class SupportSyncRetryLoop implements WorkerLoop {
+  readonly name = "support.sync_retry";
+  constructor(
+    private readonly supportRequests: { retryDue?: (tenantId: string, limit?: number) => Promise<number> },
+    private readonly tenantIds: readonly string[],
+    readonly intervalMs = 30_000,
+    private readonly limit = 100,
+    /**
+     * OPS-KS-02: kill-switch hold for the support-record integration (INTEGRATION <salesforce> /
+     * WRITES; unreadable state holds). While it returns a reason code nothing is re-enqueued for
+     * that tenant: due requests stay RETRY_SCHEDULED (no attempt spent) and resume on release.
+     */
+    private readonly hold?: (tenantId: string) => Promise<string | null>,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      const retryDue = this.supportRequests.retryDue?.bind(this.supportRequests);
+      if (!retryDue) return { ok: false, processed: 0, reasonCode: "SUPPORT_SYNC_RETRY_UNAVAILABLE", details: {} };
+      let requeued = 0;
+      let failedTenants = 0;
+      let heldTenants = 0;
+      let firstFailure: string | null = null;
+      for (const tenantId of this.tenantIds) {
+        try {
+          if (this.hold && (await this.hold(tenantId))) {
+            heldTenants += 1;
+            continue;
+          }
+          requeued += await retryDue(tenantId, this.limit);
+        } catch (err) {
+          failedTenants += 1;
+          firstFailure ??= reasonOf(err);
+        }
+      }
+      if (failedTenants > 0) return { ok: false, processed: requeued, reasonCode: firstFailure, details: { failedTenants, heldTenants } };
+      return ok(requeued, { tenants: this.tenantIds.length, heldTenants });
+    });
+  }
+}
+
+export class TransferSweepLoop implements WorkerLoop {
+  readonly name = "transfers.sweep";
+  constructor(
+    private readonly transfers: Pick<TransferCoordinator, "sweepTimeouts">,
+    readonly intervalMs = 5_000,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => ok(await this.transfers.sweepTimeouts()));
+  }
+}
+
+/**
+ * Retention: deletes nothing while no approved duration exists; BLOCKED classes are reported, never "deleted".
+ * Emits vsp_retention_deleted_total{data_class}, vsp_retention_classes_blocked{data_class,reason},
+ * vsp_retention_unverified_copies{location,status} and (when the job can count them)
+ * vsp_vendor_deletion_requests_pending{vendor}.
+ */
+export class RetentionLoop implements WorkerLoop {
+  readonly name = "retention.run";
+  constructor(
+    private readonly job: Pick<RetentionJob, "run"> & Partial<Pick<RetentionJob, "pendingVendorDeletions">>,
+    private readonly clock: Clock,
+    private readonly logger: Logger,
+    readonly intervalMs = 86_400_000,
+    private readonly metrics: Metrics = noopMetrics,
+  ) {}
+  runOnce(): Promise<LoopReport> {
+    return guarded(async () => {
+      const reports = await this.job.run(this.clock.now());
+      let deleted = 0;
+      let blockedClasses = 0;
+      let unverified = 0;
+      const deletedByClass = new Map<string, number>();
+      const blocked = new Map<string, number>();
+      const copies = new Map<string, number>();
+      for (const r of reports) {
+        for (const d of r.datasets) {
+          deleted += d.deletedCount;
+          deletedByClass.set(d.dataClass, (deletedByClass.get(d.dataClass) ?? 0) + d.deletedCount);
+        }
+        blockedClasses += r.classes.filter((c) => c.status !== "EXECUTED").length;
+        unverified += r.unverifiedCopies.length;
+        for (const c of r.classes) {
+          if (c.status !== "EXECUTED") {
+            this.logger.warn("worker.retention.class_blocked", { dataClass: c.dataClass, reasonCode: c.status });
+            blocked.set(`${c.dataClass}|${c.status}`, (blocked.get(`${c.dataClass}|${c.status}`) ?? 0) + 1);
+          }
+        }
+        for (const u of r.unverifiedCopies) copies.set(`${u.location}|${u.status}`, (copies.get(`${u.location}|${u.status}`) ?? 0) + 1);
+      }
+      for (const [dataClass, n] of deletedByClass) if (n > 0) safeMetric(() => this.metrics.increment("vsp_retention_deleted_total", { data_class: dataClass }, n));
+      for (const dataClass of DATA_CLASSES) {
+        for (const reason of BLOCK_REASONS) {
+          safeMetric(() => this.metrics.gauge("vsp_retention_classes_blocked", blocked.get(`${dataClass}|${reason}`) ?? 0, { data_class: dataClass, reason }));
+        }
+      }
+      for (const location of COPY_LOCATIONS) {
+        for (const status of COPY_STATUSES) {
+          safeMetric(() => this.metrics.gauge("vsp_retention_unverified_copies", copies.get(`${location}|${status}`) ?? 0, { location, status }));
+        }
+      }
+      if (this.job.pendingVendorDeletions) {
+        const pending = await this.job.pendingVendorDeletions().catch(() => null);
+        if (pending) for (const [vendor, n] of Object.entries(pending)) safeMetric(() => this.metrics.gauge("vsp_vendor_deletion_requests_pending", n, { vendor }));
+      }
+      const status = reports.every((r) => r.status === "BLOCKED_RETENTION_UNSET") ? "BLOCKED_RETENTION_UNSET" : null;
+      return { ok: true, processed: deleted, reasonCode: status, details: { blockedClasses, unverifiedCopies: unverified, runs: reports.length } };
+    });
+  }
+}
+
+const DATA_CLASSES = ["TRANSIENT_CONVERSATION", "BUSINESS_RECORD", "RESTRICTED_QA_MEDIA", "SECURITY_AUDIT"] as const;
+const BLOCK_REASONS = ["BLOCKED_RETENTION_UNSET", "BLOCKED_RETENTION_CONFIG_MISMATCH"] as const;
+const COPY_LOCATIONS = ["DERIVED_TABLE", "INDEX", "CACHE", "BACKUP", "VENDOR"] as const;
+const COPY_STATUSES = ["LEFTOVERS_FOUND", "UNVERIFIABLE"] as const;
+
+// ---------------------------------------------------------------------------
+// LOCAL FIXTURE: telephony fixture events -> transfer coordinator
+// ---------------------------------------------------------------------------
+
+/** The guard every loop body runs under (exported for loops composed outside this file). */
+export const guardedRun = guarded;
+/** A successful run report (exported for loops composed outside this file). */
+export const okReport = ok;

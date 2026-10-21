@@ -145,6 +145,40 @@ variable "admission_rejection_threshold" {
   default     = 0
 }
 
+variable "waf_web_acl_name" {
+  description = "Ingress WAFv2 web ACL name (modules/ingress output web_acl_name); null = no WAF alarm."
+  type        = string
+  default     = null
+}
+
+variable "waf_rate_observe_metric_name" {
+  description = "Metric name of the COUNT-only rate rule on the tool-caller paths (modules/ingress output waf_rate_observe_metric_name); null = no WAF alarm."
+  type        = string
+  default     = null
+}
+
+variable "audit_not_recorded_percent" {
+  description = "Percentage of accepted consequential tool calls without a recorded tool.invoke audit event that alarms (per minute). Default 0 = any such call (objective audited_accepted_actions, PROPOSED target 100 percent audited)."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.audit_not_recorded_percent >= 0 && var.audit_not_recorded_percent < 100
+    error_message = "audit_not_recorded_percent must be in [0, 100)."
+  }
+}
+
+variable "verification_abuse_signal_threshold" {
+  description = "Verification abuse signals per 5 minutes that alarm (0 = any signal notifies). ENGINEERING PROPOSAL pending security operations review."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.verification_abuse_signal_threshold >= 0
+    error_message = "verification_abuse_signal_threshold must be >= 0."
+  }
+}
+
 variable "tags" {
   description = "Tags applied to every resource (no PHI)."
   type        = map(string)

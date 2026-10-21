@@ -1,0 +1,78 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "DELEGATION_REVOKED",
+  "version": 1,
+  "title": "Delegation revoked while accepted work is pending",
+  "description": "The relationship directory revokes a representative or practice delegation after the call accepted work on the represented person's behalf; the durable grant recheck must refuse further disclosure and actions.",
+  "category": "identity",
+  "target": {
+    "components": [
+      "platform/src/workflows/grants.ts",
+      "platform/src/business/recheck.ts",
+      "platform/src/identity"
+    ],
+    "dependency": "relationship_directory"
+  },
+  "trigger": {
+    "kind": "WHILE_WORK_PENDING",
+    "tool": null,
+    "turnIndex": null,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "DELEGATION_REVOKED",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "tokens_absent",
+      "gate": "privacy",
+      "tokens": [
+        "disclose:other_subject"
+      ]
+    },
+    {
+      "check": "no_consequential_success",
+      "gate": "transaction"
+    }
+  ],
+  "callerVisible": "The representative is told a person will follow up; nothing about the represented person is disclosed after the revocation.",
+  "backendEvidence": [
+    "Grant recheck denial with a relationship-revoked reason",
+    "Pending action or notice held for a person (POLICY_CHANGED_PENDING_ACTION)"
+  ],
+  "requirementIds": [
+    "AUTH-05",
+    "SPEC-7.privilege-expiry"
+  ],
+  "appliesToIntents": [
+    "representative_minor_access",
+    "delegated_practice_remittance",
+    "expired_proxy_access"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:DELEGATION_REVOKED] owned by WP-19 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.DELEGATION_REVOKED",
+    "origin": "prompt_section_17",
+    "injectionPoint": "relationship-directory revocation while work is pending (recheck under durable grants)",
+    "injectionPointPackages": [
+      "WP-19"
+    ],
+    "postconditionPackages": [
+      "WP-04",
+      "WP-19"
+    ],
+    "layer2Owner": "WP-19",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "The durable grant recheck refuses every disclosure and action after the revocation",
+    "The pending work is handed to a person with an audit record",
+    "No protected data about the represented person reaches the former delegate"
+  ]
+}

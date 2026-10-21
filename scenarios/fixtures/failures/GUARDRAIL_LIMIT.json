@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "GUARDRAIL_LIMIT",
-  "version": 1,
+  "version": 2,
   "title": "Refusal / turn limit reached in a crisis conversation",
   "description": "The conversational layer reaches its refusal count or maximum turns during a safety interaction.",
   "category": "conversation",
@@ -50,5 +50,23 @@
     "safety_disclosure_self",
     "safety_disclosure_third_party"
   ],
-  "notes": "Whether the vendor guardrail exit can route back to Studio is UNKNOWN (TB-05, PRQ-017)."
+  "notes": "Whether the vendor guardrail exit can route back to Studio is UNKNOWN (TB-05, PRQ-017).",
+  "registry": {
+    "requirementId": "FO-17-24.GUARDRAIL_LIMIT",
+    "origin": "registry",
+    "injectionPoint": "the conversation guard reaches its refusal count or turn limit during a safety interaction",
+    "injectionPointPackages": [
+      "WP-15"
+    ],
+    "postconditionPackages": [
+      "WP-15"
+    ],
+    "layer2Owner": "WP-15",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "The conversation guard reaching its refusal count or turn limit during a safety interaction exits with LIMIT_REACHED into the safety branch",
+    "The safety transfer is requested and the caller is never silently terminated (SAFE-03)"
+  ]
 }

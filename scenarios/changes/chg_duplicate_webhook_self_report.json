@@ -1,0 +1,20 @@
+{
+  "changeVersion": "corpus-change.v1",
+  "changeId": "chg_duplicate_webhook_self_report",
+  "createdAt": "2026-10-20T01:00:00.000Z",
+  "authorRole": "coding_agent",
+  "reason": "DUPLICATE_WEBHOOK plan version 3: the outbox redelivery count (DUPLICATE_REDELIVERIES_<n>) is the LOCAL FIXTURE driver's own account of the messages it re-published, not an emulator or inbox record, so it moves from an emulator_log reach rule to a driver_self_report rule that can never set reached or reachedFault (FO-17-11, WP-01 ADR decision 1). The telephony emulator rule is unchanged; expectations, trigger and effect are unchanged. The change narrows the reach rules (outbox-path runs become INCONCLUSIVE), so it is not a relaxation. Recorded against the uncommitted corpus-lock.v1 baseline (plan digest before/after) when the lock format moved to corpus-lock.v2.",
+  "items": [
+    {
+      "kind": "FAULT_PLAN_CHANGED",
+      "ref": "DUPLICATE_WEBHOOK",
+      "before": "f3964964e080a24b4a92ec2a7b1ee46d619a94f8dfecb1f7fc1d9241f503e70c",
+      "after": "e5359ac56fde3566096fd9059a0939a353def98ac3dff8447a8a6ec13507fce2",
+      "relaxation": false
+    }
+  ],
+  "review": {
+    "status": "PENDING_INDEPENDENT_REVIEW",
+    "reviewRecordRef": null
+  }
+}

@@ -1,0 +1,184 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/CallBinding.json",
+  "title": "CallBinding",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "call-binding.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "interactionId": "interactionId",
+    "sessionGeneration": "sessionGeneration",
+    "causationId": "causationId",
+    "occurredAt": "occurredAt",
+    "expiresAt": "expiresAt",
+    "provenance": "boundBy"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "call-binding.v1"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "interactionId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "sessionGeneration": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000000
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "bindingId": {
+      "type": "string",
+      "pattern": "^cbd_[A-Za-z0-9_-]{16,64}$"
+    },
+    "carrier": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "talkdesk",
+            "sip_reference",
+            "livekit_webrtc",
+            "local_softphone"
+          ]
+        },
+        "interactionRef": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "routeRef": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_:./-]{3,128}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "interactionRef",
+        "routeRef"
+      ],
+      "additionalProperties": false
+    },
+    "owner": {
+      "type": "object",
+      "properties": {
+        "adapter": {
+          "type": "string",
+          "enum": [
+            "controlled_cascade_runtime",
+            "native_duplex_runtime",
+            "talkdesk_ai_agent_mcp",
+            "human_only"
+          ]
+        },
+        "instanceRef": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{2,63}$"
+        },
+        "fencingToken": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "adapter",
+        "instanceRef",
+        "fencingToken"
+      ],
+      "additionalProperties": false
+    },
+    "sessionBindingRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^ses_bnd_[A-Za-z0-9_-]{43}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "boundBy": {
+      "type": "string",
+      "enum": [
+        "carrier_dispatch_rule",
+        "carrier_webhook_verified",
+        "trusted_server_lookup"
+      ]
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "ACTIVE",
+        "SUPERSEDED",
+        "ENDED",
+        "REVOKED"
+      ]
+    },
+    "supersedesBindingId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^cbd_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "tenantId",
+    "interactionId",
+    "sessionGeneration",
+    "occurredAt",
+    "expiresAt",
+    "causationId",
+    "bindingId",
+    "carrier",
+    "owner",
+    "sessionBindingRef",
+    "boundBy",
+    "state",
+    "supersedesBindingId"
+  ],
+  "additionalProperties": false
+}

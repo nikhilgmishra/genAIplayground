@@ -1,0 +1,412 @@
+{
+  "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/PreparedActionV2.json",
+  "title": "PreparedActionV2",
+  "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "prepared-action.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "actorRef": "actorId",
+    "subjectRef": "subjectId",
+    "sessionGeneration": "sessionGeneration",
+    "causationId": "causationId",
+    "occurredAt": "preparedAt",
+    "expiresAt": "expiresAt",
+    "versions": "policyVersion",
+    "provenance": "target"
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "actionId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "appointment.reschedule",
+        "appointment.create",
+        "appointment.cancel",
+        "billing.review.submit",
+        "support_request.create",
+        "callback.schedule"
+      ]
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "sessionRef": {
+      "type": "string",
+      "pattern": "^ses_[A-Za-z0-9_-]{16,64}$"
+    },
+    "sessionGeneration": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "actorId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "subjectId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "target": {
+      "type": "object",
+      "properties": {
+        "system": {
+          "type": "string",
+          "enum": [
+            "scheduling",
+            "billing",
+            "claims",
+            "provider",
+            "support_records",
+            "internal"
+          ]
+        },
+        "recordType": {
+          "type": "string",
+          "pattern": "^[a-z_]{3,40}$"
+        },
+        "recordRef": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        "beforeVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "system",
+        "recordType",
+        "recordRef",
+        "beforeVersion"
+      ],
+      "additionalProperties": false
+    },
+    "change": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,40}$"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string",
+            "maxLength": 120
+          },
+          {
+            "type": "number",
+            "minimum": -10000000000000,
+            "maximum": 10000000000000
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "maxProperties": 32
+    },
+    "impact": {
+      "type": "object",
+      "properties": {
+        "summaryTemplateId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+        },
+        "fees": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "currency": {
+                  "type": "string",
+                  "enum": [
+                    "AED",
+                    "AFN",
+                    "ALL",
+                    "AMD",
+                    "AOA",
+                    "ARS",
+                    "AUD",
+                    "AWG",
+                    "AZN",
+                    "BAM",
+                    "BBD",
+                    "BDT",
+                    "BGN",
+                    "BHD",
+                    "BIF",
+                    "BMD",
+                    "BND",
+                    "BOB",
+                    "BOV",
+                    "BRL",
+                    "BSD",
+                    "BTN",
+                    "BWP",
+                    "BYN",
+                    "BZD",
+                    "CAD",
+                    "CDF",
+                    "CHE",
+                    "CHF",
+                    "CHW",
+                    "CLF",
+                    "CLP",
+                    "CNY",
+                    "COP",
+                    "COU",
+                    "CRC",
+                    "CUP",
+                    "CVE",
+                    "CZK",
+                    "DJF",
+                    "DKK",
+                    "DOP",
+                    "DZD",
+                    "EGP",
+                    "ERN",
+                    "ETB",
+                    "EUR",
+                    "FJD",
+                    "FKP",
+                    "GBP",
+                    "GEL",
+                    "GHS",
+                    "GIP",
+                    "GMD",
+                    "GNF",
+                    "GTQ",
+                    "GYD",
+                    "HKD",
+                    "HNL",
+                    "HTG",
+                    "HUF",
+                    "IDR",
+                    "ILS",
+                    "INR",
+                    "IQD",
+                    "IRR",
+                    "ISK",
+                    "JMD",
+                    "JOD",
+                    "JPY",
+                    "KES",
+                    "KGS",
+                    "KHR",
+                    "KMF",
+                    "KPW",
+                    "KRW",
+                    "KWD",
+                    "KYD",
+                    "KZT",
+                    "LAK",
+                    "LBP",
+                    "LKR",
+                    "LRD",
+                    "LSL",
+                    "LYD",
+                    "MAD",
+                    "MDL",
+                    "MGA",
+                    "MKD",
+                    "MMK",
+                    "MNT",
+                    "MOP",
+                    "MRU",
+                    "MUR",
+                    "MVR",
+                    "MWK",
+                    "MXN",
+                    "MXV",
+                    "MYR",
+                    "MZN",
+                    "NAD",
+                    "NGN",
+                    "NIO",
+                    "NOK",
+                    "NPR",
+                    "NZD",
+                    "OMR",
+                    "PAB",
+                    "PEN",
+                    "PGK",
+                    "PHP",
+                    "PKR",
+                    "PLN",
+                    "PYG",
+                    "QAR",
+                    "RON",
+                    "RSD",
+                    "RUB",
+                    "RWF",
+                    "SAR",
+                    "SBD",
+                    "SCR",
+                    "SDG",
+                    "SEK",
+                    "SGD",
+                    "SHP",
+                    "SLE",
+                    "SOS",
+                    "SRD",
+                    "SSP",
+                    "STN",
+                    "SVC",
+                    "SYP",
+                    "SZL",
+                    "THB",
+                    "TJS",
+                    "TMT",
+                    "TND",
+                    "TOP",
+                    "TRY",
+                    "TTD",
+                    "TWD",
+                    "TZS",
+                    "UAH",
+                    "UGX",
+                    "USD",
+                    "USN",
+                    "UYI",
+                    "UYU",
+                    "UYW",
+                    "UZS",
+                    "VED",
+                    "VES",
+                    "VND",
+                    "VUV",
+                    "WST",
+                    "XAF",
+                    "XCD",
+                    "XCG",
+                    "XOF",
+                    "XPF",
+                    "YER",
+                    "ZAR",
+                    "ZMW",
+                    "ZWG"
+                  ]
+                },
+                "minorUnits": {
+                  "type": "integer",
+                  "minimum": -10000000000000,
+                  "maximum": 10000000000000
+                }
+              },
+              "required": [
+                "currency",
+                "minorUnits"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reversible": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "summaryTemplateId",
+        "fees",
+        "reversible"
+      ],
+      "additionalProperties": false
+    },
+    "policyDecisionId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
+    "policyVersion": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
+    },
+    "preparedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "confirmationTemplateId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.]{2,80}$"
+    },
+    "requiresStepUp": {
+      "type": "boolean"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "PREPARED",
+        "CONFIRMED",
+        "COMMITTING",
+        "COMMITTED",
+        "FAILED",
+        "UNKNOWN",
+        "INVALIDATED",
+        "EXPIRED",
+        "CANCELLED"
+      ]
+    },
+    "schemaVersion": {
+      "type": "string",
+      "const": "prepared-action.v1"
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "actionId",
+    "kind",
+    "tenantId",
+    "sessionRef",
+    "sessionGeneration",
+    "actorId",
+    "subjectId",
+    "target",
+    "change",
+    "impact",
+    "policyDecisionId",
+    "policyVersion",
+    "preparedAt",
+    "expiresAt",
+    "confirmationTemplateId",
+    "requiresStepUp",
+    "digest",
+    "state",
+    "schemaVersion",
+    "causationId"
+  ],
+  "additionalProperties": false
+}

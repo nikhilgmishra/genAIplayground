@@ -61,6 +61,8 @@ export interface ConsoleApiClientOptions {
 }
 
 const PUBLIC_KEYS: ReadonlySet<string> = new Set(PUBLIC_ENDPOINTS);
+/** Public endpoints that act on the current console session: they carry its bearer (never another credential). */
+const SESSION_BEARER_PUBLIC_KEYS: ReadonlySet<string> = new Set(["auth.refresh"]);
 
 export class ConsoleApiClient {
   private readonly fetchImpl: typeof fetch;
@@ -90,7 +92,11 @@ export class ConsoleApiClient {
       throw toConsoleApiError(err);
     }
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (!PUBLIC_KEYS.has(key)) {
+    if (SESSION_BEARER_PUBLIC_KEYS.has(key)) {
+      const token = this.options.tokenStore.get();
+      if (!token) throw new ConsoleApiError("SESSION_EXPIRED", 401);
+      headers[AUTHORIZATION_HEADER] = `Bearer ${token}`;
+    } else if (!PUBLIC_KEYS.has(key)) {
       const token = this.options.tokenStore.get();
       if (!token) {
         this.unauthenticatedHandler?.("SESSION_EXPIRED");

@@ -1,0 +1,71 @@
+{
+  "faultPlanVersion": "fault-plan.v2",
+  "faultId": "MODEL_HANG",
+  "version": 1,
+  "title": "The model stream stalls past its deadline",
+  "description": "The model stream stops producing tokens before completion and exceeds its deadline; the harness must cancel it, keep the turn fenced and use the fallback route.",
+  "category": "model",
+  "target": {
+    "components": [
+      "platform/src/models",
+      "platform/src/harness",
+      "platform/src/resilience"
+    ],
+    "dependency": "model_runtime"
+  },
+  "trigger": {
+    "kind": "AT_TURN",
+    "tool": null,
+    "turnIndex": 1,
+    "transferState": null
+  },
+  "effect": {
+    "kind": "MODEL_HANG",
+    "afterExternalCommit": false,
+    "count": null,
+    "durationMs": null
+  },
+  "deterministic": true,
+  "llmGenerated": false,
+  "expectations": [
+    {
+      "check": "caller_not_abandoned",
+      "gate": "safety"
+    }
+  ],
+  "callerVisible": "The caller hears an approved holding line and then a fallback or a person.",
+  "backendEvidence": [
+    "Deadline exceeded on the model invocation",
+    "Stream cancelled; no late tokens released"
+  ],
+  "requirementIds": [
+    "SAFE-03",
+    "SPEC-12.resilience"
+  ],
+  "appliesToIntents": [
+    "invoice_explanation",
+    "human_request"
+  ],
+  "notes": "Added to the fixed fault registry for the follow-on prompt section 17 fault matrix. The LOCAL FIXTURE driver does not inject it (NOT_SUPPORTED); only the Layer-2 run tagged [FAULT:MODEL_HANG] owned by WP-15 proves it.",
+  "registry": {
+    "requirementId": "FO-17-24.MODEL_HANG",
+    "origin": "prompt_section_17",
+    "injectionPoint": "the model stream stalls past its deadline",
+    "injectionPointPackages": [
+      "WP-08"
+    ],
+    "postconditionPackages": [
+      "WP-08",
+      "WP-10",
+      "WP-15"
+    ],
+    "layer2Owner": "WP-15",
+    "localDriver": "NOT_SUPPORTED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "The stalled stream is cancelled at its deadline",
+    "No late output is released after cancellation",
+    "The fallback route keeps the caller connected"
+  ]
+}

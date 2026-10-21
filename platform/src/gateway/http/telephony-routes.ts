@@ -402,7 +402,8 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
       method: "POST",
       path: "/telephony/v1/session/verification",
       channel: tc,
-      summary: "Begin verification: secure link to the registered channel (preferred) or OTP to an existing verified channel (only when enabled, TB-03). Identical response for zero, one or many matches.",
+      summary:
+        "Begin verification: secure link to the registered channel (preferred) or OTP to an existing verified channel (only when enabled, TB-03). Identical response for zero, one or many matches. Where the deployment composes the verification kill-switch pre-check (OPS-KS-01), every begin answers VERIFICATION_UNAVAILABLE_USE_HUMAN (human route) before any lookup while outbound notifications are switched off (OUTBOUND_NOTIFICATIONS or INTEGRATION notifications kill switch, or unreadable switch state).",
       tags: ["telephony-control"],
       headers: SESSION_HEADERS,
       body: VerificationBody,
@@ -411,18 +412,32 @@ export function telephonyRoutes(d: TelephonyRouteDeps): RouteDef<unknown, unknow
         const s = await session(ctx);
         const input = { role: ctx.body.role, locator: ctx.body.locator };
         let body: z.infer<typeof VerificationResponse>;
+        // OPS-KS-01: set only when outbound notifications are switched off (global state, decided before any lookup).
+        let unavailableReason: string | undefined;
         if (ctx.body.method === "otp") {
           if (!d.otpEnabled) {
             body = { response: "VERIFICATION_UNAVAILABLE_USE_HUMAN", matchCode: null, challengeId: null, speechTemplateId: "verification.failed_generic" };
           } else {
             const r = await d.verification.beginOtp(s.auth, input);
+            unavailableReason = r.unavailableReason;
             body = { response: r.response, matchCode: null, challengeId: r.response === "IF_ELIGIBLE_A_CODE_WAS_SENT" ? r.challengeId : null, speechTemplateId: r.response === "IF_ELIGIBLE_A_CODE_WAS_SENT" ? "verification.otp_sent" : "verification.failed_generic" };
           }
         } else {
           const r = await d.verification.beginSecureLink(s.auth, input);
+          unavailableReason = r.unavailableReason;
           body = { response: r.response, matchCode: r.response === "IF_ELIGIBLE_A_LINK_WAS_SENT" ? r.matchCode : null, challengeId: null, speechTemplateId: r.response === "IF_ELIGIBLE_A_LINK_WAS_SENT" ? "verification.secure_link_sent" : "verification.failed_generic" };
         }
-        await d.audit.record({ tenantId: d.tenantId, action: SESSION_AUDIT_ACTIONS.verificationBegun, outcome: "PENDING", sourceComponent: src, ctx: s.auth, reasonCode: ctx.body.method === "otp" ? "VERIFICATION_OTP" : "VERIFICATION_SECURE_LINK", correlationId: ctx.requestId });
+        // Nothing is pending while notifications are switched off: the begin is recorded as DENIED with the switch reason.
+        const switchedOff = body.response === "VERIFICATION_UNAVAILABLE_USE_HUMAN" && unavailableReason !== undefined;
+        await d.audit.record({
+          tenantId: d.tenantId,
+          action: SESSION_AUDIT_ACTIONS.verificationBegun,
+          outcome: switchedOff ? "DENIED" : "PENDING",
+          sourceComponent: src,
+          ctx: s.auth,
+          reasonCode: switchedOff ? unavailableReason : ctx.body.method === "otp" ? "VERIFICATION_OTP" : "VERIFICATION_SECURE_LINK",
+          correlationId: ctx.requestId,
+        });
         return { status: 200, body };
       },
     }),

@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "SCHEDULING_TIMEOUT_AFTER_COMMIT",
-  "version": 1,
+  "version": 2,
   "title": "Scheduling commit times out after it was applied",
   "description": "The scheduling API applies the change but the response times out, so the gateway sees an ambiguous outcome.",
   "category": "dependency",
@@ -53,5 +53,31 @@
     "appointment_create",
     "appointment_cancel"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.SCHEDULING_TIMEOUT_AFTER_COMMIT",
+    "origin": "registry",
+    "injectionPoint": "the reference business API applies the change and times out the response",
+    "injectionPointPackages": [
+      "WP-23"
+    ],
+    "postconditionPackages": [
+      "WP-25"
+    ],
+    "layer2Owner": "WP-25",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "ambiguous_commit_with_effect",
+      "tools": [
+        "commit_appointment_change"
+      ]
+    }
+  ],
+  "postconditions": [
+    "The change is applied and the response times out: the tool result is UNKNOWN_OUTCOME with a reconciliation reference",
+    "Reconciliation by idempotency key happens before any retry or success announcement",
+    "Exactly one effect"
+  ]
 }

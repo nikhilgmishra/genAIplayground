@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CALLS, OTHER_TENANT_ID, STAFF, TENANT_ID } from "../fixtures/synthetic-world.js";
 import { FailClosedPolicyEngine } from "../policy/engine.js";
@@ -21,6 +22,9 @@ const STAFF_BY_ROLE: Readonly<Record<StaffRole, StaffKey>> = {
   deployment_operator: "deployOperator",
   security_admin: "securityAdmin",
 };
+
+/** Throwaway public point for the recovery-identity proposal (generated per run; never key material). */
+const RECOVERY_JWK = generateKeyPairSync("ec", { namedCurve: "P-256" }).publicKey.export({ format: "jwk" }) as { x: string; y: string };
 
 /** Minimal valid requests (resources mostly absent: a 404 proves authorization passed). */
 const REQUEST: Readonly<Record<AuthenticatedEndpointKey, InjectOptions>> = {
@@ -48,6 +52,18 @@ const REQUEST: Readonly<Record<AuthenticatedEndpointKey, InjectOptions>> = {
   "killSwitches.set": { body: { scope: "MODEL_VERSION", target: "model-fixture-v1", engaged: false, reason: "ROOT_CAUSE_FIXED", confirmationPhrase: "RELEASE MODEL_VERSION model-fixture-v1" } },
   "audit.search": { query: { limit: "10" } },
   "destinations.list": {},
+  "breakGlass.list": {},
+  "breakGlass.request": { body: { justificationCode: "SECURITY_INCIDENT", durationSeconds: 900, reason: "INCIDENT_RESPONSE" } },
+  "breakGlass.decide": { params: { requestId: "bgr_synthRequestMissing0001" }, body: { decision: "APPROVE", reason: "INCIDENT_VERIFIED" } },
+  "accessReviews.list": {},
+  "accessReviews.complete": { params: { reviewId: "acr_synthReviewMissing00001" }, body: { outcome: "APPROPRIATE", reason: "USE_MATCHED_JUSTIFICATION" } },
+  "recoveryIdentities.list": {},
+  "recoveryIdentities.propose": {
+    body: { staffId: "stf_synthRecoveryCustodian1", publicJwk: { kty: "EC", crv: "P-256", x: RECOVERY_JWK.x, y: RECOVERY_JWK.y }, attestationRef: "att_synthAttestationRef001", roles: ["security_admin"] },
+  },
+  "recoveryIdentities.confirm": { params: { identityId: "rci_synthIdentityMissing001" }, body: { signature: "eyJhbGciOiJFUzI1NiJ9.eyJ4IjoxfQ.c2lnbmF0dXJlLW5vdC12YWxpZA" } },
+  "recoveryIdentities.approve": { params: { identityId: "rci_synthIdentityMissing001" } },
+  "recoveryIdentities.revoke": { params: { identityId: "rci_synthIdentityMissing001" }, body: { reason: "ROTATION" } },
 };
 
 /**
@@ -57,6 +73,14 @@ const REQUEST: Readonly<Record<AuthenticatedEndpointKey, InjectOptions>> = {
  */
 const FINER_DENIALS: Partial<Record<AuthenticatedEndpointKey, Partial<Record<StaffRole, string>>>> = {
   "actions.cancel": { support_agent: "STAFF_ROLE_NOT_PERMITTED" },
+  // Never-self actions need the initiator of a record that exists: an unknown record is refused like an
+  // unauthorized one (no existence oracle; INITIATOR_REQUIRED). The positive paths are in break-glass.test.ts.
+  "breakGlass.decide": { security_admin: "SUBMITTER_UNKNOWN" },
+  "accessReviews.complete": { security_admin: "SUBMITTER_UNKNOWN" },
+  "recoveryIdentities.approve": { security_admin: "SUBMITTER_UNKNOWN" },
+  // Holder-only (assignedStaffId): an unknown identity names no holder, so nobody may confirm it (no existence
+  // oracle). The holder's positive path is in break-glass.test.ts.
+  "recoveryIdentities.confirm": { security_admin: "STAFF_ROLE_NOT_PERMITTED", supervisor: "STAFF_ROLE_NOT_PERMITTED", safety_responder: "STAFF_ROLE_NOT_PERMITTED" },
 };
 
 const errorOf = (body: string): { reasonCode: string } => (JSON.parse(body) as { error: { reasonCode: string } }).error;
@@ -67,7 +91,7 @@ const OTHER_TENANT_SUPERVISOR = { staffId: "stf_synthOtherTenantSup1", tenantId:
 
 let h: ConsoleHarness;
 beforeAll(async () => {
-  h = await createConsoleHarness({ extraStaff: [AUDITOR_PLUS, AUDITOR_APPROVER, OTHER_TENANT_SUPERVISOR] });
+  h = await createConsoleHarness({ extraStaff: [AUDITOR_PLUS, AUDITOR_APPROVER, OTHER_TENANT_SUPERVISOR], sso: true });
 });
 afterAll(async () => {
   await h.close();

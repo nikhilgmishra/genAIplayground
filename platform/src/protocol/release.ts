@@ -4,7 +4,23 @@
  * accountable humans and verified against a trusted signing key in production.
  */
 import { z } from "zod";
-import { Environment, IsoDateTime, Sha256Hex, StaffRole, VersionLabel, VersionSet } from "./common.js";
+import {
+  CapabilityStatus,
+  Environment,
+  EnvironmentStatus,
+  EvidencePointer,
+  IsoDateTime,
+  OpaqueId,
+  QualificationResult,
+  Sha256Hex,
+  SoftwareStatus,
+  StaffRole,
+  VersionLabel,
+  VersionSet,
+  statusAxesIssues,
+} from "./common.js";
+
+export const APPROVAL_RECORD_SCHEMA_VERSION = "approval-record.v1";
 
 export const ApprovalScope = z.enum([
   "PHI_PROCESSING",
@@ -62,6 +78,12 @@ export const ApprovalSubject = z.strictObject({
 export type ApprovalSubject = z.infer<typeof ApprovalSubject>;
 
 export const ApprovalRecord = z.strictObject({
+  /**
+   * Contract version and causal predecessor (follow-on envelope). Optional so existing signed
+   * records stay valid; when present they are part of the signed payload like every other field.
+   */
+  schemaVersion: z.literal(APPROVAL_RECORD_SCHEMA_VERSION).optional(),
+  causationId: OpaqueId.optional(),
   approvalId: z.string().regex(/^apr_[A-Za-z0-9_-]{8,64}$/),
   approver: z.strictObject({
     name: z.string().min(2).max(120),
@@ -115,6 +137,45 @@ export type PrerequisiteRecord = z.infer<typeof PrerequisiteRecord>;
 export const ReleaseStatus = z.enum(["IMPLEMENTED_OFFLINE", "VERIFIED_SANDBOX", "APPROVED_PILOT", "VERIFIED_PRODUCTION", "BLOCKED"]);
 export type ReleaseStatus = z.infer<typeof ReleaseStatus>;
 
+/**
+ * Two-axis status plus qualification (follow-on prompt section 0) replacing the single-axis
+ * ReleaseStatus, with the evidence it rests on. The legacy value is kept alongside, never silently
+ * dropped. The axes obey statusAxesIssues (common.ts): an environment at or above VERIFIED_SANDBOX
+ * needs evidence and a PASS qualification, so a label alone can never claim a verified environment.
+ */
+export const StatusAxes = z
+  .strictObject({
+    software: SoftwareStatus,
+    environment: EnvironmentStatus,
+    qualification: QualificationResult,
+    evidenceRefs: z.array(EvidencePointer).max(32),
+    legacyReleaseStatus: ReleaseStatus.nullable(),
+  })
+  .superRefine((s, ctx) => {
+    for (const i of statusAxesIssues(s)) ctx.addIssue({ code: "custom", message: i.code, path: [i.path] });
+  });
+export type StatusAxes = z.infer<typeof StatusAxes>;
+
+/**
+ * Legacy ReleaseStatus -> two axes, from the label alone. A label is not evidence (OPS-03), so:
+ * the software axis is never inferred above IMPLEMENTED; a legacy VERIFIED_SANDBOX, APPROVED_PILOT
+ * or VERIFIED_PRODUCTION label says only that the target environment was configured (CONFIGURED,
+ * qualification INCONCLUSIVE), never that it was verified; IMPLEMENTED_OFFLINE and BLOCKED stay
+ * NOT_CONFIGURED / NOT_RUN. The legacy value is kept in `legacyReleaseStatus`, so nothing is
+ * dropped; the verified environment levels come back only from qualification evidence (the
+ * manifest builder, WP-40).
+ */
+export const LEGACY_RELEASE_STATUS_AXES: Readonly<Record<ReleaseStatus, Pick<StatusAxes, "software" | "environment" | "qualification">>> = {
+  IMPLEMENTED_OFFLINE: { software: "IMPLEMENTED", environment: "NOT_CONFIGURED", qualification: "NOT_RUN" },
+  VERIFIED_SANDBOX: { software: "IMPLEMENTED", environment: "CONFIGURED", qualification: "INCONCLUSIVE" },
+  APPROVED_PILOT: { software: "IMPLEMENTED", environment: "CONFIGURED", qualification: "INCONCLUSIVE" },
+  VERIFIED_PRODUCTION: { software: "IMPLEMENTED", environment: "CONFIGURED", qualification: "INCONCLUSIVE" },
+  BLOCKED: { software: "IMPLEMENTED", environment: "NOT_CONFIGURED", qualification: "NOT_RUN" },
+};
+
+export const statusAxesFromLegacy = (status: ReleaseStatus): StatusAxes =>
+  StatusAxes.parse({ ...LEGACY_RELEASE_STATUS_AXES[ReleaseStatus.parse(status)], evidenceRefs: [], legacyReleaseStatus: status });
+
 const EvidenceRef = z.strictObject({
   kind: z.string().regex(/^[a-z_]{3,40}$/),
   ref: z.string().max(512),
@@ -147,6 +208,13 @@ export const ReleaseManifest = z.strictObject({
   /** Required approvals for the target environment that are absent (never fabricated). */
   missingApprovals: z.array(ApprovalScope).max(32),
   signature: z.string().max(4096).nullable(),
+  /**
+   * Two-axis status of the release and per-capability records (FO-04-40). Optional until the
+   * manifest builder (platform/src/evaluation/manifest.ts, WP-40) emits them; `status` stays as
+   * the legacy single-axis value and maps through statusAxesFromLegacy().
+   */
+  statusAxes: StatusAxes.optional(),
+  capabilities: z.array(CapabilityStatus).max(256).optional(),
 });
 export type ReleaseManifest = z.infer<typeof ReleaseManifest>;
 

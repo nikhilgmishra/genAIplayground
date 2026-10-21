@@ -31,6 +31,36 @@ describe("action catalogue (versioned bundle data)", () => {
     }
   });
 
+  it("[FO-05-06] every human-boundary action is on the human-only high-risk list; the list names known actions and never the safety or human routes", () => {
+    const c = catalogue();
+    expect(c.highRisk.humanOnlyActions).toEqual(expect.arrayContaining(Object.entries(c.actions).filter(([, a]) => a.class === "HUMAN_BOUNDARY").map(([n]) => n)));
+    const dropped = catalogue();
+    dropped.highRisk.humanOnlyActions = dropped.highRisk.humanOnlyActions.filter((a) => a !== "identity:recover");
+    expect(violations(dropped)).toContain("HUMAN_BOUNDARY_NOT_HUMAN_ONLY:identity:recover");
+    const routes = catalogue();
+    routes.highRisk.humanOnlyActions.push("human:request", "nothing:here");
+    expect(violations(routes)).toEqual(expect.arrayContaining(["HIGH_RISK_ALWAYS_AVAILABLE:human:request", "HIGH_RISK_ACTION_UNKNOWN:nothing:here"]));
+    expect(PolicyBundleData.safeParse({ vsp: { catalogue: routes } }).success).toBe(false);
+  });
+
+  it("[FO-05-03] A1 operations need a tenant approval record and must be low-risk; an A1 path minimum only exists on an approved operation", () => {
+    const c = catalogue();
+    expect(c.assuranceA1).toMatchObject({ approvalRef: null, operations: [] });
+    const unapproved = catalogue();
+    unapproved.assuranceA1.operations = ["public:read"];
+    expect(violations(unapproved)).toContain("A1_OPERATIONS_WITHOUT_APPROVAL");
+    const risky = catalogue();
+    risky.assuranceA1 = { ...risky.assuranceA1, approvalRef: "apr_synthTenantA1Approval", operations: ["appointment:commit_change", "invoice:read", "identity:recover", "public:read", "nothing:here"] };
+    expect(violations(risky)).toEqual(
+      expect.arrayContaining(["A1_OPERATION_NOT_LOW_RISK:appointment:commit_change", "A1_OPERATION_NOT_LOW_RISK:invoice:read", "A1_OPERATION_HIGH_RISK:identity:recover", "A1_OPERATION_UNKNOWN:nothing:here"]),
+    );
+    expect(violations(risky).some((v) => v.endsWith(":public:read"))).toBe(false);
+    const path = catalogue();
+    const read = path.actions["onboarding:read"]!;
+    path.actions["onboarding:read"] = { ...read, access: read.access.map((p) => ({ ...p, minAssurance: "A1" as const })) };
+    expect(violations(path).some((v) => v.startsWith("A1_PATH_NOT_APPROVED:onboarding:read:"))).toBe(true);
+  });
+
   it("[SAFE-02] an exemption cannot be granted to any other action through data", () => {
     const c = catalogue();
     c.actions["invoice:read"] = { ...c.actions["invoice:read"]!, class: "SAFETY_AND_HUMAN_ROUTE", killSwitchClass: "EXEMPT" };

@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "KNOWLEDGE_STALE",
-  "version": 1,
+  "version": 2,
   "title": "Matching article is expired",
   "description": "The only matching approved article is past its expiry date or superseded.",
   "category": "knowledge",
@@ -52,5 +52,30 @@
     "portal_login_help",
     "payment_page_request"
   ],
-  "notes": "INFORMATION_PROVIDED is acceptable only from a different, current article."
+  "notes": "INFORMATION_PROVIDED is acceptable only from a different, current article.",
+  "registry": {
+    "requirementId": "FO-17-24.KNOWLEDGE_STALE",
+    "origin": "registry",
+    "injectionPoint": "the only matching approved article expires or is superseded",
+    "injectionPointPackages": [
+      "WP-20"
+    ],
+    "postconditionPackages": [
+      "WP-20"
+    ],
+    "layer2Owner": "WP-20",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "response_template",
+      "templateIds": [
+        "knowledge.no_answer"
+      ]
+    }
+  ],
+  "postconditions": [
+    "The expired or superseded article is filtered before it is returned and never cited",
+    "The approved no-answer line is spoken and the caller reaches a person"
+  ]
 }

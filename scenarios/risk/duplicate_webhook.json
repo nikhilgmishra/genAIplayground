@@ -6,7 +6,7 @@
   "countsTowardHumanReviewedRequirement": false,
   "riskClass": "transaction",
   "description": "Duplicate or out-of-order deliveries of the same event create no duplicate effect.",
-  "generator": "platform/src/evaluation/generate-risk.ts@1",
+  "generator": "platform/src/evaluation/generate-risk.ts@2",
   "requiredReviewers": [
     "security_leadership",
     "sre_lead"
@@ -22,7 +22,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_001",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "billing_dispute",
         "audience": "client",
         "locale": "en-US",
@@ -110,7 +110,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_002",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "billing_dispute",
         "audience": "client",
         "locale": "en-US",
@@ -204,7 +204,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_003",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "billing_dispute",
         "audience": "client",
         "locale": "en-US",
@@ -298,7 +298,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_004",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "complaint_intake",
         "audience": "client",
         "locale": "en-US",
@@ -362,7 +362,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_005",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "complaint_intake",
         "audience": "client",
         "locale": "en-US",
@@ -502,7 +502,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_007",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "partner_intake",
         "audience": "partner",
         "locale": "en-US",
@@ -575,7 +575,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_008",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "partner_intake",
         "audience": "partner",
         "locale": "en-US",
@@ -654,7 +654,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_009",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "partner_intake",
         "audience": "partner",
         "locale": "en-US",
@@ -733,7 +733,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_010",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "new_client_intake",
         "audience": "prospective_client",
         "locale": "en-US",
@@ -797,7 +797,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_011",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "new_client_intake",
         "audience": "prospective_client",
         "locale": "en-US",
@@ -867,7 +867,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_012",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "new_client_intake",
         "audience": "prospective_client",
         "locale": "en-US",
@@ -937,7 +937,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_013",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "after_hours_callback_request",
         "audience": "client",
         "locale": "en-US",
@@ -1001,7 +1001,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_014",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "after_hours_callback_request",
         "audience": "client",
         "locale": "en-US",
@@ -1071,7 +1071,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_015",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "after_hours_callback_request",
         "audience": "client",
         "locale": "en-US",
@@ -1141,7 +1141,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_016",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "superbill_request",
         "audience": "client",
         "locale": "en-US",
@@ -1372,7 +1372,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_019",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "human_request",
         "audience": null,
         "locale": "en-US",
@@ -1429,7 +1429,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_020",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "human_request",
         "audience": null,
         "locale": "en-US",
@@ -1486,7 +1486,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_021",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "safety_disclosure_self",
         "audience": null,
         "locale": "en-US",
@@ -1547,7 +1547,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_022",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "safety_disclosure_self",
         "audience": null,
         "locale": "en-US",
@@ -1608,7 +1608,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_023",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "interpreter_request",
         "audience": null,
         "locale": "en-US",
@@ -1665,7 +1665,7 @@
       "scenario": {
         "scenarioId": "scn_risk_duplicate_webhook_024",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "interpreter_request",
         "audience": null,
         "locale": "en-US",

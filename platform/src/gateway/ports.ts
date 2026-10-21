@@ -25,7 +25,18 @@ export interface ToolExecutionContext {
 }
 
 export type ToolOutcome<O> =
-  | { status: "SUCCESS"; data: O; speech: Omit<SpeechDirective, "turnId" | "sessionGeneration" | "authorizationRef"> | null }
+  | {
+      status: "SUCCESS";
+      data: O;
+      speech: Omit<SpeechDirective, "turnId" | "sessionGeneration" | "authorizationRef"> | null;
+      /**
+       * Added (additive): audit-only reason code for the `tool.invoke` event of this SUCCESS (UPPER_SNAKE,
+       * dropped otherwise). Never part of the ToolResult. Only for causes that are identical for every
+       * caller, e.g. begin_verification answering with the human route while notifications are
+       * switched off (OPS-KS-01); never for anything account-specific (AUTH-ENUM-01).
+       */
+      auditReasonCode?: string;
+    }
   | { status: "PENDING"; reasonCode: string; pendingRef: string; data: O; speech: Omit<SpeechDirective, "turnId" | "sessionGeneration" | "authorizationRef"> | null }
   | { status: "RETRYABLE_FAILURE"; reasonCode: string; retryAfterMs: number }
   | { status: "PERMANENT_FAILURE"; reasonCode: string }

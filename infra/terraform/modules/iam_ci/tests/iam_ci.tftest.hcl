@@ -219,12 +219,13 @@ run "ci_cannot_export_or_share_data" {
   # [OPS-05][VSP-INF-02] data-moving calls this stack never makes are denied to both CI roles, in the
   # boundary (which CI cannot change) and in their inline policies: table export to S3 (including the
   # state prefix, which the apply role can read back), table resource policies, snapshot sharing and
-  # export, log export and subscription filters, bucket replication and ACLs, legacy queue permissions.
+  # export, log export and subscription filters, bucket replication, bucket and object (and object
+  # version) ACLs, legacy queue permissions. The same list is probed by the CI-BOUNDARY policy rule.
   assert {
     condition = alltrue([for a in [
       "dynamodb:ExportTableToPointInTime", "dynamodb:PutResourcePolicy", "rds:ModifyDBClusterSnapshotAttribute", "rds:ModifyDBSnapshotAttribute",
       "rds:StartExportTask", "logs:CreateExportTask", "logs:PutSubscriptionFilter", "s3:PutReplicationConfiguration", "s3:PutBucketAcl",
-      "s3:PutObjectAcl", "sqs:AddPermission",
+      "s3:PutObjectAcl", "s3:PutObjectVersionAcl", "sqs:AddPermission",
     ] : contains(local.data_plane_exports, a)])
     error_message = "[OPS-05][VSP-INF-02] the export and sharing list names every data-moving call this stack never makes"
   }

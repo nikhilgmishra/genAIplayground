@@ -1,0 +1,1063 @@
+# Follow-on requirement source records, prompt section 2. Edit here; regenerate with python3 -I docs/tools/followon/generate.py.
+section: '2'
+requirements:
+- id: FO-02-01
+  section: '2'
+  kind: constraint
+  text: 'AUTH-01: Caller ID, DOB, NPI and spoken claims never authenticate a session alone. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for AUTH-01 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - AUTH-01
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/identity/session-service.ts, verification-service.ts; policy/vsp/authz.rego'
+  - 'threat: docs/security/threat-model.md T-01, T-02, T-03'
+  - 'positive/adversarial: platform/src/identity/session-service.test.ts:55; platform/src/gateway/pipeline.test.ts:182'
+  - 'failure injection: identity-directory outage controls in platform/src/adapters/local/identity-directory.ts'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  gap: Live directory/IdP absent; ASR-spoken claims path untested because no voice runtime. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Add owner; rerun on live composition and voice runtime.
+  size: S
+  environmentDependency: PRQ-005, PRQ-030 (real IdP linking, registered channels)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for AUTH-01 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-05
+  - WP-10
+  - WP-12
+  - WP-13
+  - WP-16
+  - WP-19
+- id: FO-02-02
+  section: '2'
+  kind: constraint
+  text: 'AUTH-02: Every protected read and mutation is authorized in trusted backend code. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for AUTH-02 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - AUTH-02
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/gateway/pipeline.ts, platform/src/policy/engine.ts, RLS in platform/migrations, platform/src/console-api/authorize.ts'
+  - 'threat: T-07, T-30'
+  - 'tests: platform/src/console-api/auth.test.ts:74; platform/src/gateway/pipeline.test.ts:182'
+  - 'failure injection: platform/src/gateway/pipeline.db-outage.test.ts'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Not exercised on PostgreSQL (RLS) outside PGlite. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Run RLS suite on PostgreSQL 16 container.
+  size: S
+  environmentDependency: none
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for AUTH-02 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-07
+  - WP-10
+  - WP-16
+  - WP-23
+  - WP-38
+- id: FO-02-03
+  section: '2'
+  kind: constraint
+  text: 'AUTH-03: Actor, subject, organization, assurance and consent are server-established. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for AUTH-03 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - AUTH-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/protocol/common.ts:138-155, platform/src/gateway/catalog.ts:42, platform/src/identity/session-store.ts'
+  - 'threat: T-01, T-04, T-07, T-08, T-21'
+  - 'tests: platform/src/identity/verification-service.test.ts:358,372; platform/src/identity/session-service.test.ts:69; platform/src/business/tools.test.ts:56'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Live carrier binding (InteractionLookup) is BLOCKED. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Implement CallBinding from the SIP/LiveKit runtime.
+  size: S
+  environmentDependency: PRQ-013 (carrier-side trusted session binding, TB-01)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for AUTH-03 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-01
+  - WP-02
+  - WP-10
+  - WP-11
+  - WP-16
+- id: FO-02-04
+  section: '2'
+  kind: constraint
+  text: 'AUTH-04: Expired or revoked sessions fail closed even if TTL cleanup has not run. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for AUTH-04 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - AUTH-04
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/identity/session-service.ts (resolve uses injected Clock)'
+  - 'threat: T-04, T-05'
+  - 'tests: platform/src/identity/session-service.test.ts:126-162,332'
+  - 'failure injection: platform/test/journeys/faults.test.ts:52 (expiry mid-call)'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  gap: DynamoKvStore tested only with an expression stub (kv-store.test.ts:5-7); utterance/notification gates rely on generation bump. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Run kv-store suite against DynamoDB Local; add idle expiry (section 5).
+  size: S
+  environmentDependency: none
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for AUTH-04 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-04
+  - WP-05
+  - WP-14
+  - WP-27
+- id: FO-02-05
+  section: '2'
+  kind: constraint
+  text: 'AUTH-05: A provider or partner cannot access an unrelated person''s records. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for AUTH-05 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - AUTH-05
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: policy/vsp/authz.rego, RLS, RelationshipDirectory'
+  - 'threat: T-06, T-27'
+  - 'tests: platform/src/policy/engine.test.ts:120; policy/vsp/authz_test.rego:792; platform/src/console-api/rbac.test.ts:213'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Relationship facts come from a fixture directory; live registry BLOCKED. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Live relationship connector, same golden tests.
+  size: M
+  environmentDependency: PRQ-005, PRQ-007 (authoritative delegation registries)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for AUTH-05 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-01
+  - WP-19
+  - WP-20
+  - WP-21
+  - WP-23
+  - WP-24
+- id: FO-02-06
+  section: '2'
+  kind: constraint
+  text: 'AUTH-06: Verification secrets never reach a model, transcript or ordinary logs. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for AUTH-06 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - AUTH-06
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/identity/verification-service.ts (HMAC-stored OTP, submit only from telephony_control), platform/src/observability/logger.ts'
+  - 'threat: T-10, T-17, T-24'
+  - 'tests: platform/src/identity/verification-service.test.ts:422,549,983'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: No media path exists, so DTMF/ASR/recording isolation is untested. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Isolated DTMF capture in the media runtime with recorder/ASR suppression tests.
+  size: M
+  environmentDependency: PRQ-015 (secure DTMF on vendor path) or own runtime DTMF isolation
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for AUTH-06 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-10
+  - WP-12
+  - WP-13
+  - WP-17
+- id: FO-02-07
+  section: '2'
+  kind: constraint
+  text: 'AUTH-07: Talkdesk Auth Gate false, null, undefined and reused-session cases are tested. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for AUTH-07 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - AUTH-07
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/identity/session-service.ts (interpretAuthGateVariable, authGate); talkdesk/auth-gate.md'
+  - 'threat: T-20, T-21'
+  - 'tests: platform/src/identity/session-service.test.ts:33,85,184,194-261; platform/src/gateway/http/routes.test.ts:131'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  gap: Studio side untested; traceability lists SPEC-2.auth-gate-values as NO_TEST (tag gap). Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Tag existing tests; run Studio test when tenant exists.
+  size: S
+  environmentDependency: PRQ-018 (tenant Studio Auth Gate test)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for AUTH-07 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-29
+- id: FO-02-08
+  section: '2'
+  kind: constraint
+  text: 'DATA-01: No PHI goes to an unapproved endpoint, developer tool or analytics sink. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for DATA-01 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - DATA-01
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/privacy/egress.ts, egress-startup.ts, platform/src/observability/logger.ts, platform/src/config/guard.ts'
+  - 'threat: T-06, T-09, T-10, T-11, T-12'
+  - 'tests: platform/src/identity/verification-service.test.ts:87; platform/src/identity/enumeration-resistance.integration.test.ts:157; platform/src/privacy/egress-startup.test.ts'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: No model/ASR/TTS endpoints exist yet to classify; OTel exporter not configured. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Extend egress classification to model and media endpoints.
+  size: M
+  environmentDependency: PRQ-002, PRQ-047 (BAA-covered endpoints)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for DATA-01 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-01
+  - WP-06
+  - WP-07
+  - WP-08
+  - WP-13
+  - WP-21
+  - WP-27
+- id: FO-02-09
+  section: '2'
+  kind: constraint
+  text: 'DATA-02: Raw audio remains sensitive even when a later transcript is redacted. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for DATA-02 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - DATA-02
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/privacy/classification.ts; DataClass RESTRICTED_QA_MEDIA (platform/src/protocol/common.ts:90-96)'
+  - 'threat: no threat-model row maps DATA-02'
+  - 'tests: platform/src/privacy/classification.test.ts; platform/src/privacy/redaction.test.ts:61,68,150'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: No audio capture/storage path exists, so raw-audio handling is unexercised. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Classify, encrypt, restrict and retain audio in the media runtime; add threat row.
+  size: M
+  environmentDependency: PRQ-003
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for DATA-02 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-13
+  - WP-14
+  - WP-17
+  - WP-22
+  - WP-34
+  - WP-35
+- id: FO-02-10
+  section: '2'
+  kind: constraint
+  text: 'DATA-03: Recording and processing follow approved consent and retention controls. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for DATA-03 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - DATA-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/privacy/consent.ts, platform/src/retention/job.ts, talkdesk/studio-flow-spec.md'
+  - 'threat: no threat-model row maps DATA-03'
+  - 'tests: platform/src/privacy/consent.test.ts; platform/src/retention/retention.test.ts; platform/src/evaluation/driver/coordinator.test.ts:200'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Retention durations null; no recorder/processor control in an own media runtime. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Consent-driven recorder/ASR/model gating in the runtime.
+  size: M
+  environmentDependency: PRQ-025, PRQ-026 (counsel rules and durations)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for DATA-03 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-11
+  - WP-22
+  - WP-25
+  - WP-37
+- id: FO-02-11
+  section: '2'
+  kind: constraint
+  text: 'DATA-04: A summary or memory cannot establish identity, consent or medical fact. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for DATA-04 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - DATA-04
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/memory/support-memory.ts + DB trigger (0700_support_memory.sql); session mutations'
+  - 'threat: T-31'
+  - 'tests: platform/src/identity/session-service.test.ts:411; platform/test/journeys/j9-repeat-caller.test.ts:26; platform/src/retention/retention.test.ts:305'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Model-generated summaries do not exist yet; must be covered when they do. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Apply to model summaries and timeline.
+  size: S
+  environmentDependency: none
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for DATA-04 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-01
+  - WP-10
+  - WP-18
+  - WP-22
+  - WP-24
+- id: FO-02-12
+  section: '2'
+  kind: constraint
+  text: 'ACT-01: Every consequential action has fresh, transaction-bound confirmation. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for ACT-01 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - ACT-01
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/actions/action-service.ts, digest.ts; TC-07/TC-08 platform/src/gateway/http/telephony-routes.ts'
+  - 'threat: T-05, T-08, T-15'
+  - 'tests: platform/src/gateway/http/routes.test.ts:246; platform/src/gateway/mcp.test.ts:265'
+  - 'failure injection: platform/test/journeys/faults.test.ts:117 (interrupted confirmation)'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Confirmation capture in an own runtime (DTMF/deterministic yes) not built. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Runtime confirmation capture bound to TurnEnvelope.
+  size: S
+  environmentDependency: PRQ-014 (deterministic confirmation capture on vendor path)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for ACT-01 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-14
+  - WP-16
+  - WP-25
+  - WP-27
+- id: FO-02-13
+  section: '2'
+  kind: constraint
+  text: 'ACT-02: Retry, redelivery and crash-after-commit tests create no duplicate effect. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for ACT-02 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - ACT-02
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: action ledger (0100_action_ledger.sql), outbox consumer_dedup, console idempotency'
+  - 'threat: T-05, T-13, T-28'
+  - 'tests: platform/src/actions/action-service.property.test.ts:143; platform/src/console-api/kill-switches.test.ts:109'
+  - 'failure injection: platform/test/journeys/faults.test.ts:81,143,247'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: PGlite only; not run on PostgreSQL/SQS emulators or real connectors. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Repeat on PostgreSQL + ElasticMQ/LocalStack + connector emulators.
+  size: M
+  environmentDependency: PRQ-007 (provider idempotency semantics)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for ACT-02 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-04
+  - WP-23
+  - WP-25
+  - WP-26
+  - WP-29
+  - WP-42
+- id: FO-02-14
+  section: '2'
+  kind: constraint
+  text: 'ACT-03: An ambiguous timeout is reconciled before retry or success is announced. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for ACT-03 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - ACT-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/actions/action-service.ts (UNKNOWN, reconcile), console reconciliation'
+  - 'threat: T-28'
+  - 'tests: platform/src/console-api/reconciliation.test.ts:26,79,138'
+  - 'failure injection: platform/test/journeys/faults.test.ts:247; Salesforce emulator apply_then_hang'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Only fixture/emulator providers. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Repeat with real connectors over emulators.
+  size: S
+  environmentDependency: PRQ-007
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for ACT-03 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-06
+  - WP-23
+  - WP-25
+  - WP-29
+- id: FO-02-15
+  section: '2'
+  kind: constraint
+  text: 'ACT-04: Case creation and workflow acceptance do not count as issue resolution. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for ACT-04 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - ACT-04
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/gateway/call-state.ts, platform/src/business/outcomes.ts, platform/src/evaluation/scorer.ts'
+  - 'threat: no threat-model row'
+  - 'tests: platform/src/gateway/http/routes.test.ts:358; platform/src/gateway/call-state.test.ts:11; platform/src/evaluation/corpus.test.ts:267'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Scorer repair merged at 8c0f5a0 (platform/src/evaluation/scorer.test.ts:189 fails RESOLVED without receipts) but not re-verified by a corpus rerun. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Scorer mutation tests after fix wave 5.
+  size: S
+  environmentDependency: none
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - gap refreshed against 8c0f5a0 (critic gap 3)
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for ACT-04 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-01
+  - WP-25
+  - WP-29
+  - WP-30
+  - WP-34
+- id: FO-02-16
+  section: '2'
+  kind: constraint
+  text: 'ACT-05: Protected utterances cannot be spoken before authorization and validation. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for ACT-05 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/voice/gate.ts, platform/src/voice/speech-queue.ts (in-process LOCAL FIXTURE)'
+  - 'threat: T-09, T-25, T-26'
+  - 'tests: platform/src/gateway/pipeline.test.ts:434; platform/src/gateway/http/routes.test.ts:246; platform/src/voice/gate.test.ts'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  gap: Gate is text-level; no audio release boundary or AudioReleaseReceipt exists. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Enforce in the media runtime at enqueue and emission with receipts and audio tests.
+  size: L
+  environmentDependency: PRQ-016 (vendor path); none for own runtime
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for ACT-05 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-14
+  - WP-15
+  - WP-16
+  - WP-17
+- id: FO-02-17
+  section: '2'
+  kind: constraint
+  text: 'SAFE-01: No diagnosis, therapy, clinical screening or medication recommendation. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for SAFE-01 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - SAFE-01
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/safety/clinical-boundary.ts; platform/src/voice/registry.ts (containsProhibitedClinicalContent); template-only speech'
+  - 'threat: no threat-model row'
+  - 'tests: platform/src/voice/registry.test.ts:117; platform/src/business/handoff.test.ts:124; platform/src/safety/clinical-boundary.test.ts'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Holds because no generative speech exists. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Output checks in model harness and audio gate; threat row.
+  size: M
+  environmentDependency: PRQ-008, PRQ-012, PRQ-028 (clinical approval)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for SAFE-01 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-01
+  - WP-10
+  - WP-16
+  - WP-20
+  - WP-35
+- id: FO-02-18
+  section: '2'
+  kind: constraint
+  text: 'SAFE-02: Safety routing and human requests do not require account authentication. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for SAFE-02 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - SAFE-02
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: session-less safety/human tools in platform/src/gateway; kill-switch exemptions platform/src/ops/kill-switches.ts'
+  - 'threat: T-22'
+  - 'tests: platform/src/main/sessionless-routing.test.ts:181,189; platform/src/ops/kill-switches.test.ts:180; platform/src/console-api/kill-switches.test.ts:71'
+  - 'failure injection: platform/test/journeys/faults.test.ts:52,389'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Not exercised in a voice runtime. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Runtime-level safety route without session.
+  size: S
+  environmentDependency: PRQ-017
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for SAFE-02 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-11
+  - WP-12
+  - WP-15
+  - WP-16
+- id: FO-02-19
+  section: '2'
+  kind: constraint
+  text: 'SAFE-03: Refusal counts, silence and cost limits never silently terminate safety flow. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for SAFE-03 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - SAFE-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/ops/budgets.ts (safety reserve), platform/src/ops/admission.ts, platform/src/safety/conversation-guard.ts'
+  - 'threat: T-19, T-22, T-33'
+  - 'tests: platform/src/ops/budgets.test.ts:104,205; platform/src/ops/admission.test.ts:112'
+  - 'failure injection: platform/test/journeys/faults.test.ts:356'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Real silence/no-input handling needs the media runtime. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Silence timers in runtime with safety continuation.
+  size: M
+  environmentDependency: PRQ-017
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for SAFE-03 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-10
+  - WP-15
+  - WP-42
+- id: FO-02-20
+  section: '2'
+  kind: constraint
+  text: 'SAFE-04: Transfer succeeds only with receiver acceptance and verified connection. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for SAFE-04 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - SAFE-04
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/workflows/transfer.ts (RECEIVER_ACCEPTED, CALLER_CONFIRMED_CONNECTED)'
+  - 'threat: T-23, T-33'
+  - 'tests: platform/src/workflows/transfer.test.ts; transfer.out-of-order.test.ts; platform/src/adapters/local/telephony-fixture.transfer-contract.test.ts'
+  - 'failure injection: platform/test/journeys/faults.test.ts:143,356'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Only the telephony fixture and fixture HMAC events; no real transfer path. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: SIP/LiveKit transfer with CarrierEvent evidence.
+  size: L
+  environmentDependency: PRQ-019 (documented vendor events)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for SAFE-04 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-28
+  - WP-29
+- id: FO-02-21
+  section: '2'
+  kind: constraint
+  text: 'SAFE-05: A caller, model or retrieved document cannot choose an arbitrary dial target. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for SAFE-05 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - SAFE-05
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/config/schema.ts:57 (DestinationConfigSchema), platform/src/protocol/support.ts:99 (DestinationId), transfer coordinator'
+  - 'threat: T-23'
+  - 'tests: platform/src/console-api/views.test.ts:91,191; platform/src/console-api/policy-alignment.test.ts:98; platform/src/main/sessionless-routing.test.ts:181'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: SIP runtime must apply the same allowlist. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Reuse allowlist in SIP transfer adapter.
+  size: S
+  environmentDependency: Talkdesk/carrier destination exports for activation
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for SAFE-05 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-01
+  - WP-12
+  - WP-20
+  - WP-27
+  - WP-28
+- id: FO-02-22
+  section: '2'
+  kind: constraint
+  text: 'OPS-01: Every accepted consequential action has durable independent audit evidence. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for OPS-01 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - OPS-01
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/audit/writer.ts (in-transaction audit_outbox), AuditHealth.assertCanAcceptConsequential, platform/src/audit/sinks/s3-object-lock.ts'
+  - 'threat: T-16, T-32'
+  - 'tests: platform/src/ops/kill-switches.test.ts:82; platform/src/console-api/kill-switches.test.ts:96; platform/src/audit/verifier.test.ts'
+  - 'failure injection: platform/test/journeys/faults.test.ts:389'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Independent sink stub-tested only; route-audit deferral process-local. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only). Also, a request_human_transfer/request_safety_route execution that its tool timeout detached from the request loses its audit event without any log if the process exits first (platform/src/audit/deferred.ts:29-37, documented in fix wave 5); see missed FO-01-34.
+  remediation: MinIO Object Lock tests; durable deferral.
+  size: M
+  environmentDependency: PRQ-037, PRQ-040 (independent audit account)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for OPS-01 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-04
+  - WP-07
+  - WP-26
+- id: FO-02-23
+  section: '2'
+  kind: constraint
+  text: 'OPS-02: AI failure preserves a usable telephony route with documented capacity. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for OPS-02 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - OPS-02
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/ops/admission.ts (continuity routes), talkdesk/studio-flow-spec.md, docs/capacity-cost-model.md'
+  - 'threat: T-19'
+  - 'tests: platform/src/ops/admission.test.ts:142,154'
+  - 'failure injection: platform/test/journeys/faults.test.ts:356'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: No SIP reference fallback route; capacity modelled, not measured. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: SIP fallback route to human queue with load test.
+  size: L
+  environmentDependency: PRQ-009, PRQ-022, PRQ-049 (staffed routes, capacity)
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for OPS-02 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-12
+  - WP-15
+  - WP-39
+  - WP-42
+- id: FO-02-24
+  section: '2'
+  kind: constraint
+  text: 'OPS-03: Unknown capabilities, missing evidence and unrun tests are not PASS. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for OPS-03 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - OPS-03
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/evaluation/scorer.ts, aggregate.ts, traceability.ts; platform/src/adapters/live/blocked-base.ts'
+  - 'threat: no threat-model row'
+  - 'tests: platform/src/evaluation/runner.test.ts; aggregate.test.ts; platform/src/adapters/live/blocked.test.ts:91,100'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Scorer and aggregate are real. Fix wave 5 (8c0f5a0) changed the coordinator and corpus expectations, and the corpus has not been re-run since. The traceability summary now shows 168 requirements, 149 IMPLEMENTED_OFFLINE and 19 NO_TEST (docs/REQUIREMENTS_TRACEABILITY.md:20-24), not 35. There is no threat-model row for OPS-03 (threat-model.md:31 only mentions it). No owner per invariant.
+  remediation: Verify scorer after fix wave 5; extend to two-axis statuses.
+  size: M
+  environmentDependency: none
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - gap
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for OPS-03 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-01
+  - WP-32
+  - WP-34
+  - WP-45
+- id: FO-02-25
+  section: '2'
+  kind: constraint
+  text: 'OPS-04: Production refuses fixture adapters and missing mandatory approvals. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for OPS-04 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - OPS-04
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/config/guard.ts; platform/src/gateway/auth.ts:259; platform/src/console-api/plugin.ts:114'
+  - 'threat: T-15, T-17'
+  - 'tests: platform/src/config/guard.test.ts; platform/src/console-api/auth.test.ts:119-153; platform/src/gateway/auth.test.ts:39'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  - 'targeted rerun 2026-10-19: protocol, identity, gateway/auth, oidc-verifier, console-api/auth, policy/engine, voice, privacy/consent, config/guard = 19 files, 331/331 PASS'
+  gap: Guard is never exercised against a passing live composition because non-local is refused wholesale (container.ts:308). Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Live composition that the guard can accept.
+  size: M
+  environmentDependency: PRQ-023
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for OPS-04 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-01
+  - WP-07
+  - WP-09
+  - WP-31
+  - WP-40
+- id: FO-02-26
+  section: '2'
+  kind: constraint
+  text: 'OPS-05: No paid tests, PHI access or production changes without scoped authorization. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for OPS-05 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - OPS-05
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/config/guard.ts approvals; platform/src/ops/budgets.ts; infra/terraform/modules/iam_ci'
+  - 'threat: no threat-model row'
+  - 'tests: platform/src/config/guard.test.ts:502-536; infra/terraform/modules/iam_ci/tests/iam_ci.tftest.hcl; platform/test/docs/prerequisites.test.ts'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Execution automation for paid/PSTN tests not written, so gating is untested on it. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Gate the new automation with the same approvals.
+  size: S
+  environmentDependency: PRQ-010, PRQ-024
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for OPS-05 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-08
+  - WP-27
+  - WP-41
+  - WP-45
+- id: FO-02-27
+  section: '2'
+  kind: constraint
+  text: 'OPS-06: Model, voice, knowledge, tools and policy versions are pinned and reviewable. Record enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency, testing the actual endpoint (and audio boundary where relevant).'
+  acceptance: Invariant row with all eight attributes; positive, adversarial and failure-injection tests for OPS-06 pass at the HTTP/MCP endpoint (and audio boundary where relevant); evidence artifact committed.
+  originalIds:
+  - OPS-06
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - 'enforcement: platform/src/protocol/common.ts:125-135 (VersionSet), platform/src/gateway/catalog.ts, platform/src/config/approvals.ts (subject binding, ADR-0013), platform/src/evaluation/manifest.ts'
+  - 'threat: T-15, T-18, T-30'
+  - 'tests: platform/src/gateway/mcp.test.ts:52; platform/src/gateway/http/routes.test.ts:89; platform/src/console-api/views.test.ts:139'
+  - 'evidence/test-reports/vitest-platform.json (full run committed at 8c0f5a0: 3350/3350)'
+  gap: Model, voice and prompt pins are placeholders because no model or voice runtime exists. Owner is not recorded per invariant (docs/requirements/catalog.yaml has enforcement/verification/externalBlock only).
+  remediation: Pin model/voice/prompt artifacts once the harness exists.
+  size: S
+  environmentDependency: PRQ-020, PRQ-041, PRQ-042
+  workPackage: WP-43
+  provenance:
+    origin: extraction
+    challengeCorrected:
+    - softwareStatus
+    statusChangedFrom: VERIFIED_LOCAL
+    repair:
+    - 'secondaryPackages added (critic gap 12): each listed package adds positive, adversarial and failure-injection tests for OPS-06 at its boundary; WP-43 keeps the cross-adapter closure run'
+  secondaryPackages:
+  - WP-01
+  - WP-09
+  - WP-20
+  - WP-31
+  - WP-40
+- id: FO-02-28
+  section: '2'
+  kind: document
+  text: Maintain one invariant register with, for every invariant, enforcement location, threat, positive test, direct adversarial test, failure injection, evidence artifact, owner and activation dependency.
+  acceptance: Register has all eight attributes for all 27 invariants and a test fails on any missing attribute.
+  originalIds:
+  - SPEC-14.traceability
+  - SPEC-14.threat-model
+  derivedFrom: []
+  capabilityIds:
+  - evaluation.test_truth
+  softwareStatus: VERIFIED_LOCAL
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - test/invariants/register.test.ts
+  gap: None locally.
+  remediation: Extend catalog.yaml schema and the traceability generator; add threat rows.
+  size: M
+  environmentDependency: none
+  regressionPackage: WP-01
+  provenance:
+    origin: extraction
+    waveUpdates:
+    - wave: B2
+      package: WP-01
+      from: MISSING
+      to: VERIFIED_LOCAL
+- id: FO-02-29
+  section: '2'
+  kind: evaluation
+  text: Test invariants at the actual endpoint (HTTP/MCP), not merely a prompt string.
+  acceptance: Invariant tests drive the composed gateway over HTTP/MCP.
+  originalIds:
+  - SPEC-14.hostile-gateway-tests
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: IMPLEMENTED
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/gateway/http/routes.test.ts (Fastify inject over composed app)
+  - platform/src/gateway/mcp.test.ts (real MCP SDK client)
+  - platform/src/identity/enumeration-resistance.integration.test.ts (full container)
+  gap: 'Only the local composition is reachable. IMPLEMENTED, not VERIFIED_LOCAL: Only routes.test.ts, mcp.test.ts and enumeration-resistance.integration.test.ts drive the composed gateway over HTTP/MCP; most of the 27 invariants are tested below the endpoint, so the named element "invariant tests drive the composed gateway" is not covered.'
+  remediation: Repeat against the live composition in the Docker integration environment.
+  size: S
+  environmentDependency: none
+  provenance:
+    origin: extraction
+    repair:
+    - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: only routes.test.ts, mcp.test.ts and enumeration-resistance.integration.test.ts drive the composed gateway over HTTP/MCP; most of the 27 invariants are tested below the endpoint, so the named element "invariant tests drive the composed gateway" is not covered.'
+    repairStatusFrom: VERIFIED_LOCAL
+  workPackage: WP-43
+- id: FO-02-30
+  section: '2'
+  kind: evaluation
+  text: Test invariants at the audio release boundary, not merely a prompt string.
+  acceptance: Audio tests show protected audio never leaves the runtime before authorization/validation and stale buffers are revoked.
+  originalIds:
+  - SPEC-11.response-gate
+  - ACT-05
+  derivedFrom: []
+  capabilityIds:
+  - voice.cascade
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - no audio pipeline in platform/src (platform/src/voice is text-level)
+  gap: No audio boundary exists to test.
+  remediation: Audio-boundary test harness in the media runtime (section 10/17).
+  size: L
+  environmentDependency: none
+  workPackage: WP-17
+  provenance:
+    origin: extraction
+- id: FO-02-31
+  section: '2'
+  kind: evaluation
+  text: Run the invariant suite against every conversation adapter and voice mode that can own a call (Talkdesk AI Agent Platform/MCP, the LiveKit/SIP runtime in controlled-cascade mode and in native full-duplex mode), not only against the HTTP tool route.
+  acceptance: A parameterised suite runs each of the 27 invariant tests once per adapter and mode in CI. A mode that cannot satisfy an invariant for a response class is configured to route that class through the controlled path, and the suite proves it. Results are stored per adapter and mode in the evaluation evidence.
+  originalIds:
+  - SPEC-14.hostile-gateway-tests
+  - ACT-05
+  - AUTH-06
+  - SAFE-02
+  - SAFE-05
+  derivedFrom: []
+  capabilityIds:
+  - platform.invariants
+  softwareStatus: MISSING
+  environmentStatus: NOT_CONFIGURED
+  qualification: NOT_RUN
+  evidence:
+  - platform/src/evaluation/driver/run-corpus.ts:274 (transport defaults to http)
+  - platform/src/evaluation/driver/local-driver.test.ts:890-896 (one MCP journey)
+  - evidence/evaluation (no MCP, SIP or native-mode run)
+  gap: Section 3 requires the optional MCP adapter and the native mode to pass the same tests and authority contracts. Today invariants are exercised through one transport and no voice mode exists.
+  remediation: Introduce a ConversationAdapterUnderTest interface with http, mcp, livekit-cascade and livekit-native implementations. Tag invariant tests with [INV-MATRIX] and run them through each implementation in a vitest workspace project. Add the matrix to traceability and the release preflight.
+  size: L
+  environmentDependency: none for software; tenant Talkdesk AI Agent entitlement only for the vendor-side run
+  workPackage: WP-43
+  provenance:
+    origin: challenge-missed

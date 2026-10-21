@@ -1,8 +1,11 @@
 /**
  * Workforce session state for the console.
  *
- * Production path: OIDC authorization code + PKCE through workforce SSO with
- * MFA (BLOCKED until PRQ-036). Local path: a clearly labelled synthetic-staff
+ * Production path: workforce SSO run by the backend (WP-05): authorization code + PKCE with MFA, the
+ * backend binds state/nonce/challenge/redirect, redeems the code and issues an opaque console session with
+ * idle and absolute expiry; the browser refreshes it periodically (bearer rotation; refresh never extends
+ * the idle window) and is signed out with the server's reason code when it ends (SESSION_IDLE_EXPIRED,
+ * STAFF_DEPROVISIONED, ...). Local path: a clearly labelled synthetic-staff
  * picker that obtains a token from the backend's local workforce IdP fixture
  * (`POST /console/api/v1/auth/local/token`), offered only when the backend
  * reports a local/ci environment running local fixtures (OPS-04).
@@ -15,7 +18,10 @@ import type { ReactNode } from "react";
 import type { AuthConfigResponse, MeResponse, StaffRole } from "../api/contract";
 import { useApi } from "../api/ApiContext";
 import { toConsoleApiError } from "../api/client";
-import { OidcFlowError, buildAuthorizationUrl, consumeTransient, createPkceSession, saveTransient } from "./pkce";
+import { OidcFlowError, checkAuthorizationUrl, consumeTransient, createPkceSession, saveTransient } from "./pkce";
+
+/** How often a live SSO session is refreshed (bearer rotation, IdP re-validation); never extends idle time. */
+export const SESSION_REFRESH_INTERVAL_MS = 5 * 60_000;
 
 export type AuthState =
   | { status: "loading" }
@@ -32,6 +38,8 @@ export interface AuthApi {
   signInLocal: (staffId: string) => Promise<void>;
   beginOidc: () => Promise<void>;
   completeOidc: (search: URLSearchParams) => Promise<void>;
+  /** Rotates the console session bearer (OIDC_SSO sessions only). */
+  refreshSession: () => Promise<void>;
   signOut: (reasonCode?: string | null) => Promise<void>;
 }
 
@@ -120,12 +128,13 @@ export function AuthProvider({ children, redirect, origin }: AuthProviderProps) 
   const redirectUri = `${origin ?? globalThis.location.origin}/auth/callback`;
 
   const beginOidc = useCallback(async () => {
-    if (!config?.oidc) throw new OidcFlowError("OIDC_NOT_CONFIGURED");
+    if (!config?.oidc || config.oidc.status !== "CONFIGURED") throw new OidcFlowError("OIDC_NOT_CONFIGURED");
     const session = await createPkceSession();
-    const url = buildAuthorizationUrl(config.oidc, redirectUri, session);
-    saveTransient(session);
+    const started = await api.request("auth.oidcStart", { body: { redirectUri, codeChallenge: session.codeChallenge, codeChallengeMethod: "S256" } });
+    const url = checkAuthorizationUrl(config.oidc, started.authorizationUrl, { state: started.state, codeChallenge: session.codeChallenge });
+    saveTransient(started.state, session.codeVerifier);
     (redirect ?? ((u: string) => globalThis.location.assign(u)))(url);
-  }, [config, redirect, redirectUri]);
+  }, [api, config, redirect, redirectUri]);
 
   const completeOidc = useCallback(
     async (search: URLSearchParams) => {
@@ -135,13 +144,31 @@ export function AuthProvider({ children, redirect, origin }: AuthProviderProps) 
       if (!code || !returnedState) throw new OidcFlowError("OIDC_RESPONSE_INVALID");
       const transient = consumeTransient(returnedState);
       const token = await api.request("auth.oidcExchange", {
-        body: { code, codeVerifier: transient.codeVerifier, redirectUri, nonce: transient.nonce },
+        body: { code, state: returnedState, codeVerifier: transient.codeVerifier, redirectUri },
       });
       api.tokens.set(token.accessToken, token.expiresAt);
       await loadMe();
     },
     [api, loadMe, redirectUri],
   );
+
+  const refreshSession = useCallback(async () => {
+    if (state.status !== "signed_in" || state.me.sessionKind !== "OIDC_SSO" || !api.tokens.get()) return;
+    try {
+      const token = await api.request("auth.refresh", {});
+      api.tokens.set(token.accessToken, token.expiresAt);
+    } catch (err) {
+      const e = toConsoleApiError(err);
+      // A refused refresh ends the session (idle, revoked, offboarded, replayed); an outage does not.
+      if (e.status === 401) signedOut(e.reasonCode);
+    }
+  }, [api, signedOut, state]);
+
+  useEffect(() => {
+    if (state.status !== "signed_in" || state.me.sessionKind !== "OIDC_SSO") return;
+    const timer = setInterval(() => void refreshSession(), SESSION_REFRESH_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [refreshSession, state]);
 
   const signOut = useCallback(
     async (reasonCode: string | null = null) => {
@@ -167,9 +194,10 @@ export function AuthProvider({ children, redirect, origin }: AuthProviderProps) 
       signInLocal,
       beginOidc,
       completeOidc,
+      refreshSession,
       signOut,
     };
-  }, [state, config, configError, localSignInAvailable, signInLocal, beginOidc, completeOidc, signOut]);
+  }, [state, config, configError, localSignInAvailable, signInLocal, beginOidc, completeOidc, refreshSession, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

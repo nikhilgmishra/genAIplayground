@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { createMemoryLogger } from "../observability/logger.js";
 import { InMemoryMetrics } from "../observability/metrics.js";
 import { PolicyDecision } from "../protocol/policy.js";
+import type { PolicyInput } from "../protocol/policy.js";
 import { sha256Hex } from "../shared/canonical.js";
 import { FakeClock } from "../shared/clock.js";
 import {
@@ -28,6 +29,7 @@ import {
   NOW,
   OTHER_TENANT_ID,
   P,
+  TENANT_ID,
   anonymous,
   auth,
   averyAppointment,
@@ -82,7 +84,8 @@ describe("policy engine: deny by default", () => {
   it("[AUTH-02] human-boundary actions always deny with REQUIRE_HUMAN", () => {
     for (const action of ["account:change_payout_destination", "account:change_tax_info", "credentialing:decide", "clinical_record:read", "identity:recover", "credential:reset"]) {
       const d = decide(withAuth({ ...averyAppointment(), action }, { assurance: "A3" }));
-      expect(d, action).toMatchObject({ allow: false, reasonCodes: ["HUMAN_BOUNDARY"], obligations: ["REQUIRE_HUMAN"] });
+      // FO-05-06: the high-risk list holds whatever the tier (A3 here), next to the class rule.
+      expect(d, action).toMatchObject({ allow: false, reasonCodes: ["HIGH_RISK_HUMAN_ONLY", "HUMAN_BOUNDARY"], obligations: ["REQUIRE_HUMAN"] });
     }
   });
 });
@@ -102,7 +105,7 @@ describe("policy engine: relationships (AUTH-05)", () => {
     const base = morganAppointment();
     expect(decide({ ...base, action: "invoice:read", resource: resource("invoice", P.avery.subjectId, null, "FINANCIAL") }).allow).toBe(false);
     expect(decide({ ...base, action: "claim:read", resource: resource("claim", P.avery.subjectId, null, "PHI") }).allow).toBe(false);
-    expect(decide({ ...base, action: "clinical_record:read", resource: resource("clinical_record", P.avery.subjectId, null, "PHI_RESTRICTED") })).toMatchObject({ allow: false, reasonCodes: ["HUMAN_BOUNDARY"] });
+    expect(decide({ ...base, action: "clinical_record:read", resource: resource("clinical_record", P.avery.subjectId, null, "PHI_RESTRICTED") })).toMatchObject({ allow: false, reasonCodes: ["HIGH_RISK_HUMAN_ONLY", "HUMAN_BOUNDARY"] });
   });
 
   it("[AUTH-05] partner is denied an unrelated client's records and any individual record", () => {
@@ -383,6 +386,18 @@ describe("policy engine: version, digest and fail-closed behaviour (OPS-06)", ()
     const stub = (evaluate: PolicyEvaluator["evaluate"], opts = {}) =>
       OpaWasmPolicyEngine.fromEvaluator({ policyVersion: engine.policyVersion, bundleDigest: engine.bundleDigest, catalogue: engine.catalogue, evaluator: { entrypoints: [AUTHZ_ENTRYPOINT, CONSOLE_ENTRYPOINT], evaluate } }, opts);
 
+    it("[AUTH-02][FAULT:POLICY_ENGINE_ERROR seam] tighten-only, field mask: a decorated mask inside the catalogue but wider than the loaded decision's is refused", () => {
+      // The loaded (stub) policy allows with a narrow mask; the catalogue allows more, so only the seam rule can refuse.
+      const loaded = stub(() => [{ result: { allow: true, reasonCodes: ["ALLOW_SELF"], fieldMask: ["appointmentId"], obligations: ["AUDIT_READ"] } }]);
+      expect(loaded.decideSync(averyAppointment())).toMatchObject({ allow: true, fieldMask: ["appointmentId"] });
+      const catalogueMask = [...engine.catalogue.actions["appointment:read"]!.fieldMask];
+      expect(catalogueMask.length).toBeGreaterThan(1);
+      const widen = loaded.decorateEvaluator(() => ({ entrypoints: [AUTHZ_ENTRYPOINT, CONSOLE_ENTRYPOINT], evaluate: () => [{ result: { allow: true, reasonCodes: ["ALLOW_SELF"], fieldMask: catalogueMask, obligations: ["AUDIT_READ"] } }] }), { environment: "ci" });
+      expect(loaded.decideSync(averyAppointment())).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"], fieldMask: [] });
+      widen.remove();
+      expect(loaded.decideSync(averyAppointment())).toMatchObject({ allow: true, fieldMask: ["appointmentId"] });
+    });
+
     it("[OPS-06] engine error -> deny POLICY_ENGINE_ERROR, never a throw", async () => {
       const { logger, records } = createMemoryLogger();
       const e = stub(() => {
@@ -437,6 +452,277 @@ describe("policy engine: version, digest and fail-closed behaviour (OPS-06)", ()
 
     it("[OPS-06] the catalogue is validated even for an injected evaluator", () => {
       expect(() => OpaWasmPolicyEngine.fromEvaluator({ policyVersion: "x", bundleDigest: "0".repeat(64), catalogue: { schemaVersion: 1 }, evaluator: { entrypoints: [], evaluate: () => [] } })).toThrow();
+    });
+  });
+
+  describe("evaluator decoration seam (fault injection on the loaded WASM engine)", () => {
+    it("[FAULT:POLICY_ENGINE_ERROR seam][OPS-06] the default engine has no decoration; a throwing or undefined decoration of the loaded WASM evaluator denies with POLICY_ENGINE_ERROR and removal restores identical decisions", async () => {
+      const e = await loadTestEngine();
+      expect(e.evaluatorDecorated).toBe(false);
+      expect(engine.evaluatorDecorated).toBe(false);
+      const baseline = e.decideSync(averyAppointment());
+      expect(baseline.allow).toBe(true);
+      const { logger, records } = createMemoryLogger();
+      const logged = e.withOptions({ logger });
+      expect(logged.evaluatorDecorated).toBe(false);
+
+      let mode: "THROW" | "UNDEFINED" | null = "THROW";
+      let calls = 0;
+      const handle = logged.decorateEvaluator(
+        (inner) => ({
+          entrypoints: inner.entrypoints,
+          evaluate: (input, entrypoint) => {
+            calls += 1;
+            if (mode === "THROW") throw new Error("synthetic evaluation fault");
+            if (mode === "UNDEFINED") return undefined;
+            return inner.evaluate(input, entrypoint);
+          },
+        }),
+        { environment: "ci" },
+      );
+      expect(logged.evaluatorDecorated).toBe(true);
+      expect(handle.active).toBe(true);
+      expect(logged.decideSync(averyAppointment())).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"], fieldMask: [] });
+      expect(records.some((r) => r.event === "policy.decision.fail_closed" && r.fields.detailCode === "POLICY_EVALUATION_FAILED")).toBe(true);
+      mode = "UNDEFINED";
+      expect(logged.decideSync(averyAppointment())).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"] });
+      expect(records.some((r) => r.event === "policy.decision.fail_closed" && r.fields.detailCode === "POLICY_RESULT_MALFORMED")).toBe(true);
+      // The console entrypoint goes through the same seam and fails closed the same way.
+      const consoleInput = { action: "console:session", origin: "workforce_console" as const, environment: "local" as const, now: NOW, staff: { staffId: "stf_synthetic0001", tenantId: TENANT_ID, roles: ["supervisor" as const], mfa: true, authenticatedAt: NOW, breakGlass: null }, resource: { type: "console_session", tenantId: null, killSwitchScope: null, initiatorStaffId: null, assignedStaffId: null } };
+      expect((await e.decideConsole(consoleInput)).allow).toBe(true);
+      const consoleDecision = await logged.decideConsole(consoleInput);
+      expect(consoleDecision).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"] });
+      // Pass-through: decisions are identical to the undecorated engine.
+      mode = null;
+      expect(logged.decideSync(averyAppointment())).toMatchObject({ allow: baseline.allow, reasonCodes: baseline.reasonCodes, fieldMask: baseline.fieldMask });
+      expect(calls).toBeGreaterThanOrEqual(4);
+      // The decoration belongs to the instance it was installed on (the parent engine is untouched).
+      expect(e.evaluatorDecorated).toBe(false);
+      expect(e.decideSync(averyAppointment()).allow).toBe(true);
+      // A copy made while decorated is built over the undecorated evaluator.
+      mode = "THROW";
+      expect(logged.withOptions({}).decideSync(averyAppointment()).allow).toBe(true);
+      handle.remove();
+      handle.remove();
+      expect(handle.active).toBe(false);
+      expect(logged.evaluatorDecorated).toBe(false);
+      expect(logged.decideSync(averyAppointment()).allow).toBe(true);
+    });
+
+    it("[OPS-06] one decoration at a time; a decoration that changes the entrypoints is refused", async () => {
+      const e = await loadTestEngine();
+      const local = { environment: "local" as const };
+      const h = e.decorateEvaluator((inner) => inner, local);
+      expect(() => e.decorateEvaluator((inner) => inner, local)).toThrow(expect.objectContaining({ reasonCode: "POLICY_EVALUATOR_ALREADY_DECORATED" }));
+      h.remove();
+      expect(() => e.decorateEvaluator((inner) => ({ entrypoints: [AUTHZ_ENTRYPOINT], evaluate: inner.evaluate }), local)).toThrow(expect.objectContaining({ reasonCode: "POLICY_EVALUATOR_DECORATION_INVALID" }));
+      expect(() => e.decorateEvaluator(() => ({}) as PolicyEvaluator, local)).toThrow(expect.objectContaining({ reasonCode: "POLICY_EVALUATOR_DECORATION_INVALID" }));
+      expect(e.evaluatorDecorated).toBe(false);
+      expect(e.decideSync(averyAppointment()).allow).toBe(true);
+    });
+
+    it("[OPS-04][FAULT:POLICY_ENGINE_ERROR seam] the seam is local/ci only: refused for a deployed environment, and on an engine loaded for one whatever the caller claims", async () => {
+      const e = await loadTestEngine();
+      for (const environment of ["sandbox", "staging", "production"] as const) {
+        expect(() => e.decorateEvaluator((inner) => inner, { environment })).toThrow(expect.objectContaining({ reasonCode: "POLICY_EVALUATOR_SEAM_NOT_ALLOWED" }));
+      }
+      expect(() => e.decorateEvaluator((inner) => inner, undefined as unknown as { environment: "ci" })).toThrow(expect.objectContaining({ reasonCode: "POLICY_EVALUATOR_SEAM_NOT_ALLOWED" }));
+      const deployed = e.withOptions({ environment: "production" });
+      expect(() => deployed.decorateEvaluator((inner) => inner, { environment: "ci" })).toThrow(expect.objectContaining({ reasonCode: "POLICY_EVALUATOR_SEAM_NOT_ALLOWED" }));
+      // A copy of the deployed engine keeps its environment.
+      expect(() => deployed.withOptions({}).decorateEvaluator((inner) => inner, { environment: "local" })).toThrow(expect.objectContaining({ reasonCode: "POLICY_EVALUATOR_SEAM_NOT_ALLOWED" }));
+      expect(e.evaluatorDecorated).toBe(false);
+      expect(deployed.evaluatorDecorated).toBe(false);
+    });
+
+    it("[AUTH-02][OPS-06][FAULT:POLICY_ENGINE_ERROR seam] tighten-only: a decoration can never allow what the loaded policy denies, widen the field mask or drop an obligation", async () => {
+      const e = await loadTestEngine();
+      const allowed = averyAppointment();
+      const baseline = e.decideSync(allowed);
+      expect(baseline.allow).toBe(true);
+      // An A0 protected read is denied by the loaded policy.
+      const denied: PolicyInput = { ...allowed, auth: { ...allowed.auth, assurance: "A0" } };
+      const deniedBaseline = e.decideSync(denied);
+      expect(deniedBaseline).toMatchObject({ allow: false });
+      expect(deniedBaseline.reasonCodes).toContain("ASSURANCE_INSUFFICIENT");
+      // Capture the loaded evaluator's raw ALLOW result to replay it (the widening adversary).
+      let capturedAllow: unknown = null;
+      const capture = e.decorateEvaluator(
+        (inner) => ({
+          entrypoints: inner.entrypoints,
+          evaluate: (input, entrypoint) => {
+            const out = inner.evaluate(input, entrypoint);
+            if (entrypoint === AUTHZ_ENTRYPOINT && capturedAllow === null) capturedAllow = structuredClone(out);
+            return out;
+          },
+        }),
+        { environment: "ci" },
+      );
+      expect(e.decideSync(allowed)).toMatchObject({ allow: true, reasonCodes: baseline.reasonCodes, fieldMask: baseline.fieldMask });
+      capture.remove();
+      expect(capturedAllow).not.toBeNull();
+      const { logger, records } = createMemoryLogger();
+      const logged = e.withOptions({ logger });
+      type Raw = [{ result: { allow: boolean; reasonCodes: string[]; fieldMask: string[]; obligations: string[] } }];
+      let rewrite: (raw: Raw) => unknown = (raw) => raw;
+      const widen = logged.decorateEvaluator(
+        (inner) => ({
+          entrypoints: inner.entrypoints,
+          evaluate: (input, entrypoint) => (entrypoint === AUTHZ_ENTRYPOINT ? rewrite(structuredClone(capturedAllow) as Raw) : inner.evaluate(input, entrypoint)),
+        }),
+        { environment: "ci" },
+      );
+      // 1. The captured allow replayed for the A0 request: never an allow.
+      expect(logged.decideSync(denied)).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"], fieldMask: [] });
+      expect(records.some((r) => r.event === "policy.decision.fail_closed" && r.fields.detailCode === "POLICY_EVALUATOR_DECORATION_WIDENED")).toBe(true);
+      // 2. A wider field mask than the loaded decision's, even where the loaded policy allows.
+      rewrite = (raw) => [{ result: { ...raw[0].result, fieldMask: [...raw[0].result.fieldMask, "subjectId"] } }];
+      expect(logged.decideSync(allowed)).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"] });
+      // 3. A dropped obligation (AUDIT_READ) is a widening too.
+      expect(baseline.obligations).toContain("AUDIT_READ");
+      rewrite = (raw) => [{ result: { ...raw[0].result, obligations: [] } }];
+      expect(logged.decideSync(allowed)).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"] });
+      // 4. Narrowing is allowed (a subset of the mask, extra obligations), with the loaded policy's reasons.
+      rewrite = (raw) => [{ result: { ...raw[0].result, reasonCodes: ["ALLOW_FORGED_REASON"], fieldMask: raw[0].result.fieldMask.slice(0, 1) } }];
+      const narrowed = logged.decideSync(allowed);
+      expect(narrowed).toMatchObject({ allow: true, reasonCodes: baseline.reasonCodes, fieldMask: baseline.fieldMask.slice(0, 1) });
+      // 5. A decorated deny stays a deny.
+      rewrite = (raw) => [{ result: { ...raw[0].result, allow: false, reasonCodes: ["INJECTED_DENY"] } }];
+      expect(logged.decideSync(allowed)).toMatchObject({ allow: false, reasonCodes: ["INJECTED_DENY"] });
+      widen.remove();
+      expect(logged.decideSync(denied)).toMatchObject({ allow: false, reasonCodes: deniedBaseline.reasonCodes });
+      // The console entrypoint: a replayed allow for a denied console request is refused the same way.
+      // Prohibited for everyone (spec section 16): secret values are never displayed.
+      const consoleDenied = { action: "secret:view", origin: "workforce_console" as const, environment: "local" as const, now: NOW, staff: { staffId: "stf_synthetic0001", tenantId: TENANT_ID, roles: ["supervisor" as const], mfa: true, authenticatedAt: NOW, breakGlass: null }, resource: { type: "secret", tenantId: null, killSwitchScope: null, initiatorStaffId: null, assignedStaffId: null } };
+      expect((await e.decideConsole(consoleDenied)).allow).toBe(false);
+      const forgeConsole = logged.decorateEvaluator(
+        (inner) => ({ entrypoints: inner.entrypoints, evaluate: (input, entrypoint) => (entrypoint === CONSOLE_ENTRYPOINT ? [{ result: { allow: true, reasonCodes: ["ALLOW_FORGED"], obligations: [] } }] : inner.evaluate(input, entrypoint)) }),
+        { environment: "ci" },
+      );
+      expect(await logged.decideConsole(consoleDenied)).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"] });
+      forgeConsole.remove();
+    });
+
+    it("[AUTH-02][OPS-06] the tighten-only rule binds ANY substituted evaluator, including one swapped in without the seam", async () => {
+      const e = (await loadTestEngine()).withOptions({});
+      const allowed = averyAppointment();
+      const denied: PolicyInput = { ...allowed, auth: { ...allowed.auth, assurance: "A0" } };
+      const forged = [{ result: { allow: true, reasonCodes: ["ALLOW_SELF"], fieldMask: ["appointmentId"], obligations: ["AUDIT_READ"] } }];
+      // Labelled adversary: replaces the private evaluator field directly (what a cast-based injector would do).
+      const holder = e as unknown as { evaluator: PolicyEvaluator };
+      const original = holder.evaluator;
+      holder.evaluator = { entrypoints: original.entrypoints, evaluate: () => forged };
+      try {
+        expect(e.decideSync(denied)).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"] });
+      } finally {
+        holder.evaluator = original;
+      }
+      expect(e.decideSync(allowed).allow).toBe(true);
+    });
+
+    it("[AUTH-02][AUTH-04][OPS-06][FAULT:POLICY_ENGINE_ERROR seam] input isolation: a decoration that rewrites the input it is handed (assurance, revocation, tenant) never turns the loaded policy's deny into an allow", async () => {
+      const e = await loadTestEngine();
+      const allowed = averyAppointment();
+      expect(e.decideSync(allowed).allow).toBe(true);
+      const cases: { name: string; input: PolicyInput; rewrite: (i: { auth: Record<string, unknown>; resource: Record<string, unknown> }) => void }[] = [
+        { name: "assurance A0 -> A2", input: withAuth(averyAppointment(), { assurance: "A0" }), rewrite: (i) => void (i.auth.assurance = "A2") },
+        { name: "revoked -> false", input: withAuth(averyAppointment(), { revoked: true }), rewrite: (i) => void (i.auth.revoked = false) },
+        { name: "foreign tenant -> own", input: { ...averyAppointment(), resource: { ...averyAppointment().resource, tenantId: OTHER_TENANT_ID } }, rewrite: (i) => void (i.resource.tenantId = allowed.resource.tenantId) },
+      ];
+      for (const c of cases) {
+        const base = e.decideSync(c.input);
+        expect(base.allow, c.name).toBe(false);
+        // (a) In place, on the object the decoration is handed (the verifier's probe P9): it is frozen.
+        let threw: unknown = null;
+        const inPlace = e.decorateEvaluator(
+          (inner) => ({
+            entrypoints: inner.entrypoints,
+            evaluate: (input, entrypoint) => {
+              if (entrypoint === AUTHZ_ENTRYPOINT) {
+                try {
+                  c.rewrite(input as { auth: Record<string, unknown>; resource: Record<string, unknown> });
+                } catch (err) {
+                  threw = err;
+                  throw err;
+                }
+              }
+              return inner.evaluate(input, entrypoint);
+            },
+          }),
+          { environment: "local" },
+        );
+        expect(e.decideSync(c.input), c.name).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"], fieldMask: [] });
+        expect(threw, c.name).toBeInstanceOf(TypeError);
+        inPlace.remove();
+        // (b) On its own rewritten copy, so the loaded evaluator inside the decoration really allows: the rule
+        //     re-asks the loaded evaluator with the engine's pristine input and refuses the widening.
+        const onCopy = e.decorateEvaluator(
+          (inner) => ({
+            entrypoints: inner.entrypoints,
+            evaluate: (input, entrypoint) => {
+              const mine = structuredClone(input) as { auth: Record<string, unknown>; resource: Record<string, unknown> };
+              if (entrypoint === AUTHZ_ENTRYPOINT) c.rewrite(mine);
+              return inner.evaluate(mine, entrypoint);
+            },
+          }),
+          { environment: "local" },
+        );
+        expect(e.decideSync(c.input), c.name).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"], fieldMask: [] });
+        onCopy.remove();
+        expect(e.decideSync(c.input), c.name).toMatchObject({ allow: false, reasonCodes: base.reasonCodes });
+      }
+      // The console entrypoint: a supervisor rewritten into a security_admin on the shared input (in place) and
+      // on a copy is refused the same way.
+      const consoleInput = { action: "recovery_identity:approve", origin: "workforce_console" as const, environment: "local" as const, now: NOW, staff: { staffId: "stf_synthetic0001", tenantId: TENANT_ID, roles: ["supervisor" as const], mfa: true, authenticatedAt: NOW, breakGlass: null }, resource: { type: "recovery_identity", tenantId: TENANT_ID, killSwitchScope: null, initiatorStaffId: "stf_synthetic0002", assignedStaffId: null } };
+      expect((await e.decideConsole(consoleInput)).allow).toBe(false);
+      expect((await e.decideConsole({ ...consoleInput, staff: { ...consoleInput.staff, roles: ["security_admin" as const] } as unknown as typeof consoleInput.staff })).allow).toBe(true);
+      for (const copy of [false, true]) {
+        const h = e.decorateEvaluator(
+          (inner) => ({
+            entrypoints: inner.entrypoints,
+            evaluate: (input, entrypoint) => {
+              if (entrypoint !== CONSOLE_ENTRYPOINT) return inner.evaluate(input, entrypoint);
+              const target = (copy ? structuredClone(input) : input) as { staff: { roles: string[] } };
+              target.staff.roles = ["security_admin"];
+              return inner.evaluate(target, entrypoint);
+            },
+          }),
+          { environment: "local" },
+        );
+        expect(await e.decideConsole(consoleInput)).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"] });
+        h.remove();
+      }
+    });
+
+    it("[AUTH-02][OPS-06] a decoration cannot alter the loaded evaluator it is handed: `inner` is frozen and the rule consults a private copy", async () => {
+      const e = await loadTestEngine();
+      const denied = withAuth(averyAppointment(), { assurance: "A0" });
+      const forged = [{ result: { allow: true, reasonCodes: ["ALLOW_SELF"], fieldMask: ["appointmentId"], obligations: ["AUDIT_READ"] } }];
+      expect(() =>
+        e.decorateEvaluator((inner) => {
+          (inner as { evaluate: PolicyEvaluator["evaluate"] }).evaluate = () => forged;
+          return inner;
+        }, { environment: "local" }),
+      ).toThrow(TypeError);
+      expect(e.evaluatorDecorated).toBe(false);
+      expect(() =>
+        e.decorateEvaluator((inner) => {
+          (inner.entrypoints as string[]).push("vsp/forged");
+          return inner;
+        }, { environment: "local" }),
+      ).toThrow(TypeError);
+      // A cast-based swap of the field the engine USES cannot reach the private loaded copy either.
+      const holder = e as unknown as { evaluator: PolicyEvaluator; baseEvaluator?: PolicyEvaluator };
+      const original = holder.evaluator;
+      holder.baseEvaluator = { entrypoints: original.entrypoints, evaluate: () => forged };
+      holder.evaluator = { entrypoints: original.entrypoints, evaluate: () => forged };
+      try {
+        expect(e.decideSync(denied)).toMatchObject({ allow: false, reasonCodes: ["POLICY_ENGINE_ERROR"] });
+      } finally {
+        holder.evaluator = original;
+        delete holder.baseEvaluator;
+      }
+      expect(e.decideSync(denied)).toMatchObject({ allow: false, reasonCodes: expect.arrayContaining(["ASSURANCE_INSUFFICIENT"]) });
     });
   });
 

@@ -6,7 +6,7 @@
   "countsTowardHumanReviewedRequirement": false,
   "riskClass": "transaction",
   "description": "Durable audit evidence cannot be written; consequential actions are blocked and the caller is routed safely.",
-  "generator": "platform/src/evaluation/generate-risk.ts@1",
+  "generator": "platform/src/evaluation/generate-risk.ts@2",
   "requiredReviewers": [
     "security_leadership",
     "sre_lead"
@@ -22,7 +22,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_001",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "appointment_reschedule",
         "audience": "client",
         "locale": "en-US",
@@ -114,7 +114,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_002",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "appointment_reschedule",
         "audience": "client",
         "locale": "en-US",
@@ -206,7 +206,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_003",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "appointment_reschedule",
         "audience": "client",
         "locale": "en-US",
@@ -389,7 +389,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_005",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "appointment_create",
         "audience": "client",
         "locale": "en-US",
@@ -571,7 +571,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_007",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_cancel",
         "audience": "client",
         "locale": "en-US",
@@ -753,7 +753,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_009",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "appointment_cancel",
         "audience": "client",
         "locale": "en-US",
@@ -844,7 +844,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_010",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "regression",
         "intent": "billing_dispute",
         "audience": "client",
         "locale": "en-US",
@@ -935,7 +935,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_011",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "billing_dispute",
         "audience": "client",
         "locale": "en-US",
@@ -1026,7 +1026,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_012",
         "version": 1,
-        "split": "development",
+        "split": "regression",
         "intent": "billing_dispute",
         "audience": "client",
         "locale": "en-US",
@@ -1117,7 +1117,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_013",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "complaint_intake",
         "audience": "client",
         "locale": "en-US",
@@ -1187,7 +1187,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_014",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "complaint_intake",
         "audience": "client",
         "locale": "en-US",
@@ -1257,7 +1257,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_015",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "complaint_intake",
         "audience": "client",
         "locale": "en-US",
@@ -1406,7 +1406,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_017",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "partner_intake",
         "audience": "partner",
         "locale": "en-US",
@@ -1564,7 +1564,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_019",
         "version": 1,
-        "split": "development",
+        "split": "heldout_acceptance",
         "intent": "new_client_intake",
         "audience": "prospective_client",
         "locale": "en-US",
@@ -1774,7 +1774,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_022",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "after_hours_callback_request",
         "audience": "client",
         "locale": "en-US",
@@ -1844,7 +1844,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_023",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "after_hours_callback_request",
         "audience": "client",
         "locale": "en-US",
@@ -1914,7 +1914,7 @@
       "scenario": {
         "scenarioId": "scn_risk_audit_outage_024",
         "version": 1,
-        "split": "development",
+        "split": "tuning",
         "intent": "after_hours_callback_request",
         "audience": "client",
         "locale": "en-US",

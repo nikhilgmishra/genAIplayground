@@ -61,9 +61,31 @@ export type {
 export { PgAuditQuery, AuditSearchFilter, MAX_AUDIT_QUERY_LIMIT, auditedSearch } from "./query.js";
 export type { AuditAccessor } from "./query.js";
 export { buildAuditInput, auditFieldsFromAuth } from "./build-input.js";
-export { DEFERRED_AUDIT_BADGE, DEFERRED_AUDIT_MARKER_ACTION, DeferredAuditQueue } from "./deferred.js";
-export type { DeferredAuditQueueOptions, DeferredFlushResult } from "./deferred.js";
+export { DEFERRED_AUDIT_AFTER_SHUTDOWN, DEFERRED_AUDIT_BADGE, DEFERRED_AUDIT_MARKER_ACTION, DeferredAuditFlushTimer, DeferredAuditQueue } from "./deferred.js";
+export type { DeferredAuditFlushTimerOptions, DeferredAuditQueueOptions, DeferredFinalFlushResult, DeferredFlushResult } from "./deferred.js";
 export type { AuditInputFields } from "./build-input.js";
+export {
+  DURABLE_DEFERRED_AUDIT_BADGE,
+  DurableDeferredAuditQueue,
+  DynamoRouteAuditJournal,
+  JOURNAL_ENTRY_QUARANTINED_ACTION,
+  ROUTE_AUDIT_ACTION_RE,
+  insertDeferral,
+  journalEntryFor,
+  parseJournalEntry,
+  rejectedJournalItem,
+  resolveIntents,
+} from "./journal.js";
+export type { DurableDeferredAuditQueueOptions, IndependentRouteAuditJournal, JournalDocumentSender, JournalEntry, JournalRead, RejectedJournalItem } from "./journal.js";
+export {
+  PgRouteAuditIntents,
+  ROUTE_NOT_RECORDED_ACTION,
+  RouteAuditReconciler,
+  SAFETY_EVENT_UNAUDITED_ACTION,
+  SAFETY_ROUTE_EVIDENCE_ACTIONS,
+} from "./route-reconciler.js";
+export type { PgRouteAuditIntentsOptions, RouteAuditReconcilerOptions, RouteReconcileResult } from "./route-reconciler.js";
+export * from "./exporter/index.js";
 export { AuditSinkError } from "./sinks/common.js";
 export { LocalFsAuditSinkFixture, LOCAL_SINK_BADGE } from "./sinks/local-fs.js";
 export { S3ObjectLockAuditSink, validateS3SinkConfig } from "./sinks/s3-object-lock.js";

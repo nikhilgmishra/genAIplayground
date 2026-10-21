@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "NOTIFICATION_PROVIDER_DOWN",
-  "version": 1,
+  "version": 2,
   "title": "Notification provider unavailable",
   "description": "The provider sending the secure link / neutral notification is unavailable.",
   "category": "dependency",
@@ -56,5 +56,28 @@
     "appointment_lookup",
     "case_follow_up"
   ],
-  "notes": null
+  "notes": null,
+  "registry": {
+    "requirementId": "FO-17-24.NOTIFICATION_PROVIDER_DOWN",
+    "origin": "registry",
+    "injectionPoint": "the email/SMS sender (Mailpit/LocalStack) is unavailable",
+    "injectionPointPackages": [
+      "WP-27"
+    ],
+    "postconditionPackages": [
+      "WP-27"
+    ],
+    "layer2Owner": "WP-27",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "verification_not_completed"
+    }
+  ],
+  "postconditions": [
+    "No challenge is delivered to an unregistered destination while the provider is down",
+    "Assurance stays A0 and the caller gets the same generic response as everyone else",
+    "The caller reaches a person"
+  ]
 }

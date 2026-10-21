@@ -19,3 +19,5 @@ export { Bulkhead } from "./bulkhead.js";
 export type { BulkheadOptions } from "./bulkhead.js";
 export { callDependency } from "./policy.js";
 export type { DependencyCallPolicy } from "./policy.js";
+export { TokenBucket, parseRetryAfter } from "./rate-limiter.js";
+export type { TokenBucketOptions } from "./rate-limiter.js";

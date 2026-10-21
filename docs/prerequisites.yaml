@@ -22,7 +22,7 @@
 # docs/release/approval-requests.md.
 
 schemaVersion: vsp.prerequisites.v1
-asOf: "2026-10-17"
+asOf: "2026-10-18"
 recordSchema: platform/src/protocol/release.ts#PrerequisiteRecord
 statusMeaning:
   UNKNOWN: "State of the external artifact not determinable from the repository; not approved."
@@ -666,6 +666,43 @@ records:
     nextAction: Request AR-08 only if VQ-TD-24 shows OAuth2 is unsupported; otherwise mark NOT_APPLICABLE with that reason.
     blocks: [SPEC-8.credentials, STATIC_CREDENTIAL_EXCEPTION]
 
+  # ---------------------------------------------------------------- CI identity and keyed hashes (review fixes)
+  - id: PRQ-053
+    owner: Repository administrator with platform owner
+    artifact: Repository OIDC subject customization include_claim_keys ["repo", "context", "job_workflow_ref"] set through the GitHub API, so the CI token subject matches the exact plan and apply role trust in infra/terraform/modules/iam_ci (environment and deploy.yml on main); the release role trust outside this stack (owner platform) uses the same subject format.
+    gate: Before any CI plan or apply role is assumed (the trust fails closed until the customization is set)
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: ci
+    nextAction: Repository administrator sets the customization (repository-wide), records the API response and checks a plan job's token subject against the iam_ci subjects output; the platform owner aligns the release role trust before the change.
+    blocks: [VSP-INF-03, OPS-05, SPEC-14.iam, PHASE-2]
+
+  - id: PRQ-054
+    owner: Repository administrator with security leadership
+    artifact: GitHub plan environments (sandbox-plan, staging-plan, production-plan, production-dr-plan) and deploy environments (sandbox, staging, production, production-dr), every one limited to the main branch by a deployment branch rule, required reviewers on each deploy environment, and CODEOWNERS so that audit-module and policy changes need security review (owners UNKNOWN).
+    gate: Before the deploy workflow runs a plan or apply in any environment
+    status: UNKNOWN
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: ci
+    nextAction: Repository administrator creates or reviews the environments and branch rules and exports their configuration as evidence; security leadership names the CODEOWNERS for infra/terraform/modules/audit and the policy directories.
+    blocks: [VSP-INF-03, OPS-04, OPS-05, PHASE-2]
+
+  - id: PRQ-055
+    owner: Security administrator with platform engineering
+    artifact: Shared request-hash pepper (at least 32 random bytes) in the Secrets Manager secret request-hash-pepper (infra/terraform/modules/stack; container planned, never applied, no value) for the keyed request hash of platform/src/actions/tool-idempotency.ts, and the live gateway composition loading it for every instance (not implemented; refused with LIVE_COMPOSITION_NOT_IMPLEMENTED).
+    gate: Before a live gateway composition runs in any deployed environment
+    status: BLOCKED
+    evidenceRef: null
+    approvalDate: null
+    expiryDate: null
+    environment: all
+    nextAction: Security administrator decides generation, custody and rotation of the value (a new value makes earlier replay records fail closed as IDEMPOTENCY_KEY_REUSED); platform engineering wires the secret reference into the live composition when it exists.
+    blocks: [DATA-01, SPEC-7.enumeration, DP-02, SAFE-02]
+
 annotations:
   PRQ-001: { specRow: 1, specSection: "5" }
   PRQ-002: { specRow: 2, specSection: "5", vendorQuestions: [VQ-TD-46, VQ-SF-01, VQ-AWS-01, VQ-SPV-01, VQ-SPV-08, VQ-EL-01] }
@@ -719,3 +756,6 @@ annotations:
   PRQ-050: { specSection: "4" }
   PRQ-051: { specSection: "14", approvalScope: SECURITY_REVIEW }
   PRQ-052: { specSection: "8", approvalScope: STATIC_CREDENTIAL_EXCEPTION, approvalRequests: [AR-08], vendorQuestions: [VQ-TD-24] }
+  PRQ-053: { specSection: "14", approvalRequests: [AR-15] }
+  PRQ-054: { specSection: "14,16", approvalRequests: [AR-15] }
+  PRQ-055: { specSection: "6,7" }

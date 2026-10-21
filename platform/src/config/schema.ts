@@ -7,6 +7,8 @@
  * Endpoints may not carry query strings or fragments (no PHI or tokens in URLs).
  */
 import { z } from "zod";
+import { WorkforceSsoConfigSchema } from "../console-api/sso-config.js";
+import { EgressPolicyConfig } from "../privacy/egress.js";
 import { ApprovalScope, DestinationId, Environment, OpaqueId, Sha256Hex, VersionLabel } from "../protocol/index.js";
 import { ValidationError } from "../shared/errors.js";
 import type { GatewayConfig, PlatformConfig } from "./ports.js";
@@ -120,6 +122,118 @@ export const GatewayConfigSchema = z.strictObject({
 });
 export type ParsedGatewayConfig = z.infer<typeof GatewayConfigSchema>;
 
+// ---------------------------------------------------------------------------
+// Live composition sections (WP-07). Optional: local/ci never need them; the live composition refuses to
+// start without `infrastructure` and `egress`, and treats a missing capability section as NOT_CONFIGURED.
+// ---------------------------------------------------------------------------
+
+/** Lower-case DNS name (no IP literal, no port, no wildcard). */
+export const DnsName = z
+  .string()
+  .max(253)
+  .regex(/^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, "dns name expected");
+/** SQS queue URL in the AWS form (also how emulators resolve queues by name). */
+export const SqsQueueUrl = z.string().regex(/^https:\/\/sqs\.[a-z]{2}(-gov)?-[a-z]+-\d\.amazonaws\.com\/\d{12}\/[A-Za-z0-9_-]{1,75}(\.fifo)?$/, "sqs queue url expected");
+/** KMS key id: key ARN, alias ARN, alias name or key UUID. */
+export const KmsKeyId = z.string().regex(/^(arn:aws:kms:[a-z0-9-]{4,32}:\d{12}:(key|alias)\/[A-Za-z0-9/_-]{1,256}|alias\/[A-Za-z0-9/_-]{1,256}|[0-9a-f-]{36})$/, "kms key id expected");
+const DynamoTable = z.string().regex(/^[A-Za-z0-9_.-]{3,255}$/);
+/** http(s) endpoint override (emulators). The guard refuses overrides outside sandbox. */
+const EndpointOverride = EndpointUrl.nullable();
+
+export const InfrastructureConfigSchema = z.strictObject({
+  aws: z.strictObject({
+    region: z.string().regex(/^[a-z]{2}(-gov)?-[a-z]+-\d$/),
+    endpointOverrides: z
+      .strictObject({ dynamodb: EndpointOverride, sqs: EndpointOverride, s3: EndpointOverride, kms: EndpointOverride, secretsManager: EndpointOverride, sts: EndpointOverride })
+      .nullable(),
+    s3ForcePathStyle: z.boolean(),
+  }),
+  privateNetworkHosts: z.array(DnsName).max(32),
+  /**
+   * Address ranges of the load balancer nodes in front of the live units (ALB subnets): only a peer inside them
+   * may name the client in X-Forwarded-For (console sign-in rate limit). Optional; the guard checks the ranges.
+   */
+  trustedProxyCidrs: z
+    .array(z.string().max(64).regex(/^(\d{1,3}(\.\d{1,3}){3}\/\d{1,2}|[0-9a-f:]{2,39}\/\d{1,3})$/, "cidr expected"))
+    .max(16)
+    .optional(),
+  outbox: z.strictObject({ queueUrl: SqsQueueUrl, fifo: z.boolean(), deadLetterQueueUrl: SqsQueueUrl.nullable() }).nullable(),
+  routeAuditJournalTable: DynamoTable.nullable(),
+  auditSink: z
+    .strictObject({
+      bucket: z.string().regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/),
+      expectedBucketOwner: z.string().regex(/^\d{12}$/),
+      keyPrefix: z.string().regex(/^([a-z0-9_-]{1,32}\/){0,4}$/),
+      objectLockMode: z.enum(["COMPLIANCE", "GOVERNANCE"]),
+      kmsKeyId: KmsKeyId,
+    })
+    .nullable(),
+  auditExport: z
+    .strictObject({
+      manifestSigningKeyId: KmsKeyId,
+      exporterDatabaseRef: SecretRef,
+      verifierDatabaseRef: SecretRef,
+      trustedManifestKeyIds: z.array(KmsKeyId).min(1).max(4),
+    })
+    .nullable(),
+  secrets: z.strictObject({ requestHashPepperRef: SecretRef.nullable(), otpPepperRef: SecretRef.nullable(), consoleSessionSealerRef: SecretRef.nullable() }),
+  ingressPayloadKeyId: KmsKeyId.nullable(),
+});
+
+const OtlpUrl = z
+  .string()
+  .max(512)
+  .regex(/^https:\/\/[a-z0-9.-]{1,253}(:\d{2,5})?\/v1\/(metrics|traces)$/, "https OTLP/HTTP signal URL expected");
+export const ObservabilityConfigSchema = z.strictObject({
+  contentAttributes: z.literal("DISABLED"),
+  otlp: z
+    .strictObject({
+      metricsUrl: OtlpUrl.nullable(),
+      tracesUrl: OtlpUrl.nullable(),
+      exportIntervalMs: z.number().int().min(5_000).max(300_000),
+      timeoutMs: z.number().int().min(500).max(30_000),
+    })
+    .nullable(),
+});
+
+const IssuerUrl = z.string().max(512).regex(/^https:\/\/[a-z0-9.-]{1,253}(:\d{2,5})?(\/[A-Za-z0-9._~/-]*)?$/);
+export const CallerIdentityConfigSchema = z.strictObject({
+  idps: z
+    .array(z.strictObject({ adapterKey: z.enum(["oidc-client-idp", "oidc-provider-idp"]), issuer: IssuerUrl, audience: z.string().regex(/^[A-Za-z0-9._:-]{3,256}$/) }))
+    .max(2),
+});
+
+export const ConnectorsConfigSchema = z.strictObject({
+  profileDirectory: RelativePath.nullable(),
+  feeds: z
+    .array(
+      z.strictObject({
+        profileId: z.string().regex(/^cnp_[A-Za-z0-9_-]{8,64}$/),
+        streamId: z.string().regex(/^[a-z][a-z0-9_.-]{1,63}$/),
+        operationId: z.string().regex(/^[a-z][a-z0-9_.]{1,63}$/),
+        intervalMs: z.number().int().min(1_000).max(3_600_000),
+        maxPagesPerRun: z.number().int().min(1).max(1_000),
+        deadLetterQueueUrl: SqsQueueUrl,
+        keyField: z.string().regex(/^[a-z][a-zA-Z0-9_.]{0,63}$/),
+        updatedAtField: z.string().regex(/^[a-z][a-zA-Z0-9_.]{0,63}$/).nullable(),
+      }),
+    )
+    .max(32),
+});
+
+export const CrmConfigSchema = z.strictObject({
+  salesforce: z
+    .strictObject({
+      apiVersion: z.string().regex(/^v\d{2,3}\.\d$/),
+      schemaEvidenceRef: z.string().min(3).max(512),
+      schemaApprovalId: z.string().regex(/^apr_[A-Za-z0-9_-]{8,64}$/),
+      mapping: z.record(z.string().regex(/^[a-z][a-zA-Z]{1,32}$/), z.unknown()),
+    })
+    .nullable(),
+});
+
+export const KnowledgeConfigSchema = z.strictObject({ allowedLinkDomains: z.array(DnsName).max(32) });
+
 export const PlatformConfigSchema = z
   .strictObject({
     /** Human-readable label (e.g. LOCAL FIXTURE); stripped by the loader. */
@@ -173,6 +287,18 @@ export const PlatformConfigSchema = z
     ops: OpsConfigSchema.optional(),
     /** Added by the gateway module (additive, optional). See GatewayConfigSchema. */
     gateway: GatewayConfigSchema.optional(),
+    // Live composition sections (WP-07; additive, optional).
+    infrastructure: InfrastructureConfigSchema.optional(),
+    observability: ObservabilityConfigSchema.optional(),
+    egress: EgressPolicyConfig.optional(),
+    consoleAuth: WorkforceSsoConfigSchema.optional(),
+    crm: CrmConfigSchema.optional(),
+    callerIdentity: CallerIdentityConfigSchema.optional(),
+    connectors: ConnectorsConfigSchema.optional(),
+    // No `ingress` section: the ingress inbox is not composed in this build (software gap
+    // INGRESS_PLUGIN_NOT_COMPOSED in the activation map), and a key nothing reads would let a configuration look
+    // like the missing input (FO-00-30). The strict schema refuses one.
+    knowledge: KnowledgeConfigSchema.optional(),
   })
   .superRefine((cfg, ctx) => {
     if (new Set(cfg.approvals.required).size !== cfg.approvals.required.length) {

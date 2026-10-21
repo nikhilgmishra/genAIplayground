@@ -27,8 +27,12 @@
  *    never free text, so no PHI can be typed into an administrative record.
  *  - Errors are `ConsoleErrorBody` carrying reason codes only.
  *
- * Status: IMPLEMENTED_OFFLINE contract. Workforce SSO is BLOCKED on PRQ-036
- * (identity owner: OIDC client, MFA claims and role-group mapping, VQ-IDP-08).
+ * Status: workforce SSO is implemented (authorization code + PKCE exchanged by
+ * the backend, server-side state/nonce/PKCE binding, exact redirect allowlist,
+ * opaque console sessions with idle and absolute expiry, same-actor refresh with
+ * rotation, IdP group -> role mapping, offboarding by IdP active-state checks,
+ * break-glass issuance and dual-controlled SSO-outage recovery); a tenant's real
+ * workforce IdP client and group mapping are NOT_CONFIGURED (AIN-13).
  * Talkdesk join/transfer controls are UNKNOWN (TB-07); the backend reports
  * their availability per call in `CallDetailResponse.controls`.
  */
@@ -78,6 +82,9 @@ export const PATH_PARAM_PATTERNS = {
   messageId: OPAQUE_ID_PATTERN,
   taskId: OPAQUE_ID_PATTERN,
   releaseId: OPAQUE_ID_PATTERN,
+  requestId: OPAQUE_ID_PATTERN,
+  reviewId: OPAQUE_ID_PATTERN,
+  identityId: OPAQUE_ID_PATTERN,
 } as const;
 export type PathParamName = keyof typeof PATH_PARAM_PATTERNS;
 
@@ -282,8 +289,16 @@ export const CONSOLE_ENDPOINTS = {
   "auth.localStaff": { method: "GET", path: "/console/api/v1/auth/local/staff" },
   /** LOCAL FIXTURE ONLY: token for one synthetic staff member from the local workforce IdP fixture. */
   "auth.localToken": { method: "POST", path: "/console/api/v1/auth/local/token" },
-  /** OIDC authorization-code + PKCE exchange performed by the backend (BLOCKED: PRQ-036). */
+  /** Server-side login transaction: state, nonce, PKCE challenge and the exact redirect (FO-05-10, FO-05-13). */
+  "auth.oidcStart": { method: "POST", path: "/console/api/v1/auth/oidc/start" },
+  /** OIDC authorization-code + PKCE exchange performed by the backend; issues an opaque console session. */
   "auth.oidcExchange": { method: "POST", path: "/console/api/v1/auth/oidc/exchange" },
+  /** Same-actor refresh with rotation, authenticated by the console session bearer (not user activity). */
+  "auth.refresh": { method: "POST", path: "/console/api/v1/auth/refresh" },
+  /** SSO-outage recovery: challenge for a registered recovery identity (dual control, FO-14-51). */
+  "auth.recoveryChallenge": { method: "POST", path: "/console/api/v1/auth/recovery/challenge" },
+  /** SSO-outage recovery: two custodians' signatures over the challenge yield a short recovery session. */
+  "auth.recoveryActivate": { method: "POST", path: "/console/api/v1/auth/recovery/activate" },
   // --- authenticated ---
   "auth.logout": { method: "POST", path: "/console/api/v1/auth/logout" },
   me: { method: "GET", path: "/console/api/v1/me" },
@@ -310,6 +325,21 @@ export const CONSOLE_ENDPOINTS = {
   "killSwitches.set": { method: "POST", path: "/console/api/v1/kill-switches" },
   "audit.search": { method: "GET", path: "/console/api/v1/audit/search" },
   "destinations.list": { method: "GET", path: "/console/api/v1/destinations" },
+  /** Break-glass issuance (FO-05-45): own requests; security_admin sees the tenant's pending requests. */
+  "breakGlass.list": { method: "GET", path: "/console/api/v1/break-glass/requests" },
+  "breakGlass.request": { method: "POST", path: "/console/api/v1/break-glass/requests" },
+  /** Independent approval or rejection by a security_admin who is not the requester. */
+  "breakGlass.decide": { method: "POST", path: "/console/api/v1/break-glass/requests/:requestId/decision" },
+  /** Post-use access reviews (break-glass grants used, recovery sessions activated). */
+  "accessReviews.list": { method: "GET", path: "/console/api/v1/access-reviews" },
+  "accessReviews.complete": { method: "POST", path: "/console/api/v1/access-reviews/:reviewId/complete" },
+  /** Dual-controlled SSO-outage recovery identities (hardware-held keys, outside the primary IdP). */
+  "recoveryIdentities.list": { method: "GET", path: "/console/api/v1/recovery-identities" },
+  "recoveryIdentities.propose": { method: "POST", path: "/console/api/v1/recovery-identities" },
+  /** The HOLDER proves possession of the enrolled key while signed in by SSO as that staff member (before approval). */
+  "recoveryIdentities.confirm": { method: "POST", path: "/console/api/v1/recovery-identities/:identityId/confirm" },
+  "recoveryIdentities.approve": { method: "POST", path: "/console/api/v1/recovery-identities/:identityId/approve" },
+  "recoveryIdentities.revoke": { method: "POST", path: "/console/api/v1/recovery-identities/:identityId/revoke" },
 } as const satisfies Record<string, { method: HttpMethod; path: string }>;
 
 export type EndpointKey = keyof typeof CONSOLE_ENDPOINTS;
@@ -320,7 +350,16 @@ export type EndpointKey = keyof typeof CONSOLE_ENDPOINTS;
  * adapter kind is `local_fixture`; the production configuration guard rejects
  * them (OPS-04). They respond 404 `LOCAL_FIXTURE_DISABLED` everywhere else.
  */
-export const PUBLIC_ENDPOINTS = ["auth.config", "auth.localStaff", "auth.localToken", "auth.oidcExchange"] as const satisfies readonly EndpointKey[];
+export const PUBLIC_ENDPOINTS = [
+  "auth.config",
+  "auth.localStaff",
+  "auth.localToken",
+  "auth.oidcStart",
+  "auth.oidcExchange",
+  "auth.refresh",
+  "auth.recoveryChallenge",
+  "auth.recoveryActivate",
+] as const satisfies readonly EndpointKey[];
 export type PublicEndpointKey = (typeof PUBLIC_ENDPOINTS)[number];
 export type AuthenticatedEndpointKey = Exclude<EndpointKey, PublicEndpointKey>;
 
@@ -384,6 +423,22 @@ export const ENDPOINT_ROLES: Readonly<Record<AuthenticatedEndpointKey, readonly 
   /** Metadata only; every search is itself audited; auditors can never rewrite evidence. */
   "audit.search": ["auditor", "security_admin"],
   "destinations.list": ["support_agent", "supervisor", "safety_responder", "security_admin"],
+  /** Every staff role may see its own requests; security_admin additionally the tenant's pending ones. */
+  "breakGlass.list": ALL_STAFF,
+  /** Any staff role except auditor (read-only) may request; a request grants nothing until someone else approves. */
+  "breakGlass.request": ["deployment_operator", "knowledge_editor", "policy_approver", "safety_responder", "security_admin", "support_agent", "supervisor"],
+  /** Never the requester (SELF_APPROVAL_PROHIBITED, also refused by the database). */
+  "breakGlass.decide": ["security_admin"],
+  "accessReviews.list": ["security_admin", "auditor"],
+  /** Never the holder or the approver of the reviewed access (independent review). */
+  "accessReviews.complete": ["security_admin"],
+  "recoveryIdentities.list": ["security_admin"],
+  "recoveryIdentities.propose": ["security_admin"],
+  /** Only the holder named by the identity (policy assignedStaffId), in an SSO session; any recovery role. */
+  "recoveryIdentities.confirm": ["security_admin", "supervisor", "safety_responder"],
+  /** A second security_admin, neither the proposer nor the holder (dual control). */
+  "recoveryIdentities.approve": ["security_admin"],
+  "recoveryIdentities.revoke": ["security_admin"],
 };
 
 /** Mirrors KILL_SWITCH_ROLES in platform/src/ops/staff-authz.ts (model/voice also deployment_operator). */
@@ -436,6 +491,10 @@ export const OPERATOR_REASON_CODES = {
     "PLANNED_DRILL",
   ],
   "killSwitches.set.release": ["ROOT_CAUSE_FIXED", "INCIDENT_CLOSED", "PLANNED_DRILL_COMPLETE"],
+  "breakGlass.request": ["INCIDENT_RESPONSE", "SAFETY_CASE_REVIEW", "AUDIT_REQUEST", "OUTAGE_RECOVERY"],
+  "breakGlass.decide": ["INCIDENT_VERIFIED", "JUSTIFICATION_INSUFFICIENT", "SCOPE_TOO_BROAD", "DUPLICATE_REQUEST"],
+  "accessReviews.complete": ["USE_MATCHED_JUSTIFICATION", "USE_EXCEEDED_JUSTIFICATION", "ESCALATED_TO_SECURITY", "NO_USE_RECORDED"],
+  "recoveryIdentities.revoke": ["CUSTODIAN_OFFBOARDED", "KEY_LOST_OR_COMPROMISED", "ROTATION", "ACCESS_REVIEW_FINDING"],
 } as const;
 
 /* ------------------------------------------------------------------------ */
@@ -464,7 +523,20 @@ export type ConsoleReasonCode =
   | "AUDIT_UNAVAILABLE"
   | "LOCAL_FIXTURE_DISABLED"
   | "OIDC_NOT_CONFIGURED"
-  | "RATE_LIMITED";
+  | "RATE_LIMITED"
+  | "REDIRECT_URI_NOT_ALLOWED"
+  | "LOGIN_TRANSACTION_UNAVAILABLE"
+  | "PKCE_VERIFIER_MISMATCH"
+  | "SESSION_IDLE_EXPIRED"
+  | "SESSION_REVOKED"
+  | "SESSION_TOKEN_REPLAYED"
+  | "SESSION_SUBJECT_CHANGED"
+  | "STAFF_NOT_PROVISIONED"
+  | "STAFF_GROUP_UNKNOWN"
+  | "STAFF_DEPROVISIONED"
+  | "WORKFORCE_IDP_UNAVAILABLE"
+  | "SELF_APPROVAL_PROHIBITED"
+  | "RECOVERY_DUAL_CONTROL_REQUIRED";
 
 /** Every non-2xx response body. No stack traces, SQL, record contents or free text. */
 export interface ConsoleErrorBody {
@@ -480,7 +552,7 @@ export interface ConsoleErrorBody {
 /* ------------------------------------------------------------------------ */
 
 export interface OidcClientConfig {
-  /** BLOCKED until the identity owner issues the workforce OIDC client (PRQ-036). */
+  /** CONFIGURED when the backend has a workforce SSO client; BLOCKED otherwise (local fixture mode). */
   status: "CONFIGURED" | "BLOCKED";
   issuer: string | null;
   clientId: string | null;
@@ -494,6 +566,12 @@ export interface OidcClientConfig {
   blockedReasonCode: ReasonCode | null;
 }
 
+/** Console session limits the UI shows (server-enforced; engineering defaults pending identity-owner approval). */
+export interface SessionPolicyView {
+  idleTimeoutSeconds: number;
+  absoluteLifetimeSeconds: number;
+}
+
 export interface AuthConfigResponse {
   apiVersion: typeof CONSOLE_API_VERSION;
   environment: Environment;
@@ -501,6 +579,9 @@ export interface AuthConfigResponse {
   localFixture: boolean;
   mode: "oidc_workforce" | "local_fixture";
   oidc: OidcClientConfig | null;
+  sessionPolicy: SessionPolicyView | null;
+  /** Dual-controlled SSO-outage recovery is set up (recovery identities exist). */
+  recoveryAvailable: boolean;
 }
 
 export interface LocalStaffOption {
@@ -525,24 +606,71 @@ export interface LocalTokenRequest {
 }
 
 /**
- * POST auth/oidc/exchange. The browser sends the authorization code with its
- * PKCE verifier and nonce; the backend exchanges the code at the IdP token
- * endpoint, validates the ID token (issuer, audience, nonce, expiry, MFA claim
- * per IdP configuration, BLOCKED VQ-IDP-08), maps workforce groups to StaffRole
- * and mints a console token. IdP tokens never reach the browser.
+ * POST auth/oidc/start. The browser keeps its PKCE verifier and sends only the S256
+ * challenge and the redirect URI (exact allowlist). The backend creates state and
+ * nonce, stores the login transaction and returns the authorization URL.
+ */
+export interface OidcStartRequest {
+  redirectUri: string;
+  codeChallenge: string;
+  codeChallengeMethod: "S256";
+}
+
+export interface OidcStartResponse {
+  authorizationUrl: string;
+  state: string;
+  expiresAt: IsoDateTime;
+}
+
+/**
+ * POST auth/oidc/exchange. The browser sends the authorization code, the state it
+ * received and its PKCE verifier; the backend consumes the login transaction once,
+ * checks the redirect and S256(verifier), exchanges the code at the IdP token
+ * endpoint, validates the ID token (issuer, audience, nonce, expiry, auth_time, MFA
+ * amr), maps workforce groups to StaffRole and issues an opaque console session.
+ * IdP tokens never reach the browser.
  */
 export interface OidcExchangeRequest {
   code: string;
+  state: string;
   codeVerifier: string;
   redirectUri: string;
-  nonce: string;
 }
+
+export type ConsoleSessionKind = "LOCAL_FIXTURE" | "OIDC_SSO" | "RECOVERY";
 
 export interface TokenResponse {
   accessToken: string;
   tokenType: "Bearer";
+  /** Earlier of the absolute expiry and the idle deadline at issuance. */
   expiresAt: IsoDateTime;
   localFixture: boolean;
+  sessionKind: ConsoleSessionKind;
+  /** Idle limit of the session (null for local fixture tokens). */
+  idleTimeoutSeconds: number | null;
+}
+
+/**
+ * POST auth/recovery/challenge. `proof` is a compact JWS (ES256, typ vsp-recovery-request+jwt) by the identity's
+ * own key over {aud, purpose "activation_request", tenant, identityId, nonce, iat}: only the custodian can request
+ * (and so consume the per-identity budget); the nonce is single use.
+ */
+export interface RecoveryChallengeRequest {
+  identityId: OpaqueId;
+  proof: string;
+}
+
+export interface RecoveryChallengeResponse {
+  activationId: OpaqueId;
+  /** Random challenge both custodians sign with their recovery keys (compact JWS, ES256). */
+  challenge: string;
+  expiresAt: IsoDateTime;
+}
+
+/** POST auth/recovery/activate: two signatures from two different custodians (dual control). */
+export interface RecoveryActivateRequest {
+  activationId: OpaqueId;
+  approvals: { identityId: OpaqueId; signature: string }[];
 }
 
 export interface BreakGlassView {
@@ -559,7 +687,7 @@ export interface StaffView {
   roles: StaffRole[];
   mfa: boolean;
   authenticatedAt: IsoDateTime;
-  /** Granted only through the separate audited access process; the console has no grant or request endpoint. */
+  /** Issued only through the audited break-glass workflow (request, independent approval, expiry, post-use review); never self-granted. */
   breakGlass: BreakGlassView | null;
 }
 
@@ -570,6 +698,8 @@ export interface MeResponse {
   environment: Environment;
   localFixture: boolean;
   sessionExpiresAt: IsoDateTime;
+  sessionKind: ConsoleSessionKind;
+  idleTimeoutSeconds: number | null;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1215,6 +1345,139 @@ export interface DestinationsResponse {
 }
 
 /* ------------------------------------------------------------------------ */
+/* Break-glass issuance, access reviews and recovery identities (FO-05-45, FO-14-51) */
+/* ------------------------------------------------------------------------ */
+
+export type BreakGlassJustificationCode = "ACTIVE_SAFETY_INCIDENT" | "AUDIT_INVESTIGATION" | "DEPENDENCY_OUTAGE_RECOVERY" | "PRIVACY_INCIDENT" | "SECURITY_INCIDENT";
+export type BreakGlassRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED";
+
+export interface BreakGlassRequestCreate {
+  justificationCode: BreakGlassJustificationCode;
+  /** Requested grant duration (bounded by policy, at most 4 hours). */
+  durationSeconds: number;
+  /** Opaque incident reference (`CODE:<opaque id>` or a reason code); never free text. */
+  reason: OperatorReason;
+}
+
+export interface BreakGlassRequestView {
+  requestId: OpaqueId;
+  requestedBy: string;
+  justificationCode: BreakGlassJustificationCode;
+  durationSeconds: number;
+  requestedAt: IsoDateTime;
+  decideBy: IsoDateTime;
+  status: BreakGlassRequestStatus;
+  decidedBy: string | null;
+  decidedAt: IsoDateTime | null;
+  grantId: OpaqueId | null;
+  grantExpiresAt: IsoDateTime | null;
+}
+
+export interface BreakGlassRequestsResponse {
+  requests: BreakGlassRequestView[];
+}
+
+export interface BreakGlassDecisionRequest {
+  decision: "APPROVE" | "REJECT";
+  reason: OperatorReason;
+}
+
+export interface BreakGlassDecisionResponse {
+  request: BreakGlassRequestView;
+}
+
+export type AccessReviewSubject = "BREAK_GLASS_GRANT" | "RECOVERY_SESSION";
+export type AccessReviewOutcome = "APPROPRIATE" | "INAPPROPRIATE" | "FOLLOW_UP_REQUIRED";
+
+export interface AccessReviewView {
+  reviewId: OpaqueId;
+  subjectKind: AccessReviewSubject;
+  subjectRef: OpaqueId;
+  holderStaffId: string;
+  approverStaffId: string | null;
+  openedAt: IsoDateTime;
+  dueAt: IsoDateTime;
+  status: "OPEN" | "COMPLETED";
+  outcome: AccessReviewOutcome | null;
+  reviewerStaffId: string | null;
+  completedAt: IsoDateTime | null;
+}
+
+export interface AccessReviewsResponse {
+  reviews: AccessReviewView[];
+}
+
+export interface AccessReviewCompleteRequest {
+  outcome: AccessReviewOutcome;
+  reason: OperatorReason;
+}
+
+export interface AccessReviewCompleteResponse {
+  review: AccessReviewView;
+}
+
+export type RecoveryRole = "security_admin" | "supervisor" | "safety_responder";
+
+/** Public EC P-256 key of a recovery custodian's hardware token (never private material). */
+export interface RecoveryPublicJwk {
+  kty: "EC";
+  crv: "P-256";
+  x: string;
+  y: string;
+}
+
+export interface RecoveryIdentityView {
+  identityId: OpaqueId;
+  staffId: string;
+  keyThumbprint: string;
+  roles: RecoveryRole[];
+  attestationRef: OpaqueId;
+  /** PROPOSED -> (holder confirms) -> ACTIVE (approved); SUSPENDED while the workforce IdP no longer vouches for the holder. */
+  status: "PROPOSED" | "ACTIVE" | "SUSPENDED" | "REVOKED";
+  proposedBy: string;
+  /** When the holder proved possession of the key in an SSO session of `staffId` (approval requires it). */
+  holderConfirmedAt: IsoDateTime | null;
+  approvedBy: string | null;
+  /** Why the identity is SUSPENDED (CUSTODIAN_OFFBOARDED, CUSTODIAN_ROLES_REDUCED), else null. */
+  suspendReason: ReasonCode | null;
+}
+
+export interface RecoveryIdentitiesResponse {
+  identities: RecoveryIdentityView[];
+}
+
+export interface RecoveryIdentityProposeRequest {
+  staffId: string;
+  publicJwk: RecoveryPublicJwk;
+  /** Opaque reference to the hardware-key attestation evidence reviewed out of band. */
+  attestationRef: OpaqueId;
+  roles: RecoveryRole[];
+}
+
+export interface RecoveryIdentityResponse {
+  identity: RecoveryIdentityView;
+}
+
+/** Proposal result: the one-time enrollment challenge the HOLDER signs with the enrolled key (shown once). */
+export interface RecoveryIdentityProposeResponse {
+  identity: RecoveryIdentityView;
+  enrollment: { challenge: string; expiresAt: IsoDateTime };
+}
+
+/**
+ * POST recovery-identities/:identityId/confirm, by the holder in an SSO session: compact JWS (ES256, typ
+ * vsp-recovery-enroll+jwt) by the enrolled key over {aud, purpose "enrollment", tenant, identityId, staffId,
+ * keyThumbprint, challenge, iat}.
+ */
+export interface RecoveryIdentityConfirmRequest {
+  signature: string;
+}
+
+export interface RecoveryIdentityRevokeRequest {
+  reason: OperatorReason;
+}
+
+/* ------------------------------------------------------------------------ */
 /* Endpoint type map                                                         */
 /* ------------------------------------------------------------------------ */
 
@@ -1226,7 +1489,11 @@ export interface ConsoleEndpointTypes {
   "auth.config": { query: NoQuery; body: NoBody; response: AuthConfigResponse };
   "auth.localStaff": { query: NoQuery; body: NoBody; response: LocalStaffResponse };
   "auth.localToken": { query: NoQuery; body: LocalTokenRequest; response: TokenResponse };
+  "auth.oidcStart": { query: NoQuery; body: OidcStartRequest; response: OidcStartResponse };
   "auth.oidcExchange": { query: NoQuery; body: OidcExchangeRequest; response: TokenResponse };
+  "auth.refresh": { query: NoQuery; body: NoBody; response: TokenResponse };
+  "auth.recoveryChallenge": { query: NoQuery; body: RecoveryChallengeRequest; response: RecoveryChallengeResponse };
+  "auth.recoveryActivate": { query: NoQuery; body: RecoveryActivateRequest; response: TokenResponse };
   "auth.logout": { query: NoQuery; body: NoBody; response: { loggedOut: true } };
   me: { query: NoQuery; body: NoBody; response: MeResponse };
   overview: { query: NoQuery; body: NoBody; response: OverviewResponse };
@@ -1251,4 +1518,14 @@ export interface ConsoleEndpointTypes {
   "killSwitches.set": { query: NoQuery; body: SetKillSwitchRequest; response: SetKillSwitchResponse };
   "audit.search": { query: AuditSearchQuery; body: NoBody; response: AuditSearchResponse };
   "destinations.list": { query: NoQuery; body: NoBody; response: DestinationsResponse };
+  "breakGlass.list": { query: NoQuery; body: NoBody; response: BreakGlassRequestsResponse };
+  "breakGlass.request": { query: NoQuery; body: BreakGlassRequestCreate; response: BreakGlassDecisionResponse };
+  "breakGlass.decide": { query: NoQuery; body: BreakGlassDecisionRequest; response: BreakGlassDecisionResponse };
+  "accessReviews.list": { query: NoQuery; body: NoBody; response: AccessReviewsResponse };
+  "accessReviews.complete": { query: NoQuery; body: AccessReviewCompleteRequest; response: AccessReviewCompleteResponse };
+  "recoveryIdentities.list": { query: NoQuery; body: NoBody; response: RecoveryIdentitiesResponse };
+  "recoveryIdentities.propose": { query: NoQuery; body: RecoveryIdentityProposeRequest; response: RecoveryIdentityProposeResponse };
+  "recoveryIdentities.confirm": { query: NoQuery; body: RecoveryIdentityConfirmRequest; response: RecoveryIdentityResponse };
+  "recoveryIdentities.approve": { query: NoQuery; body: NoBody; response: RecoveryIdentityResponse };
+  "recoveryIdentities.revoke": { query: NoQuery; body: RecoveryIdentityRevokeRequest; response: RecoveryIdentityResponse };
 }

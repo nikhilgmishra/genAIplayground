@@ -1,5 +1,14 @@
 # Implementation status
 
+> **Current register: the follow-on gap ledger.** This file is the single-axis status record of the
+> original offline slice. It stays in that vocabulary until WP-44 regenerates it per capability
+> (ADR-0018 decision 7.4). The current two-axis register (software status, environment status,
+> qualification, evidence and work package for every requirement) is
+> [`followon/gap-ledger.yaml`](followon/gap-ledger.yaml), rendered as [`GAP_CLOSURE.md`](GAP_CLOSURE.md);
+> both axes per capability are in [`followon/capabilities.yaml`](followon/capabilities.yaml), and missing
+> external inputs are in [`ACTIVATION_REGISTER.md`](ACTIVATION_REGISTER.md). Where this file and the
+> ledger differ, the ledger is current.
+
 Checkpoint for handoff (spec "Progress and handoff"): what is implemented, how it was verified,
 what is blocked and what comes next, so another session can continue without guessing.
 
@@ -76,6 +85,25 @@ For each module: status, evidence (test command and result reference), blockers,
 
 ### Console API and console (`platform/src/console-api`, `console/`)
 *To be completed by coordinator after integration test run.* Workforce SSO: BLOCKED (PRQ-036).
+
+### Live composition root (`platform/src/main` live units, `platform/src/config/rules`, WP-07)
+In this file's vocabulary: **IMPLEMENTED_OFFLINE** against local emulators only (SYNTHETIC data); on the two axes
+of the gap ledger: software IMPLEMENTED or VERIFIED_LOCAL per requirement, environment NOT_CONFIGURED
+([ADR-0023](adr/ADR-0023-live-composition-root.md)). sandbox, staging and production compose the gateway
+(`server.ts` `startLiveServer`), worker (`worker/main.ts` `startLiveWorker`) and console (`live-console.ts`) from
+real adapters through `buildLiveContainer`; the audit exporter (`audit-exporter.ts`) is its own unit with its own
+AWS clients and database pool (it does not reuse the live container) and hands the guard the same inputs as the
+other units; fixtures and development bypasses are refused; a missing tenant input disables only its capability
+(activation map, `/health/ready`). With telephony a NOT_CONFIGURED guard port in this build, the safety and
+human routing tools answer `ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE` (the contact centre's own route), never a
+claimed transfer; a worker outbox loop that cannot publish or consume is failing (counted, alarmed, readiness
+503), never healthy. Evidence: `make test-integration SUITE=composition` (Layer-2 tests on
+postgres:16, DynamoDB Local, ElasticMQ, LocalStack KMS and Secrets Manager, Keycloak 26 and a throwaway
+OpenTelemetry Collector, including `[FAULT:AUTH_EXPIRY_MID_CALL]` and `[FAULT:DLQ_FULL]`; run record in
+[`TEST_EVIDENCE.md`](TEST_EVIDENCE.md)); the audit exporter has unit tests only here (`src/main/audit-exporter.test.ts`). Not composed in this build (software
+gaps with owning packages): business systems, caller identity directory, relationships, notifications, Talkdesk,
+transfers, context store, models, media, harness and the ingress plugin. AWS account, tenant IdP, vendors and
+telemetry export: NOT_CONFIGURED (AIN-01, AIN-12, AIN-13, AIN-36, AIN-37).
 
 ### Evaluation, demo and local start (`platform/src/evaluation`, `platform/src/demo`, `platform/src/main`, `scenarios/`)
 Evaluation (scorer, corpus, generators, local driver), journeys, demo and load smoke: **IMPLEMENTED_OFFLINE**, evidence of 2026-10-18 in the four subsections below (scenario generators up to date: 549 scenarios, 522 risk drafts, all UNREVIEWED). Local start (`platform/src/main`): *to be completed by coordinator after integration test run.* PSTN tests: BLOCKED (PRQ-043).

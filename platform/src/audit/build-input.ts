@@ -41,6 +41,13 @@ export function buildAuditInput(fields: AuditInputFields, clock?: Clock): AuditE
     outcome: fields.outcome,
     reasonCode: fields.reasonCode ?? null,
     dataClass: fields.dataClass ?? "SECURITY_AUDIT",
+    // Follow-on evidence fields (FO-15-34): set only when given, so events without them hash as before.
+    ...(fields.causationId !== undefined ? { causationId: fields.causationId } : {}),
+    ...(fields.sourceSequence !== undefined ? { sourceSequence: fields.sourceSequence } : {}),
+    ...(fields.contextSnapshotId !== undefined ? { contextSnapshotId: fields.contextSnapshotId } : {}),
+    ...(fields.configDigest !== undefined ? { configDigest: fields.configDigest } : {}),
+    ...(fields.receiptRefs !== undefined ? { receiptRefs: fields.receiptRefs } : {}),
+    ...(fields.ingress !== undefined ? { ingress: fields.ingress } : {}),
   };
   return validateAuditInput(input);
 }

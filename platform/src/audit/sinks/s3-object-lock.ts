@@ -2,12 +2,14 @@
  * LIVE audit sink: S3 bucket with Object Lock in the separately administered
  * audit account (spec sections 3, 6 and 13).
  *
- * STATUS: BLOCKED for execution. The code path is written against the documented
- * S3 PutObject / HeadObject / GetObject / ListObjectsV2 APIs and is covered by a
- * contract test with an injected stub client only. Running it requires: the audit
- * account bucket created with Object Lock enabled (versioning on), the audit KMS
- * key, the cross-account roles of infra/terraform/modules/audit and a retention
- * duration for the SECURITY_AUDIT class approved by counsel. None exist yet.
+ * STATUS: VERIFIED against a protocol emulator (Layer 2), NOT_CONFIGURED in AWS. The code path uses
+ * the documented S3 PutObject / HeadObject / GetObject / ListObjectsV2 APIs; it runs against MinIO
+ * with Object Lock and its built-in KMS key in test/integration/_harness/audit-sink.test.ts and, with
+ * KMS-signed manifests and the separate verifier, in test/integration/substrate/audit-export.test.ts
+ * and faults.test.ts. Live use still requires: the audit-account bucket created with Object Lock
+ * enabled (versioning on), the audit KMS key, the cross-account roles of
+ * infra/terraform/modules/audit and a retention duration for the SECURITY_AUDIT class approved by
+ * counsel (activation AIN-01 / AIN-03). None exist yet.
  *
  * Identities (OPS-AUD-02; must match infra/terraform/modules/audit):
  *   - the WRITER role (shipper) may only s3:PutObject (+ kms:GenerateDataKey via S3); it is

@@ -99,6 +99,33 @@ export const BreakGlassJustification = z.enum([
   "SECURITY_INCIDENT",
 ]);
 
+/**
+ * Changes that always go to a person whatever the assurance tier (FO-05-06). Every HUMAN_BOUNDARY action is
+ * listed, so reclassifying one cannot silently make it self-service; the safety and human routes never are.
+ */
+export const HighRiskPolicy = z.strictObject({
+  description: z.string().min(10).max(400),
+  humanOnlyActions: z.array(PolicyAction).max(64),
+});
+export type HighRiskPolicy = z.infer<typeof HighRiskPolicy>;
+
+/**
+ * Tenant-approved A1 operations (FO-05-03): A1 (approved possession verification) counts as A1 only for the
+ * listed low-risk operations and only with a tenant approval record; otherwise an A1 session counts as A0.
+ */
+export const AssuranceA1Policy = z.strictObject({
+  description: z.string().min(10).max(400),
+  approvalRef: z
+    .string()
+    .regex(/^apr_[A-Za-z0-9_-]{8,64}$/)
+    .nullable(),
+  operations: z.array(PolicyAction).max(32),
+});
+export type AssuranceA1Policy = z.infer<typeof AssuranceA1Policy>;
+
+/** Action classes an A1 operation may have: never a mutation, protected read of sensitive data or human boundary. */
+export const A1_ELIGIBLE_CLASSES: readonly ActionClass[] = ["PUBLIC_READ", "INTAKE", "VERIFICATION", "PROTECTED_READ"];
+
 export const PolicyCatalogue = z
   .strictObject({
     schemaVersion: z.literal(1),
@@ -106,6 +133,8 @@ export const PolicyCatalogue = z
     roleFactTypes: z.record(Role, z.array(FactType)),
     factSources: z.record(FactType, z.array(FactSource).min(1)),
     actions: z.record(PolicyAction, CatalogueAction),
+    highRisk: HighRiskPolicy,
+    assuranceA1: AssuranceA1Policy,
     console: z.strictObject({
       maxAuthAgeSeconds: z.number().int().min(60).max(86_400),
       authFutureSkewSeconds: z.number().int().min(0).max(900),
@@ -135,9 +164,33 @@ const MUTATIONS: ReadonlySet<ActionClass> = new Set(["PREPARE_MUTATION", "COMMIT
 export function catalogueInvariantViolations(c: {
   actions: Record<string, CatalogueAction>;
   roleFactTypes: Partial<Record<string, readonly string[]>>;
+  highRisk: HighRiskPolicy;
+  assuranceA1: AssuranceA1Policy;
   console: { actions: Record<string, ConsoleCatalogueAction> };
 }): string[] {
   const out: string[] = [];
+  const humanOnly = new Set(c.highRisk.humanOnlyActions);
+  const a1 = new Set(c.assuranceA1.operations);
+  for (const name of humanOnly) {
+    if (!c.actions[name]) out.push(`HIGH_RISK_ACTION_UNKNOWN:${name}`);
+    if (isAlwaysAvailableAction(name)) out.push(`HIGH_RISK_ALWAYS_AVAILABLE:${name}`);
+  }
+  for (const [name, a] of Object.entries(c.actions)) if (a.class === "HUMAN_BOUNDARY" && !humanOnly.has(name)) out.push(`HUMAN_BOUNDARY_NOT_HUMAN_ONLY:${name}`);
+  if (a1.size > 0 && c.assuranceA1.approvalRef === null) out.push("A1_OPERATIONS_WITHOUT_APPROVAL");
+  for (const name of a1) {
+    const a = c.actions[name];
+    if (!a) {
+      out.push(`A1_OPERATION_UNKNOWN:${name}`);
+      continue;
+    }
+    if (humanOnly.has(name)) out.push(`A1_OPERATION_HIGH_RISK:${name}`);
+    const sensitive = a.classifications.some((x) => x === "*" || SENSITIVE.has(x));
+    if (!A1_ELIGIBLE_CLASSES.includes(a.class) || (a.class === "PROTECTED_READ" && sensitive)) out.push(`A1_OPERATION_NOT_LOW_RISK:${name}`);
+  }
+  // An A1 path minimum is only meaningful (and only allowed) on a tenant-approved A1 operation.
+  for (const [name, a] of Object.entries(c.actions)) {
+    for (const p of a.access) if (p.minAssurance === "A1" && !a1.has(name)) out.push(`A1_PATH_NOT_APPROVED:${name}:${p.id}`);
+  }
   for (const name of ALWAYS_AVAILABLE_ACTIONS) if (!c.actions[name]) out.push(`ALWAYS_AVAILABLE_ACTION_MISSING:${name}`);
   for (const [name, a] of Object.entries(c.actions)) {
     const always = isAlwaysAvailableAction(name);

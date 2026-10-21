@@ -29,6 +29,8 @@ import { sha256Hex } from "../../shared/canonical.js";
 import type { Clock } from "../../shared/clock.js";
 import { AccessDeniedError, DependencyError, PlatformError, ValidationError } from "../../shared/errors.js";
 import type { AdapterHealth, OidcClaims, OidcVerifier } from "../ports.js";
+import type { OidcDiscovery } from "./oidc-discovery.js";
+import { isOidcEgressRefusal } from "./oidc-http.js";
 
 export interface TrustedIssuer {
   /** Exact `iss` value. */
@@ -86,7 +88,7 @@ const deny = (reason: string): never => {
   throw new AccessDeniedError(reason);
 };
 
-function mapJoseError(err: unknown): PlatformError {
+export function mapJoseError(err: unknown): PlatformError {
   if (err instanceof PlatformError) return err;
   const code = typeof err === "object" && err !== null ? (err as { code?: unknown }).code : undefined;
   const claim = typeof err === "object" && err !== null ? (err as { claim?: unknown }).claim : undefined;
@@ -127,13 +129,16 @@ function mapJoseError(err: unknown): PlatformError {
  * token defects: they are tagged at the source so they cannot be confused with an
  * invalid token.
  */
-function tagResolverFailures(resolver: JWTVerifyGetKey): JWTVerifyGetKey {
+export function tagResolverFailures(resolver: JWTVerifyGetKey): JWTVerifyGetKey {
   return async (header, token) => {
     try {
       return await resolver(header, token);
     } catch (err) {
       const code = typeof err === "object" && err !== null ? (err as { code?: unknown }).code : undefined;
       if (code === "ERR_JWKS_NO_MATCHING_KEY" || code === "ERR_JWKS_MULTIPLE_MATCHING_KEYS") throw err;
+      // A resolver that already classified its failure (discovery: OIDC_JWKS_PRIVATE_KEY_PUBLISHED, ...) keeps its
+      // reason, and an egress-policy refusal stays a configuration refusal (never an outage).
+      if (err instanceof DependencyError || isOidcEgressRefusal(err)) throw err;
       throw new DependencyError("OIDC_JWKS_UNAVAILABLE", "NOT_STARTED");
     }
   };
@@ -239,6 +244,32 @@ export class JwksOidcVerifier implements OidcVerifier {
     if (this.policy.algorithms.length === 0 || this.policy.algorithms.some((a) => !SUPPORTED_ID_TOKEN_ALGORITHMS.includes(a))) {
       throw new ValidationError("OIDC_ALGORITHMS_INVALID");
     }
+  }
+
+  /**
+   * Live verifier whose keys come from each issuer's DISCOVERED JWKS (OidcDiscovery: exact issuer match,
+   * pinned https endpoints, fail-closed cache, unknown-kid refetch) through the egress-classified transport.
+   * Preferred over a configured JWKS URI (FO-05-07): the URI is never typed by hand.
+   */
+  static fromDiscovery(opts: {
+    integrationId: string;
+    clock: Clock;
+    providers: readonly { discovery: Pick<OidcDiscovery, "issuer" | "keyResolver">; audience: string }[];
+    policy?: Partial<OidcVerificationPolicy>;
+  }): JwksOidcVerifier {
+    const byIssuer = new Map(opts.providers.map((p) => [p.discovery.issuer, p.discovery] as const));
+    return new JwksOidcVerifier({
+      integrationId: opts.integrationId,
+      clock: opts.clock,
+      ...(opts.policy ? { policy: opts.policy } : {}),
+      // The JWKS URI here is informational only: keys are resolved through discovery.
+      issuers: opts.providers.map((p) => ({ issuer: p.discovery.issuer, audience: p.audience, jwksUri: `${p.discovery.issuer.replace(/\/$/, "")}/.well-known/openid-configuration` })),
+      keyResolverFactory: (issuer) => {
+        const d = byIssuer.get(issuer.issuer);
+        if (!d) throw new ValidationError("OIDC_ISSUER_NOT_DISCOVERED");
+        return d.keyResolver();
+      },
+    });
   }
 
   async health(): Promise<AdapterHealth> {

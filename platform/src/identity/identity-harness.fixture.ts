@@ -14,6 +14,8 @@ import { LocalIdentityDirectoryFixture } from "../adapters/local/identity-direct
 import type { DirectoryPersonFixture } from "../adapters/local/identity-directory.js";
 import { NotificationFixture } from "../adapters/local/notification-fixture.js";
 import { LocalOidcProviderFixture, LocalOidcVerifierFixture } from "../adapters/local/oidc-fixture.js";
+import { emptySnapshot } from "../ops/kill-switches.js";
+import type { KillSwitchSnapshot } from "../ops/ports.js";
 import { sessionConfig, verificationConfig } from "./config.js";
 import type { SessionConfig, VerificationConfig } from "./config.js";
 import { MemoryKvStoreFixture } from "./kv/memory-kv-store.js";
@@ -57,6 +59,8 @@ export interface HarnessOptions {
   session?: Partial<SessionConfig>;
   verification?: Partial<VerificationConfig>;
   extraPeople?: DirectoryPersonFixture[];
+  /** Kill-switch snapshot reader for the caller-facing notification check (OPS-KS-01); omitted: every switch clear. */
+  notificationSwitches?: () => Promise<KillSwitchSnapshot>;
 }
 
 export type IdentityHarness = Awaited<ReturnType<typeof createIdentityHarness>>;
@@ -88,6 +92,7 @@ export async function createIdentityHarness(opts: HarnessOptions = {}) {
     metrics,
     otpPepper: LOCAL_FIXTURE_OTP_PEPPER,
     config: verificationConfig({ otpEnabled: true, ...opts.verification }),
+    notificationSwitches: opts.notificationSwitches ?? (() => Promise.resolve(emptySnapshot())),
   });
 
   async function startCall(callId: string = CALLS.primary.callId, callerIdHash: string | null = null) {

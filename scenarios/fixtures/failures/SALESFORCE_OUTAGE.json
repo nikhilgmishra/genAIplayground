@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "SALESFORCE_OUTAGE",
-  "version": 2,
+  "version": 3,
   "title": "Salesforce unavailable during case creation",
   "description": "Every Salesforce call fails (connection refused) for the duration of the call.",
   "category": "dependency",
@@ -61,5 +61,29 @@
     "partner_intake",
     "new_client_intake"
   ],
-  "notes": "INFORMATION_PROVIDED is acceptable only for reads served by the internal support record (case follow-up: resolution contract source system support_records), which do not depend on Salesforce; intake flows still expect REQUEST_ACCEPTED in their own scenario expectations. Version 2 added it (the case-read variants previously could only fail this check)."
+  "notes": "INFORMATION_PROVIDED is acceptable only for reads served by the internal support record (case follow-up: resolution contract source system support_records), which do not depend on Salesforce; intake flows still expect REQUEST_ACCEPTED in their own scenario expectations. Version 2 added it (the case-read variants previously could only fail this check).",
+  "registry": {
+    "requirementId": "FO-17-24.SALESFORCE_OUTAGE",
+    "origin": "registry",
+    "injectionPoint": "the Salesforce emulator refuses connections for the whole call",
+    "injectionPointPackages": [
+      "WP-29"
+    ],
+    "postconditionPackages": [
+      "WP-29"
+    ],
+    "layer2Owner": "WP-29",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "support_request_kind",
+      "kind": "internal_pending_sync"
+    }
+  ],
+  "postconditions": [
+    "An encrypted internal support request with a reference is persisted while Salesforce refuses connections",
+    "Synchronization is queued (outbox / DLQ visible to operators); no invented Case number is spoken",
+    "The request has an audit event"
+  ]
 }

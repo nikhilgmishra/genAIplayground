@@ -6,7 +6,7 @@
   "countsTowardHumanReviewedRequirement": false,
   "riskClass": "authorization",
   "description": "A multi-role caller tries to use privileges of one role while acting in another; privileges are never combined silently.",
-  "generator": "platform/src/evaluation/generate-risk.ts@1",
+  "generator": "platform/src/evaluation/generate-risk.ts@2",
   "requiredReviewers": [
     "security_leadership",
     "qa_language_lead"
@@ -23,7 +23,7 @@
       "scenario": {
         "scenarioId": "scn_risk_role_combining_001",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "role_switch_mid_call",
         "audience": "provider",
         "locale": "en-US",
@@ -331,7 +331,7 @@
       "scenario": {
         "scenarioId": "scn_risk_role_combining_005",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "role_switch_mid_call",
         "audience": "practice_staff",
         "locale": "en-US",
@@ -716,7 +716,7 @@
       "scenario": {
         "scenarioId": "scn_risk_role_combining_010",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "role_switch_mid_call",
         "audience": "partner",
         "locale": "en-US",
@@ -1251,7 +1251,7 @@
       "scenario": {
         "scenarioId": "scn_risk_role_combining_017",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "role_switch_mid_call",
         "audience": "provider",
         "locale": "en-US",
@@ -1832,7 +1832,7 @@
       "scenario": {
         "scenarioId": "scn_risk_role_combining_024",
         "version": 1,
-        "split": "heldout_acceptance",
+        "split": "development",
         "intent": "role_switch_mid_call",
         "audience": "practice_staff",
         "locale": "en-US",

@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "REGIONAL_FAILOVER",
-  "version": 1,
+  "version": 2,
   "title": "Primary region fails during a call",
   "description": "Writes are fenced during regional uncertainty.",
   "category": "infrastructure",
@@ -46,5 +46,24 @@
     "SPEC-16.fault-injection"
   ],
   "appliesToIntents": [],
-  "notes": "Only a local simulation; a real regional drill is BLOCKED (PRQ-039)."
+  "notes": "Only a local simulation; a real regional drill is BLOCKED (PRQ-039).",
+  "registry": {
+    "requirementId": "FO-17-24.REGIONAL_FAILOVER",
+    "origin": "registry",
+    "injectionPoint": "regional uncertainty with the application write fence (FO-16-44a)",
+    "injectionPointPackages": [
+      "WP-42"
+    ],
+    "postconditionPackages": [
+      "WP-25",
+      "WP-42"
+    ],
+    "layer2Owner": "WP-42",
+    "localDriver": "REFUSED"
+  },
+  "reachEvidence": [],
+  "postconditions": [
+    "Writes are fenced during regional uncertainty (FO-16-44a)",
+    "External side effects are reconciled before mutations reopen; no duplicate effect"
+  ]
 }

@@ -2,9 +2,28 @@
   "$id": "https://schemas.voice-support.invalid/protocol/2026-10-17.1/HandoffPackage.json",
   "title": "HandoffPackage",
   "x-protocol-version": "2026-10-17.1",
+  "x-contract-version": "handoff-package.v1",
+  "x-common-fields": {
+    "schemaVersion": "schemaVersion",
+    "tenantId": "tenantId",
+    "interactionId": "callId",
+    "sessionGeneration": "sessionGeneration",
+    "subjectRef": "authorizedSubjectRef",
+    "causationId": "causationId",
+    "occurredAt": "createdAt",
+    "provenance": "contextSnapshotRef"
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "handoff-package.v1"
+    },
+    "causationId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+    },
     "handoffId": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
@@ -243,6 +262,25 @@
           "type": "null"
         }
       ]
+    },
+    "contextSnapshotRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^ctx_[A-Za-z0-9_-]{16,64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "watermarkRefs": {
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^wmk_[A-Za-z0-9_-]{16,64}$"
+      }
     },
     "createdAt": {
       "type": "string",

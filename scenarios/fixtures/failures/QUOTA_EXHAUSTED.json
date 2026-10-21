@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "QUOTA_EXHAUSTED",
-  "version": 1,
+  "version": 2,
   "title": "AI or budget quota exhausted mid-call",
   "description": "The AI admission budget / vendor quota is exhausted while a call is active.",
   "category": "capacity",
@@ -49,5 +49,40 @@
     "human_request",
     "faq_hours"
   ],
-  "notes": "Quota values are not known (TB-10); the fixture uses a synthetic exhausted budget."
+  "notes": "Quota values are not known (TB-10); the fixture uses a synthetic exhausted budget.",
+  "registry": {
+    "requirementId": "FO-17-24.QUOTA_EXHAUSTED",
+    "origin": "registry",
+    "injectionPoint": "vendor or AI quota exhausted mid-call (shared quota counters)",
+    "injectionPointPackages": [
+      "WP-42"
+    ],
+    "postconditionPackages": [
+      "WP-15",
+      "WP-28",
+      "WP-42"
+    ],
+    "layer2Owner": "WP-42",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "tool_response",
+      "tools": null,
+      "statuses": [
+        "POLICY_DENIED",
+        "RETRYABLE_FAILURE",
+        "PERMANENT_FAILURE"
+      ],
+      "reasonCodes": [
+        "BUDGET_EXHAUSTED"
+      ],
+      "sessionStates": null
+    }
+  ],
+  "postconditions": [
+    "Nonessential tools are refused BUDGET_EXHAUSTED by admission control",
+    "Safety and human-route tools are still served (exempt)",
+    "A budget event is recorded"
+  ]
 }

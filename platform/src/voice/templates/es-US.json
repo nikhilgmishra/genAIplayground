@@ -348,6 +348,25 @@
       }
     },
     {
+      "templateId": "safety.studio_route",
+      "version": "0.1.0-draft",
+      "responseClass": "SAFETY",
+      "text": "Estoy enviando su llamada a nuestra línea prioritaria de ayuda en este momento. Por favor, permanezca en la línea.",
+      "slots": {},
+      "approval": {
+        "status": "PENDING_CLINICAL_APPROVAL",
+        "approvedBy": null
+      },
+      "metadata": {
+        "owner": "clinical_safety_lead",
+        "reviewMarker": "[PENDING CLINICAL SAFETY LEAD APPROVAL]",
+        "languageReview": "PENDING_NATIVE_SPEAKER_REVIEW",
+        "purpose": "Safety concern while no platform route can be reached (the routing tool reports ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE): the contact-centre flow takes its independent Studio safety route. Says what happens next; never claims a connection the platform is making.",
+        "notes": "Neutral procedural placeholder, not clinical guidance. The clinical safety lead owns the approved script. Renders at A0 without authorization (SAFE-02).",
+        "acknowledgmentOnly": false
+      }
+    },
+    {
       "templateId": "clinical.boundary",
       "version": "0.1.0-draft",
       "responseClass": "CLINICAL_BOUNDARY",

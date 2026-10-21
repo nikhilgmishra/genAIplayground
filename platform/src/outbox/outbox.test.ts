@@ -168,6 +168,19 @@ describe("dispatcher", () => {
     expect((await statusOf(id))?.status).toBe("DEAD");
   });
 
+  it("[FO-06-10][OPS-01] requeue fails closed without a composed audit writer or without an accountable operator", async () => {
+    await installAuditFixtureTable(db);
+    const id = await inTenant((tx) => outbox.enqueue(tx, msg(1)));
+    const unaudited = dispatcherWith(publisher, { config: { maxAttempts: 1 } });
+    publisher.throwOnNextPublish();
+    await unaudited.runOnce();
+    expect(await reason(unaudited.requeueDead(id, { actorRef: "stf_synthSupervisor01", reasonCode: "OPERATOR_REQUEUE" }))).toBe("OUTBOX_REQUEUE_AUDIT_NOT_CONFIGURED");
+    const audited = dispatcherWith(publisher, { config: { maxAttempts: 1 }, audit: new InTxAuditWriterFixture(db) });
+    expect(await reason(audited.requeueDead(id))).toBe("OUTBOX_REQUEUE_OPERATOR_REQUIRED");
+    expect((await statusOf(id))?.status).toBe("DEAD");
+    expect(await fixtureAuditRows(db, id)).toEqual([]);
+  });
+
   it("[SPEC-12.3] a publish exception or an unreported message counts as failed (redelivery is safe, loss is not)", async () => {
     const ids = await inTenant(async (tx) => [await outbox.enqueue(tx, msg(1)), await outbox.enqueue(tx, msg(2))]);
     const d = dispatcherWith(publisher);

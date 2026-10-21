@@ -1,7 +1,7 @@
 {
-  "faultPlanVersion": "fault-plan.v1",
+  "faultPlanVersion": "fault-plan.v2",
   "faultId": "DUPLICATE_WEBHOOK",
-  "version": 1,
+  "version": 3,
   "title": "Vendor redelivers the same event twice",
   "description": "The same inbound event (workflow callback / vendor webhook) is delivered twice with the same event id after the first delivery was processed.",
   "category": "delivery",
@@ -49,5 +49,33 @@
     "complaint_intake",
     "partner_intake"
   ],
-  "notes": "Inbound webhook authentication for the real vendor is BLOCKED (TB-09); the fixture exercises only deduplication."
+  "notes": "Reach evidence: on the transfer path the telephony emulator flags each duplicate delivery it made (TELEPHONY_DUPLICATE_EVENTS_<n>, an emulator log). On the outbox path the only local signal is the LOCAL FIXTURE driver's own count of the delivered messages it published again with the same ids (DUPLICATE_REDELIVERIES_<n>): a driver self-report, never reach evidence, so an outbox-path run is INCONCLUSIVE (reached null, observedBy 'driver_notes.outbox_redelivered (driver self-report)'). Both counters are carried in the driver's notes until the evidence collector (WP-34) records them as typed fields. Neither is an inbox row; the Layer-2 run [FAULT:DUPLICATE_WEBHOOK] (WP-04) proves the duplicate with the inbox and consumer-dedup rows.",
+  "registry": {
+    "requirementId": "FO-17-24.DUPLICATE_WEBHOOK",
+    "origin": "registry",
+    "injectionPoint": "inbound inbox redelivery with the same (tenant, source, event_id) and outbox redelivery",
+    "injectionPointPackages": [
+      "WP-04"
+    ],
+    "postconditionPackages": [
+      "WP-04"
+    ],
+    "layer2Owner": "WP-04",
+    "localDriver": "IN_PROCESS_FIXTURE_INJECTION"
+  },
+  "reachEvidence": [
+    {
+      "source": "emulator_log",
+      "log": "telephony_duplicate_events"
+    },
+    {
+      "source": "driver_self_report",
+      "note": "outbox_redelivered"
+    }
+  ],
+  "postconditions": [
+    "A redelivered event with the same id is deduplicated: one workflow transition, one support record, one dial per attempt",
+    "The attempt history never repeats, reverses or skips a state",
+    "The deduplication decision is recorded"
+  ]
 }

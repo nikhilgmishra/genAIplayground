@@ -8,9 +8,11 @@
  */
 import type { ScenarioDefinition, ScenarioTurn, VersionSet } from "../protocol/index.js";
 import { sha256Hex } from "../shared/canonical.js";
-import type { FaultPlan } from "./fault-plan.js";
+import { loadFaultPlans } from "./fault-plan.js";
+import type { FaultPlan, ReachEvidence } from "./fault-plan.js";
+import { repoPaths } from "./paths.js";
 import type { CallEvidence, CallHandle, ConversationDriver, FaultAck, StartCallInput, TurnAck } from "./runner.js";
-import { PROTECTED_TOOLS } from "./vocabulary.js";
+import { ALWAYS_AVAILABLE_TOOLS, PROTECTED_TOOLS } from "./vocabulary.js";
 
 export const FIXTURE_VERSIONS: VersionSet = {
   agentConfig: "local-fixture",
@@ -31,8 +33,103 @@ const DESTINATION_FOR: Record<string, { id: string; purpose: string }> = {
   NONE: { id: "dst_support_general", purpose: "STANDARD_SUPPORT" },
 };
 
-/** Evidence exactly matching what the scenario expects (every hard gate satisfied). */
-export function idealEvidenceFixture(s: ScenarioDefinition): CallEvidence {
+/**
+ * Evidence exactly matching what the scenario expects (every hard gate satisfied). With `plans`, the
+ * fixture also carries, for each requested fault, the backend record its plan's first reach rule looks
+ * for (fault-plan.ts ReachEvidence), placed where the scenario's own expected flow allows it; a fault the
+ * expected flow cannot reach gets no record, so the scorer reports it INCONCLUSIVE (never PASS). Without
+ * `plans` the committed registry (scenarios/fixtures/failures) is used.
+ */
+export function idealEvidenceFixture(s: ScenarioDefinition, plans: ReadonlyMap<string, FaultPlan> = committedPlans()): CallEvidence {
+  const base = idealWithoutReach(s);
+  for (const faultId of s.initialState.faults) {
+    const rule = plans.get(faultId)?.reachEvidence[0];
+    if (rule) addReachRecord(s, base, rule);
+  }
+  return base;
+}
+
+let cachedPlans: ReadonlyMap<string, FaultPlan> | null = null;
+const committedPlans = (): ReadonlyMap<string, FaultPlan> => (cachedPlans ??= loadFaultPlans(repoPaths().failures));
+
+const TRANSFER_CONNECTED = ["REQUESTED", "QUEUED", "RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED", "COMPLETED"] as const;
+
+/** Adds the backend record a reach rule looks for when the scenario's expected flow allows it (fixture only). */
+function addReachRecord(s: ScenarioDefinition, e: CallEvidence, rule: ReachEvidence): void {
+  const calls = e.toolCalls ?? [];
+  const auditId = `aud_reach_${calls.length}`;
+  switch (rule.source) {
+    case "tool_response": {
+      // A refused or failed read is consistent with any expectation (it neither discloses nor takes effect):
+      // the rule's own tool when the flow uses it, else the first expected tool that is not a safety or human
+      // route (those stay available under every fault), else a generic protected read.
+      const routes = new Set<string>(ALWAYS_AVAILABLE_TOOLS);
+      const name =
+        rule.tools?.find((t) => s.expectedToolSequence.includes(t)) ??
+        rule.tools?.[0] ??
+        s.expectedToolSequence.find((t) => !routes.has(t)) ??
+        "get_appointment_options";
+      calls.push({ name, version: "1.0.0", status: rule.statuses?.[0] ?? "POLICY_DENIED", turnIndex: null, auditEventId: auditId, sessionState: rule.sessionStates?.[0] ?? (PROTECTED_TOOLS.has(name) ? "valid" : "none"), reasonCode: rule.reasonCodes?.[0] ?? null });
+      e.auditEventIds?.push(auditId);
+      return;
+    }
+    case "ambiguous_commit_with_effect": {
+      const name = rule.tools.find((t) => s.expectedToolSequence.includes(t));
+      if (!name || (e.committedActions ?? []).length === 0) return;
+      calls.push({ name, version: "1.0.0", status: "UNKNOWN_OUTCOME", turnIndex: null, auditEventId: auditId, sessionState: "valid", reasonCode: "COMMIT_OUTCOME_UNKNOWN" });
+      e.auditEventIds?.push(auditId);
+      return;
+    }
+    case "transfer_states": {
+      if (!e.transfer?.attempted) return;
+      const [a, b] = rule.adjacent;
+      const failed = a === "REQUESTED" ? [] : [...TRANSFER_CONNECTED.slice(0, TRANSFER_CONNECTED.indexOf(a as (typeof TRANSFER_CONNECTED)[number]) + 1), b];
+      const connected = a === "REQUESTED" ? ["REQUESTED", "RECEIVER_ACCEPTED", "BRIDGED", "CALLER_CONFIRMED_CONNECTED", "COMPLETED"] : [...TRANSFER_CONNECTED];
+      e.transfer = { ...e.transfer, states: [...failed, ...connected] as typeof e.transfer.states, fallbackInvoked: failed.length > 0 };
+      return;
+    }
+    case "support_request_kind":
+      if ((e.supportRequests ?? []).length > 0) e.supportRequests = (e.supportRequests ?? []).map((r) => ({ ...r, kind: rule.kind }));
+      return;
+    case "verification_not_completed": {
+      // Verification begun and never completed: assurance stays A0, which never exceeds the expected tier.
+      if (!calls.some((c) => c.name === "begin_verification" && c.status === "SUCCESS")) {
+        calls.push({ name: "begin_verification", version: "1.0.0", status: "SUCCESS", turnIndex: null, auditEventId: auditId, sessionState: "none", reasonCode: null });
+        e.auditEventIds?.push(auditId);
+      }
+      if (!calls.some((c) => PROTECTED_TOOLS.has(c.name) && c.status === "SUCCESS")) e.assurance = "A0";
+      return;
+    }
+    case "backend_record": {
+      const row = Object.fromEntries(Object.entries(rule.where).map(([k, v]) => [k, v[0]]));
+      const cs = (e.committedState ?? {}) as Record<string, unknown>;
+      cs[rule.collection] = [...((cs[rule.collection] as unknown[] | undefined) ?? []), row];
+      e.committedState = cs;
+      return;
+    }
+    case "response_template": {
+      const cs = (e.committedState ?? {}) as Record<string, unknown>;
+      cs.spokenTemplates = [...((cs.spokenTemplates as unknown[] | undefined) ?? []), `${rule.templateIds[0]}:APPROVED:RENDERED`];
+      e.committedState = cs;
+      return;
+    }
+    case "emulator_log": {
+      const cs = (e.committedState ?? {}) as Record<string, unknown>;
+      cs.driverNotes = [...((cs.driverNotes as unknown[] | undefined) ?? []), "TELEPHONY_DUPLICATE_EVENTS_1"];
+      e.committedState = cs;
+      return;
+    }
+    case "driver_self_report": {
+      // The driver's own note (never reach evidence): the scorer reports the fault INCONCLUSIVE.
+      const cs = (e.committedState ?? {}) as Record<string, unknown>;
+      cs.driverNotes = [...((cs.driverNotes as unknown[] | undefined) ?? []), "DUPLICATE_REDELIVERIES_1"];
+      e.committedState = cs;
+      return;
+    }
+  }
+}
+
+function idealWithoutReach(s: ScenarioDefinition): CallEvidence {
   const fs = s.expectedFinalState;
   const committedActions = fs.committedActions.map((k, i) => ({
     actionKind: k,

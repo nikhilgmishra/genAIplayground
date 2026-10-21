@@ -168,6 +168,24 @@ External tool definitions are not versioned within the Talkdesk platform ([S3]).
   `ai-agent-config.yaml`; `get_login_guidance` and `prepare_billing_review` are published
   but not assigned to an agent in `ai-agent-config.yaml`. Its digest is copied into the
   release manifest (and then here) by the release process, not by this package.
+* `tools/list` also carries MCP tool annotations derived from the pinned definitions
+  (`platform/src/gateway/mcp.ts` `mcpAnnotationsFor`; hints only, the gateway enforces
+  everything). Reads are `readOnlyHint`. `destructiveHint` is false only for purely additive
+  tools (the insert-only intakes `create_support_request`, `submit_complaint`,
+  `submit_partner_intake`) and, deliberately, for the safety / human routes, so that a client
+  never holds them behind a confirmation (SAFE-03). Commits, prepares (a new prepare supersedes
+  the session's pending actions on the same record) and `begin_verification` (a one-time-code
+  begin supersedes the call's outstanding code) are `destructiveHint`. Only reads and the
+  digest-bound commits are `idempotentHint` (a commit's arguments are its action id and digest).
+  Intakes, prepares and `begin_verification` are **not**, because their replay protection hangs
+  on the idempotency key (`Idempotency-Key` header or `_meta.idempotencyKey`;
+  `_meta["vsp/idempotency"]` is `IDEMPOTENCY_KEY_REQUIRED`), not on the arguments: a retry after
+  `UNKNOWN_OUTCOME` or a timeout must reuse the same key, and a new key can create a second
+  record (ACT-F2). The safety / human routes need no key (`_meta["vsp/idempotency"]` is
+  `NATURALLY_IDEMPOTENT`: a repeat returns the active journey instead of dialling twice) but are
+  **not** `idempotentHint` either, because a repeat can write another handoff record or incident
+  and re-apply the session escalation. Whether the Talkdesk client honours annotations, or
+  retries tool calls and with which key, is UNKNOWN (VQ-TD-26, MC-07).
 * MCP `tools/call` carries a tool name, not a version. The gateway maps each name to the
   single pinned version for the environment. A breaking change ships as a new catalogue
   version (and, where both must coexist, a new tool name), never as a silent schema change
