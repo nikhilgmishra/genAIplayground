@@ -15,6 +15,10 @@
  *  - A TypeScript invariant guard can only TIGHTEN a WASM decision: an allow
  *    for an expired/revoked session, a tenant mismatch, an engaged AI-admission
  *    switch or a verification-secret resource is converted to a deny.
+ *  - A fault-injection decoration of the evaluator (local/ci only) can only
+ *    tighten too: a decorated allow wider than the loaded policy's own decision
+ *    for the engine's own (never shared) input is a POLICY_ENGINE_ERROR deny
+ *    (decorateEvaluator).
  *
  * Kind: "live" — this is the real engine over the real bundle. A bundle built
  * locally is NOT an approved policy release (POLICY_RELEASE, PRQ-031).
@@ -27,6 +31,7 @@ import { z } from "zod";
 import { silentLogger } from "../observability/logger.js";
 import type { Logger, Metrics } from "../observability/ports.js";
 import { VersionLabel } from "../protocol/common.js";
+import type { Environment } from "../protocol/common.js";
 import { PolicyDecision, PolicyInput } from "../protocol/policy.js";
 import { ReasonCode } from "../protocol/tools.js";
 import { sha256Hex } from "../shared/canonical.js";
@@ -80,11 +85,32 @@ export interface PolicyEvaluator {
   evaluate(input: unknown, entrypoint: string): unknown;
 }
 
+/**
+ * Handle of an evaluator decoration installed with `OpaWasmPolicyEngine.decorateEvaluator`
+ * (FAULT-INJECTION SEAM, see the method). `remove()` restores the evaluator that was decorated;
+ * it is idempotent.
+ */
+export interface EvaluatorDecoration {
+  readonly active: boolean;
+  remove(): void;
+}
+
+/** Reason-coded refusal of the evaluator decoration seam (never an evaluation error). */
+export class PolicyEvaluatorSeamError extends PlatformError {}
+
 export interface EngineOptions {
   clock?: Clock;
   logger?: Logger;
   metrics?: Metrics;
+  /**
+   * Deployment environment of the composition that loads the engine. When given and not local/ci, the
+   * evaluator decoration seam is refused on this engine whatever its caller claims (OPS-04).
+   */
+  environment?: Environment;
 }
+
+/** Environments in which the evaluator decoration (fault-injection) seam may be installed (OPS-04). */
+export const EVALUATOR_SEAM_ENVIRONMENTS: readonly Environment[] = ["local", "ci"];
 
 export interface LoadBundleOptions extends EngineOptions {
   /** Directory holding bundle.tar.gz (policy/build), or the policy/ directory itself. */
@@ -155,6 +181,27 @@ export function normalizeConsoleInput(input: ConsoleDecisionInput): ConsoleDecis
   };
 }
 
+/** A frozen copy of `v` (structured clone, every nested object and array frozen). */
+function deepFrozenClone<T>(v: T): T {
+  const freeze = (x: unknown): void => {
+    if (typeof x !== "object" || x === null || Object.isFrozen(x)) return;
+    Object.freeze(x);
+    for (const child of Object.values(x as Record<string, unknown>)) freeze(child);
+  };
+  const copy = structuredClone(v);
+  freeze(copy);
+  return copy;
+}
+
+/**
+ * Frozen view of an evaluator: its entrypoints copied and frozen, `evaluate` bound to the original object as it
+ * was at construction (a later reassignment of the original's `evaluate` is not picked up).
+ */
+function frozenEvaluatorView(e: PolicyEvaluator): PolicyEvaluator {
+  const evaluate = e.evaluate;
+  return Object.freeze({ entrypoints: Object.freeze([...e.entrypoints]), evaluate: (input: unknown, entrypoint: string): unknown => evaluate.call(e, input, entrypoint) });
+}
+
 /**
  * Hard invariants checked in TypeScript after the WASM decision. They can only
  * turn an allow into a deny (defence in depth for AUTH-04, AUTH-06, SAFE-02
@@ -218,19 +265,30 @@ export class OpaWasmPolicyEngine implements PolicyEngine {
   readonly policyVersion: string;
   readonly bundleDigest: string;
   readonly catalogue: PolicyCatalogue;
-  private readonly evaluator: PolicyEvaluator;
+  /** The evaluator decisions use: the loaded one, or a decoration of it while one is installed. */
+  private evaluator: PolicyEvaluator;
+  /**
+   * The evaluator the engine was built with, as a frozen view captured at construction, in an ECMAScript private
+   * field: neither a decoration (it receives this frozen view as `inner`) nor a cast-based field swap can replace
+   * or alter what the tighten-only rule consults.
+   */
+  readonly #loaded: PolicyEvaluator;
+  private decoration: { handle: EvaluatorDecoration } | null = null;
   private readonly clock: Clock;
   private readonly logger: Logger;
   private readonly metrics: Metrics | undefined;
+  private readonly environment: Environment | undefined;
 
   private constructor(parts: EngineParts, opts: EngineOptions) {
     this.policyVersion = parts.policyVersion;
     this.bundleDigest = parts.bundleDigest;
     this.catalogue = parts.catalogue;
-    this.evaluator = parts.evaluator;
+    this.#loaded = frozenEvaluatorView(parts.evaluator);
+    this.evaluator = this.#loaded;
     this.clock = opts.clock ?? systemClock;
     this.logger = (opts.logger ?? silentLogger).child({ component: "policy_engine" });
     this.metrics = opts.metrics;
+    this.environment = opts.environment;
   }
 
   /**
@@ -298,12 +356,88 @@ export class OpaWasmPolicyEngine implements PolicyEngine {
     return new OpaWasmPolicyEngine({ policyVersion: VersionLabel.parse(parts.policyVersion), bundleDigest: parts.bundleDigest, catalogue, evaluator: parts.evaluator }, opts);
   }
 
-  /** Same loaded bundle and evaluator with different observability or clock (e.g. a child logger per request scope). */
+  /**
+   * Same loaded bundle and evaluator with different observability or clock (e.g. a child logger per
+   * request scope). The copy is built over the undecorated evaluator: a fault decoration installed with
+   * `decorateEvaluator` belongs to the engine instance it was installed on.
+   */
   withOptions(opts: EngineOptions): OpaWasmPolicyEngine {
     return new OpaWasmPolicyEngine(
-      { policyVersion: this.policyVersion, bundleDigest: this.bundleDigest, catalogue: this.catalogue, evaluator: this.evaluator },
-      { clock: opts.clock ?? this.clock, logger: opts.logger ?? this.logger, metrics: opts.metrics ?? this.metrics },
+      { policyVersion: this.policyVersion, bundleDigest: this.bundleDigest, catalogue: this.catalogue, evaluator: this.#loaded },
+      { clock: opts.clock ?? this.clock, logger: opts.logger ?? this.logger, metrics: opts.metrics ?? this.metrics, environment: opts.environment ?? this.environment },
     );
+  }
+
+  /**
+   * FAULT-INJECTION SEAM (FO-17-24.POLICY_ENGINE_ERROR; scenarios/fixtures/failures/POLICY_ENGINE_ERROR.json).
+   * Local and CI only (OPS-04): refused (POLICY_EVALUATOR_SEAM_NOT_ALLOWED) unless `opts.environment` is local
+   * or ci AND the engine itself was not loaded for a deployed environment (EngineOptions.environment).
+   *
+   * Replaces the evaluation step (the WASM `policy.evaluate` call) of THIS engine instance with
+   * `decorate(inner)`, where `inner` is the evaluator the engine was loaded with. Everything around the
+   * evaluation stays the production engine: strict input parsing and normalisation, result validation,
+   * the invariant guard, and the fail-closed path that turns a throw or an unusable result into a deny
+   * with POLICY_ENGINE_ERROR.
+   *
+   * TIGHTEN-ONLY, enforced (not assumed): whenever the evaluator in use is not the loaded one, a decorated
+   * ALLOW is accepted only if the loaded evaluator, asked the same question, also allows, the decorated field
+   * mask is a subset of the loaded one and every loaded obligation is kept; the reason codes are the loaded
+   * ones. Anything else is a deny with POLICY_ENGINE_ERROR (detail POLICY_EVALUATOR_DECORATION_WIDENED). A
+   * decorated deny, throw or malformed result can only deny. So a decoration can make decisions fail closed,
+   * narrow them or pass them through; it can never allow what the loaded policy denies.
+   *
+   * INPUT ISOLATION: the "same question" is the engine's own normalised input, which a substituted evaluator
+   * never sees. It receives a deep-frozen structured clone (an in-place rewrite of, say, `auth.assurance`
+   * throws; a rewritten copy only changes what the decoration itself asks), while the loaded evaluator and the
+   * invariant guard read the pristine original. `inner` is a frozen view of the loaded evaluator, captured at
+   * construction in a private field, so a decoration cannot replace what the rule consults either.
+   *
+   * Rules: one decoration at a time (POLICY_EVALUATOR_ALREADY_DECORATED); the decorated evaluator must
+   * expose exactly the inner entrypoints (POLICY_EVALUATOR_DECORATION_INVALID). `remove()` restores the
+   * loaded evaluator. A freshly loaded engine has no decoration (`evaluatorDecorated` is false), and the
+   * production composition never calls this method: only evaluation fault plans do
+   * (platform/src/evaluation/policy-fault.ts).
+   */
+  decorateEvaluator(decorate: (inner: PolicyEvaluator) => PolicyEvaluator, opts: { environment: Environment }): EvaluatorDecoration {
+    const claimed = opts?.environment;
+    if (!EVALUATOR_SEAM_ENVIRONMENTS.includes(claimed) || (this.environment !== undefined && !EVALUATOR_SEAM_ENVIRONMENTS.includes(this.environment))) {
+      this.logger.warn("policy.evaluator.decoration_refused", { reasonCode: "POLICY_EVALUATOR_SEAM_NOT_ALLOWED" });
+      throw new PolicyEvaluatorSeamError("POLICY_EVALUATOR_SEAM_NOT_ALLOWED");
+    }
+    if (this.decoration) throw new PolicyEvaluatorSeamError("POLICY_EVALUATOR_ALREADY_DECORATED");
+    const inner = this.#loaded;
+    const decorated = decorate(inner);
+    const sameEntrypoints =
+      typeof decorated === "object" &&
+      decorated !== null &&
+      typeof decorated.evaluate === "function" &&
+      Array.isArray(decorated.entrypoints) &&
+      decorated.entrypoints.length === inner.entrypoints.length &&
+      inner.entrypoints.every((e) => decorated.entrypoints.includes(e));
+    if (!sameEntrypoints) throw new PolicyEvaluatorSeamError("POLICY_EVALUATOR_DECORATION_INVALID");
+    const state = { active: true };
+    const handle: EvaluatorDecoration = {
+      get active() {
+        return state.active;
+      },
+      remove: () => {
+        if (!state.active) return;
+        state.active = false;
+        if (this.decoration?.handle === handle) {
+          this.evaluator = this.#loaded;
+          this.decoration = null;
+        }
+      },
+    };
+    this.evaluator = decorated;
+    this.decoration = { handle };
+    this.logger.warn("policy.evaluator.decorated", { reasonCode: "POLICY_EVALUATOR_DECORATED" });
+    return handle;
+  }
+
+  /** True while a fault decoration is installed on this engine instance (never in production composition). */
+  get evaluatorDecorated(): boolean {
+    return this.decoration !== null;
   }
 
   describe(): EngineDescription {
@@ -337,8 +471,10 @@ export class OpaWasmPolicyEngine implements PolicyEngine {
       }
       if (JSON.stringify(input).length > MAX_POLICY_INPUT_BYTES) return this.authzDeny("POLICY_INPUT_INVALID", action);
 
-      const raw = RegoAuthzDecision.safeParse(resultValue(this.evaluator.evaluate(input, AUTHZ_ENTRYPOINT)));
-      if (!raw.success) return this.authzDeny("POLICY_ENGINE_ERROR", action, "POLICY_RESULT_MALFORMED");
+      const evaluated = RegoAuthzDecision.safeParse(resultValue(this.evaluateInUse(input, AUTHZ_ENTRYPOINT)));
+      if (!evaluated.success) return this.authzDeny("POLICY_ENGINE_ERROR", action, "POLICY_RESULT_MALFORMED");
+      const raw = this.tightenedAuthz(input, evaluated.data);
+      if (raw === null) return this.authzDeny("POLICY_ENGINE_ERROR", action, "POLICY_EVALUATOR_DECORATION_WIDENED");
       const violation = invariantViolation(input, raw.data, this.catalogue);
       if (violation) return this.authzDeny("POLICY_ENGINE_ERROR", action, violation);
 
@@ -375,8 +511,10 @@ export class OpaWasmPolicyEngine implements PolicyEngine {
       } catch {
         return this.consoleDeny("POLICY_INPUT_INVALID", action);
       }
-      const raw = RegoConsoleDecision.safeParse(resultValue(this.evaluator.evaluate(input, CONSOLE_ENTRYPOINT)));
-      if (!raw.success) return this.consoleDeny("POLICY_ENGINE_ERROR", action, "POLICY_RESULT_MALFORMED");
+      const evaluated = RegoConsoleDecision.safeParse(resultValue(this.evaluateInUse(input, CONSOLE_ENTRYPOINT)));
+      if (!evaluated.success) return this.consoleDeny("POLICY_ENGINE_ERROR", action, "POLICY_RESULT_MALFORMED");
+      const raw = this.tightenedConsole(input, evaluated.data);
+      if (raw === null) return this.consoleDeny("POLICY_ENGINE_ERROR", action, "POLICY_EVALUATOR_DECORATION_WIDENED");
       // Guard: MFA and origin are hard requirements regardless of the WASM result.
       if (raw.data.allow && (!input.staff.mfa || input.origin !== "workforce_console")) return this.consoleDeny("POLICY_ENGINE_ERROR", action, "CONSOLE_INVARIANT_VIOLATION");
       const decision = ConsoleDecision.parse({
@@ -392,6 +530,38 @@ export class OpaWasmPolicyEngine implements PolicyEngine {
     } catch {
       return this.consoleDeny("POLICY_ENGINE_ERROR", action, "POLICY_EVALUATION_FAILED");
     }
+  }
+
+  /**
+   * Evaluation step. The loaded evaluator reads the engine's input directly; a substituted one (a decoration, or
+   * anything swapped into the field) gets a deep-frozen structured clone, so it can never change the pristine
+   * input that the tighten-only rule and the invariant guard evaluate afterwards.
+   */
+  private evaluateInUse(input: PolicyInput | ConsoleDecisionInput, entrypoint: string): unknown {
+    if (this.evaluator === this.#loaded) return this.#loaded.evaluate(input, entrypoint);
+    return this.evaluator.evaluate(deepFrozenClone(input), entrypoint);
+  }
+
+  /**
+   * Tighten-only rule for a substituted evaluator (see decorateEvaluator). Returns the decision to use, or null
+   * when a decorated allow is wider than what the loaded evaluator decides for the same input. The loaded
+   * evaluator is consulted only when the evaluator in use is not the loaded one and it allowed.
+   */
+  private tightenedAuthz(input: PolicyInput, decided: RegoAuthzDecision): { data: RegoAuthzDecision } | null {
+    if (this.evaluator === this.#loaded || !decided.allow) return { data: decided };
+    const loaded = RegoAuthzDecision.safeParse(resultValue(this.#loaded.evaluate(input, AUTHZ_ENTRYPOINT)));
+    if (!loaded.success || !loaded.data.allow) return null;
+    if (decided.fieldMask.some((f) => !loaded.data.fieldMask.includes(f))) return null;
+    if (loaded.data.obligations.some((o) => !decided.obligations.includes(o))) return null;
+    return { data: { allow: true, reasonCodes: loaded.data.reasonCodes, fieldMask: decided.fieldMask, obligations: decided.obligations } };
+  }
+
+  private tightenedConsole(input: ConsoleDecisionInput, decided: z.infer<typeof RegoConsoleDecision>): { data: z.infer<typeof RegoConsoleDecision> } | null {
+    if (this.evaluator === this.#loaded || !decided.allow) return { data: decided };
+    const loaded = RegoConsoleDecision.safeParse(resultValue(this.#loaded.evaluate(input, CONSOLE_ENTRYPOINT)));
+    if (!loaded.success || !loaded.data.allow) return null;
+    if (loaded.data.obligations.some((o) => !decided.obligations.includes(o))) return null;
+    return { data: { allow: true, reasonCodes: loaded.data.reasonCodes, obligations: decided.obligations } };
   }
 
   private nowIso(): string {

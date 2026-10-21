@@ -65,23 +65,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/config.ts:121 (otpEnabled false default)
-  - platform/src/identity/README.md (A1 scopes case:create)
-  - platform/src/identity/verification-service.test.ts
-  gap: Tenant approval absent.
+  - scripts/policy.sh test 252/252 (authz_test.rego A1)
+  gap: The tenant's A1 operation approval record is an activation input.
   remediation: Approval workflow.
   size: S
   environmentDependency: identity-owner approval of OTP (TB-03)
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-05-04
   section: '5'
   kind: software
@@ -92,23 +95,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/verification-service.ts (completeSecureLink, amr check)
-  - platform/src/gateway/http/portal-routes.ts
-  - platform/src/gateway/http/portal-routes.test.ts
-  gap: Fixture IdP only.
+  - caller-identity.test.ts password-only refused MFA_REQUIRED (L2)
+  gap: Caller IdP amr values and MFA policy are activation inputs (AIN-13).
   remediation: Containerised IdP test.
   size: S
   environmentDependency: client/provider IdP (PRQ-005)
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-05-05
   section: '5'
   kind: software
@@ -120,23 +126,27 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/auth.ts:88 (stepUp bound to actionDigest)
-  - platform/src/identity/verification-service.ts (effectiveAssuranceFor)
-  - platform/src/identity/verification-service.test.ts
-  gap: None.
+  - caller-identity.test.ts [FO-05-05] step-up (L2)
+  - src/identity session-idle.test.ts
+  gap: No software gap; the tenant step-up parameters need approval (AIN-15).
   remediation: Keep.
   size: S
   environmentDependency: none
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-05-06
   section: '5'
   kind: software
@@ -147,19 +157,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/contracts.ts:24 (humanBoundary)
-  - platform/src/protocol/support.ts:88 (POLICY_REQUIRES_HUMAN)
-  gap: No enumerated high-risk action list in policy.
+  - policy.sh 252/252 HIGH_RISK_HUMAN_ONLY
+  - src/policy unit tests
+  gap: No software gap; the policy release approval is separate (POLICY_RELEASE).
   remediation: Policy data for human-only actions.
   size: S
   environmentDependency: policy owner list of high-risk changes
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-05-07
   section: '5'
   kind: software
@@ -170,21 +185,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/live/oidc-verifier.ts (JWKS URI configured directly; no discovery)
-  - platform/src/console-api/plugin.ts:83-89 (authorizationEndpoint null)
-  gap: Absent.
+  - workforce-sso.test.ts discovery on Keycloak
+  - oidc-client.test.ts [FO-05-07] OIDC_REFRESH_MAX_REQUESTS request bound
+  gap: The tenant issuer is an activation input (AIN-12).
   remediation: 'Add platform/src/adapters/live/oidc-discovery.ts: fetch <issuer>/.well-known/openid-configuration over HTTPS, require metadata.issuer === the configured issuer, pin jwks_uri, token_endpoint and authorization_endpoint, cache with a TTL and fail closed on fetch error. Feed it to JwksOidcVerifier, WorkforceTokenVerifier and the exchange. Test against a 127.0.0.1 discovery server (issuer mismatch, http downgrade, rotated metadata) and a Keycloak container.'
   size: S
   environmentDependency: IdP clients
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-05-08
   section: '5'
   kind: software
@@ -221,23 +241,28 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - console/src/auth/pkce.ts; console/src/auth/pkce.test.ts
-  - platform/src/console-api/plugin.ts:454-459 (exchange unavailable)
-  gap: Client side only; backend exchange missing.
+  - workforce-sso.test.ts PKCE exchange (L2)
+  - oidc-client.test.ts [FO-05-09]
+  gap: No software gap; the live composition is WP-07.
   remediation: 'Implement auth.oidcExchange in platform/src/console-api: discovery (FO-05-07), POST to token_endpoint with code, code_verifier, an exact redirect_uri from the server allowlist (FO-05-13) and client authentication (private_key_jwt preferred), then ID-token validation with nonce, issuance of the console session and single-use state binding. Test against a containerised OIDC provider (Keycloak or dex) for wrong verifier, replayed code, redirect mismatch and missing MFA amr.'
   size: M
   environmentDependency: workforce OIDC client (PRQ-036)
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-05-10
   section: '5'
   kind: software
@@ -247,19 +272,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - console/src/auth/pkce.ts (consumeTransient, single use, 10-minute max age)
-  - platform/src/gateway/http/portal-routes.ts (POST bodies under portal service identity)
-  gap: Backend exchange absent; no server-side state binding.
+  - workforce-sso-adversarial.test.ts probe B (L2)
+  - sso.test.ts [STRIDE-D] flood
+  gap: Request-rate limiting of /console/api/v1/auth/* at the edge is WP-07.
   remediation: Bind state server-side at exchange.
   size: S
   environmentDependency: none
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-05-11
   section: '5'
   kind: software
@@ -270,23 +300,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/assertions/assertion-service.ts (portal_binding jti replay store)
-  - platform/src/identity/verification-service.ts (single-use consume by CAS)
-  - platform/src/identity/assertions/assertion-service.test.ts
-  gap: Workforce token replay relies on jti logout revocation only.
+  - workforce-sso.test.ts replayed callback and code refused (L2)
+  gap: No software gap.
   remediation: Keep; add replay test for workforce exchange.
   size: S
   environmentDependency: none
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-05-12
   section: '5'
   kind: software
@@ -320,21 +353,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - console/src/auth/AuthProvider.tsx (redirectUri from origin)
-  - platform/src/console-api/contract.ts:482-495 (fixed redirectPath, no server allowlist)
-  gap: No server-side allowlist (exchange unimplemented).
+  - workforce-sso.test.ts unknown redirect refused
+  - sso-config.test.ts
+  gap: Calling the guard from PlatformConfig is WP-07.
   remediation: Add consoleAuth.redirectUris (exact-match list) and portal.callbackUris to PlatformConfig with guard validation (https, no wildcards, no query). The exchange endpoint rejects any redirect_uri not in the list before contacting the IdP. Test exact match, trailing slash, case and open-redirect attempts.
   size: S
   environmentDependency: IdP client registration
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-05-14
   section: '5'
   kind: software
@@ -447,20 +485,27 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.workforce
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no idle-expiry logic in platform/src/identity or platform/src/console-api/auth.ts
-  gap: Absent.
+  - workforce-sso.test.ts idle expiry (L2)
+  - break-glass.test.ts idle/absolute expiry closures
+  - adversarial sweep idle-expiry closure (L2)
+  gap: Idle parameters await identity-owner approval (AIN-15).
   remediation: 'Add lastActivityAt to the session record (caller sessions in DynamoKvStore, console sessions server-side) and update it on authenticated use with a bounded write rate. SessionService.resolve and the console authenticator fail closed when now - lastActivityAt exceeds the configured idle limit (separate caller and workforce values pending identity-owner approval). Tests with FakeClock: idle expiry drops privileges and keeps safety routes available.'
   size: S
   environmentDependency: identity-owner idle duration
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-05-19
   section: '5'
   kind: software
@@ -470,21 +515,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/verification-service.test.ts:358 (no silent account switch)
-  - no refresh path
-  gap: Refresh absent.
+  - workforce-sso.test.ts refresh rotation and replay (L2)
+  - break-glass.test.ts replay closure under audit failure (N2)
+  gap: No software gap.
   remediation: 'Implement refresh for console sessions (refresh-token exchange at the IdP with rotation) and for caller A2 sessions (re-verification through the portal step-up path). Require the refreshed (iss, sub) to equal the bound actor; on mismatch, revoke and bump the generation. Tests: same-actor refresh keeps the selected role, a different subject fails closed, and a replayed refresh token is refused.'
   size: M
   environmentDependency: IdP refresh support
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-05-20
   section: '5'
   kind: software
@@ -548,16 +598,19 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/protocol/auth.ts:66-91
-  - platform/src/identity/session-service.ts
-  - no live IdentityDirectory
-  gap: Directory is fixture-only; processing basis beyond consent absent.
+  - src/identity session-idle.test.ts [FO-05-22]
+  gap: No counsel-approved jurisdiction/role matrix exists, and the approved-basis cases run at unit level only.
   remediation: Live directory; processing-basis field.
   size: M
   environmentDependency: PRQ-005
   workPackage: WP-05
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-05-23
   section: '5'
   kind: constraint
@@ -674,9 +727,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/README.md (limits table)
-  - platform/src/identity/verification-service.test.ts:549
-  gap: None.
+  - src/identity unit tests (OTP disabled by default)
+  gap: OTP stays disabled (TB-03), and there is no Layer-2 SMS/DTMF provider test.
   remediation: Keep.
   size: S
   environmentDependency: none
@@ -686,6 +738,11 @@ requirements:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-05-28
   section: '5'
   kind: constraint
@@ -743,22 +800,26 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/verification-service.ts (secure link + OIDC)
-  - platform/src/gateway/http/portal-routes.test.ts
-  gap: None.
+  - caller-identity.test.ts (L2)
+  gap: No software gap.
   remediation: Keep.
   size: S
   environmentDependency: none
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-05-31
   section: '5'
   kind: constraint
@@ -1029,19 +1090,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.workforce
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/console-api/plugin.ts:454-459
-  - platform/src/console-api/auth.ts:305 (BlockedWorkforceStaffDirectory)
-  gap: Absent.
+  - workforce-sso-adversarial.test.ts K2 and single-factor amr (L2)
+  - sso.test.ts [FO-05-41]
+  gap: Tenant client roles, amr values and the GROUP_PATHS attestation are activation inputs (AIN-13).
   remediation: Implement exchange, directory, mapping.
   size: L
   environmentDependency: PRQ-036
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-05-42
   section: '5'
   kind: software
@@ -1128,19 +1194,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.workforce
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/console-api/break-glass.ts:4-6 (grants written by a separate process that does not exist)
-  - 'only writer: platform/src/console-api/fixtures/harness.fixture.ts:407'
-  gap: Absent.
+  - break-glass.test.ts [FO-05-45]
+  - test/integration/identity/break-glass.test.ts (L2)
+  gap: No software gap.
   remediation: Issuance workflow with human task review.
   size: M
   environmentDependency: security approver roster
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-05-46
   section: '5'
   kind: software

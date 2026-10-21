@@ -65,40 +65,76 @@ describe("sign-in and environment labelling", () => {
     expect(screen.queryByRole("button", { name: "Sign in with workforce SSO" })).not.toBeInTheDocument();
   });
 
-  it("[SPEC-7.staff-sso] OIDC authorization code + PKCE: redirect carries S256 challenge; callback exchange sends verifier and nonce via the backend", async () => {
+  it("[FO-05-09][FO-05-10][SPEC-7.staff-sso] backend-run authorization code + PKCE: the backend starts the login with our S256 challenge and redeems the code; IdP tokens never reach the browser", async () => {
     const api = createMockApi({ authConfig: authConfigOidc() });
     const redirect = vi.fn<(url: string) => void>();
     const first = renderConsole({ signedIn: false, api, redirect });
     await findPage("Sign in to the operations console");
     expect(screen.queryByRole("heading", { name: "LOCAL DEV SIGN-IN (synthetic staff)" })).not.toBeInTheDocument();
     await first.user.click(screen.getByRole("button", { name: "Sign in with workforce SSO" }));
-    // beginOidc awaits the S256 digest (crypto.subtle) before redirecting, so wait for it.
     await waitFor(() => expect(redirect).toHaveBeenCalledTimes(1));
+    const start = api.calls("auth.oidcStart");
+    expect(start).toHaveLength(1);
+    const startBody = start[0]?.body as { redirectUri: string; codeChallenge: string; codeChallengeMethod: string };
+    expect(startBody).toMatchObject({ redirectUri: "http://console.test/auth/callback", codeChallengeMethod: "S256" });
+    expect(startBody.codeChallenge).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(JSON.stringify(startBody)).not.toMatch(/verifier|nonce|state/i);
     const authUrl = new URL(redirect.mock.calls[0]?.[0] ?? "");
     expect(`${authUrl.origin}${authUrl.pathname}`).toBe("https://sso-workforce.local.invalid/authorize");
-    expect(authUrl.searchParams.get("response_type")).toBe("code");
-    expect(authUrl.searchParams.get("client_id")).toBe("vsp-console-local");
-    expect(authUrl.searchParams.get("redirect_uri")).toBe("http://console.test/auth/callback");
-    expect(authUrl.searchParams.get("code_challenge_method")).toBe("S256");
-    expect(authUrl.searchParams.get("code_challenge")).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(authUrl.searchParams.get("code_challenge")).toBe(startBody.codeChallenge);
     const state = authUrl.searchParams.get("state") ?? "";
-    const nonce = authUrl.searchParams.get("nonce") ?? "";
-    expect(state.length).toBeGreaterThanOrEqual(32);
     first.unmount();
 
-    // The IdP redirects back with the code; transient PKCE state is consumed exactly once.
+    // The IdP redirects back with the code; the verifier is consumed exactly once and sent with the backend state.
     const second = renderConsole({ signedIn: false, api, path: `/auth/callback?code=synthetic-code-0001&state=${state}` });
     await findPage("Overview");
     const exchange = api.calls("auth.oidcExchange");
     expect(exchange).toHaveLength(1);
-    const body = exchange[0]?.body as { code: string; codeVerifier: string; redirectUri: string; nonce: string };
-    expect(body.code).toBe("synthetic-code-0001");
-    expect(body.nonce).toBe(nonce);
-    expect(body.redirectUri).toBe("http://console.test/auth/callback");
+    const body = exchange[0]?.body as { code: string; state: string; codeVerifier: string; redirectUri: string };
+    expect(body).toMatchObject({ code: "synthetic-code-0001", state, redirectUri: "http://console.test/auth/callback" });
     expect(body.codeVerifier).toMatch(/^[A-Za-z0-9_-]{43,128}$/);
+    expect(Object.keys(body).sort()).toEqual(["code", "codeVerifier", "redirectUri", "state"]);
     expect(sessionStorage.length).toBe(0);
     expect(localStorage.length).toBe(0);
     expect(second.locations.at(-1)).not.toContain("code=");
+  });
+
+  it("[FO-05-13] a backend answer pointing anywhere but the configured IdP endpoint is never followed", async () => {
+    const api = createMockApi({
+      authConfig: authConfigOidc(),
+      handlers: {
+        "auth.oidcStart": () => ({ status: 200, body: { authorizationUrl: "https://evil.local.invalid/authorize?state=x", state: "S".repeat(43), expiresAt: "2099-01-01T00:00:00.000Z" } }),
+      },
+    });
+    const redirect = vi.fn<(url: string) => void>();
+    const r = renderConsole({ signedIn: false, api, redirect });
+    await findPage("Sign in to the operations console");
+    await r.user.click(screen.getByRole("button", { name: "Sign in with workforce SSO" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("OIDC_ENDPOINT_MISMATCH");
+    expect(redirect).not.toHaveBeenCalled();
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it("[FO-05-19][FO-05-18] an SSO session is refreshed by bearer rotation; a refused refresh (idle, revoked) signs the user out with the server reason", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const api = createMockApi({ meOverrides: { sessionKind: "OIDC_SSO", idleTimeoutSeconds: 900, localFixture: false, environment: "sandbox" } });
+      const { tokens } = renderConsole({ path: "/overview", api });
+      await findPage("Overview");
+      const before = tokens.get();
+      await vi.advanceTimersByTimeAsync(5 * 60_000 + 10);
+      await waitFor(() => expect(api.calls("auth.refresh")).toHaveLength(1));
+      const refresh = api.calls("auth.refresh")[0];
+      expect(refresh?.headers.authorization).toBe(`Bearer ${before}`);
+      await waitFor(() => expect(tokens.get()).not.toBe(before));
+      api.setHandler("auth.refresh", () => ({ status: 401, body: { error: { reasonCode: "SESSION_IDLE_EXPIRED", correlationId: null, retryable: false } } }));
+      await vi.advanceTimersByTimeAsync(5 * 60_000 + 10);
+      await findPage("Sign in to the operations console");
+      expect(screen.getByRole("alert")).toHaveTextContent("SESSION_IDLE_EXPIRED");
+      expect(tokens.get()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("[SPEC-7.staff-sso] a callback with an unknown state is refused and nothing is exchanged", async () => {

@@ -4,9 +4,14 @@ Status: **IMPLEMENTED_OFFLINE**. `contract.ts` defines the operations and incide
 console API (spec sections 6, 7, 12, 13 and 16); `plugin.ts` implements every endpoint as a
 Fastify plugin (`registerConsoleApi(app, deps)`), tested with `fastify.inject` over real
 modules on PGlite. The React console (`console/`) is tested against the same contract with a
-labelled mock backend. Workforce SSO is BLOCKED (PRQ-036, VQ-IDP-08): only the LOCAL FIXTURE
-workforce IdP and SYNTHETIC staff exist. Nothing here has been verified against a vendor, a
-real IdP or production, and nothing here claims HIPAA compliance or production readiness.
+labelled mock backend. Workforce SSO (WP-05) is implemented over real OpenID Connect
+(discovery, authorization code + PKCE S256, backend exchange, refresh rotation, RFC 7662
+introspection, RFC 7009 revocation) with server-side console sessions, and is verified locally
+against Keycloak (`platform/test/integration/identity/workforce-sso.test.ts`). The tenant's
+workforce IdP client, group names and approved parameters are activation inputs (PRQ-036,
+VQ-IDP-08, AIN-12/13/15); the environment stays NOT_CONFIGURED. Nothing here has been verified
+against a vendor, a real tenant IdP or production, and nothing here claims HIPAA compliance or
+production readiness.
 
 ## Why types and constants only
 
@@ -25,7 +30,11 @@ is necessary, not sufficient: the finer rules below also apply.
 | `auth.config` | GET | `/auth/config` | public (no token) |
 | `auth.localStaff` | GET | `/auth/local/staff` | public (no token) |
 | `auth.localToken` | POST | `/auth/local/token` | public (no token) |
+| `auth.oidcStart` | POST | `/auth/oidc/start` | public (no token) |
 | `auth.oidcExchange` | POST | `/auth/oidc/exchange` | public (no token) |
+| `auth.refresh` | POST | `/auth/refresh` | public (console session bearer; no role check) |
+| `auth.recoveryChallenge` | POST | `/auth/recovery/challenge` | public (no token) |
+| `auth.recoveryActivate` | POST | `/auth/recovery/activate` | public (no token) |
 | `auth.logout` | POST | `/auth/logout` | `support_agent`, `supervisor`, `safety_responder`, `auditor`, `knowledge_editor`, `policy_approver`, `deployment_operator`, `security_admin` |
 | `me` | GET | `/me` | `support_agent`, `supervisor`, `safety_responder`, `auditor`, `knowledge_editor`, `policy_approver`, `deployment_operator`, `security_admin` |
 | `overview` | GET | `/overview` | `support_agent`, `supervisor`, `safety_responder`, `deployment_operator`, `security_admin` |
@@ -50,6 +59,16 @@ is necessary, not sufficient: the finer rules below also apply.
 | `killSwitches.set` | POST | `/kill-switches` | `supervisor`, `security_admin`, `deployment_operator` |
 | `audit.search` | GET | `/audit/search` | `auditor`, `security_admin` |
 | `destinations.list` | GET | `/destinations` | `support_agent`, `supervisor`, `safety_responder`, `security_admin` |
+| `breakGlass.list` | GET | `/break-glass/requests` | every staff role (non-admins see their own requests) |
+| `breakGlass.request` | POST | `/break-glass/requests` | `deployment_operator`, `knowledge_editor`, `policy_approver`, `safety_responder`, `security_admin`, `support_agent`, `supervisor` |
+| `breakGlass.decide` | POST | `/break-glass/requests/:requestId/decision` | `security_admin` |
+| `accessReviews.list` | GET | `/access-reviews` | `security_admin`, `auditor` |
+| `accessReviews.complete` | POST | `/access-reviews/:reviewId/complete` | `security_admin` |
+| `recoveryIdentities.list` | GET | `/recovery-identities` | `security_admin` |
+| `recoveryIdentities.propose` | POST | `/recovery-identities` | `security_admin` |
+| `recoveryIdentities.confirm` | POST | `/recovery-identities/:identityId/confirm` | the holder named by the identity only (`security_admin`, `supervisor`, `safety_responder`), in an SSO session |
+| `recoveryIdentities.approve` | POST | `/recovery-identities/:identityId/approve` | `security_admin` |
+| `recoveryIdentities.revoke` | POST | `/recovery-identities/:identityId/revoke` | `security_admin` |
 
 Finer rules the server enforces:
 
@@ -75,14 +94,178 @@ Finer rules the server enforces:
 
 ## Authentication
 
-* **Workforce SSO (target).** Authorization code + PKCE (S256). `GET auth/config` returns the
-  issuer, client id and the authorization endpoint the backend resolved from the issuer's
-  OpenID Connect discovery document. The browser redirects, receives `code` + `state`, and posts
-  `{code, codeVerifier, redirectUri, nonce}` to `POST auth/oidc/exchange`. The backend exchanges
-  the code at the IdP token endpoint, validates the ID token (issuer, audience, nonce, expiry and
-  the MFA claim defined by the IdP configuration, BLOCKED VQ-IDP-08), maps workforce groups to
-  `StaffRole` and mints a short-lived console bearer token. IdP tokens never reach the browser.
-  BLOCKED until the identity owner issues the workforce OIDC client (PRQ-036).
+* **Workforce SSO (`sso.ts`, WP-05).** Authorization code + PKCE (S256, RFC 7636), backend
+  exchange, IdP tokens never reach the browser.
+  1. `GET auth/config` reports `oidc.state: CONFIGURED` with the issuer, client id and the
+     authorization endpoint resolved from the issuer's discovery document (exact issuer match,
+     https endpoints, cached with a bounded TTL; `authorizationEndpoint: null` +
+     `blockedReasonCode: WORKFORCE_IDP_UNAVAILABLE` while discovery fails), the session policy
+     (`idleTimeoutSeconds`, `absoluteLifetimeSeconds`) and whether recovery is available.
+  2. `POST auth/oidc/start {redirectUri, codeChallenge}`: the redirect must be in the exact
+     allowlist (`consoleAuth.redirectUris`; `REDIRECT_URI_NOT_ALLOWED`); the backend creates the
+     nonce and a SEALED state (`login-state.ts`: nonce hash, the browser's challenge, a digest of the
+     redirect, issue time and lifetime, HMAC-SHA256 under a per-purpose subkey of the sealer key, bound
+     to tenant and issuer) and returns the authorization URL built from the DISCOVERED endpoint with
+     `max_age = maxAuthAgeSeconds`, so the IdP re-authenticates an operator whose IdP session is older
+     than the exchange accepts (a returning operator is never handed a code the backend must refuse).
+     The unauthenticated start WRITES NOTHING: an anonymous flood of starts consumes no capacity a
+     legitimate sign-in needs (no per-tenant cap to exhaust; the WP-07 edge rate limit stays an extra
+     layer). The browser keeps only state and code verifier (sessionStorage, consumed once) and checks
+     the URL's origin and path equal the configured endpoint before redirecting.
+  3. `POST auth/oidc/exchange {code, state, codeVerifier, redirectUri}`: before the IdP is
+     contacted the state must open under the key for this tenant and issuer (forged, altered or
+     foreign, or any spelling but the canonical base64url one of its bytes: `LOGIN_TRANSACTION_UNAVAILABLE`,
+     logged, not audited per request; expired: the same code, audited through the anonymous budget), its
+     single use is recorded, keyed on the canonical encoding of the authenticated bytes
+     (`console_login_transactions` row inserted consumed; a replayed or raced callback
+     `LOGIN_TRANSACTION_UNAVAILABLE`), the redirect
+     equals the sealed one (`REDIRECT_URI_MISMATCH`) and S256(verifier) equals the sealed challenge
+     (`PKCE_VERIFIER_MISMATCH`). The code is redeemed at the token endpoint, the
+     ID token is validated (signature over the discovered JWKS, iss, aud, azp, nonce hash,
+     auth_time / max age, at_hash) and checked again by `WorkforceTokenVerifier` (MFA: `amrSatisfiesMfa`,
+     `STAFF_MFA_REQUIRED`), the membership claim maps to staff roles (below) and an opaque console
+     session bearer (`vcs_` + 256 bits) is issued, audited in the same transaction as the session row
+     (`console_sessions`, hash only).
+     * **MFA (FO-05-41, AIN-13).** Without a tenant override (`acceptedMfaAmr: null`) the default rule
+       needs `mfa` or amr values of two DISTINCT RFC 8176 factor classes (pwd + otp, hwk + pin): a single
+       value (otp, swk, hwk, pop, sms alone) is one factor and never MFA. A tenant override lists the
+       values it accepts (any one suffices; `pwd` can never be listed).
+     * **Membership (FO-05-41, FO-01-09).** `membershipSource` declares what `groupsClaim` carries.
+       `CLIENT_ROLES` (required unless attested otherwise): the console client's own roles at the IdP
+       (Keycloak: a client role mapper restricted to the client, each managed group granting one role),
+       mapped exactly by `groupRoles`; every value is managed, so an unlisted role refuses
+       (`STAFF_GROUP_UNKNOWN`) and `managedGroupPrefix` must be null. Group NAMES never grant a role: on
+       Keycloak 26 a top-level group named `vsp/security-admin` has the same full path as the managed
+       nested group (Layer-2 fidelity finding). `GROUP_PATHS` is accepted only with
+       `unambiguousPathsRef`, the approval that the tenant IdP makes paths unambiguous (Keycloak:
+       escape-slashes-in-group-path), an IdP activation requirement; an unlisted path under the managed
+       prefix refuses. No mapped role: `STAFF_NOT_PROVISIONED`.
+  4. Every request: the bearer is looked up by hash; revocation, replay of a superseded bearer
+     (revokes the whole family, `SESSION_TOKEN_REPLAYED`), absolute expiry (`SESSION_EXPIRED`) and
+     idle expiry (`SESSION_IDLE_EXPIRED`, `lastActivityAt + idleTimeoutSeconds`) are enforced on
+     every use; activity is recorded at a bounded write rate; at most every
+     `activeCheckIntervalSeconds` the backend introspects the sealed IdP refresh token (RFC 7662):
+     a disabled, deleted or logged-out user loses the session (`STAFF_DEPROVISIONED`), the membership
+     claim is re-mapped every time and changes take effect. An ABSENT membership claim is an empty
+     set (Keycloak omits the claim for a user without groups or roles), so a user removed from every
+     managed group loses the session (`STAFF_NOT_PROVISIONED`); the introspected subject must be the
+     session's (`SESSION_SUBJECT_CHANGED`). Configuration requirement: the IdP must put the membership
+     claim into token introspection, otherwise every session ends at its first check (fail closed).
+     When the IdP cannot answer the session keeps working only within
+     `activeCheckMaxStalenessSeconds`, then fails closed (`STAFF_ACTIVE_STATE_UNVERIFIED`).
+  5. `POST auth/refresh` (the console bearer in `Authorization`): the row is first claimed
+     (`refresh_started_at`; one refresh of a row reaches the IdP at a time: a second one within
+     `REFRESH_IN_FLIGHT_SECONDS` is refused `SESSION_ROTATED` retryable without an IdP call), then the
+     sealed refresh token is redeemed (rotation); the refreshed ID token must carry the same issuer and
+     subject, a different subject revokes the family (`SESSION_SUBJECT_CHANGED`, never a silent actor
+     switch); the console bearer is rotated (old bearer superseded atomically). Refresh is not
+     activity: it never extends the idle window or the absolute lifetime. A refresh the IdP refuses
+     (`invalid_grant`) is a terminal path: the family is closed (`SESSION_REFRESH_REFUSED`) and decides
+     about the custodian (below); a refresh that ends without a redemption the backend recorded (IdP
+     unreachable, unknown outcome, an invalid answer) releases its own claim and closes nothing (the next
+     active check asks the IdP). When the family was closed while the IdP redeemed the token (a logout
+     raced the refresh), the tokens the IdP just issued are revoked there and the response is
+     `401 SESSION_REVOKED`. `REFRESH_IN_FLIGHT_SECONDS` (180) is the IdP part of one refresh at the OIDC
+     transport's maximum per-request deadline (`OIDC_REFRESH_MAX_REQUESTS`, 5 sequential requests: an
+     expired discovery document, the token request, the key set, the discovery document expiring again
+     during the refresh and an unknown-kid key refetch, `OIDC_REQUEST_TIMEOUT_MAX_MS` 30 s each; pinned in
+     `oidc-client.test.ts`) plus a 30 s margin for the console's database work; a crashed refresh's claim
+     lapses after it. The window does not bound a paused process or a database wait beyond the margin: a
+     refresh still running after it lets a second refresh of the row reach the IdP, the one that presents
+     the token the IdP already redeemed is refused, the family closes and the custodian is suspended
+     (availability only, never fail open; `break-glass.test.ts`, verifier probe P3).
+  6. `POST auth/logout` revokes the family and its IdP refresh token (RFC 7009, best effort,
+     `OIDC_REVOCATION_FAILED` logged). Revocation ends that token family only: Keycloak 26 keeps the
+     user's other IdP sessions (other browsers) active (Layer-2 probe K1, asserted in
+     `workforce-sso-adversarial.test.ts`). It first asks the IdP (best effort) whether the token is still
+     active; that answer decides about the custodian (below), whatever refresh of the row is in flight.
+     `WorkforceSsoService.sweep` closes idle and absolutely expired sessions (each asks the IdP first and
+     decides, like every terminal path), re-checks active sessions in the background so offboarding does
+     not wait for the next request (disabled users and users removed from every managed group), closes
+     RECOVERY sessions whose identity is no longer ACTIVE, and deletes the single-use rows of expired
+     login states in bounded batches (the database refuses to delete a live one, migration `2052`). The
+     composition must schedule it (WP-07).
+  The IdP refresh token is sealed with AES-256-GCM (`token-sealer.ts`, key id recorded per row,
+  the session hash as associated data). Configuration: `WorkforceSsoConfigSchema`
+  (`sso-config.ts`): the schema refuses, in every environment, redirect URIs that are not absolute
+  canonical https URLs or carry a wildcard, userinfo, query or fragment, issuers that are not absolute
+  canonical https URLs (no userinfo, query, fragment, dot segments, default port or trailing slash),
+  `pwd` in an MFA list, a GROUP_PATHS source without its approval and idle timeouts above the absolute
+  lifetime; `workforceSsoGuardViolations` adds the environment rules (loopback redirects and emulator
+  issuers outside local/ci, unapproved session parameters in staging/production).
+  Anonymous exchange refusals (no verified identity behind them: wrong PKCE verifier, redirect or
+  issuer mismatch, a code the IdP refuses, an ID token failing the independent check, an expired
+  transaction) pass the anonymous audit budget (`anonymous-audit.ts`): at most one audit event per
+  action and reason per 60 s window per instance, the suppressed count carried on the next event
+  (`kv://console-anonymous-audit/suppressed/<n>`) and one log line per window; a refused sign-in of
+  an IdP-authenticated person (MFA, groups) is audited per event under their pseudonymous staff id.
+  An IdP URL the egress policy refuses (for example an issuer path the PHI heuristic flags) is a
+  configuration refusal: `503 OIDC_EGRESS_REFUSED`, not retryable, never `WORKFORCE_IDP_UNAVAILABLE`.
+* **Recovery custodians follow the IdP, fail closed (FO-14-52).** A staff member's recovery
+  identities are decided at every TERMINAL path of their SSO session family: logout, a refused refresh,
+  the refresh-token replay closure (a superseded bearer presented after the grace), an idle or absolute
+  expiry closure (by a request or the sweep), and the revocation by an active check. Each path asks the
+  IdP (RFC 7662 introspection of the family's live refresh token; for a replay the LIVE row's, never the
+  superseded one's) or uses the IdP's own answer (a refused grant), then decides ONCE, under a lock on
+  the family's rows and in the same transaction as the revocation and its audit events
+  (`sessions.ts` `closeFamily`):
+  * the IdP vouches for the session's subject now and its membership maps roles: identities those roles
+    still cover stay ACTIVE, the others are suspended (`CUSTODIAN_ROLES_REDUCED`);
+  * the token is inactive or refused (disabled or deleted user, IdP logout, a token past its expiry,
+    another sign-in sharing the IdP session, a refresh of the row that redeemed it): every ACTIVE identity
+    is suspended (`CUSTODIAN_OFFBOARDED`);
+  * no answer at all (the IdP cannot be asked, a timeout, an adapter refusal, no refresh token): every
+    ACTIVE identity is suspended (`CUSTODIAN_EVIDENCE_LOST`);
+  * an answer about the person that covers nothing (another subject, a membership that maps to no or an
+    unknown role): every ACTIVE identity is suspended (`CUSTODIAN_OFFBOARDED`), even when another terminal
+    path closed the family first.
+  Suspending also revokes the staff member's RECOVERY sessions, audited
+  (`console.recovery_identity.suspended` with the reason). Nothing explains an inactive token away: not
+  its known expiry, not the row's own refresh, not another sign-in's logout. A token state or a missing
+  answer on a family another terminal path already closed decides nothing more (that path decided with
+  its own answer and revoked the token at the IdP; for example a refresh that was waiting for the IdP
+  while its family was logged out is refused because of that logout). The only non-terminal case is a
+  request whose active check lost a refresh race on a live family (its row rotated by a committed
+  refresh, or a refresh of it claimed within `REFRESH_IN_FLIGHT_SECONDS`): it is refused `401
+  SESSION_ROTATED` (retryable), closes nothing, and the refresh decides by its own outcome; an answer
+  about the person is never deferred to such a race, and a family another path closed meanwhile is no
+  race (`401 SESSION_REVOKED`). An ACTIVE answer on a family another path already closed still suspends
+  the identities its roles no longer cover. Suspension is cheap and reversible: only a new SSO sign-in
+  (MFA) whose mapped roles cover a SUSPENDED identity reinstates it (`console.recovery_identity.reinstated`);
+  a positive answer at an active check, a refresh or a logout never does, nor do roles that come back
+  there. When a terminal path's transaction fails (its audit events cannot be written), the same decision
+  runs again under the same lock WITHOUT them, because it only revokes and suspends, and the events are
+  then appended on their own; `console.sso.terminal_closure_unaudited` is logged as an error, and
+  `console.sso.terminal_audit_unwritten` for each event the audit store still refuses (access-review
+  runbook step 3b). An audit outage therefore never leaves a replayed or offboarded family live; when the
+  database itself fails, the original error stands (no session can be used then either). Consequences, accepted by design: an employed
+  custodian is suspended when their session ends with an inactive token (a refresh that redeemed it,
+  two console sign-ins sharing one IdP session, a token past its expiry) or while the IdP cannot be
+  asked (an IdP outage); configure the IdP's refresh-token lifetime (Keycloak: SSO session idle and
+  max) above the console's idle timeout and absolute lifetime so a normal idle or absolute expiry finds
+  the token active. During an IdP outage, custodians whose SSO session ends are suspended and cannot be
+  reinstated until the IdP is back: break-glass then relies on custodians whose sessions did not end
+  during the outage (access-review runbook).
+* **Break-glass recovery (`recovery.ts`, WP-05).** When the workforce IdP is unavailable, a
+  dual-controlled recovery identity (hardware-backed P-256 key, proposed by one security admin,
+  confirmed by the holder, approved by another admin) can open a RECOVERY session:
+  `auth/recovery/challenge` needs a request signed by the requester's own key (compact ES256 JWS,
+  `typ: vsp-recovery-request+jwt`, single-use nonce; anonymous, wrong-key, stale and replayed
+  requests write and count nothing: `401 RECOVERY_REQUEST_PROOF_INVALID` / `RECOVERY_REQUEST_REPLAYED`)
+  and issues a single-use challenge; `auth/recovery/activate` needs compact ES256 JWS signatures
+  (`typ: vsp-recovery+jwt`) over that challenge from TWO different custodians' identities. The
+  session is short-lived, holds the identity's roles only, and opens a post-use access review. A
+  RECOVERY session is bound to the identity it was activated with (its subject digest): every
+  request re-checks that this identity is still ACTIVE (`RECOVERY_IDENTITY_REVOKED`), revoking the
+  identity revokes its recovery sessions in the same transaction whatever other identities the
+  holder has, and the activation claims, re-checks both identities under a share lock and issues
+  the session in ONE transaction (a concurrent revocation or suspension is seen, or waits and then
+  ends the new session). Inside that transaction BOTH custodians must still have positive
+  workforce-IdP evidence (an SSO sign-in, refresh or active check) within `holderSsoMaxAgeSeconds`
+  (default 14 days) and the requester's identity roles must still be mapped for them
+  (`RECOVERY_HOLDER_NOT_AUTHENTICATED`, `RECOVERY_ROLES_NOT_GRANTED`,
+  `RECOVERY_COSIGNER_NOT_AUTHENTICATED`). The per-identity bound (3 pending challenges and 20 per
+  hour, `503 RECOVERY_CHALLENGE_LIMIT`, nothing written) counts signed requests only.
 * **Local fixture (offline only).** `GET auth/local/staff` lists synthetic staff from
   `platform/src/fixtures/synthetic-world.ts` `STAFF`; `POST auth/local/token` with `{staffId}`
   authenticates one of them through the local workforce IdP fixture (mfa true, amr
@@ -94,10 +277,42 @@ Finer rules the server enforces:
 * Every authenticated request carries `Authorization: Bearer <token>`. The console keeps the token
   in memory only; cookies are never used (`credentials: "omit"`), so there is no ambient
   authority for CSRF.
-* `GET me` returns the server-established `StaffView`. Sessions without MFA are refused.
-  Break-glass is time-bound, granted by a `security_admin` through the separate audited access
-  process (never self-granted, `approvedBy` is never the holder), expires fail-closed, and has no
-  request or grant endpoint in this API.
+* `GET me` returns the server-established `StaffView`, the session kind (`LOCAL_FIXTURE`,
+  `OIDC_SSO`, `RECOVERY`) and the idle timeout. Sessions without MFA are refused. Outside local/ci
+  only console session bearers are accepted (a raw IdP or fixture JWT answers `401
+  UNAUTHENTICATED`), and the plugin refuses to register without SSO
+  (`WORKFORCE_SSO_NOT_CONFIGURED`).
+* **Break-glass issuance (`break-glass-issuance.ts`, WP-05).** `breakGlass.request` records a
+  justified, time-bound request (at most `BREAK_GLASS_MAX_DURATION_SECONDS`, 4 hours, defined once in
+  `schemas.ts` and pinned by `break-glass.test.ts` "[FO-05-45] one maximum" to policy data
+  `console.breakGlass.maxDurationSeconds` and the CHECK of migration 2051; reason
+  code + opaque ticket reference); `breakGlass.decide` by a DIFFERENT `security_admin` before
+  `decideBy` approves (creating the grant in `console_break_glass_grants`) or rejects; the
+  database refuses a self-decided request and a self-granted grant. The FIRST use of a grant
+  (a policy decision with the `BREAK_GLASS_REVIEW` obligation) opens a post-use access review
+  in the same transaction as the `console.break_glass.first_use` audit event (concurrent first
+  uses open one review and commit one first-use event; the loser rolls back); if the review
+  cannot be recorded the request is refused (`503 ACCESS_REVIEW_UNAVAILABLE`). Row-level security
+  hides a request from its requester for update, and table constraints refuse self-decision,
+  self-grant and self-review for any writer. `accessReviews.complete`
+  needs a reviewer who is neither the holder nor the approver.
+* **Recovery identities.** Enrollment is bound to the holder at the workforce IdP:
+  1. `recoveryIdentities.propose` (public JWK, custodian staff id, attestation reference, roles) by a
+     security admin who is not the holder. Refused unless the holder signed in by SSO within
+     `holderSsoMaxAgeSeconds` (`409 RECOVERY_HOLDER_NOT_AUTHENTICATED`: a staff id that never
+     authenticated through the IdP) and every role is one the directory mapped for them
+     (`403 RECOVERY_ROLES_NOT_GRANTED`). Returns the one-time enrollment challenge (shown once).
+  2. `recoveryIdentities.confirm` by the HOLDER, in their own SSO session (policy
+     `recovery_identity:confirm`, holder only; a recovery or local session is refused
+     `RECOVERY_HOLDER_SSO_REQUIRED`): a compact ES256 JWS by the enrolled key
+     (`typ: vsp-recovery-enroll+jwt`) over the challenge, the identity, the staff id and the key
+     thumbprint. A key the proposer holds can never be confirmed by the holder
+     (`RECOVERY_HOLDER_PROOF_INVALID`).
+  3. `recoveryIdentities.approve` by a different security admin, only after the confirmation
+     (`409 RECOVERY_HOLDER_UNCONFIRMED`; also a database CHECK).
+  `revoke` with a reason ends the recovery sessions activated with THAT identity, in the same
+  transaction. Status: `PROPOSED`, `ACTIVE`, `SUSPENDED` (the IdP no longer vouches for the
+  holder; `suspendReason`), `REVOKED`.
 
 ## Binding backend rules
 
@@ -159,8 +374,16 @@ Finer rules the server enforces:
 | `plugin.ts` | `registerConsoleApi(app, deps)`: every endpoint under `/console/api/v1`, error handler, not-found handler (`LOCAL_FIXTURE_DISABLED` for `auth/local/*` outside local/ci), `no-store` headers. `assertConsoleDeps` refuses local fixture identity components outside local/ci; `consoleRuntimeComponents` reports them to the configuration guard |
 | `deps.ts` | `ConsoleApiDeps`: the explicit ports / narrow class slices the composition root supplies (`HandoffService`, `SupportRequestService` from `business/contract.ts`; ledger, outbox dispatcher, workflow engine, transfer store, knowledge, ops, audit, policy) |
 | `schemas.ts` | Strict zod schemas for every request and response; `schemas.test.ts` asserts the inferred types equal the contract interfaces (`expectTypeOf`) |
-| `auth.ts` | `WorkforceTokenVerifier` (jose: issuer, audience, exp, nbf, iat lifetime, jti, auth_time, MFA amr; local JWKS or remote JWKS URL), `StaffDirectory` port, `LocalStaffDirectoryFixture`, `LocalWorkforceSignInFixture`, `BlockedWorkforceStaffDirectory` |
+| `auth.ts` | `WorkforceTokenVerifier` (jose: issuer, audience, exp, nbf, iat lifetime, jti, auth_time, MFA amr; local JWKS, remote JWKS URL or discovered keys), `StaffDirectory` port, `LocalStaffDirectoryFixture`, `LocalWorkforceSignInFixture` |
 | `break-glass.ts` | `PgBreakGlassGrantSource`: authoritative grants from `console_break_glass_grants`, mapped into the console policy input |
+| `sso.ts`, `sso-config.ts` | `WorkforceSsoService` (start / exchange / authenticate / refresh / logout / sweep, recovery custodians following the IdP), `WorkforceSsoConfigSchema` (redirect and issuer form, membership source), redirect allowlist, membership-to-role mapping, guard violations |
+| `login-state.ts` | Sealed login state of the unauthenticated start (HMAC, tenant and issuer bound, one canonical spelling, single use recorded at the exchange) |
+| `anonymous-audit.ts` | `AnonymousAuditBudget`: bounded audit volume for anonymous refusals (per action and reason, per window, suppressed count carried) |
+| `sessions.ts`, `token-sealer.ts` | `PgConsoleSessionStore` (sessions, single use of login states, refresh claim, release and rotation, the row-locked terminal decision `closeFamily` with the fail-closed custodian rule, idle and absolute expiry verdict), `AesGcmTokenSealer` (AES-256-GCM sealing and per-purpose HMAC) |
+| `oidc-staff-directory.ts` | `OidcGroupStaffDirectory`: staff resolved from the verified ID token groups and the session's last active check (no static roster) |
+| `break-glass-issuance.ts`, `recovery.ts` | `PgBreakGlassIssuance` (requests, decisions, grants, post-use access reviews), `PgRecoveryService` (dual-controlled recovery identities and sessions) |
+| `routes/auth/workforce-auth.ts` | Route handlers for `auth.oidcStart`, `auth.oidcExchange`, `auth.refresh`, `auth.recovery*` and the `auth.config` OIDC view |
+| migrations `2050`, `2051`, `2052` | `console_sessions`, `console_login_transactions` (hashes only, single use); `console_break_glass_requests`, `console_access_reviews`, `console_recovery_identities`, `console_recovery_activations` (database-enforced separation of duties); `2052`: challenge and holder-evidence indexes, delete of expired login-state rows only |
 | `authorize.ts` | ENDPOINT_ROLES + `decideConsole` (any one mapped catalogue action allowing suffices) and the deny-reason mapping |
 | `stores.ts` | Console-owned state: idempotency, session revocations, release submissions and reviews, reconciliations; console audit input builder |
 | `read-models.ts` | Content-free read models from audit metadata (`audit_event_metadata`, app_console), `safety_events`, the ledger column allowlist |
@@ -169,9 +392,11 @@ Finer rules the server enforces:
 
 ### Request pipeline
 
-1. Bearer JWT verified (`WorkforceTokenVerifier`), staff resolved by (issuer, subject) from the
-   `StaffDirectory` (roles re-read on every request), logout revocation checked, the latest
-   break-glass grant loaded. Tokens without an MFA amr are refused (`401 STAFF_MFA_REQUIRED`).
+1. Console session bearer authenticated (`WorkforceSsoService.authenticate`: revocation,
+   replay, absolute and idle expiry, bounded IdP active check) or, in local/ci only, the local
+   fixture JWT verified (`WorkforceTokenVerifier`); staff resolved (roles from the session's
+   last verified groups, or re-read from the fixture directory), the latest break-glass grant
+   loaded. Tokens without an MFA amr are refused (`401 STAFF_MFA_REQUIRED`).
 2. `ENDPOINT_ROLES` (`403 STAFF_ROLE_NOT_PERMITTED`, audited as a denial).
 3. Strict path / query / body validation (`400 VALIDATION_FAILED`; reasons `REASON_NOT_ALLOWED`).
 4. Console policy decision(s) (`403` with the mapped reason code, audited).
@@ -209,6 +434,14 @@ their mutating actions (auditor read-only taint applies).
 | `killSwitches.set` | `kill_switch:engage` / `kill_switch:release` with the requested scope |
 | `audit.search` | `audit:search` |
 | `destinations.list` | `journey:inspect`, `policy:review` |
+| `breakGlass.list` | `console:session` |
+| `breakGlass.request` | `break_glass:request` |
+| `breakGlass.decide` | `break_glass:approve` with initiator = requester (never self, `SUBMITTER_UNKNOWN` without one) |
+| `accessReviews.list` | `access_review:view` |
+| `accessReviews.complete` | `access_review:perform` with initiator = grant holder |
+| `recoveryIdentities.list` / `propose` / `revoke` | `recovery_identity:view` / `recovery_identity:propose` / `recovery_identity:revoke` |
+| `recoveryIdentities.approve` | `recovery_identity:approve` with initiator = proposer |
+| `recoveryIdentities.confirm` | `recovery_identity:confirm` with assignedStaffId = the identity's holder (no role reaches it otherwise) |
 
 ### Restricted support requests and the trace
 
@@ -288,9 +521,12 @@ staging/production).
 
 ## Known gaps
 
-* `auth.oidcExchange` answers `503 OIDC_NOT_CONFIGURED`: no workforce OIDC client, token
-  endpoint, MFA claim definition or role-group mapping exists (PRQ-036, VQ-IDP-08). The live
-  bearer verifier (`WorkforceTokenVerifier.remoteJwks`) and the BLOCKED live directory exist.
+* Workforce SSO is verified against local Keycloak only. The tenant workforce OIDC client,
+  managed group names, MFA amr values and approved session parameters are activation inputs
+  (PRQ-036, VQ-IDP-08, AIN-12/13/15). Without `ConsoleApiDeps.auth.sso` the OIDC endpoints answer
+  `503 OIDC_NOT_CONFIGURED` (local/ci) and registration outside local/ci is refused. Composition
+  of the live SSO dependencies in the composition root (`main/`, WP-07) and scheduling of
+  `WorkforceSsoService.sweep` are not part of this module.
 * `reconciliation.retry` enforces every gate (latest unconsumed NOT_FOUND console reconciliation
   within 10 minutes, ledger back in CONFIRMED), consumes the console reconciliation and then
   calls `ConsoleApiDeps.reconciledRetry`. The local composition (`main/console.ts`) wires

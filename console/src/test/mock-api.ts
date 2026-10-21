@@ -128,9 +128,32 @@ function defaults(): Record<EndpointKey, Handler> {
       }),
     "auth.localToken": ({ req }) => {
       const staffId = (req.body as { staffId?: string } | undefined)?.staffId ?? "";
-      return json(200, { accessToken: `synthetic-token.${staffId}`, tokenType: "Bearer", expiresAt: "2099-01-01T00:00:00.000Z", localFixture: true });
+      return json(200, { accessToken: `synthetic-token.${staffId}`, tokenType: "Bearer", expiresAt: "2099-01-01T00:00:00.000Z", localFixture: true, sessionKind: "LOCAL_FIXTURE", idleTimeoutSeconds: null });
     },
-    "auth.oidcExchange": () => json(200, { accessToken: `synthetic-token.${fx.staffView("supervisor").staffId}`, tokenType: "Bearer", expiresAt: "2099-01-01T00:00:00.000Z", localFixture: false }),
+    "auth.oidcStart": ({ req, state }) => {
+      const body = req.body as { redirectUri?: string; codeChallenge?: string } | undefined;
+      const endpoint = state.authConfig.oidc?.authorizationEndpoint;
+      if (!endpoint || state.authConfig.oidc?.status !== "CONFIGURED") return errorResponse(503, "OIDC_NOT_CONFIGURED");
+      // The backend creates state and nonce and keeps them server side (SYNTHETIC values).
+      const backendState = `S${"t".repeat(42)}`;
+      const url = new URL(endpoint);
+      url.search = new URLSearchParams({
+        response_type: "code",
+        client_id: state.authConfig.oidc?.clientId ?? "",
+        redirect_uri: body?.redirectUri ?? "",
+        scope: "openid",
+        state: backendState,
+        nonce: `N${"n".repeat(42)}`,
+        code_challenge: body?.codeChallenge ?? "",
+        code_challenge_method: "S256",
+      }).toString();
+      return json(200, { authorizationUrl: url.toString(), state: backendState, expiresAt: "2099-01-01T00:00:00.000Z" });
+    },
+    "auth.oidcExchange": () =>
+      json(200, { accessToken: `synthetic-token.${fx.staffView("supervisor").staffId}`, tokenType: "Bearer", expiresAt: "2099-01-01T00:00:00.000Z", localFixture: false, sessionKind: "OIDC_SSO", idleTimeoutSeconds: 900 }),
+    "auth.refresh": () => errorResponse(401, "SESSION_INVALID"),
+    "auth.recoveryChallenge": () => errorResponse(503, "RECOVERY_NOT_CONFIGURED"),
+    "auth.recoveryActivate": () => errorResponse(503, "RECOVERY_NOT_CONFIGURED"),
     "auth.logout": () => json(200, { loggedOut: true }),
     me: ({ staff, state }) => json(200, fx.meFor(staff as StaffView, state.meOverrides)),
     overview: () => json(200, fx.overview()),
@@ -226,6 +249,33 @@ function defaults(): Record<EndpointKey, Handler> {
     },
     "audit.search": () => json(200, fx.auditSearch()),
     "destinations.list": () => json(200, fx.destinations()),
+    "breakGlass.list": () => json(200, { requests: [] }),
+    "breakGlass.request": ({ req, staff, state }) => {
+      const body = req.body as { justificationCode: string; durationSeconds: number };
+      return json(200, {
+        request: {
+          requestId: nextId(state, "bgr"),
+          requestedBy: (staff as StaffView).staffId,
+          justificationCode: body.justificationCode,
+          durationSeconds: body.durationSeconds,
+          requestedAt: "2026-10-17T15:00:00.000Z",
+          decideBy: "2026-10-17T16:00:00.000Z",
+          status: "PENDING",
+          decidedBy: null,
+          decidedAt: null,
+          grantId: null,
+          grantExpiresAt: null,
+        },
+      });
+    },
+    "breakGlass.decide": () => errorResponse(404, "NOT_FOUND"),
+    "accessReviews.list": () => json(200, { reviews: [] }),
+    "accessReviews.complete": () => errorResponse(404, "NOT_FOUND"),
+    "recoveryIdentities.list": () => json(200, { identities: [] }),
+    "recoveryIdentities.propose": () => errorResponse(503, "RECOVERY_NOT_CONFIGURED"),
+    "recoveryIdentities.confirm": () => errorResponse(404, "NOT_FOUND"),
+    "recoveryIdentities.approve": () => errorResponse(404, "NOT_FOUND"),
+    "recoveryIdentities.revoke": () => errorResponse(404, "NOT_FOUND"),
   };
 }
 
@@ -250,6 +300,18 @@ export function createMockApi(options: MockApiOptions = {}): MockApi {
   };
   const handlers: Partial<Record<EndpointKey, Handler>> = { ...options.handlers };
   const base = defaults();
+  let rotations = 0;
+  // SYNTHETIC session refresh: the presented bearer is rotated to a new one for the same staff member.
+  base["auth.refresh"] = ({ req }) => {
+    const auth = req.headers.authorization ?? "";
+    const current = auth.startsWith("Bearer ") ? staffByToken.get(auth.slice(7)) : undefined;
+    if (!current) return errorResponse(401, "SESSION_INVALID");
+    rotations += 1;
+    const next = `${tokenFor(current)}.r${rotations}`;
+    staffByToken.set(next, current);
+    staffByToken.delete(auth.slice(7));
+    return json(200, { accessToken: next, tokenType: "Bearer", expiresAt: "2099-01-01T00:00:00.000Z", localFixture: false, sessionKind: "OIDC_SSO", idleTimeoutSeconds: 900 });
+  };
   const requests: RecordedRequest[] = [];
 
   const fetchImpl = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {

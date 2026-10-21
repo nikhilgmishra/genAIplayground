@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  AUTH_CONTEXT_SCHEMA_VERSION,
   Assurance,
   AuthContext,
   ConsentState,
@@ -13,7 +14,7 @@ import {
   VerificationMethod,
   VersionLabel,
 } from "../protocol/index.js";
-import type { IntegrationIdentity } from "../protocol/index.js";
+import type { IntegrationIdentity, ProcessingBasis } from "../protocol/index.js";
 import type { Clock } from "../shared/clock.js";
 import { iso } from "../shared/clock.js";
 import { ConflictError, SessionInvalidError } from "../shared/errors.js";
@@ -63,6 +64,16 @@ export const SessionRecord = z.strictObject({
     .strictObject({ actionDigest: Sha256Hex, verifiedAt: IsoDateTime, expiresAt: IsoDateTime })
     .nullable(),
   lastChange: ReasonCodeField.nullable(),
+  /**
+   * Last use of the session (FO-05-18), written at a bounded rate. Optional for records written before
+   * idle expiry existed; then the verification time (or creation) is the last activity.
+   */
+  lastActivityAt: IsoDateTime.nullable().optional(),
+  /**
+   * The actor whose verified privileges lapsed by idle expiry (FO-05-19): re-verification in this call
+   * must bind the SAME actor; a different person needs an explicit account switch or participant change.
+   */
+  lapsedActorId: OpaqueId.nullable().optional(),
 });
 export type SessionRecord = z.infer<typeof SessionRecord>;
 
@@ -76,7 +87,8 @@ export type SessionInvalidReason =
   | "SESSION_ENVIRONMENT_MISMATCH"
   | "SESSION_INTEGRATION_MISMATCH"
   | "SESSION_CHANNEL_NOT_ALLOWED"
-  | "SESSION_CALL_MISMATCH";
+  | "SESSION_CALL_MISMATCH"
+  | "SESSION_IDLE_EXPIRED";
 
 /** Clears every privilege-bearing field. Risk flags are retained (they are risk signals, not privileges). */
 export function dropPrivileges(rec: SessionRecord): SessionRecord {
@@ -105,6 +117,35 @@ export function lifecycleProblem(rec: SessionRecord, now: Date): SessionInvalidR
   return null;
 }
 
+/** When the record was last used: lastActivityAt, else the verification time, else creation. */
+export function lastActivityMs(rec: SessionRecord): number {
+  const candidates = [rec.lastActivityAt, rec.authenticatedAt, rec.createdAt].filter((v): v is string => typeof v === "string").map((v) => Date.parse(v));
+  return Math.max(...candidates);
+}
+
+/**
+ * Verified privileges idle beyond the limit (FO-05-18, AUTH-04): checked on every use, independent of the
+ * storage TTL and of the hard expiry. An unverified (A0) session has no privileges to lapse.
+ */
+export function privilegesIdleExpired(rec: SessionRecord, now: Date, cfg: Pick<SessionConfig, "privilegeIdleTimeoutSeconds">): boolean {
+  if (rec.actorId === null && rec.assurance === "A0") return false;
+  return now.getTime() - lastActivityMs(rec) > cfg.privilegeIdleTimeoutSeconds * 1000;
+}
+
+/**
+ * Processing basis the identity service establishes for the session (FO-05-22): the counsel-approved basis
+ * for the verified role when one is configured, otherwise the honest UNKNOWN (never a guess, never from a
+ * caller statement or the model).
+ */
+export function processingBasisFor(rec: SessionRecord, cfg: Pick<SessionConfig, "jurisdiction" | "approvedProcessingBases">): ProcessingBasis {
+  const approved = rec.actorId !== null && rec.selectedRole !== null ? cfg.approvedProcessingBases.find((b) => b.role === rec.selectedRole) : undefined;
+  const establishedAt = rec.authenticatedAt ?? rec.createdAt;
+  if (approved && cfg.jurisdiction !== "UNKNOWN") {
+    return { basis: approved.basis, purpose: approved.purpose, jurisdiction: cfg.jurisdiction, approvalRef: approved.approvalRef, establishedAt, source: "identity_service" };
+  }
+  return { basis: "UNKNOWN", purpose: "support_administration", jurisdiction: cfg.jurisdiction, approvalRef: null, establishedAt, source: "identity_service" };
+}
+
 export function bindingProblem(rec: SessionRecord, integration: IntegrationIdentity, cfg: SessionConfig): SessionInvalidReason | null {
   if (integration.tenantId !== rec.tenantId || integration.tenantId !== cfg.tenantId) return "SESSION_TENANT_MISMATCH";
   if (integration.environment !== rec.environment || integration.environment !== cfg.environment) return "SESSION_ENVIRONMENT_MISMATCH";
@@ -114,9 +155,10 @@ export function bindingProblem(rec: SessionRecord, integration: IntegrationIdent
 }
 
 /** Builds the zod-validated AuthContext. A record that does not produce a valid context fails closed. */
-export function toAuthContext(rec: SessionRecord, sessionRef: string, integration: IntegrationIdentity, now: Date): AuthContext {
+export function toAuthContext(rec: SessionRecord, sessionRef: string, integration: IntegrationIdentity, now: Date, processingBasis?: ProcessingBasis): AuthContext {
   const stepUp = rec.stepUp && now.getTime() < Date.parse(rec.stepUp.expiresAt) ? rec.stepUp : null;
   const parsed = AuthContext.safeParse({
+    schemaVersion: AUTH_CONTEXT_SCHEMA_VERSION,
     tenantId: rec.tenantId,
     callId: rec.callId,
     sessionRef,
@@ -137,6 +179,7 @@ export function toAuthContext(rec: SessionRecord, sessionRef: string, integratio
     revoked: rec.revoked,
     stepUp,
     integration,
+    ...(processingBasis ? { processingBasis } : {}),
   });
   if (!parsed.success) throw new SessionInvalidError("SESSION_RECORD_INVALID");
   return parsed.data;

@@ -17,7 +17,7 @@ production readiness.
 | `vsp/authz.rego` | Caller-facing entrypoint `vsp/authz/decision` |
 | `vsp/console.rego` | Workforce console entrypoint `vsp/console/decision` |
 | `vsp/lib.rego` | WASM-safe helpers: pure-Rego RFC 3339 parser (canonical `YYYY-MM-DDTHH:MM:SS.sssZ` only), assurance ranks |
-| `vsp/*_test.rego` | `opa test` unit tests (225) and SYNTHETIC fixtures; excluded from the bundle |
+| `vsp/*_test.rego` | `opa test` unit tests (252 results, counting each case of the data-driven console read role-set test, which pins every non-mutating console action of the catalogue) and SYNTHETIC fixtures; excluded from the bundle |
 | `golden/probes.json` | 916 golden decision probes generated from a declarative matrix (`platform/src/policy/golden-matrix.ts`) |
 | `golden/approved-expansions.json` | Approved access expansions (`[]`; entries `{probeId, approvedBy, approvalId, reason}`) |
 | `build/` | Build output (gitignored): `bundle.tar.gz`, `policy.wasm`, `data.json`, `.manifest`, `bundle.sha256`, `sources.sha256` |
@@ -26,7 +26,7 @@ production readiness.
 
 ```bash
 bash scripts/fetch-tools.sh        # pinned OPA 1.21.0 (checksum-verified) into .tools/
-bash scripts/policy.sh test        # opa fmt check + opa check --strict (WASM capabilities) + opa test -v
+bash scripts/policy.sh test        # opa fmt check + opa check --strict (WASM capabilities) + opa test -v --timeout 60s
 bash scripts/policy.sh build       # WASM bundle into policy/build (skipped when sources.sha256 is fresh)
 bash scripts/policy.sh rebuild     # force a build
 bash scripts/policy.sh digest      # sources digest

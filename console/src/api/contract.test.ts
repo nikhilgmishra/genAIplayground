@@ -68,9 +68,9 @@ describe("console API contract", () => {
     expect(contractSource).not.toMatch(/\brequire\(/);
   });
 
-  it("[SPEC-7.staff] least privilege: the auditor reaches only read endpoints (audit, releases, me) and can mutate nothing", () => {
+  it("[SPEC-7.staff] least privilege: the auditor reaches only read endpoints (audit, releases, access reviews, own break-glass requests, me) and can mutate nothing", () => {
     const auditorEndpoints = authenticated.filter((k) => ENDPOINT_ROLES[k].includes("auditor")).sort();
-    expect(auditorEndpoints).toEqual(["audit.search", "auth.logout", "me", "releases.list"]);
+    expect(auditorEndpoints).toEqual(["accessReviews.list", "audit.search", "auth.logout", "breakGlass.list", "me", "releases.list"]);
     for (const k of auditorEndpoints) if (k !== "auth.logout") expect(CONSOLE_ENDPOINTS[k].method).toBe("GET");
     expect(ENDPOINT_ROLES["audit.search"]).toEqual(["auditor", "security_admin"]);
     expect(sorted(ENDPOINT_ROLES["safetyEvents.list"])).toEqual(["safety_responder", "supervisor"]);

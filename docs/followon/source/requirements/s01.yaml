@@ -227,19 +227,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.workforce
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/console-api/plugin.ts:454-459 (auth.oidcExchange throws OIDC_NOT_CONFIGURED)
-  - platform/src/console-api/auth.ts:305 (BlockedWorkforceStaffDirectory)
-  gap: No backend code exchange, discovery or live staff directory.
+  - identity L2 42/42 x3 (workforce-sso.test.ts PKCE + roles)
+  - src/console-api sso.test.ts
+  gap: Live composition wiring and the sweep schedule are WP-07; the tenant IdP is an activation input (AIN-12).
   remediation: Implement exchange, discovery, group-role mapping; test against a local OIDC provider (e.g. Keycloak/Dex container).
   size: L
   environmentDependency: workforce OIDC client (PRQ-036)
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-01-10
   section: '1'
   kind: software
@@ -278,9 +283,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'platform/src/adapters/live/oidc-verifier.ts (JwksOidcVerifier, VERIFIED_LOCAL over loopback JWKS: oidc-verifier.test.ts:148-165)'
-  - no live IdentityDirectory implementation (only platform/src/adapters/local/identity-directory.ts)
-  gap: Token verification exists; directory, discovery and composition do not.
+  - caller-identity.test.ts (L2, 3 runs)
+  gap: No live IdentityDirectory adapter exists; account linking runs over the labelled stand-in.
   remediation: Live IdentityDirectory connector, discovery, composition.
   size: L
   environmentDependency: client/provider IdP clients and directory API (PRQ-005, PRQ-030)
@@ -290,6 +294,11 @@ requirements:
     challengeCorrected:
     - softwareStatus
     statusChangedFrom: MISSING
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-01-12
   section: '1'
   kind: software
@@ -838,20 +847,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'generation fencing: platform/src/voice/turns.ts, gate.ts (STALE_GENERATION); duplicates: platform/migrations/0110_outbox.sql consumer_dedup, gateway/http/webhook-routes.ts:47'
-  - 'accepted handoff: platform/src/protocol/support.ts:69-82, platform/src/workflows/transfer.ts'
-  - no idle-expiry or refresh logic in platform/src/identity or platform/src/console-api/auth.ts
-  gap: Token refresh and idle expiry are absent for caller and workforce sessions; the rest is verified locally.
+  - break-glass.test.ts refresh-race and claim cases
+  - workforce-sso.test.ts refresh/idle (L2)
+  gap: Duplicate events and accepted handoff are not run end to end through the composed container (WP-07).
   remediation: Implement idle expiry and same-actor refresh; add cross-component tests.
   size: L
   environmentDependency: none
   workPackage: WP-05
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-01-32
   section: '1'
   kind: document

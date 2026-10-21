@@ -84,13 +84,16 @@ cmd_test() {
     die "Rego not formatted (run: ${OPA} fmt -w policy/vsp): ${unformatted}"
   fi
   "${OPA}" check --strict --capabilities "${CAPABILITIES}" vsp
-  "${OPA}" test -v vsp
+  # An explicit per-test deadline (as scripts/terraform-policy.sh has): OPA's default of 5 s was hit once by a
+  # role-matrix test on a loaded 4-CPU runner. The slowest test (the data-driven console read role-set table,
+  # policy/vsp/console_test.rego) takes about 3 s; the deadline leaves a wide margin on a loaded runner.
+  "${OPA}" test -v --timeout 60s vsp
 }
 
 cmd_coverage() {
   require_opa
   cd "${POLICY_DIR}"
-  "${OPA}" test --coverage --format=json vsp | node -e '
+  "${OPA}" test --coverage --timeout 60s --format=json vsp | node -e '
     let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
       const r = JSON.parse(s);
       const files = Object.entries(r.files || {}).filter(([f]) => !f.endsWith("_test.rego"));

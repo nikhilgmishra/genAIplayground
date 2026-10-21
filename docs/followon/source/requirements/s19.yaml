@@ -193,25 +193,28 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.workforce
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/db/pg.ts (PgPoolDb; no test against PostgreSQL)
-  - platform/src/identity/kv/dynamo-kv-store.ts
-  - platform/src/audit/sinks/s3-object-lock.ts, s3-object-lock.test.ts (fixture client)
-  - platform/src/console-api/auth.ts:1-20 (createRemoteJWKSet path; live StaffDirectory BLOCKED)
-  gap: 'Code exists but none is exercised against PostgreSQL, DynamoDB, S3 Object Lock or an OIDC realm; live StaffDirectory/role-group mapping missing; none is composed (see FO-19-06). (Split per c5 challenge: the storage/session/audit adapter part is tracked as FO-19-07a; FO-19-07 keeps the live workforce directory element, which is MISSING.)'
+  - workforce-sso.test.ts group removal (L2)
+  - sso.test.ts [FO-19-07]
+  gap: No software gap.
   remediation: '(1) Split the item: FO-19-07a storage/session/audit adapters (IMPLEMENTED) and FO-19-07b live workforce directory (MISSING). (2) Add platform/src/console-api/oidc-staff-directory.ts: a StaffDirectory that resolves (issuer, sub) to staff roles from configured IdP group claims (typed mapping in platform/src/config/schema.ts) and refuses unknown groups. Wire it with createRemoteJWKSet in the live composition root. (3) Add contract tests under platform/test/integration/ against docker images postgres:16-alpine (PgPoolDb: migrate, RLS, SERIALIZABLE retry, pool exhaustion), amazon/dynamodb-local (DynamoKvStore CAS and TTL), minio/minio with object lock enabled (S3ObjectLockAuditSink 412/retention), and a Keycloak realm (workforce token plus group mapping, MFA amr).'
   size: L
   environmentDependency: workforce IdP client and group mapping (PRQ-036, VQ-IDP-08) to activate
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-19-07a
   section: '19'
   kind: software

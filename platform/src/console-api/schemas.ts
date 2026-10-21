@@ -175,12 +175,19 @@ export const OidcClientConfigS = z.strictObject({
   blockedReasonCode: ReasonCodeS.nullable(),
 });
 
+export const SessionPolicyViewS = z.strictObject({
+  idleTimeoutSeconds: z.number().int().min(60).max(86_400),
+  absoluteLifetimeSeconds: z.number().int().min(60).max(86_400),
+});
+
 export const AuthConfigResponseS = z.strictObject({
   apiVersion: z.literal(CONSOLE_API_VERSION),
   environment: EnvironmentS,
   localFixture: z.boolean(),
   mode: z.enum(["oidc_workforce", "local_fixture"]),
   oidc: OidcClientConfigS.nullable(),
+  sessionPolicy: SessionPolicyViewS.nullable(),
+  recoveryAvailable: z.boolean(),
 });
 
 export const LocalStaffOptionS = z.strictObject({
@@ -196,18 +203,47 @@ export const LocalStaffResponseS = z.strictObject({
 
 export const LocalTokenRequestS = z.strictObject({ staffId: StaffIdS });
 
+export const OidcStartRequestS = z.strictObject({
+  redirectUri: z.string().min(12).max(256),
+  codeChallenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  codeChallengeMethod: z.literal("S256"),
+});
+
+export const OidcStartResponseS = z.strictObject({
+  authorizationUrl: z.string().min(16).max(4096).regex(/^https:\/\/[^\s#]+$/),
+  /** Sealed login state (login-state.ts): base64url, 176..346 characters. */
+  state: z.string().regex(/^[A-Za-z0-9_-]{176,346}$/),
+  expiresAt: IsoDateTimeS,
+});
+
 export const OidcExchangeRequestS = z.strictObject({
-  code: z.string().min(8).max(2048).regex(/^[A-Za-z0-9._~-]+$/),
+  code: z.string().min(8).max(2048).regex(/^[A-Za-z0-9._~+/=-]+$/),
+  state: z.string().min(16).max(512).regex(/^[A-Za-z0-9_-]+$/),
   codeVerifier: z.string().min(43).max(128).regex(/^[A-Za-z0-9._~-]+$/),
   redirectUri: z.string().max(512),
-  nonce: z.string().min(16).max(256).regex(/^[A-Za-z0-9._~-]+$/),
 });
+
+export const ConsoleSessionKindS = z.enum(["LOCAL_FIXTURE", "OIDC_SSO", "RECOVERY"]);
 
 export const TokenResponseS = z.strictObject({
   accessToken: z.string().min(16).max(16_384),
   tokenType: z.literal("Bearer"),
   expiresAt: IsoDateTimeS,
   localFixture: z.boolean(),
+  sessionKind: ConsoleSessionKindS,
+  idleTimeoutSeconds: z.number().int().min(60).max(86_400).nullable(),
+});
+
+const CompactJwsS = z.string().min(32).max(4096).regex(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+export const RecoveryChallengeRequestS = z.strictObject({ identityId: OpaqueIdS, proof: CompactJwsS });
+export const RecoveryChallengeResponseS = z.strictObject({
+  activationId: OpaqueIdS,
+  challenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  expiresAt: IsoDateTimeS,
+});
+export const RecoveryActivateRequestS = z.strictObject({
+  activationId: OpaqueIdS,
+  approvals: z.array(z.strictObject({ identityId: OpaqueIdS, signature: CompactJwsS })).length(2),
 });
 
 export const BreakGlassViewS = z.strictObject({
@@ -232,6 +268,8 @@ export const MeResponseS = z.strictObject({
   environment: EnvironmentS,
   localFixture: z.boolean(),
   sessionExpiresAt: IsoDateTimeS,
+  sessionKind: ConsoleSessionKindS,
+  idleTimeoutSeconds: z.number().int().min(60).max(86_400).nullable(),
 });
 
 export const LogoutResponseS = z.strictObject({ loggedOut: z.literal(true) });
@@ -821,6 +859,90 @@ export const DestinationsResponseS = z.strictObject({
 });
 
 /* ------------------------------------------------------------------------ */
+/* Break-glass issuance, access reviews, recovery identities                 */
+/* ------------------------------------------------------------------------ */
+
+export const BreakGlassJustificationS = z.enum(["ACTIVE_SAFETY_INCIDENT", "AUDIT_INVESTIGATION", "DEPENDENCY_OUTAGE_RECOVERY", "PRIVACY_INCIDENT", "SECURITY_INCIDENT"]);
+
+/**
+ * Maximum duration of a break-glass grant (4 hours). One value in four places, pinned together by break-glass.test.ts
+ * `[FO-05-45] one maximum`: this constant (request schema, issuance service), policy data
+ * console.breakGlass.maxDurationSeconds (policy/vsp/data.json) and the CHECK on
+ * console_break_glass_requests.requested_duration_seconds (migration 2051).
+ */
+export const BREAK_GLASS_MAX_DURATION_SECONDS = 14_400;
+/** Minimum duration of a break-glass grant (the same CHECK of migration 2051). */
+export const BREAK_GLASS_MIN_DURATION_SECONDS = 300;
+
+export const BreakGlassRequestCreateS = z.strictObject({
+  justificationCode: BreakGlassJustificationS,
+  durationSeconds: z.number().int().min(BREAK_GLASS_MIN_DURATION_SECONDS).max(BREAK_GLASS_MAX_DURATION_SECONDS),
+  reason: OperatorReasonS,
+});
+
+export const BreakGlassRequestViewS = z.strictObject({
+  requestId: OpaqueIdS,
+  requestedBy: StaffIdS,
+  justificationCode: BreakGlassJustificationS,
+  durationSeconds: z.number().int().min(BREAK_GLASS_MIN_DURATION_SECONDS).max(BREAK_GLASS_MAX_DURATION_SECONDS),
+  requestedAt: IsoDateTimeS,
+  decideBy: IsoDateTimeS,
+  status: z.enum(["PENDING", "APPROVED", "REJECTED", "EXPIRED"]),
+  decidedBy: StaffIdS.nullable(),
+  decidedAt: IsoDateTimeS.nullable(),
+  grantId: OpaqueIdS.nullable(),
+  grantExpiresAt: IsoDateTimeS.nullable(),
+});
+
+export const BreakGlassRequestsResponseS = z.strictObject({ requests: z.array(BreakGlassRequestViewS).max(200) });
+export const BreakGlassDecisionRequestS = z.strictObject({ decision: z.enum(["APPROVE", "REJECT"]), reason: OperatorReasonS });
+export const BreakGlassDecisionResponseS = z.strictObject({ request: BreakGlassRequestViewS });
+
+export const AccessReviewViewS = z.strictObject({
+  reviewId: OpaqueIdS,
+  subjectKind: z.enum(["BREAK_GLASS_GRANT", "RECOVERY_SESSION"]),
+  subjectRef: OpaqueIdS,
+  holderStaffId: StaffIdS,
+  approverStaffId: StaffIdS.nullable(),
+  openedAt: IsoDateTimeS,
+  dueAt: IsoDateTimeS,
+  status: z.enum(["OPEN", "COMPLETED"]),
+  outcome: z.enum(["APPROPRIATE", "INAPPROPRIATE", "FOLLOW_UP_REQUIRED"]).nullable(),
+  reviewerStaffId: StaffIdS.nullable(),
+  completedAt: IsoDateTimeS.nullable(),
+});
+export const AccessReviewsResponseS = z.strictObject({ reviews: z.array(AccessReviewViewS).max(200) });
+export const AccessReviewCompleteRequestS = z.strictObject({ outcome: z.enum(["APPROPRIATE", "INAPPROPRIATE", "FOLLOW_UP_REQUIRED"]), reason: OperatorReasonS });
+export const AccessReviewCompleteResponseS = z.strictObject({ review: AccessReviewViewS });
+
+export const RecoveryRoleS = z.enum(["security_admin", "supervisor", "safety_responder"]);
+const B64Url43S = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+export const RecoveryPublicJwkS = z.strictObject({ kty: z.literal("EC"), crv: z.literal("P-256"), x: B64Url43S, y: B64Url43S });
+export const RecoveryIdentityViewS = z.strictObject({
+  identityId: OpaqueIdS,
+  staffId: StaffIdS,
+  keyThumbprint: B64Url43S,
+  roles: z.array(RecoveryRoleS).min(1).max(3),
+  attestationRef: OpaqueIdS,
+  status: z.enum(["PROPOSED", "ACTIVE", "SUSPENDED", "REVOKED"]),
+  proposedBy: StaffIdS,
+  holderConfirmedAt: IsoDateTimeS.nullable(),
+  approvedBy: StaffIdS.nullable(),
+  suspendReason: ReasonCodeS.nullable(),
+});
+export const RecoveryIdentitiesResponseS = z.strictObject({ identities: z.array(RecoveryIdentityViewS).max(64) });
+export const RecoveryIdentityProposeRequestS = z.strictObject({
+  staffId: StaffIdS,
+  publicJwk: RecoveryPublicJwkS,
+  attestationRef: OpaqueIdS,
+  roles: z.array(RecoveryRoleS).min(1).max(3),
+});
+export const RecoveryIdentityResponseS = z.strictObject({ identity: RecoveryIdentityViewS });
+export const RecoveryIdentityProposeResponseS = z.strictObject({ identity: RecoveryIdentityViewS, enrollment: z.strictObject({ challenge: B64Url43S, expiresAt: IsoDateTimeS }) });
+export const RecoveryIdentityConfirmRequestS = z.strictObject({ signature: CompactJwsS });
+export const RecoveryIdentityRevokeRequestS = z.strictObject({ reason: OperatorReasonS });
+
+/* ------------------------------------------------------------------------ */
 /* Endpoint schema table                                                     */
 /* ------------------------------------------------------------------------ */
 
@@ -836,7 +958,11 @@ export const ENDPOINT_SCHEMAS: Readonly<Record<EndpointKey, EndpointSchemas>> = 
   "auth.config": { query: null, body: null, response: AuthConfigResponseS },
   "auth.localStaff": { query: null, body: null, response: LocalStaffResponseS },
   "auth.localToken": { query: null, body: LocalTokenRequestS, response: TokenResponseS },
+  "auth.oidcStart": { query: null, body: OidcStartRequestS, response: OidcStartResponseS },
   "auth.oidcExchange": { query: null, body: OidcExchangeRequestS, response: TokenResponseS },
+  "auth.refresh": { query: null, body: null, response: TokenResponseS },
+  "auth.recoveryChallenge": { query: null, body: RecoveryChallengeRequestS, response: RecoveryChallengeResponseS },
+  "auth.recoveryActivate": { query: null, body: RecoveryActivateRequestS, response: TokenResponseS },
   "auth.logout": { query: null, body: null, response: LogoutResponseS },
   me: { query: null, body: null, response: MeResponseS },
   overview: { query: null, body: null, response: OverviewResponseS },
@@ -861,6 +987,16 @@ export const ENDPOINT_SCHEMAS: Readonly<Record<EndpointKey, EndpointSchemas>> = 
   "killSwitches.set": { query: null, body: SetKillSwitchRequestS, response: SetKillSwitchResponseS },
   "audit.search": { query: AuditSearchQueryS, body: null, response: AuditSearchResponseS },
   "destinations.list": { query: null, body: null, response: DestinationsResponseS },
+  "breakGlass.list": { query: null, body: null, response: BreakGlassRequestsResponseS },
+  "breakGlass.request": { query: null, body: BreakGlassRequestCreateS, response: BreakGlassDecisionResponseS },
+  "breakGlass.decide": { query: null, body: BreakGlassDecisionRequestS, response: BreakGlassDecisionResponseS },
+  "accessReviews.list": { query: null, body: null, response: AccessReviewsResponseS },
+  "accessReviews.complete": { query: null, body: AccessReviewCompleteRequestS, response: AccessReviewCompleteResponseS },
+  "recoveryIdentities.list": { query: null, body: null, response: RecoveryIdentitiesResponseS },
+  "recoveryIdentities.propose": { query: null, body: RecoveryIdentityProposeRequestS, response: RecoveryIdentityProposeResponseS },
+  "recoveryIdentities.confirm": { query: null, body: RecoveryIdentityConfirmRequestS, response: RecoveryIdentityResponseS },
+  "recoveryIdentities.approve": { query: null, body: null, response: RecoveryIdentityResponseS },
+  "recoveryIdentities.revoke": { query: null, body: RecoveryIdentityRevokeRequestS, response: RecoveryIdentityResponseS },
 };
 
 /** Path parameter validators (PATH_PARAM_PATTERNS). Values are never echoed when invalid. */
@@ -871,4 +1007,7 @@ export const PATH_PARAM_SCHEMAS: Readonly<Record<PathParamName, z.ZodType<string
   messageId: z.string().max(80).regex(new RegExp(PATH_PARAM_PATTERNS.messageId)),
   taskId: z.string().max(80).regex(new RegExp(PATH_PARAM_PATTERNS.taskId)),
   releaseId: z.string().max(80).regex(new RegExp(PATH_PARAM_PATTERNS.releaseId)),
+  requestId: z.string().max(80).regex(new RegExp(PATH_PARAM_PATTERNS.requestId)),
+  reviewId: z.string().max(80).regex(new RegExp(PATH_PARAM_PATTERNS.reviewId)),
+  identityId: z.string().max(80).regex(new RegExp(PATH_PARAM_PATTERNS.identityId)),
 };

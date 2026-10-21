@@ -124,15 +124,19 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/identity/session-service.ts, verification-service.ts
-  - platform/src/adapters/live/oidc-verifier.ts
-  gap: Live IdP linking blocked.
+  - caller-identity.test.ts cross-account case (L2)
+  gap: The live account-linking directory is missing (labelled stand-in).
   remediation: Keycloak realm tests.
   size: M
   environmentDependency: IdP clients (PRQ-005, PRQ-036)
   workPackage: WP-05
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-22-06
   section: '22'
   kind: constraint

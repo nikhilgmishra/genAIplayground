@@ -8,6 +8,7 @@
  * (business-stubs.fixture.ts), because that layer is being written concurrently.
  * SYNTHETIC data only (platform/src/fixtures/synthetic-world.ts).
  */
+import { randomBytes } from "node:crypto";
 import Fastify from "fastify";
 import type { FastifyInstance, LightMyRequestResponse } from "fastify";
 import { LocalOidcProviderFixture } from "../../adapters/local/oidc-fixture.js";
@@ -48,13 +49,23 @@ import type { WorkflowInstance } from "../../workflows/ports.js";
 import { RecheckFixture } from "../../workflows/workflow-test-fixtures.js";
 import { LocalStaffDirectoryFixture, LocalWorkforceSignInFixture, WorkforceTokenVerifier } from "../auth.js";
 import { PgBreakGlassGrantSource } from "../break-glass.js";
+import { PgBreakGlassIssuance } from "../break-glass-issuance.js";
 import type { BreakGlassGrantSource } from "../break-glass.js";
-import { CONSOLE_API_BASE, CONSOLE_ENDPOINTS, IDEMPOTENCY_HEADER } from "../contract.js";
+import { CONSOLE_API_BASE, CONSOLE_ENDPOINTS, IDEMPOTENCY_HEADER, STAFF_ROLES } from "../contract.js";
 import type { EndpointKey } from "../contract.js";
 import type { CallOwnershipSource, ConsoleApiDeps } from "../deps.js";
-import { registerConsoleApi } from "../plugin.js";
+import { OidcGroupStaffDirectory } from "../oidc-staff-directory.js";
+import { BREAK_GLASS_MAX_DURATION_SECONDS, registerConsoleApi } from "../plugin.js";
+import { PgRecoveryService } from "../recovery.js";
+import type { ConsoleSsoDeps } from "../routes/auth/workforce-auth.js";
+import { PgConsoleSessionStore } from "../sessions.js";
+import { DEFAULT_WORKFORCE_SESSION, parseWorkforceSsoConfig } from "../sso-config.js";
+import type { WorkforceSsoConfig } from "../sso-config.js";
+import { WorkforceSsoService } from "../sso.js";
+import { AesGcmTokenSealer } from "../token-sealer.js";
 import { ReleaseSubmissionRegistryPg } from "../stores.js";
 import { HandoffServiceFixture, SupportRequestServiceFixture } from "./business-stubs.fixture.js";
+import { LocalWorkforceOidcFixture, WORKFORCE_FIXTURE_CLIENT_ID, WORKFORCE_FIXTURE_ISSUER, WORKFORCE_FIXTURE_REDIRECT, WORKFORCE_FIXTURE_REDIRECT_ALT, pkcePair } from "./workforce-oidc.fixture.js";
 
 export const HARNESS_LABEL = "LOCAL TEST FIXTURE — console API harness (PGlite, real modules, SYNTHETIC staff and calls)";
 export const START = "2026-10-17T15:00:00.000Z";
@@ -79,7 +90,35 @@ export interface HarnessOptions {
   extraStaff?: { staffId: string; tenantId: string; displayLabel: string; roles: StaffRole[]; idpSubject: string }[];
   /** Override for the deps the plugin receives (applied last). */
   patchDeps?: (deps: ConsoleApiDeps) => ConsoleApiDeps;
+  /**
+   * Wire the console's workforce SSO (sso.ts) over the LOCAL TEST FIXTURE workforce OIDC provider, with
+   * recovery identities and break-glass issuance. Partial config overrides the harness defaults.
+   */
+  sso?: boolean | { session?: Partial<WorkforceSsoConfig["session"]>; config?: Partial<Omit<WorkforceSsoConfig, "session">> };
 }
+
+/** Workforce SSO wiring of the harness (LOCAL TEST FIXTURE provider; console sessions are real). */
+export interface HarnessWorkforce {
+  idp: LocalWorkforceOidcFixture;
+  config: WorkforceSsoConfig;
+  service: WorkforceSsoService;
+  sessions: PgConsoleSessionStore;
+  issuance: PgBreakGlassIssuance;
+  recovery: PgRecoveryService;
+  directory: OidcGroupStaffDirectory;
+  /** The sealer of the IdP refresh tokens (tests open a session's sealed token to ask the fixture about it). */
+  sealer: AesGcmTokenSealer;
+  /** Fixture subject of a synthetic staff member. */
+  subjectOf(staff: StaffKey): string;
+  /** Console staff id the live directory derives for a synthetic staff member. */
+  staffIdOf(staff: StaffKey): string;
+  /** Full browser flow through the console endpoints: start -> provider login -> backend exchange. */
+  signIn(staff: StaffKey): Promise<{ token: string; expiresAt: string; idleTimeoutSeconds: number | null }>;
+}
+
+/** Synthetic workforce groups: one managed group per staff role. */
+export const WORKFORCE_GROUP_PREFIX = "/vsp/";
+export const workforceGroupFor = (role: StaffRole): string => `${WORKFORCE_GROUP_PREFIX}${role.replace(/_/g, "-")}`;
 
 export interface InjectOptions {
   token?: string | null;
@@ -117,6 +156,8 @@ export interface ConsoleHarness {
   releases: ReleaseSubmissionRegistryPg;
   handoff: HandoffServiceFixture;
   supportRequests: SupportRequestServiceFixture;
+  /** Present when created with `sso`. */
+  workforce: HarnessWorkforce | null;
   logs: LogRecord[];
   token(staff: StaffKey, opts?: { amr?: string[]; ttlSeconds?: number; authTime?: number; audience?: string; issuer?: string }): Promise<string>;
   /** Token for an arbitrary directory subject (extraStaff). */
@@ -181,6 +222,56 @@ export async function createConsoleHarness(opts: HarnessOptions = {}): Promise<C
   const handoff = new HandoffServiceFixture(coordinator, dests, clock);
   const supportRequests = new SupportRequestServiceFixture();
 
+  let workforce: (Omit<HarnessWorkforce, "signIn"> & { ssoDeps: ConsoleSsoDeps }) | null = null;
+  if (opts.sso) {
+    const o = opts.sso === true ? {} : opts.sso;
+    const wfIdp = await LocalWorkforceOidcFixture.create({ clock });
+    const roles = [...STAFF_ROLES] as StaffRole[];
+    const config = parseWorkforceSsoConfig({
+      tenantId: TENANT_ID,
+      issuer: WORKFORCE_FIXTURE_ISSUER,
+      clientId: WORKFORCE_FIXTURE_CLIENT_ID,
+      scopes: ["openid", "profile"],
+      redirectUris: [WORKFORCE_FIXTURE_REDIRECT, WORKFORCE_FIXTURE_REDIRECT_ALT],
+      groupsClaim: "groups",
+      // The unit fixture IdP emits group paths; the attestation reference stands for the tenant's unambiguous-paths
+      // approval (the Layer-2 suite runs the default CLIENT_ROLES source on Keycloak).
+      membershipSource: { kind: "GROUP_PATHS", unambiguousPathsRef: "apr_synthUnambiguousPaths01" },
+      groupRoles: Object.fromEntries(roles.map((r) => [workforceGroupFor(r), r])),
+      managedGroupPrefix: WORKFORCE_GROUP_PREFIX,
+      // The default MFA rule (amrSatisfiesMfa): the fixture's pwd + otp logins pass, pwd alone does not.
+      acceptedMfaAmr: null,
+      maxAuthAgeSeconds: 600,
+      loginTransactionTtlSeconds: 600,
+      sessionParametersApprovalId: null,
+      ...o.config,
+      session: { ...DEFAULT_WORKFORCE_SESSION, ...o.session },
+    });
+    for (const [key, s] of Object.entries(STAFF) as [StaffKey, (typeof STAFF)[StaffKey]][]) {
+      wfIdp.addUser({ subject: `wf-${key}`, groups: (s.roles as readonly StaffRole[]).map(workforceGroupFor), active: true, amr: ["pwd", "otp"] });
+    }
+    const wfDirectory = new OidcGroupStaffDirectory(config);
+    const sessions = new PgConsoleSessionStore(db);
+    const sealer = new AesGcmTokenSealer({ current: { id: "harness-sealer-1", key: randomBytes(32) } });
+    const idTokenCheck = WorkforceTokenVerifier.withKeys({ issuer: config.issuer, audience: config.clientId, keys: wfIdp.keyResolver(), clock, acceptedMfaAmr: config.acceptedMfaAmr });
+    const service = new WorkforceSsoService({ config, oidc: wfIdp, directory: wfDirectory, verifier: idTokenCheck, sessions, sealer, audit: consoleAudit, clock, logger });
+    const issuance = new PgBreakGlassIssuance(db, consoleAudit, BREAK_GLASS_MAX_DURATION_SECONDS);
+    const recovery = new PgRecoveryService({ db, audit: consoleAudit, sessions, issuance, clock, tenantId: TENANT_ID, logger });
+    workforce = {
+      idp: wfIdp,
+      config,
+      service,
+      sessions,
+      issuance,
+      recovery,
+      directory: wfDirectory,
+      sealer,
+      subjectOf: (k) => `wf-${k}`,
+      staffIdOf: (k) => wfDirectory.staffIdFor(config.issuer, `wf-${k}`),
+      ssoDeps: { service, config, authorizationEndpoint: async () => (wfIdp.unavailable ? null : `${config.issuer}/protocol/openid-connect/auth`) },
+    };
+  }
+
   let deps: ConsoleApiDeps = {
     environment,
     clock,
@@ -189,7 +280,16 @@ export async function createConsoleHarness(opts: HarnessOptions = {}): Promise<C
     audit: consoleAudit,
     auditHealth,
     policy,
-    auth: { verifier, staffDirectory: directory, breakGlass: opts.breakGlass ?? new PgBreakGlassGrantSource(db, logger), localSignIn, oidc: null },
+    auth: {
+      verifier,
+      staffDirectory: directory,
+      breakGlass: opts.breakGlass ?? new PgBreakGlassGrantSource(db, logger),
+      localSignIn,
+      oidc: null,
+      sso: workforce?.ssoDeps ?? null,
+      recovery: workforce?.recovery ?? null,
+      breakGlassIssuance: workforce?.issuance ?? null,
+    },
     killSwitches,
     killSwitchTargets: KILL_SWITCH_TARGETS,
     budgets,
@@ -275,6 +375,32 @@ export async function createConsoleHarness(opts: HarnessOptions = {}): Promise<C
     releases,
     handoff,
     supportRequests,
+    workforce: workforce
+      ? {
+          idp: workforce.idp,
+          config: workforce.config,
+          service: workforce.service,
+          sessions: workforce.sessions,
+          issuance: workforce.issuance,
+          recovery: workforce.recovery,
+          directory: workforce.directory,
+          sealer: workforce.sealer,
+          subjectOf: workforce.subjectOf,
+          staffIdOf: workforce.staffIdOf,
+          signIn: async (staff) => {
+            const wf = workforce as NonNullable<typeof workforce>;
+            const { verifier: codeVerifier, challenge } = pkcePair();
+            const start = await call("auth.oidcStart", { body: { redirectUri: WORKFORCE_FIXTURE_REDIRECT, codeChallenge: challenge, codeChallengeMethod: "S256" } });
+            if (start.statusCode !== 200) throw new Error(`HARNESS_SSO_START_FAILED ${start.statusCode} ${start.body}`);
+            const { authorizationUrl } = JSON.parse(start.body) as { authorizationUrl: string };
+            const { code, state } = wf.idp.login(authorizationUrl, wf.subjectOf(staff));
+            const ex = await call("auth.oidcExchange", { body: { code, state, codeVerifier, redirectUri: WORKFORCE_FIXTURE_REDIRECT } });
+            if (ex.statusCode !== 200) throw new Error(`HARNESS_SSO_EXCHANGE_FAILED ${ex.statusCode} ${ex.body}`);
+            const t = JSON.parse(ex.body) as { accessToken: string; expiresAt: string; idleTimeoutSeconds: number | null };
+            return { token: t.accessToken, expiresAt: t.expiresAt, idleTimeoutSeconds: t.idleTimeoutSeconds };
+          },
+        }
+      : null,
     logs: records,
     token,
     tokenForSubject,

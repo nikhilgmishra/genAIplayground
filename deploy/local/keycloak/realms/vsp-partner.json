@@ -1,0 +1,73 @@
+{
+  "realm": "vsp-partner",
+  "displayName": "SYNTHETIC partner portal IdP (local)",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "bruteForceProtected": true,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 28800,
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "clients": [
+    {
+      "clientId": "vsp-partner-portal",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "__VSP_SYNTH_CLIENT_SECRET__",
+      "redirectUris": [
+        "http://localhost:5174/verify/callback"
+      ],
+      "webOrigins": [],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "use.refresh.tokens": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "synthetic-quinn",
+      "enabled": true,
+      "email": "synthetic-quinn@synthetic.example.test",
+      "emailVerified": true,
+      "firstName": "Synthetic",
+      "lastName": "Quinn",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__VSP_SYNTH_PASSWORD__",
+          "temporary": false
+        },
+        {
+          "type": "otp",
+          "userLabel": "synthetic",
+          "secretData": "{\"value\":\"__VSP_SYNTH_TOTP_SECRET__\"}",
+          "credentialData": "{\"subType\":\"totp\",\"digits\":6,\"counter\":0,\"period\":30,\"algorithm\":\"HmacSHA1\"}"
+        }
+      ]
+    }
+  ]
+}

@@ -21,7 +21,10 @@ import type { TransferStore } from "../workflows/transfer.js";
 import type { LocalWorkforceSignIn, StaffDirectory, WorkforceTokenVerifier } from "./auth.js";
 import type { ConsolePolicyEngine } from "./authorize.js";
 import type { BreakGlassGrantSource } from "./break-glass.js";
+import type { PgBreakGlassIssuance } from "./break-glass-issuance.js";
 import type { DependencyHealth, OidcClientConfig } from "./contract.js";
+import type { PgRecoveryService } from "./recovery.js";
+import type { ConsoleSsoDeps } from "./routes/auth/workforce-auth.js";
 
 /**
  * Staff-initiated retry of an action whose latest console reconciliation returned
@@ -61,8 +64,18 @@ export interface ConsoleApiDeps {
     breakGlass: BreakGlassGrantSource;
     /** LOCAL FIXTURE sign-in; registered only when environment is local/ci (refused otherwise). */
     localSignIn: LocalWorkforceSignIn | null;
-    /** Workforce OIDC client as configured; null / BLOCKED until PRQ-036. Exchange is not implemented while BLOCKED. */
+    /** Workforce OIDC client view when no live SSO is wired (local fixture mode: BLOCKED). */
     oidc: OidcClientConfig | null;
+    /**
+     * Live workforce SSO (WP-05): backend authorization-code + PKCE exchange, opaque server-side console
+     * sessions with idle and absolute expiry, same-actor refresh, live group-to-role directory and
+     * offboarding checks. Required outside local/ci (assertConsoleDeps); absent in local fixture mode.
+     */
+    sso?: ConsoleSsoDeps | null;
+    /** Dual-controlled SSO-outage recovery identities (requires `sso`: recovery sessions are console sessions). */
+    recovery?: PgRecoveryService | null;
+    /** Break-glass issuance and post-use access reviews; default: PgBreakGlassIssuance over `db` (4 h maximum). */
+    breakGlassIssuance?: PgBreakGlassIssuance | null;
   };
   killSwitches: KillSwitchService;
   /** Known kill-switch targets from trusted configuration (no free-typed targets). */

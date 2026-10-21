@@ -722,21 +722,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.workforce
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/live/oidc-verifier.ts
-  - platform/src/console-api/plugin.ts:454-459
-  gap: Workforce exchange missing (see section 5).
+  - workforce-sso.test.ts and caller-identity.test.ts on Keycloak over TLS, 42/42 x3
+  gap: Tenant IdP configuration is an activation input (AIN-12).
   remediation: Implement FO-05-07 (discovery), FO-05-09/FO-05-13 (workforce code exchange with PKCE and a redirect allowlist), FO-05-41 (live staff directory and group-to-role mapping) and compose JwksOidcVerifier for callers. Verify both flows against a Keycloak container in the integration profile.
   size: L
   environmentDependency: PRQ-005, PRQ-036
-  workPackage: WP-05
+  regressionPackage: WP-05
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-03-29
   section: '3'
   kind: software

@@ -224,3 +224,46 @@ test_break_glass_bounds_present if {
 	catalogue.console.breakGlass.maxDurationSeconds <= 86400
 	count(catalogue.console.breakGlass.justificationCodes) > 0
 }
+
+# ------------------------------------------- WP-05: high-risk list and A1 operations ----
+
+human_boundary_not_listed contains name if {
+	some name, a in actions
+	a.class == "HUMAN_BOUNDARY"
+	not name in catalogue.highRisk.humanOnlyActions
+}
+
+test_high_risk_list_covers_human_boundaries if count(human_boundary_not_listed) == 0
+
+test_high_risk_list_names_known_actions_never_safety_routes if {
+	every name in catalogue.highRisk.humanOnlyActions {
+		actions[name]
+		not name in {"safety:route", "human:request"}
+	}
+}
+
+a1_eligible_classes := {"PUBLIC_READ", "INTAKE", "VERIFICATION", "PROTECTED_READ"}
+
+test_a1_operations_are_known_low_risk_and_approved if {
+	count(catalogue.assuranceA1.operations) == 0
+} else if {
+	is_string(catalogue.assuranceA1.approvalRef)
+	every name in catalogue.assuranceA1.operations {
+		a := actions[name]
+		a.class in a1_eligible_classes
+		not name in catalogue.highRisk.humanOnlyActions
+		every c in a.classifications {
+			not c in sensitive
+			c != "*"
+		}
+	}
+}
+
+a1_paths_outside_approval contains [name, p.id] if {
+	some name, a in actions
+	some p in a.access
+	p.minAssurance == "A1"
+	not name in catalogue.assuranceA1.operations
+}
+
+test_a1_path_minimum_only_on_approved_operations if count(a1_paths_outside_approval) == 0

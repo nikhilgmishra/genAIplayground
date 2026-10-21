@@ -52,7 +52,7 @@ scoped authority exists. No billable endpoint is invoked by a safe local default
 | Phase | Scope | State |
 |---|---|---|
 | A | Inventory, requirement extraction, gap ledger, architecture/threat/data-flow diagrams, decision record, implementation and activation registers | DONE (commit bf25655; last minor/one material ledger fix runs with wave B1) |
-| B | Scorer truth, invariant regressions, production composition, storage/session/workforce identity/audit, real transport adapter boundaries | IN_PROGRESS: waves B1 (WP-02, WP-03) and B2 (WP-01, WP-04, WP-06) DONE; next B3 (WP-05), B4 (WP-07) |
+| B | Scorer truth, invariant regressions, production composition, storage/session/workforce identity/audit, real transport adapter boundaries | IN_PROGRESS: waves B1 (WP-02, WP-03), B2 (WP-01, WP-04, WP-06) and B3 (WP-05) DONE; next B4 (WP-07) |
 | C | Live model adapters, controllable media (LiveKit/SIP), protected output, fallback audio, turn/session fencing, real local audio-to-action journey | NOT_STARTED |
 | D | Historical/event/live context, entity linking, knowledge ingestion, deletions, model registry, specialist loops, canonical domain adapters | NOT_STARTED |
 | E | Every workflow family, CRM/outbox sync, long-horizon work, secure companion, notifications, accepted human transfer | NOT_STARTED |
@@ -101,7 +101,7 @@ Waves follow the dependency order in `docs/followon/work-packages.yaml`.
 |---|---|---|---|
 | B1 | WP-02, WP-03 (+ ledger fix job) | wf_5abdf51f-ed0 | DONE: both PARTIAL after 3 rounds; the coordinator fixed the residuals (WP-02 snapshot watermark rules, party-URI refs, byte-size args, hand-over notes; WP-03 Step Functions Local TaskSubmitted race, missing-emulation-summary exit, digest pointer). Ledger: 56 rows moved (MISSING 613, IMPLEMENTED 450, VERIFIED_LOCAL 107). Layer-2 `_harness` 72/72 three times; workflow file 20/20 |
 | B2 | WP-01, WP-04, WP-06 | wf_786b1518-a8e (wave), wf_334c062a-d28 and wf_3801b69b-969 (residuals) | DONE 2026-10-20: all three ACCEPTED by the independent verifier (WP-01 and WP-06 after one residual round, WP-04 after two). Coordinator: local-driver test hand-off applied, FO-17-24 faultSource relabelled, sharp 0.35.5 and adm-zip 0.6.1 overrides (no high advisories left), fault-registry owner rule for VERIFIED_LOCAL rows. Ledger: 102 rows moved (MISSING 577, IMPLEMENTED 440, VERIFIED_LOCAL 153). Two container restarts during the residual run; resumed. |
-| B3 | WP-05 | wf_2e7d9aef-a72 (wave script v2: two-lens verifier panel, acceptance and adversarial security/failure; a requirement keeps the lower verified status of the two) | RUNNING (started 2026-10-20 10:30 UTC) |
+| B3 | WP-05 | wf_2e7d9aef-a72 (wave script v2: two-lens verifier panel, acceptance and adversarial security/failure; a requirement keeps the lower verified status of the two) | DONE 2026-10-21: three wave rounds and two residual rounds (wf_f14adc5a-7f2, wf_7591c960-603, script followon-residuals-v2.js), each judged by both lenses; the last panel left only four test-truth items (fallback branches of the terminal-path closure, expiry versus the refresh-race exception, logout audit count) and a runbook step number, which the coordinator closed with tests that kill the named mutants. Design change in the second residual round, by coordinator direction: the custodian decision fails closed (every terminal path of a custodian's SSO session suspends the recovery identity unless the IdP gives a positive, recorded answer). Coordinator: console OpenAPI regenerated, WP-01 policy-fault.ts switched to the new decorateEvaluator seam, Keycloak fidelity findings recorded in deploy/local/README.md. Ledger: 27 rows (MISSING 562, IMPLEMENTED 438, VERIFIED_LOCAL 170); FO-14-52 stays IMPLEMENTED (the verifiers' last check) although the coordinator's final tests kill the mutants they named. |
 
 B2 close-out (2026-10-20): every Layer-2 suite (_harness, substrate, ingress, connectors) 179/179 on two
 timed runs (206 s and 184 s) and once more from a clean worktree of the pushed commit; CI's integration job
@@ -173,3 +173,46 @@ Open hand-offs from wave B2 (owners named; none is done by the package that rais
   so test fixtures are not scanned; only git mode (CI's) scans them.
 * AIN-31 (human review keys): the corpus lock (corpus-lock.v4) and earlier relabels have no human
   ReviewRecord; ReviewRecord signatures are schema-checked only.
+
+Open hand-offs from wave B3 (WP-05; scratch hand-off files in the session scratchpad waves/wp05r2/handoff,
+summarised here so they survive the session):
+
+* WP-07 (composition):
+  * wire `consoleAuth`: membershipSource CLIENT_ROLES by default, and acceptedMfaAmr null for the default
+    rule (`mfa`, or two distinct RFC 8176 factor classes);
+  * call `workforceSsoGuardViolations` from the config guard;
+  * add an edge rate limit on `/console/api/v1/auth/*`;
+  * schedule `WorkforceSsoService.sweep`; each expiry closure makes one IdP introspection and one revocation;
+  * compose `OidcHttp` with the same EgressGuard as its ConnectorHttpTransport (required). `OidcDiscovery`
+    throws ConfigurationRejectedError at startup for a refused issuer;
+  * compose PgRecoveryService with a logger and the recovery policy values;
+  * apply the policy environment to OpaWasmPolicyEngine (container-policy-environment diff);
+  * alert on `console.sso.terminal_closure_unaudited` and `console.sso.terminal_audit_unwritten`;
+  * the workforce realm's http://localhost:5173 redirect cannot be allowlisted (https is required), so the
+    local console needs an https origin or a separate local-only client.
+* [FAULT:AUTH_EXPIRY_MID_CALL] (WP-07): drive SessionExpirySeam (platform/src/identity/expiry-seam.ts,
+  local/ci only), documented in the identity README.
+* WP-34/WP-42: register the AUTH_EXPIRY_IDLE and IDP_UNAVAILABLE Layer-2 results as EvaluationResult
+  records (requestedFault/reachedFault); until then both FO-17-24 rows stay IMPLEMENTED.
+* Retention owner: register console_sessions (kept at least holderSsoMaxAgeSeconds, 14 days, because
+  recovery enrolment and activation read the custodian's latest positive IdP evidence from it),
+  console_recovery_identities, console_recovery_activations and console_login_transactions.
+* Privacy/egress owner: decide on treating canonical UUID path segments as opaque in
+  urlCarriesSensitivePattern (tenant IdPs such as Entra use /<uuid>/v2.0 issuers; refused today with
+  OIDC_EGRESS_REFUSED, fail closed); the proposed diff is in the hand-off directory.
+* Business/identity owner: assertion-service.ts and business/handoff.ts treat A1 as verified outside the
+  Rego A1 gate (A1 is reachable only through OTP, disabled by default).
+* AIN-13 / AIN-15 (identity owner): tenant amr values (the caller-side DEFAULT_ACCEPTED_AMR still accepts a
+  single possession value) and the availability cost of the fail-closed custodian rule: during a workforce
+  IdP outage every custodian whose session ends is suspended CUSTODIAN_EVIDENCE_LOST until the IdP is back.
+  A SCIM deprovisioning feed would close the remaining "disabled with no live session" window (today the
+  14-day evidence window and the access review cover it).
+* Audit owner and OPS-01: when a terminal path's audit events cannot be written, the protective closure
+  (revocation and suspension) is applied without them, and the events are then appended on their own. If
+  that append also fails, only the two error log events above record the closure.
+* Recovery enrolment proof of possession is not hardware attested; only an attestation reference is stored.
+* Policy tests: the console read role-set Rego test runs 144 decisions in 3-10 s under load. It needs the
+  explicit per-test deadline in scripts/policy.sh (`--timeout 60s`, which CI uses); a bare `opa test` can hit
+  the 5 s default.
+* Migration 2050 was edited in place during the residual rounds. That is acceptable only because it has
+  never been applied outside throwaway databases; from now on it changes only through new migrations.

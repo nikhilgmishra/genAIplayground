@@ -4,7 +4,9 @@ Status: **IMPLEMENTED_OFFLINE**. React 19 + TypeScript + Vite single-page app, b
 against the typed contract in `platform/src/console-api/contract.ts` using a labelled mock backend
 (`src/test/mock-api.ts`). The backend console API is `platform/src/console-api`; for local use run
 `pnpm start` at the repository root (LOCAL FIXTURE console API on 127.0.0.1:8090, LOCAL FIXTURE
-workforce sign-in, SYNTHETIC staff) and `npx vite` here. Workforce SSO is BLOCKED (PRQ-036).
+workforce sign-in, SYNTHETIC staff) and `npx vite` here. Workforce SSO (WP-05) runs against
+the backend's OIDC flow; it is verified locally against Keycloak through the backend, and the
+tenant workforce IdP client is an activation input (PRQ-036).
 Not verified against any vendor, real IdP or production; this is not a claim of HIPAA compliance
 or production readiness.
 
@@ -37,8 +39,16 @@ tables. That is presentation only: the server enforces every rule on every reque
 
 * The bearer token is held in memory only (`src/api/token.ts`); `localStorage`,
   `sessionStorage`, IndexedDB and `document.cookie` are lint-banned. The one exception is
-  `src/auth/pkce.ts`, which keeps the PKCE verifier, state and nonce in `sessionStorage` for one
-  redirect round-trip and deletes them on use. Reloading the page signs the operator out.
+  `src/auth/pkce.ts`, which keeps the PKCE verifier and the backend-issued state in
+  `sessionStorage` for one redirect round-trip and deletes them on use (the nonce never reaches
+  the browser). Reloading the page signs the operator out.
+* Workforce SSO: the console sends its S256 challenge and redirect URI to `auth/oidc/start`,
+  checks that the returned authorization URL's origin and path equal the discovered endpoint
+  from `auth/config` and that it carries its own state and challenge (`OIDC_ENDPOINT_MISMATCH`,
+  `OIDC_AUTHORIZATION_URL_INVALID` otherwise), then redirects. On the callback it posts code,
+  state, verifier and redirect URI to `auth/oidc/exchange` and receives only an opaque console
+  session bearer. For SSO sessions it calls `auth/refresh` every five minutes (rotating the
+  bearer); a 401 (idle or absolute expiry, revocation, offboarding) signs the operator out.
 * Requests use `credentials: "omit"`; mutations carry an `Idempotency-Key` per confirmed dialog.
 * Routes and API paths carry opaque ids only; invalid references are refused without being
   echoed or requested. Audit filters live in component state, never in the URL.

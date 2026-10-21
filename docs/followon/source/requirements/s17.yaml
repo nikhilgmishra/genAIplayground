@@ -672,12 +672,12 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
-  gap: No fault plan, no injection point and no reached-and-asserted run.
+  - caller-identity.test.ts [FAULT:AUTH_EXPIRY_IDLE] (L2)
+  gap: The EvaluationResult requestedFault/reachedFault registration belongs to WP-34/WP-42.
   remediation: WP-04 builds the injection point (session idle expiry (lastActivityAt) in the identity service and the DynamoDB session store) together with WP-05; WP-05 owns the Layer-2 test tagged [FAULT:AUTH_EXPIRY_IDLE] and drives that seam; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
@@ -693,6 +693,11 @@ requirements:
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-17-24.AUTH_EXPIRY_DURING_SPEECH
   section: '17'
   subsection: Fault matrix
@@ -2236,9 +2241,9 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - scenarios/fixtures/failures/IDP_UNAVAILABLE.json (fault plan v1)
-  - platform/src/evaluation/driver/local-driver.ts inject() case IDP_UNAVAILABLE (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
-  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:IDP_UNAVAILABLE] test.
+  - workforce-sso.test.ts [FAULT:IDP_UNAVAILABLE] (L2)
+  - sso.test.ts [FAULT:IDP_UNAVAILABLE seam]
+  gap: The EvaluationResult registration belongs to WP-34/WP-42.
   remediation: WP-05 builds the injection point (the OIDC provider (Keycloak) is unavailable during secure-link approval) in its own adapter, emulator or runtime and the Layer-2 test tagged [FAULT:IDP_UNAVAILABLE]; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
@@ -2253,6 +2258,11 @@ requirements:
     splitFrom: FO-17-24
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-24.NOTIFICATION_PROVIDER_DOWN
   section: '17'
   subsection: Fault matrix

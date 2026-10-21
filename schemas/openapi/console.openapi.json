@@ -12,6 +12,493 @@
     }
   ],
   "paths": {
+    "/console/api/v1/access-reviews": {
+      "get": {
+        "operationId": "console.accessReviews.list",
+        "tags": [
+          "accessReviews"
+        ],
+        "security": [
+          {
+            "staffBearer": []
+          }
+        ],
+        "x-vsp-roles": [
+          "auditor",
+          "security_admin"
+        ],
+        "x-vsp-idempotent": false,
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer token from the console token endpoints (memory only)",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reviews": {
+                      "maxItems": 200,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "reviewId": {
+                            "type": "string",
+                            "maxLength": 80,
+                            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                          },
+                          "subjectKind": {
+                            "type": "string",
+                            "enum": [
+                              "BREAK_GLASS_GRANT",
+                              "RECOVERY_SESSION"
+                            ]
+                          },
+                          "subjectRef": {
+                            "type": "string",
+                            "maxLength": 80,
+                            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                          },
+                          "holderStaffId": {
+                            "type": "string",
+                            "maxLength": 68,
+                            "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                          },
+                          "approverStaffId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 68,
+                                "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "openedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "dueAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "OPEN",
+                              "COMPLETED"
+                            ]
+                          },
+                          "outcome": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "APPROPRIATE",
+                                  "INAPPROPRIATE",
+                                  "FOLLOW_UP_REQUIRED"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "reviewerStaffId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 68,
+                                "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "completedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "reviewId",
+                          "subjectKind",
+                          "subjectRef",
+                          "holderStaffId",
+                          "approverStaffId",
+                          "openedAt",
+                          "dueAt",
+                          "status",
+                          "outcome",
+                          "reviewerStaffId",
+                          "completedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "reviews"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: missing, expired or revoked staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "STAFF_ROLE_NOT_PERMITTED or a finer per-scope rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/v1/access-reviews/{reviewId}/complete": {
+      "post": {
+        "operationId": "console.accessReviews.complete",
+        "tags": [
+          "accessReviews"
+        ],
+        "security": [
+          {
+            "staffBearer": []
+          }
+        ],
+        "x-vsp-roles": [
+          "security_admin"
+        ],
+        "x-vsp-idempotent": true,
+        "parameters": [
+          {
+            "name": "reviewId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer token from the console token endpoints (memory only)",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Client key per confirmed mutation; a repeat returns the first result",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "APPROPRIATE",
+                      "INAPPROPRIATE",
+                      "FOLLOW_UP_REQUIRED"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 160,
+                    "pattern": "^[A-Z][A-Z0-9_]{2,63}(:[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64})?$"
+                  }
+                },
+                "required": [
+                  "outcome",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "review": {
+                      "type": "object",
+                      "properties": {
+                        "reviewId": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "subjectKind": {
+                          "type": "string",
+                          "enum": [
+                            "BREAK_GLASS_GRANT",
+                            "RECOVERY_SESSION"
+                          ]
+                        },
+                        "subjectRef": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "holderStaffId": {
+                          "type": "string",
+                          "maxLength": 68,
+                          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                        },
+                        "approverStaffId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 68,
+                              "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "openedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "dueAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "OPEN",
+                            "COMPLETED"
+                          ]
+                        },
+                        "outcome": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "APPROPRIATE",
+                                "INAPPROPRIATE",
+                                "FOLLOW_UP_REQUIRED"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reviewerStaffId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 68,
+                              "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "completedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "reviewId",
+                        "subjectKind",
+                        "subjectRef",
+                        "holderStaffId",
+                        "approverStaffId",
+                        "openedAt",
+                        "dueAt",
+                        "status",
+                        "outcome",
+                        "reviewerStaffId",
+                        "completedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "review"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: missing, expired or revoked staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "STAFF_ROLE_NOT_PERMITTED or a finer per-scope rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/console/api/v1/actions/pending": {
       "get": {
         "operationId": "console.actions.pending",
@@ -963,6 +1450,36 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "sessionPolicy": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "idleTimeoutSeconds": {
+                              "type": "integer",
+                              "minimum": 60,
+                              "maximum": 86400
+                            },
+                            "absoluteLifetimeSeconds": {
+                              "type": "integer",
+                              "minimum": 60,
+                              "maximum": 86400
+                            }
+                          },
+                          "required": [
+                            "idleTimeoutSeconds",
+                            "absoluteLifetimeSeconds"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recoveryAvailable": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -970,7 +1487,9 @@
                     "environment",
                     "localFixture",
                     "mode",
-                    "oidc"
+                    "oidc",
+                    "sessionPolicy",
+                    "recoveryAvailable"
                   ],
                   "additionalProperties": false
                 }
@@ -1182,13 +1701,35 @@
                     },
                     "localFixture": {
                       "type": "boolean"
+                    },
+                    "sessionKind": {
+                      "type": "string",
+                      "enum": [
+                        "LOCAL_FIXTURE",
+                        "OIDC_SSO",
+                        "RECOVERY"
+                      ]
+                    },
+                    "idleTimeoutSeconds": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 60,
+                          "maximum": 86400
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "accessToken",
                     "tokenType",
                     "expiresAt",
-                    "localFixture"
+                    "localFixture",
+                    "sessionKind",
+                    "idleTimeoutSeconds"
                   ],
                   "additionalProperties": false
                 }
@@ -1398,7 +1939,13 @@
                     "type": "string",
                     "minLength": 8,
                     "maxLength": 2048,
-                    "pattern": "^[A-Za-z0-9._~-]+$"
+                    "pattern": "^[A-Za-z0-9._~+/=-]+$"
+                  },
+                  "state": {
+                    "type": "string",
+                    "minLength": 16,
+                    "maxLength": 512,
+                    "pattern": "^[A-Za-z0-9_-]+$"
                   },
                   "codeVerifier": {
                     "type": "string",
@@ -1409,19 +1956,13 @@
                   "redirectUri": {
                     "type": "string",
                     "maxLength": 512
-                  },
-                  "nonce": {
-                    "type": "string",
-                    "minLength": 16,
-                    "maxLength": 256,
-                    "pattern": "^[A-Za-z0-9._~-]+$"
                   }
                 },
                 "required": [
                   "code",
+                  "state",
                   "codeVerifier",
-                  "redirectUri",
-                  "nonce"
+                  "redirectUri"
                 ],
                 "additionalProperties": false
               }
@@ -1452,13 +1993,35 @@
                     },
                     "localFixture": {
                       "type": "boolean"
+                    },
+                    "sessionKind": {
+                      "type": "string",
+                      "enum": [
+                        "LOCAL_FIXTURE",
+                        "OIDC_SSO",
+                        "RECOVERY"
+                      ]
+                    },
+                    "idleTimeoutSeconds": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 60,
+                          "maximum": 86400
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
                     "accessToken",
                     "tokenType",
                     "expiresAt",
-                    "localFixture"
+                    "localFixture",
+                    "sessionKind",
+                    "idleTimeoutSeconds"
                   ],
                   "additionalProperties": false
                 }
@@ -1467,6 +2030,1284 @@
           },
           "400": {
             "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/v1/auth/oidc/start": {
+      "post": {
+        "operationId": "console.auth.oidcStart",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-vsp-roles": [],
+        "x-vsp-idempotent": false,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "redirectUri": {
+                    "type": "string",
+                    "minLength": 12,
+                    "maxLength": 256
+                  },
+                  "codeChallenge": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  },
+                  "codeChallengeMethod": {
+                    "type": "string",
+                    "const": "S256"
+                  }
+                },
+                "required": [
+                  "redirectUri",
+                  "codeChallenge",
+                  "codeChallengeMethod"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authorizationUrl": {
+                      "type": "string",
+                      "minLength": 16,
+                      "maxLength": 4096,
+                      "pattern": "^https:\\/\\/[^\\s#]+$"
+                    },
+                    "state": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{176,346}$"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "authorizationUrl",
+                    "state",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/v1/auth/recovery/activate": {
+      "post": {
+        "operationId": "console.auth.recoveryActivate",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-vsp-roles": [],
+        "x-vsp-idempotent": false,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "activationId": {
+                    "type": "string",
+                    "maxLength": 80,
+                    "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                  },
+                  "approvals": {
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "identityId": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "signature": {
+                          "type": "string",
+                          "minLength": 32,
+                          "maxLength": 4096,
+                          "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                        }
+                      },
+                      "required": [
+                        "identityId",
+                        "signature"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "activationId",
+                  "approvals"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string",
+                      "minLength": 16,
+                      "maxLength": 16384
+                    },
+                    "tokenType": {
+                      "type": "string",
+                      "const": "Bearer"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "localFixture": {
+                      "type": "boolean"
+                    },
+                    "sessionKind": {
+                      "type": "string",
+                      "enum": [
+                        "LOCAL_FIXTURE",
+                        "OIDC_SSO",
+                        "RECOVERY"
+                      ]
+                    },
+                    "idleTimeoutSeconds": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 60,
+                          "maximum": 86400
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "tokenType",
+                    "expiresAt",
+                    "localFixture",
+                    "sessionKind",
+                    "idleTimeoutSeconds"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/v1/auth/recovery/challenge": {
+      "post": {
+        "operationId": "console.auth.recoveryChallenge",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-vsp-roles": [],
+        "x-vsp-idempotent": false,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "identityId": {
+                    "type": "string",
+                    "maxLength": 80,
+                    "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                  },
+                  "proof": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 4096,
+                    "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                  }
+                },
+                "required": [
+                  "identityId",
+                  "proof"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "activationId": {
+                      "type": "string",
+                      "maxLength": 80,
+                      "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                    },
+                    "challenge": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_-]{43}$"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "activationId",
+                    "challenge",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "console.auth.refresh",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "x-vsp-roles": [],
+        "x-vsp-idempotent": false,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string",
+                      "minLength": 16,
+                      "maxLength": 16384
+                    },
+                    "tokenType": {
+                      "type": "string",
+                      "const": "Bearer"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "localFixture": {
+                      "type": "boolean"
+                    },
+                    "sessionKind": {
+                      "type": "string",
+                      "enum": [
+                        "LOCAL_FIXTURE",
+                        "OIDC_SSO",
+                        "RECOVERY"
+                      ]
+                    },
+                    "idleTimeoutSeconds": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 60,
+                          "maximum": 86400
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "accessToken",
+                    "tokenType",
+                    "expiresAt",
+                    "localFixture",
+                    "sessionKind",
+                    "idleTimeoutSeconds"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/v1/break-glass/requests": {
+      "get": {
+        "operationId": "console.breakGlass.list",
+        "tags": [
+          "breakGlass"
+        ],
+        "security": [
+          {
+            "staffBearer": []
+          }
+        ],
+        "x-vsp-roles": [
+          "auditor",
+          "deployment_operator",
+          "knowledge_editor",
+          "policy_approver",
+          "safety_responder",
+          "security_admin",
+          "supervisor",
+          "support_agent"
+        ],
+        "x-vsp-idempotent": false,
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer token from the console token endpoints (memory only)",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "requests": {
+                      "maxItems": 200,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "requestId": {
+                            "type": "string",
+                            "maxLength": 80,
+                            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                          },
+                          "requestedBy": {
+                            "type": "string",
+                            "maxLength": 68,
+                            "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                          },
+                          "justificationCode": {
+                            "type": "string",
+                            "enum": [
+                              "ACTIVE_SAFETY_INCIDENT",
+                              "AUDIT_INVESTIGATION",
+                              "DEPENDENCY_OUTAGE_RECOVERY",
+                              "PRIVACY_INCIDENT",
+                              "SECURITY_INCIDENT"
+                            ]
+                          },
+                          "durationSeconds": {
+                            "type": "integer",
+                            "minimum": 300,
+                            "maximum": 14400
+                          },
+                          "requestedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "decideBy": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PENDING",
+                              "APPROVED",
+                              "REJECTED",
+                              "EXPIRED"
+                            ]
+                          },
+                          "decidedBy": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 68,
+                                "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "decidedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "grantId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 80,
+                                "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "grantExpiresAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "requestId",
+                          "requestedBy",
+                          "justificationCode",
+                          "durationSeconds",
+                          "requestedAt",
+                          "decideBy",
+                          "status",
+                          "decidedBy",
+                          "decidedAt",
+                          "grantId",
+                          "grantExpiresAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "requests"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: missing, expired or revoked staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "STAFF_ROLE_NOT_PERMITTED or a finer per-scope rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "console.breakGlass.request",
+        "tags": [
+          "breakGlass"
+        ],
+        "security": [
+          {
+            "staffBearer": []
+          }
+        ],
+        "x-vsp-roles": [
+          "deployment_operator",
+          "knowledge_editor",
+          "policy_approver",
+          "safety_responder",
+          "security_admin",
+          "supervisor",
+          "support_agent"
+        ],
+        "x-vsp-idempotent": true,
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer token from the console token endpoints (memory only)",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Client key per confirmed mutation; a repeat returns the first result",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "justificationCode": {
+                    "type": "string",
+                    "enum": [
+                      "ACTIVE_SAFETY_INCIDENT",
+                      "AUDIT_INVESTIGATION",
+                      "DEPENDENCY_OUTAGE_RECOVERY",
+                      "PRIVACY_INCIDENT",
+                      "SECURITY_INCIDENT"
+                    ]
+                  },
+                  "durationSeconds": {
+                    "type": "integer",
+                    "minimum": 300,
+                    "maximum": 14400
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 160,
+                    "pattern": "^[A-Z][A-Z0-9_]{2,63}(:[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64})?$"
+                  }
+                },
+                "required": [
+                  "justificationCode",
+                  "durationSeconds",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "requestedBy": {
+                          "type": "string",
+                          "maxLength": 68,
+                          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                        },
+                        "justificationCode": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE_SAFETY_INCIDENT",
+                            "AUDIT_INVESTIGATION",
+                            "DEPENDENCY_OUTAGE_RECOVERY",
+                            "PRIVACY_INCIDENT",
+                            "SECURITY_INCIDENT"
+                          ]
+                        },
+                        "durationSeconds": {
+                          "type": "integer",
+                          "minimum": 300,
+                          "maximum": 14400
+                        },
+                        "requestedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "decideBy": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PENDING",
+                            "APPROVED",
+                            "REJECTED",
+                            "EXPIRED"
+                          ]
+                        },
+                        "decidedBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 68,
+                              "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "decidedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "grantId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 80,
+                              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "grantExpiresAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "requestId",
+                        "requestedBy",
+                        "justificationCode",
+                        "durationSeconds",
+                        "requestedAt",
+                        "decideBy",
+                        "status",
+                        "decidedBy",
+                        "decidedAt",
+                        "grantId",
+                        "grantExpiresAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "request"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: missing, expired or revoked staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "STAFF_ROLE_NOT_PERMITTED or a finer per-scope rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/v1/break-glass/requests/{requestId}/decision": {
+      "post": {
+        "operationId": "console.breakGlass.decide",
+        "tags": [
+          "breakGlass"
+        ],
+        "security": [
+          {
+            "staffBearer": []
+          }
+        ],
+        "x-vsp-roles": [
+          "security_admin"
+        ],
+        "x-vsp-idempotent": true,
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer token from the console token endpoints (memory only)",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Client key per confirmed mutation; a repeat returns the first result",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "APPROVE",
+                      "REJECT"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 160,
+                    "pattern": "^[A-Z][A-Z0-9_]{2,63}(:[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64})?$"
+                  }
+                },
+                "required": [
+                  "decision",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "request": {
+                      "type": "object",
+                      "properties": {
+                        "requestId": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "requestedBy": {
+                          "type": "string",
+                          "maxLength": 68,
+                          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                        },
+                        "justificationCode": {
+                          "type": "string",
+                          "enum": [
+                            "ACTIVE_SAFETY_INCIDENT",
+                            "AUDIT_INVESTIGATION",
+                            "DEPENDENCY_OUTAGE_RECOVERY",
+                            "PRIVACY_INCIDENT",
+                            "SECURITY_INCIDENT"
+                          ]
+                        },
+                        "durationSeconds": {
+                          "type": "integer",
+                          "minimum": 300,
+                          "maximum": 14400
+                        },
+                        "requestedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "decideBy": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PENDING",
+                            "APPROVED",
+                            "REJECTED",
+                            "EXPIRED"
+                          ]
+                        },
+                        "decidedBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 68,
+                              "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "decidedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "grantId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 80,
+                              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "grantExpiresAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "requestId",
+                        "requestedBy",
+                        "justificationCode",
+                        "durationSeconds",
+                        "requestedAt",
+                        "decideBy",
+                        "status",
+                        "decidedBy",
+                        "decidedAt",
+                        "grantId",
+                        "grantExpiresAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "request"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: missing, expired or revoked staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "STAFF_ROLE_NOT_PERMITTED or a finer per-scope rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
             "content": {
               "application/json": {
                 "schema": {
@@ -4153,6 +5994,26 @@
                       "type": "string",
                       "format": "date-time",
                       "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "sessionKind": {
+                      "type": "string",
+                      "enum": [
+                        "LOCAL_FIXTURE",
+                        "OIDC_SSO",
+                        "RECOVERY"
+                      ]
+                    },
+                    "idleTimeoutSeconds": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 60,
+                          "maximum": 86400
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -4161,7 +6022,9 @@
                     "tenantId",
                     "environment",
                     "localFixture",
-                    "sessionExpiresAt"
+                    "sessionExpiresAt",
+                    "sessionKind",
+                    "idleTimeoutSeconds"
                   ],
                   "additionalProperties": false
                 }
@@ -5429,6 +7292,1280 @@
                     "outcome",
                     "receiptId",
                     "auditEventId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: missing, expired or revoked staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "STAFF_ROLE_NOT_PERMITTED or a finer per-scope rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/v1/recovery-identities": {
+      "get": {
+        "operationId": "console.recoveryIdentities.list",
+        "tags": [
+          "recoveryIdentities"
+        ],
+        "security": [
+          {
+            "staffBearer": []
+          }
+        ],
+        "x-vsp-roles": [
+          "security_admin"
+        ],
+        "x-vsp-idempotent": false,
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer token from the console token endpoints (memory only)",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "identities": {
+                      "maxItems": 64,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "identityId": {
+                            "type": "string",
+                            "maxLength": 80,
+                            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                          },
+                          "staffId": {
+                            "type": "string",
+                            "maxLength": 68,
+                            "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                          },
+                          "keyThumbprint": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_-]{43}$"
+                          },
+                          "roles": {
+                            "minItems": 1,
+                            "maxItems": 3,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "security_admin",
+                                "supervisor",
+                                "safety_responder"
+                              ]
+                            }
+                          },
+                          "attestationRef": {
+                            "type": "string",
+                            "maxLength": 80,
+                            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PROPOSED",
+                              "ACTIVE",
+                              "SUSPENDED",
+                              "REVOKED"
+                            ]
+                          },
+                          "proposedBy": {
+                            "type": "string",
+                            "maxLength": 68,
+                            "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                          },
+                          "holderConfirmedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "approvedBy": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 68,
+                                "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "suspendReason": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 64,
+                                "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "identityId",
+                          "staffId",
+                          "keyThumbprint",
+                          "roles",
+                          "attestationRef",
+                          "status",
+                          "proposedBy",
+                          "holderConfirmedAt",
+                          "approvedBy",
+                          "suspendReason"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "identities"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: missing, expired or revoked staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "STAFF_ROLE_NOT_PERMITTED or a finer per-scope rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "console.recoveryIdentities.propose",
+        "tags": [
+          "recoveryIdentities"
+        ],
+        "security": [
+          {
+            "staffBearer": []
+          }
+        ],
+        "x-vsp-roles": [
+          "security_admin"
+        ],
+        "x-vsp-idempotent": true,
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer token from the console token endpoints (memory only)",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Client key per confirmed mutation; a repeat returns the first result",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "staffId": {
+                    "type": "string",
+                    "maxLength": 68,
+                    "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                  },
+                  "publicJwk": {
+                    "type": "object",
+                    "properties": {
+                      "kty": {
+                        "type": "string",
+                        "const": "EC"
+                      },
+                      "crv": {
+                        "type": "string",
+                        "const": "P-256"
+                      },
+                      "x": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]{43}$"
+                      },
+                      "y": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]{43}$"
+                      }
+                    },
+                    "required": [
+                      "kty",
+                      "crv",
+                      "x",
+                      "y"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "attestationRef": {
+                    "type": "string",
+                    "maxLength": 80,
+                    "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                  },
+                  "roles": {
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "security_admin",
+                        "supervisor",
+                        "safety_responder"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "staffId",
+                  "publicJwk",
+                  "attestationRef",
+                  "roles"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "identity": {
+                      "type": "object",
+                      "properties": {
+                        "identityId": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "staffId": {
+                          "type": "string",
+                          "maxLength": 68,
+                          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                        },
+                        "keyThumbprint": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{43}$"
+                        },
+                        "roles": {
+                          "minItems": 1,
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "security_admin",
+                              "supervisor",
+                              "safety_responder"
+                            ]
+                          }
+                        },
+                        "attestationRef": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PROPOSED",
+                            "ACTIVE",
+                            "SUSPENDED",
+                            "REVOKED"
+                          ]
+                        },
+                        "proposedBy": {
+                          "type": "string",
+                          "maxLength": 68,
+                          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                        },
+                        "holderConfirmedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "approvedBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 68,
+                              "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "suspendReason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 64,
+                              "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "identityId",
+                        "staffId",
+                        "keyThumbprint",
+                        "roles",
+                        "attestationRef",
+                        "status",
+                        "proposedBy",
+                        "holderConfirmedAt",
+                        "approvedBy",
+                        "suspendReason"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "enrollment": {
+                      "type": "object",
+                      "properties": {
+                        "challenge": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{43}$"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        }
+                      },
+                      "required": [
+                        "challenge",
+                        "expiresAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "identity",
+                    "enrollment"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: missing, expired or revoked staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "STAFF_ROLE_NOT_PERMITTED or a finer per-scope rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/v1/recovery-identities/{identityId}/approve": {
+      "post": {
+        "operationId": "console.recoveryIdentities.approve",
+        "tags": [
+          "recoveryIdentities"
+        ],
+        "security": [
+          {
+            "staffBearer": []
+          }
+        ],
+        "x-vsp-roles": [
+          "security_admin"
+        ],
+        "x-vsp-idempotent": true,
+        "parameters": [
+          {
+            "name": "identityId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer token from the console token endpoints (memory only)",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Client key per confirmed mutation; a repeat returns the first result",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "identity": {
+                      "type": "object",
+                      "properties": {
+                        "identityId": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "staffId": {
+                          "type": "string",
+                          "maxLength": 68,
+                          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                        },
+                        "keyThumbprint": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{43}$"
+                        },
+                        "roles": {
+                          "minItems": 1,
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "security_admin",
+                              "supervisor",
+                              "safety_responder"
+                            ]
+                          }
+                        },
+                        "attestationRef": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PROPOSED",
+                            "ACTIVE",
+                            "SUSPENDED",
+                            "REVOKED"
+                          ]
+                        },
+                        "proposedBy": {
+                          "type": "string",
+                          "maxLength": 68,
+                          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                        },
+                        "holderConfirmedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "approvedBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 68,
+                              "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "suspendReason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 64,
+                              "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "identityId",
+                        "staffId",
+                        "keyThumbprint",
+                        "roles",
+                        "attestationRef",
+                        "status",
+                        "proposedBy",
+                        "holderConfirmedAt",
+                        "approvedBy",
+                        "suspendReason"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "identity"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: missing, expired or revoked staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "STAFF_ROLE_NOT_PERMITTED or a finer per-scope rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/v1/recovery-identities/{identityId}/confirm": {
+      "post": {
+        "operationId": "console.recoveryIdentities.confirm",
+        "tags": [
+          "recoveryIdentities"
+        ],
+        "security": [
+          {
+            "staffBearer": []
+          }
+        ],
+        "x-vsp-roles": [
+          "safety_responder",
+          "security_admin",
+          "supervisor"
+        ],
+        "x-vsp-idempotent": true,
+        "parameters": [
+          {
+            "name": "identityId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer token from the console token endpoints (memory only)",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Client key per confirmed mutation; a repeat returns the first result",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "signature": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 4096,
+                    "pattern": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                  }
+                },
+                "required": [
+                  "signature"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "identity": {
+                      "type": "object",
+                      "properties": {
+                        "identityId": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "staffId": {
+                          "type": "string",
+                          "maxLength": 68,
+                          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                        },
+                        "keyThumbprint": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{43}$"
+                        },
+                        "roles": {
+                          "minItems": 1,
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "security_admin",
+                              "supervisor",
+                              "safety_responder"
+                            ]
+                          }
+                        },
+                        "attestationRef": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PROPOSED",
+                            "ACTIVE",
+                            "SUSPENDED",
+                            "REVOKED"
+                          ]
+                        },
+                        "proposedBy": {
+                          "type": "string",
+                          "maxLength": 68,
+                          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                        },
+                        "holderConfirmedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "approvedBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 68,
+                              "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "suspendReason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 64,
+                              "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "identityId",
+                        "staffId",
+                        "keyThumbprint",
+                        "roles",
+                        "attestationRef",
+                        "status",
+                        "proposedBy",
+                        "holderConfirmedAt",
+                        "approvedBy",
+                        "suspendReason"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "identity"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED and other reason codes: invalid path, query or body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: missing, expired or revoked staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "STAFF_ROLE_NOT_PERMITTED or a finer per-scope rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "STATE_CONFLICT or idempotency conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR or RESPONSE_SCHEMA_VIOLATION (fail closed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AUDIT_UNAVAILABLE or dependency unavailable (retryable)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/console/api/v1/recovery-identities/{identityId}/revoke": {
+      "post": {
+        "operationId": "console.recoveryIdentities.revoke",
+        "tags": [
+          "recoveryIdentities"
+        ],
+        "security": [
+          {
+            "staffBearer": []
+          }
+        ],
+        "x-vsp-roles": [
+          "security_admin"
+        ],
+        "x-vsp-idempotent": true,
+        "parameters": [
+          {
+            "name": "identityId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "description": "Bearer token from the console token endpoints (memory only)",
+            "schema": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Client key per confirmed mutation; a repeat returns the first result",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{16,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 160,
+                    "pattern": "^[A-Z][A-Z0-9_]{2,63}(:[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64})?$"
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "identity": {
+                      "type": "object",
+                      "properties": {
+                        "identityId": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "staffId": {
+                          "type": "string",
+                          "maxLength": 68,
+                          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                        },
+                        "keyThumbprint": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{43}$"
+                        },
+                        "roles": {
+                          "minItems": 1,
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "security_admin",
+                              "supervisor",
+                              "safety_responder"
+                            ]
+                          }
+                        },
+                        "attestationRef": {
+                          "type": "string",
+                          "maxLength": 80,
+                          "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "PROPOSED",
+                            "ACTIVE",
+                            "SUSPENDED",
+                            "REVOKED"
+                          ]
+                        },
+                        "proposedBy": {
+                          "type": "string",
+                          "maxLength": 68,
+                          "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                        },
+                        "holderConfirmedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "approvedBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 68,
+                              "pattern": "^stf_[A-Za-z0-9_-]{8,64}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "suspendReason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "maxLength": 64,
+                              "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "identityId",
+                        "staffId",
+                        "keyThumbprint",
+                        "roles",
+                        "attestationRef",
+                        "status",
+                        "proposedBy",
+                        "holderConfirmedAt",
+                        "approvedBy",
+                        "suspendReason"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "identity"
                   ],
                   "additionalProperties": false
                 }

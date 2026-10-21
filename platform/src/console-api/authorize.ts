@@ -17,7 +17,7 @@ import type { ConsoleBreakGlass, ConsoleDecision, ConsoleDecisionInput } from ".
 import { buildConsoleInput } from "../policy/console.js";
 import type { Environment, StaffRole } from "../protocol/index.js";
 import { ENDPOINT_ROLES } from "./contract.js";
-import type { AuthenticatedEndpointKey, KillSwitchScope } from "./contract.js";
+import type { AuthenticatedEndpointKey, ConsoleSessionKind, KillSwitchScope } from "./contract.js";
 
 /** Server-established console identity (verified token + staff directory + break-glass record). */
 export interface ConsoleIdentity {
@@ -33,6 +33,14 @@ export interface ConsoleIdentity {
   localFixture: boolean;
   /** Latest authoritative grant (possibly expired / self-granted), passed to policy unchanged. */
   breakGlass: ConsoleBreakGlass | null;
+  /** How the bearer was established: local fixture token, live SSO session or dual-controlled recovery session. */
+  session: {
+    kind: ConsoleSessionKind;
+    /** Console session family / hash (SSO and recovery sessions only). */
+    familyId: string | null;
+    sessionHash: string | null;
+    idleTimeoutSeconds: number | null;
+  };
 }
 
 export interface ConsolePolicyEngine {
@@ -89,6 +97,21 @@ export const ENDPOINT_POLICY_ACTIONS: Readonly<Record<AuthenticatedEndpointKey, 
   "killSwitches.set": ["kill_switch:engage", "kill_switch:release"],
   "audit.search": ["audit:search"],
   "destinations.list": ["journey:inspect", "policy:review"],
+  /** Own requests (every staff role); the security_admin queue is decided by role in the handler. */
+  "breakGlass.list": SESSION_ACTIONS,
+  "breakGlass.request": ["break_glass:request"],
+  /** initiator = the requester: SELF_APPROVAL_PROHIBITED. */
+  "breakGlass.decide": ["break_glass:approve"],
+  "accessReviews.list": ["access_review:view"],
+  /** initiator = the holder of the reviewed access: a holder never reviews their own access. */
+  "accessReviews.complete": ["access_review:perform"],
+  "recoveryIdentities.list": ["recovery_identity:view"],
+  "recoveryIdentities.propose": ["recovery_identity:propose"],
+  /** assignedStaffId = the holder named by the identity: only that staff member may confirm. */
+  "recoveryIdentities.confirm": ["recovery_identity:confirm"],
+  /** initiator = the proposer (dual control). */
+  "recoveryIdentities.approve": ["recovery_identity:approve"],
+  "recoveryIdentities.revoke": ["recovery_identity:revoke"],
 };
 
 /** Resource type labels for the policy input (`^[a-z_]{3,40}$`). */
@@ -117,6 +140,16 @@ export const ENDPOINT_RESOURCE_TYPES: Readonly<Record<AuthenticatedEndpointKey, 
   "killSwitches.set": "kill_switch",
   "audit.search": "audit_metadata",
   "destinations.list": "destination_config",
+  "breakGlass.list": "break_glass_request",
+  "breakGlass.request": "break_glass_request",
+  "breakGlass.decide": "break_glass_request",
+  "accessReviews.list": "access_review",
+  "accessReviews.complete": "access_review",
+  "recoveryIdentities.list": "recovery_identity",
+  "recoveryIdentities.propose": "recovery_identity",
+  "recoveryIdentities.confirm": "recovery_identity",
+  "recoveryIdentities.approve": "recovery_identity",
+  "recoveryIdentities.revoke": "recovery_identity",
 };
 
 /** Default checks for an endpoint (tenant-scoped resource, no scope / initiator / assignee). */

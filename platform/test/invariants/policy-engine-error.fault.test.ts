@@ -43,7 +43,7 @@ let h: JourneyHarness;
 let fault: PolicyEvaluationFault;
 beforeAll(async () => {
   h = await createJourneyHarness({ ingestKnowledge: false });
-  fault = PolicyEvaluationFault.install(h.c.policy);
+  fault = PolicyEvaluationFault.install(h.c.policy, { environment: "local" });
 }, 180_000);
 afterAll(async () => {
   fault?.uninstall();
@@ -113,8 +113,8 @@ describe("[FAULT:POLICY_ENGINE_ERROR] in-process OPA WASM evaluation throws or i
   });
 
   it("[FAULT:POLICY_ENGINE_ERROR] the decorator refuses an engine without the evaluation seam (the test can never pass against an engine it did not reach)", () => {
-    expect(() => PolicyEvaluationFault.install({} as never)).toThrow("POLICY_EVALUATOR_SEAM_MISSING");
-    expect(() => PolicyEvaluationFault.install({ evaluator: { entrypoints: "x", evaluate: () => undefined } } as never)).toThrow("POLICY_EVALUATOR_SEAM_MISSING");
+    expect(() => PolicyEvaluationFault.install({} as never, { environment: "local" })).toThrow("POLICY_EVALUATOR_SEAM_MISSING");
+    expect(() => PolicyEvaluationFault.install({ evaluator: { entrypoints: "x", evaluate: () => undefined } } as never, { environment: "local" })).toThrow("POLICY_EVALUATOR_SEAM_MISSING");
   });
 
   for (const mode of ["THROW", "UNDEFINED"] as const) {

@@ -12,8 +12,8 @@ rules:
 summary:
   capabilities: 56
   softwareRollup:
-    IMPLEMENTED: 4
-    MISSING: 52
+    IMPLEMENTED: 6
+    MISSING: 50
   environmentRollup:
     NOT_CONFIGURED: 56
 capabilities:
@@ -223,12 +223,11 @@ capabilities:
 - id: identity.caller
   title: Caller identity and session assurance
   description: OIDC portal, OTP, secure links, assurance tiers, session generations, idle expiry and refresh.
-  softwareRollup: MISSING
+  softwareRollup: IMPLEMENTED
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 6
-    IMPLEMENTED: 14
-    VERIFIED_LOCAL: 17
+    IMPLEMENTED: 9
+    VERIFIED_LOCAL: 28
   environmentStatus:
     NOT_CONFIGURED: 37
   qualification:
@@ -284,12 +283,11 @@ capabilities:
 - id: identity.workforce
   title: Workforce identity and RBAC
   description: Workforce SSO with MFA, live staff directory, role separation and break-glass.
-  softwareRollup: MISSING
+  softwareRollup: IMPLEMENTED
   environmentRollup: NOT_CONFIGURED
   softwareStatus:
-    MISSING: 9
-    IMPLEMENTED: 1
-    VERIFIED_LOCAL: 3
+    IMPLEMENTED: 4
+    VERIFIED_LOCAL: 9
   environmentStatus:
     NOT_CONFIGURED: 13
   qualification:

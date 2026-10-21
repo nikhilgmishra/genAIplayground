@@ -16,12 +16,14 @@
  * POLICY_ENGINE_ERROR tool result, its durable audit event and the engine's fail-closed log line
  * (`policy.decision.fail_closed` with detail POLICY_EVALUATION_FAILED or POLICY_RESULT_MALFORMED).
  *
- * The engine keeps its evaluator private and exposes no decoration seam yet; `install` replaces the private
- * field after checking its shape and fails loudly (POLICY_EVALUATOR_SEAM_MISSING) when the engine changes,
- * so the fault test can never pass against an engine it did not reach. A public seam on the engine
- * (policy owner) would remove the field access; recorded as an open issue of WP-01.
+ * `install` uses the engine's public, documented decoration seam (`OpaWasmPolicyEngine.decorateEvaluator`,
+ * platform/src/policy/engine.ts): local/ci only (the engine refuses it for any other environment, and on an
+ * engine loaded for a deployed environment), tighten-only (a decorated allow wider than the loaded policy is
+ * a POLICY_ENGINE_ERROR deny). It fails loudly (POLICY_EVALUATOR_SEAM_MISSING) when the object it is given
+ * has no such seam, so the fault test can never pass against an engine it did not reach.
  */
-import type { OpaWasmPolicyEngine, PolicyEvaluator } from "../policy/engine.js";
+import type { EvaluatorDecoration, OpaWasmPolicyEngine, PolicyEvaluator } from "../policy/engine.js";
+import type { Environment } from "../protocol/index.js";
 
 export type PolicyFaultMode = "THROW" | "UNDEFINED";
 
@@ -34,38 +36,33 @@ export class PolicyEvaluationFaultError extends Error {
   }
 }
 
-interface EvaluatorHolder {
-  evaluator?: unknown;
-}
-
-const isEvaluator = (x: unknown): x is PolicyEvaluator =>
-  typeof x === "object" && x !== null && Array.isArray((x as PolicyEvaluator).entrypoints) && typeof (x as PolicyEvaluator).evaluate === "function";
-
 export class PolicyEvaluationFault {
   private mode: PolicyFaultMode | null = null;
   private count = 0;
-  private readonly original: PolicyEvaluator;
   private installed = true;
+  private readonly decoration: EvaluatorDecoration;
 
-  private constructor(private readonly holder: EvaluatorHolder) {
-    const inner = holder.evaluator;
-    if (!isEvaluator(inner)) throw new PolicyEvaluationFaultError("POLICY_EVALUATOR_SEAM_MISSING");
-    this.original = inner;
-    const decorated: PolicyEvaluator = {
-      entrypoints: inner.entrypoints,
-      evaluate: (input: unknown, entrypoint: string): unknown => {
-        if (this.mode === null) return inner.evaluate(input, entrypoint);
-        this.count += 1;
-        if (this.mode === "THROW") throw new Error(INJECTED_EVALUATION_ERROR);
-        return undefined;
-      },
-    };
-    holder.evaluator = decorated;
+  private constructor(engine: OpaWasmPolicyEngine, opts: { environment: Environment }) {
+    if (typeof (engine as { decorateEvaluator?: unknown } | null)?.decorateEvaluator !== "function") {
+      throw new PolicyEvaluationFaultError("POLICY_EVALUATOR_SEAM_MISSING");
+    }
+    this.decoration = engine.decorateEvaluator(
+      (inner: PolicyEvaluator): PolicyEvaluator => ({
+        entrypoints: inner.entrypoints,
+        evaluate: (input: unknown, entrypoint: string): unknown => {
+          if (this.mode === null) return inner.evaluate(input, entrypoint);
+          this.count += 1;
+          if (this.mode === "THROW") throw new Error(INJECTED_EVALUATION_ERROR);
+          return undefined;
+        },
+      }),
+      opts,
+    );
   }
 
-  /** Decorates the evaluation seam of a loaded engine (disarmed until `arm`). */
-  static install(engine: OpaWasmPolicyEngine): PolicyEvaluationFault {
-    return new PolicyEvaluationFault(engine as unknown as EvaluatorHolder);
+  /** Decorates the evaluation seam of a loaded engine (disarmed until `arm`); local/ci only. */
+  static install(engine: OpaWasmPolicyEngine, opts: { environment: Environment }): PolicyEvaluationFault {
+    return new PolicyEvaluationFault(engine, opts);
   }
 
   arm(mode: PolicyFaultMode): void {
@@ -89,7 +86,7 @@ export class PolicyEvaluationFault {
   /** Restores the original WASM evaluator. */
   uninstall(): void {
     this.mode = null;
-    this.holder.evaluator = this.original;
+    this.decoration.remove();
     this.installed = false;
   }
 }

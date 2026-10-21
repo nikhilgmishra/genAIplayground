@@ -7,7 +7,19 @@ import type { PlatformConfig } from "../config/ports.js";
 import type { Environment } from "../protocol/index.js";
 import { IDP, STAFF, TENANT_ID } from "../fixtures/synthetic-world.js";
 import { ConfigurationRejectedError } from "../shared/errors.js";
-import { BlockedWorkforceStaffDirectory, LocalWorkforceSignInFixture, WorkforceTokenVerifier } from "./auth.js";
+import { OidcDiscovery } from "../adapters/live/oidc-discovery.js";
+import { OidcHttp } from "../adapters/live/oidc-http.js";
+import { OidcRelyingPartyClient } from "../adapters/live/oidc-client.js";
+import { ConnectorHttpTransport } from "../connectors/http/transport.js";
+import { EgressGuard } from "../privacy/egress.js";
+import { LocalWorkforceSignInFixture, WorkforceTokenVerifier, amrSatisfiesMfa } from "./auth.js";
+import { OidcGroupStaffDirectory } from "./oidc-staff-directory.js";
+import type { ConsoleSsoDeps } from "./routes/auth/workforce-auth.js";
+import { PgConsoleSessionStore } from "./sessions.js";
+import { DEFAULT_WORKFORCE_SESSION, parseWorkforceSsoConfig } from "./sso-config.js";
+import { WorkforceSsoService } from "./sso.js";
+import type { WorkforceOidcPort } from "./sso.js";
+import { AesGcmTokenSealer } from "./token-sealer.js";
 import { CONSOLE_ENDPOINTS, PUBLIC_ENDPOINTS } from "./contract.js";
 import type { AuthenticatedEndpointKey, EndpointKey } from "./contract.js";
 import { createConsoleHarness } from "./fixtures/harness.fixture.js";
@@ -34,6 +46,60 @@ const SAMPLE_PARAMS: Record<string, string> = {
 const paramsFor = (k: EndpointKey): Record<string, string> =>
   Object.fromEntries([...CONSOLE_ENDPOINTS[k].path.matchAll(/:([A-Za-z]+)/g)].map((m) => [m[1] as string, SAMPLE_PARAMS[m[1] as string] as string]));
 const loadConfigFile = (env: Environment): PlatformConfig => loadPlatformConfig({ environment: env, env: {} }).config;
+const LIVE_HOST = "sso-workforce.vsp-unit.invalid";
+const LIVE_ISSUER = `https://${LIVE_HOST}/realms/workforce`;
+
+/**
+ * The production workforce SSO wiring (live OIDC adapter over the egress-classified transport, live group
+ * directory, sealed refresh tokens) with an IdP that is not reachable from a unit test: registration and
+ * refusal paths need no provider call; auth.config shows discovery failing closed.
+ */
+async function liveProductionSso(hh: ConsoleHarness): Promise<{ sso: ConsoleSsoDeps; verifier: WorkforceTokenVerifier; directory: OidcGroupStaffDirectory }> {
+  const egress = new EgressGuard(
+    {
+      policyVersion: "egress-console-unit-1",
+      destinations: [
+        { destinationId: "egr_workforce_idp", kind: "VERIFICATION_SERVICE", hosts: [LIVE_HOST], allowedClasses: ["PUBLIC", "VERIFICATION_SECRET"], coverage: { baaRef: null, approvalId: "apr_synthConsoleUnitIdp01" }, environments: ["production"], adapterKind: "live" },
+      ],
+    },
+    { environment: "production" },
+  );
+  const http = new OidcHttp({ transport: new ConnectorHttpTransport({ environment: "production", egress }), egress, destination: { allowedHosts: [LIVE_HOST], addressClass: "PUBLIC_INTERNET" }, timeoutMs: 300 });
+  const discovery = new OidcDiscovery({ issuer: LIVE_ISSUER, http, clock: hh.clock });
+  const client = new OidcRelyingPartyClient({ clientId: "vsp-console", discovery, http, auth: { method: "client_secret_basic", clientSecret: async () => "cons_synthUnusedInUnitTest01" }, clock: hh.clock, algorithms: ["ES256", "RS256"] });
+  const port: WorkforceOidcPort = client;
+  const config = parseWorkforceSsoConfig({
+    tenantId: TENANT_ID,
+    issuer: LIVE_ISSUER,
+    clientId: "vsp-console",
+    scopes: ["openid"],
+    redirectUris: ["https://console.vsp-unit.invalid/auth/callback"],
+    groupsClaim: "groups",
+    membershipSource: { kind: "GROUP_PATHS", unambiguousPathsRef: "apr_synthUnambiguousPaths01" },
+    groupRoles: { "/vsp/supervisor": "supervisor" },
+    managedGroupPrefix: "/vsp/",
+    acceptedMfaAmr: ["otp", "mfa", "hwk"],
+    maxAuthAgeSeconds: 600,
+    loginTransactionTtlSeconds: 600,
+    session: DEFAULT_WORKFORCE_SESSION,
+    sessionParametersApprovalId: "apr_synthSessionParams001",
+  });
+  const directory = new OidcGroupStaffDirectory(config);
+  const verifier = WorkforceTokenVerifier.withKeys({ issuer: LIVE_ISSUER, audience: "vsp-console", keys: discovery.keyResolver(), clock: hh.clock, acceptedMfaAmr: config.acceptedMfaAmr });
+  const service = new WorkforceSsoService({
+    config,
+    oidc: port,
+    directory,
+    verifier,
+    sessions: new PgConsoleSessionStore(hh.db),
+    sealer: new AesGcmTokenSealer({ current: { id: "unit-sealer-1", key: Buffer.alloc(32, 7) } }),
+    audit: hh.consoleAudit,
+    clock: hh.clock,
+    logger: hh.deps.logger,
+  });
+  return { sso: { service, config, authorizationEndpoint: async () => (await discovery.provider()).authorizationEndpoint.href }, verifier, directory };
+}
+
 const errorOf = (body: string): { reasonCode: string; correlationId: string | null; retryable: boolean } => (JSON.parse(body) as { error: { reasonCode: string; correlationId: string | null; retryable: boolean } }).error;
 
 describe("console workforce authentication (spec section 7, AUTH-02/AUTH-03)", () => {
@@ -116,10 +182,11 @@ describe("console workforce authentication (spec section 7, AUTH-02/AUTH-03)", (
     }
   });
 
-  it("[OPS-04] local sign-in routes are absent in a production-config registration and answer 404 LOCAL_FIXTURE_DISABLED", async () => {
+  it("[OPS-04][FO-14-02] production registration needs live workforce SSO: local sign-in routes are absent, raw JWT bearers and fixture tokens are refused", async () => {
+    const live = await liveProductionSso(h);
     const app = Fastify({ logger: false });
-    const verifier = WorkforceTokenVerifier.remoteJwks({ issuer: "https://sso-workforce.example.com", audience: "vsp-console", jwksUrl: "https://sso-workforce.example.com/.well-known/jwks.json", clock: h.clock });
-    await registerConsoleApi(app, { ...h.deps, environment: "production", localFixture: false, auth: { ...h.deps.auth, verifier, staffDirectory: new BlockedWorkforceStaffDirectory(), localSignIn: null } });
+    const prodDeps = { ...h.deps, environment: "production" as const, localFixture: false, auth: { ...h.deps.auth, verifier: live.verifier, staffDirectory: live.directory, localSignIn: null, sso: live.sso } };
+    await registerConsoleApi(app, prodDeps);
     await app.ready();
     try {
       expect(app.hasRoute({ method: "POST", url: "/console/api/v1/auth/local/token" })).toBe(false);
@@ -129,16 +196,28 @@ describe("console workforce authentication (spec section 7, AUTH-02/AUTH-03)", (
         expect(r.statusCode).toBe(404);
         expect(errorOf(r.body).reasonCode).toBe("LOCAL_FIXTURE_DISABLED");
       }
-      const cfg = JSON.parse((await app.inject({ method: "GET", url: "/console/api/v1/auth/config" })).body) as { mode: string; localFixture: boolean; oidc: { status: string } };
-      expect(cfg).toMatchObject({ mode: "oidc_workforce", localFixture: false, oidc: { status: "BLOCKED" } });
-      // A local-fixture token is never accepted by the live verifier.
-      expect((await app.inject({ method: "GET", url: "/console/api/v1/me", headers: { authorization: `Bearer ${await h.token("supervisor")}` } })).statusCode).toBe(401);
+      const cfg = JSON.parse((await app.inject({ method: "GET", url: "/console/api/v1/auth/config" })).body) as { mode: string; localFixture: boolean; oidc: { status: string; issuer: string; authorizationEndpoint: string | null; blockedReasonCode: string | null }; sessionPolicy: { idleTimeoutSeconds: number } };
+      // The IdP is unreachable from the unit test: the endpoint is never guessed (discovery fails closed).
+      expect(cfg).toMatchObject({ mode: "oidc_workforce", localFixture: false, oidc: { status: "CONFIGURED", issuer: LIVE_ISSUER, authorizationEndpoint: null, blockedReasonCode: "WORKFORCE_IDP_UNAVAILABLE" }, sessionPolicy: { idleTimeoutSeconds: 900 } });
+      // Neither a local-fixture token nor any raw JWT bearer is a console session outside local/ci.
+      for (const bearer of [await h.token("supervisor"), await h.token("supervisor", { amr: ["mfa"] })]) {
+        const me = await app.inject({ method: "GET", url: "/console/api/v1/me", headers: { authorization: `Bearer ${bearer}` } });
+        expect(me.statusCode).toBe(401);
+        expect(errorOf(me.body).reasonCode).toBe("UNAUTHENTICATED");
+      }
+      const unknownSession = await app.inject({ method: "GET", url: "/console/api/v1/me", headers: { authorization: `Bearer vcs_${"A".repeat(43)}` } });
+      expect(unknownSession.statusCode).toBe(401);
+      expect(errorOf(unknownSession.body).reasonCode).toBe("SESSION_INVALID");
       const exchange = await app.inject({ method: "POST", url: "/console/api/v1/auth/oidc/exchange", headers: { "content-type": "application/json" }, payload: "{}" });
       expect(exchange.statusCode).toBe(400);
-      expect(consoleRuntimeComponents({ auth: { ...h.deps.auth, verifier, localSignIn: null } })).toEqual({ "workforce-sso": "live" });
+      expect(consoleRuntimeComponents(prodDeps)).toEqual({ "workforce-sso": "live" });
     } finally {
       await app.close();
     }
+    // Without live SSO, a production registration is refused outright.
+    const bare = Fastify({ logger: false });
+    await expect(registerConsoleApi(bare, { ...prodDeps, auth: { ...prodDeps.auth, sso: null } })).rejects.toMatchObject({ violations: expect.arrayContaining(["WORKFORCE_SSO_NOT_CONFIGURED@console.auth.sso"]) });
+    await bare.close();
   });
 
   it("[OPS-04] registration fails closed when local fixture identity components are configured outside local/ci", async () => {
@@ -176,7 +255,7 @@ describe("console workforce authentication (spec section 7, AUTH-02/AUTH-03)", (
 describe("WorkforceTokenVerifier (jose) claim checks", () => {
   const ISSUER = "https://sso-workforce.local.invalid";
   const AUD = "vsp-console-local";
-  const setup = async (kind: "local_fixture" | "live" = "local_fixture") => {
+  const setup = async (kind: "local_fixture" | "live" = "local_fixture", acceptedMfaAmr: string[] | null = ["mfa", "hwk"]) => {
     const { generateKeyPair, exportJWK, createLocalJWKSet, SignJWT } = await import("jose");
     const { privateKey, publicKey } = await generateKeyPair("ES256", { extractable: true });
     const jwk = { ...(await exportJWK(publicKey)), kid: "local-test-key", alg: "ES256", use: "sig" };
@@ -184,7 +263,7 @@ describe("WorkforceTokenVerifier (jose) claim checks", () => {
       kind,
       clock: h.clock,
       keys: createLocalJWKSet({ keys: [jwk] }),
-      policy: { issuer: ISSUER, audience: AUD, algorithms: ["ES256"], clockToleranceSeconds: 5, maxTokenLifetimeSeconds: 3600, acceptedMfaAmr: ["mfa", "hwk"], allowLocalFixtureAmr: kind === "local_fixture" },
+      policy: { issuer: ISSUER, audience: AUD, algorithms: ["ES256"], clockToleranceSeconds: 5, maxTokenLifetimeSeconds: 3600, acceptedMfaAmr, allowLocalFixtureAmr: kind === "local_fixture" },
     });
     const nowS = Math.floor(h.clock.now().getTime() / 1000);
     const sign = (claims: Record<string, unknown>, alg = "ES256") =>
@@ -214,6 +293,30 @@ describe("WorkforceTokenVerifier (jose) claim checks", () => {
     await expect(verifier.verify(unsigned)).rejects.toMatchObject({ reasonCode: "UNAUTHENTICATED" });
     await expect(verifier.verify(await sign({ amr: ["pwd"] }))).rejects.toMatchObject({ reasonCode: "STAFF_MFA_REQUIRED" });
     await expect(verifier.verify(await sign({ auth_time: Math.floor(h.clock.now().getTime() / 1000) + 3600 }))).rejects.toMatchObject({ reasonCode: "STAFF_AUTH_TIME_INVALID" });
+  });
+
+  it("[FO-05-41][AUTH-01] the DEFAULT MFA rule (no tenant override) needs `mfa` or two distinct RFC 8176 factor classes: a single-factor amr is refused", async () => {
+    const { verifier, sign } = await setup("live", null);
+    expect(verifier.policy.acceptedMfaAmr).toBeNull();
+    for (const single of [["otp"], ["swk"], ["hwk"], ["pop"], ["sms"], ["pwd"], ["otp", "sms"], ["hwk", "swk"], ["pwd", "pin"], ["user", "otp"], ["rba"]]) {
+      await expect(verifier.verify(await sign({ amr: single })), single.join("+")).rejects.toMatchObject({ reasonCode: "STAFF_MFA_REQUIRED" });
+    }
+    for (const multi of [["mfa"], ["pwd", "otp"], ["hwk", "pin"], ["swk", "fpt"], ["pwd", "hwk", "user"]]) {
+      await expect(verifier.verify(await sign({ amr: multi })), multi.join("+")).resolves.toMatchObject({ subject: "workforce|synth-supervisor" });
+    }
+    // A tenant override (AIN-13) is configuration: any one listed value suffices; `pwd` can never be listed.
+    const tenant = await setup("live", ["otp"]);
+    await expect(tenant.verifier.verify(await tenant.sign({ amr: ["otp"] }))).resolves.toMatchObject({ localFixture: false });
+    await expect(tenant.verifier.verify(await tenant.sign({ amr: ["swk"] }))).rejects.toMatchObject({ reasonCode: "STAFF_MFA_REQUIRED" });
+    await expect(setup("live", ["pwd"])).rejects.toMatchObject({ reasonCode: "WORKFORCE_TOKEN_POLICY_INVALID" });
+    // The constructors without an override use the default rule.
+    const { generateKeyPair, exportJWK, createLocalJWKSet } = await import("jose");
+    const { publicKey } = await generateKeyPair("ES256", { extractable: true });
+    const keys = createLocalJWKSet({ keys: [{ ...(await exportJWK(publicKey)), kid: "k", alg: "ES256" }] });
+    expect(WorkforceTokenVerifier.withKeys({ issuer: ISSUER, audience: AUD, keys, clock: h.clock }).policy.acceptedMfaAmr).toBeNull();
+    expect(amrSatisfiesMfa(["otp"], null)).toBe(false);
+    expect(amrSatisfiesMfa(["pwd", "otp"], null)).toBe(true);
+    expect(amrSatisfiesMfa(["__proto__", "constructor"], null)).toBe(false);
   });
 
   it("[OPS-04] a live verifier refuses LOCAL FIXTURE tokens even when they carry an MFA amr", async () => {

@@ -44,21 +44,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.workforce
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/console-api/auth.ts:131-152 (remoteJwks exists)
-  - platform/src/console-api/auth.ts:305-330 (BlockedWorkforceStaffDirectory throws WORKFORCE_DIRECTORY_BLOCKED)
-  - platform/src/main/console.ts:52 (CONSOLE_LOCAL_COMPOSITION_OUTSIDE_LOCAL_CI)
-  - 'platform/src/main/console.ts:92 (oidc: null)'
-  gap: 'Only buildLocalConsole exists and it refuses outside local/ci; the live staff directory is a blocked stub; no OIDC authorization-code exchange is composed (oidc: null); no deployed console access path in Terraform.'
+  - src/console-api auth/rbac tests
+  gap: There is no non-local composition or Terraform access path yet (WP-07).
   remediation: Implement a live StaffDirectory (OIDC group claim mapping and/or SCIM pull with cache and revocation), compose a production console entry point with remote JWKS and PKCE code exchange, add the console to infra (private ALB path or separate ingress) and test against a Keycloak/Dex realm in the local compose.
   size: L
   environmentDependency: Workforce OIDC client, JWKS URI, MFA amr values and role-group mapping from the identity owner (PRQ-036, VQ-IDP-08)
   workPackage: WP-05
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-14-03
   section: '14'
   kind: software
@@ -1316,12 +1318,13 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.workforce
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/console-api/break-glass.ts (record-access break-glass only, never adds roles)
-  gap: No SSO recovery mechanism or runbook.
+  - break-glass.test.ts suspended co-signer and reinstate-only cases
+  - recovery.test.ts co-signer suspension race (L2, postgres:16)
+  gap: Hardware attestation is a reference only, and the recovery runbook has not been drilled.
   remediation: 'Design dual-controlled break-glass workforce identities (hardware MFA, time-bound, audited, outside the primary IdP) plus a runbook under docs/RUNBOOKS and tests. Cover how kill switches (KillSwitchService) and safety routing are operated while the workforce IdP is down: today kill switches can be engaged only through the console''s SSO sign-in (docs/RUNBOOKS/kill-switch-operations.md:32).'
   size: M
   environmentDependency: Identity owner decision on break-glass workforce accounts
@@ -1330,6 +1333,11 @@ requirements:
     origin: extraction
     challengeCorrected:
     - remediation
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-14-52
   section: '14'
   kind: software
@@ -1341,19 +1349,25 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.workforce
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/console-api/auth.ts:236-300 (fixture directory active flag)
-  - platform/src/console-api/auth.ts (logout revokes jti)
-  gap: Only the fixture directory has an active flag; no live deprovisioning signal.
+  - 'break-glass.test.ts fail-closed rule cases: 53/53 unit mutants KILLED'
+  - workforce-sso-adversarial.test.ts R, Q1, idle closure, reinstate-only on Keycloak 26 (L2_mA/mB/mC KILLED)
+  - recovery.test.ts closeFamily row-lock race (L2_vNoRowLocks KILLED)
+  gap: The sweep must be scheduled by WP-07; a custodian offboarded after their last positive closure with no live session relies on the 14-day evidence window.
   remediation: Implement live directory sync with active-state checks per request and token revocation on deprovision.
   size: M
   environmentDependency: Workforce directory / SCIM feed
   workPackage: WP-05
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B3
+      package: WP-05
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-14-53
   section: '14'
   kind: constraint

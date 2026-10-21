@@ -1,27 +1,21 @@
 /**
  * OIDC authorization-code + PKCE (RFC 7636, S256) helpers for workforce SSO.
  *
- * The PKCE verifier, `state` and `nonce` must survive exactly one redirect
- * round-trip to the IdP, so they are kept in sessionStorage under a key derived
- * from `state` and deleted when the callback consumes them (or after 10 minutes).
- * This module is the ONLY place allowed to touch browser storage (eslint.config.js);
- * the console bearer token itself is never stored.
- *
- * Workforce SSO is BLOCKED until the identity owner issues the OIDC client
- * (PRQ-036). Nothing here is vendor-specific: it follows OAuth 2.0 / OpenID
- * Connect Core, with the authorization endpoint supplied by the backend from
- * the issuer's discovery document.
+ * The backend runs the flow (WP-05): it creates `state` and `nonce`, keeps them server side bound to this
+ * browser's S256 challenge and the exact redirect URI, builds the authorization URL from the issuer's
+ * discovery document and later redeems the code itself; IdP tokens never reach the browser. The browser
+ * only holds its PKCE verifier across exactly one redirect, in sessionStorage under a key derived from the
+ * backend's `state`, deleted when the callback consumes it (or after 10 minutes). This module is the ONLY
+ * place allowed to touch browser storage (eslint.config.js); the console session bearer is never stored.
  */
 import type { OidcClientConfig } from "../api/contract";
 import { base64UrlEncode, randomUrlSafe } from "../lib/random";
 
 const KEY_PREFIX = "vsp.console.oidc.";
 const MAX_AGE_MS = 10 * 60_000;
-const STATE_RE = /^[A-Za-z0-9_-]{32,128}$/;
+const STATE_RE = /^[A-Za-z0-9_-]{32,512}$/;
 
 export interface PkceSession {
-  state: string;
-  nonce: string;
   codeVerifier: string;
   codeChallenge: string;
 }
@@ -42,22 +36,21 @@ export async function s256Challenge(codeVerifier: string): Promise<string> {
 export async function createPkceSession(): Promise<PkceSession> {
   // 32 random bytes -> 43-character verifier (RFC 7636 allows 43..128).
   const codeVerifier = randomUrlSafe(32);
-  return { state: randomUrlSafe(32), nonce: randomUrlSafe(32), codeVerifier, codeChallenge: await s256Challenge(codeVerifier) };
+  return { codeVerifier, codeChallenge: await s256Challenge(codeVerifier) };
 }
 
-export function saveTransient(session: PkceSession, now: () => number = () => Date.now()): void {
+/** Keeps the verifier for the backend-issued `state` until the callback (one redirect round-trip). */
+export function saveTransient(state: string, codeVerifier: string, now: () => number = () => Date.now()): void {
+  if (!STATE_RE.test(state)) throw new OidcFlowError("OIDC_STATE_INVALID");
   try {
-    sessionStorage.setItem(
-      KEY_PREFIX + session.state,
-      JSON.stringify({ codeVerifier: session.codeVerifier, nonce: session.nonce, createdAt: now() }),
-    );
+    sessionStorage.setItem(KEY_PREFIX + state, JSON.stringify({ codeVerifier, createdAt: now() }));
   } catch {
     throw new OidcFlowError("BROWSER_STORAGE_UNAVAILABLE");
   }
 }
 
-/** Reads and deletes the transient PKCE state for `state`. Unknown, malformed or stale state fails closed. */
-export function consumeTransient(state: string, now: () => number = () => Date.now()): { codeVerifier: string; nonce: string } {
+/** Reads and deletes the transient PKCE verifier for `state`. Unknown, malformed or stale state fails closed. */
+export function consumeTransient(state: string, now: () => number = () => Date.now()): { codeVerifier: string } {
   if (!STATE_RE.test(state)) throw new OidcFlowError("OIDC_STATE_INVALID");
   let raw: string | null;
   try {
@@ -73,31 +66,33 @@ export function consumeTransient(state: string, now: () => number = () => Date.n
   } catch {
     throw new OidcFlowError("OIDC_STATE_INVALID");
   }
-  const rec = parsed as { codeVerifier?: unknown; nonce?: unknown; createdAt?: unknown };
-  if (typeof rec.codeVerifier !== "string" || typeof rec.nonce !== "string" || typeof rec.createdAt !== "number") {
-    throw new OidcFlowError("OIDC_STATE_INVALID");
-  }
+  const rec = parsed as { codeVerifier?: unknown; createdAt?: unknown };
+  if (typeof rec.codeVerifier !== "string" || typeof rec.createdAt !== "number") throw new OidcFlowError("OIDC_STATE_INVALID");
   if (now() - rec.createdAt > MAX_AGE_MS) throw new OidcFlowError("OIDC_STATE_EXPIRED");
-  return { codeVerifier: rec.codeVerifier, nonce: rec.nonce };
+  return { codeVerifier: rec.codeVerifier };
 }
 
-export function buildAuthorizationUrl(oidc: OidcClientConfig, redirectUri: string, session: PkceSession): string {
-  if (oidc.status !== "CONFIGURED" || !oidc.authorizationEndpoint || !oidc.clientId) throw new OidcFlowError("OIDC_NOT_CONFIGURED");
+/**
+ * Checks the backend-built authorization URL before the browser follows it: HTTPS, the configured IdP's
+ * authorization endpoint (same origin and path), our challenge with S256 and the backend's state. Anything
+ * else is refused (a compromised or misconfigured backend response never redirects staff elsewhere).
+ */
+export function checkAuthorizationUrl(oidc: OidcClientConfig | null, raw: string, expected: { state: string; codeChallenge: string }): string {
+  if (!oidc || oidc.status !== "CONFIGURED" || !oidc.authorizationEndpoint) throw new OidcFlowError("OIDC_NOT_CONFIGURED");
   let url: URL;
+  let endpoint: URL;
   try {
-    url = new URL(oidc.authorizationEndpoint);
+    url = new URL(raw);
+    endpoint = new URL(oidc.authorizationEndpoint);
   } catch {
-    throw new OidcFlowError("OIDC_NOT_CONFIGURED");
+    throw new OidcFlowError("OIDC_AUTHORIZATION_URL_INVALID");
   }
-  if (url.protocol !== "https:") throw new OidcFlowError("OIDC_ENDPOINT_NOT_HTTPS");
-  const scopes = oidc.scopes.includes("openid") ? oidc.scopes : ["openid", ...oidc.scopes];
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("client_id", oidc.clientId);
-  url.searchParams.set("redirect_uri", redirectUri);
-  url.searchParams.set("scope", scopes.join(" "));
-  url.searchParams.set("state", session.state);
-  url.searchParams.set("nonce", session.nonce);
-  url.searchParams.set("code_challenge", session.codeChallenge);
-  url.searchParams.set("code_challenge_method", "S256");
+  if (url.protocol !== "https:" || endpoint.protocol !== "https:") throw new OidcFlowError("OIDC_ENDPOINT_NOT_HTTPS");
+  if (url.origin !== endpoint.origin || url.pathname !== endpoint.pathname) throw new OidcFlowError("OIDC_ENDPOINT_MISMATCH");
+  const q = url.searchParams;
+  if (q.get("response_type") !== "code" || q.get("code_challenge_method") !== "S256" || q.get("code_challenge") !== expected.codeChallenge || q.get("state") !== expected.state) {
+    throw new OidcFlowError("OIDC_AUTHORIZATION_URL_INVALID");
+  }
+  if (!(q.get("scope") ?? "").split(" ").includes("openid")) throw new OidcFlowError("OIDC_AUTHORIZATION_URL_INVALID");
   return url.toString();
 }

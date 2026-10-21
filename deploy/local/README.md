@@ -149,6 +149,28 @@ design around. None is a claim about AWS, a carrier or a tenant IdP.
    Dispatch Rules`.
 7. **ClamAV** 1.5.4 ships its signature database in the image; `freshclam` is disabled, so detection is
    frozen at the image digest (the EICAR test file is detected).
+8. **Keycloak** 26.7.5, recorded by WP-05 (wave B3, 2026-10-20):
+   - The `groups` claim is missing from token introspection (RFC 7662) responses unless a groups mapper
+     is added with "add to token introspection" on. A relying party that reads group membership from
+     introspection then sees no groups for everyone. The WP-05 realm templates add the mapper. A tenant
+     IdP must put the membership claim in its introspection responses.
+   - Group full paths are not unique. A top-level group named `vsp/security-admin` gets the path
+     `/vsp/security-admin`, the same as the nested `security-admin` group under `vsp`, unless the realm
+     escapes slashes in group paths. Never map roles from group path strings. WP-05 maps the console
+     client's own client roles, granted through the managed groups.
+   - Revoking a refresh token that has already been redeemed also ends the token that replaced it. A
+     test that expects the successor to stay usable after such a revocation is testing Keycloak, not the
+     relying party.
+   - Other sign-ins of the same user stay active when one of them logs out. A logout is never evidence
+     about the user's other sessions.
+   - RFC 7009 revocation ends one token family only, never the user's other sign-ins.
+   - With `revokeRefreshToken` on and a maximum reuse of 0, a refresh token that has just been redeemed
+     introspects as inactive before the client has stored the rotated token. An active check that races
+     a refresh therefore sees "inactive" for a user who is still employed. The WP-05 code treats such a
+     race as a retryable `SESSION_ROTATED`, not as offboarding.
+   - Test convention, not an emulator behaviour: realm names are letters only. The platform egress check
+     refuses URL paths with long digit runs or Luhn-valid numbers, so a realm named with digits would be
+     refused before Keycloak is reached.
 
 ## What is not here yet
 

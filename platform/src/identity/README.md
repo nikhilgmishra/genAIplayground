@@ -1,10 +1,15 @@
 # Identity binding module (`platform/src/identity`)
 
-Status: **IMPLEMENTED_OFFLINE**. Every path here has been exercised only against LOCAL
-FIXTURES and SYNTHETIC identities (`platform/src/fixtures/synthetic-world.ts`). Nothing has run
-against DynamoDB, a real IdP, AWS KMS, a notification provider or Talkdesk. This module does not
-establish HIPAA compliance, NIST AAL certification or production readiness. The assurance tiers
-A0..A3 are application policy tiers (spec section 7), not NIST levels.
+Status: **IMPLEMENTED; session and secure-link paths VERIFIED_LOCAL** (environment NOT_CONFIGURED).
+The unit suites run over LOCAL FIXTURES and SYNTHETIC identities (`platform/src/fixtures/synthetic-world.ts`).
+The Layer-2 suite `platform/test/integration/identity` (WP-05) runs `TrustedSessionService` and
+`SecureVerificationService` on **DynamoDB Local** (`DynamoKvStore`) with the secure-link approval verified
+against **Keycloak 26** (`JwksOidcVerifier.fromDiscovery`, real PKCE login with the transaction nonce), and
+observes the idle-expiry and IdP-outage postconditions through the production tool pipeline, OPA bundle,
+PostgreSQL 16 audit writer and speech gate. Nothing has run against AWS DynamoDB, a tenant IdP, AWS KMS, a
+notification provider or Talkdesk; there is no live `IdentityDirectory` (the Layer-2 account directory is a
+labelled stand-in). This module does not establish HIPAA compliance, NIST AAL certification or production
+readiness. The assurance tiers A0..A3 are application policy tiers (spec section 7), not NIST levels.
 
 Spec coverage: section 7 (assurance tiers, preferred verification journey, OTP fallback limits,
 secure entry, enumeration-resistant lookup, trusted session fields, signed assertions, expiry and
@@ -30,7 +35,8 @@ AUTH-06, AUTH-07, DATA-01, DATA-04, and trust-boundary flags TB-01, TB-03, TB-06
 | Key ring | `assertions/key-ring.ts` (`AssertionKeyRing`) | — | One active signer, retained public keys for rotation, `retire(kid)`; JWKS never contains private material |
 | Signers | `assertions/signers.ts` | `LocalEs256Signer`: local_fixture; `KmsAssertionSigner`: live | KMS `Sign` (`ECDSA_SHA_256`, `MessageType: RAW`, 4096-byte limit enforced) + `GetPublicKey` (must be `ECC_NIST_P256`, `SIGN_VERIFY`) |
 | DER → JOSE | `assertions/der.ts` | — | Strict ECDSA DER parsing (minimal ints, no trailing bytes, positive non-zero) |
-| Config | `config.ts` | — | Strict zod schemas + defaults; `identityConfigFromPlatform()` maps `PlatformConfig.sessionBinding` / `.verification` |
+| Config | `config.ts` | — | Strict zod schemas + defaults; `identityConfigFromPlatform()` maps `PlatformConfig.sessionBinding` / `.verification`; WP-05 adds `privilegeIdleTimeoutSeconds`, `activityWriteIntervalSeconds`, `jurisdiction`, `approvedProcessingBases` |
+| Expiry seam | `expiry-seam.ts` (`SessionExpirySeam`) | local/ci only | Injected-clock seam for `[FAULT:AUTH_EXPIRY_MID_CALL]` / `[FAULT:AUTH_EXPIRY_IDLE]`; see "Session expiry seam" |
 | Test harness | `identity-harness.fixture.ts` | local_fixture | Wires everything over fixtures for tests and the local demo |
 
 Adapters owned by this module's engineer (documented here, they live in `platform/src/adapters`):
@@ -40,6 +46,7 @@ Adapters owned by this module's engineer (documented here, they live in `platfor
 | `LocalIdentityDirectoryFixture` | `adapters/local/identity-directory.ts` | local_fixture | Over `PEOPLE`. Exact match after normalisation (NFKC, case fold, whitespace collapse, dash/apostrophe variants); no partial/prefix/DOB-only matching; synthetic portal usernames; unknown account state reads `CLOSED`; role-scoped `selfSubjectId` (client/provider only) and `organizationFor`; `extraPeople` for many-match tests; outage / state / channel test controls |
 | `LocalOidcProviderFixture` | `adapters/local/oidc-fixture.ts` | local_fixture | LOCAL ES256 keys per issuer (client + provider IdPs), ID tokens with iss/aud/sub/iat/exp/nonce/auth_time/amr/acr, public JWKS, rotation, attacker-token options for tests |
 | `LocalOidcVerifierFixture` | `adapters/local/oidc-fixture.ts` | local_fixture | Same verification core as the live verifier, keys from the provider fixture |
+| `OidcHttp`, `OidcDiscovery`, `OidcRelyingPartyClient` | `adapters/live/oidc-http.ts`, `oidc-discovery.ts`, `oidc-client.ts` | live | WP-05. Discovery over the WP-06 `ConnectorHttpTransport` (egress-classified, pinned https, no redirects): exact issuer match, https endpoints, required `S256`, bounded cache TTL, fail closed (`OIDC_DISCOVERY_UNAVAILABLE` / `OIDC_DISCOVERY_INVALID`); `OidcHttp` takes the same EgressGuard as the transport (`egress`): the issuer's discovery URL is checked at construction and the discovered server-side endpoints at validation, and an egress refusal is a configuration refusal (`ConfigurationRejectedError` `OIDC_EGRESS_REFUSED`, never retried, never `OIDC_*_UNAVAILABLE`); JWKS from the discovered `jwks_uri`; authorization URL from the discovered endpoint; backend code exchange with PKCE (RFC 7636), refresh with rotation, RFC 7662 introspection, RFC 7009 revocation, client_secret_basic; ID-token validation (signature, iss, aud, azp, nonce or nonce hash, auth_time / max age, at_hash). Verified against Keycloak in `test/integration/identity` |
 | `JwksOidcVerifier` | `adapters/live/oidc-verifier.ts` | live | OIDC Core 3.1.3.7 with `jose` `createRemoteJWKSet` + `jwtVerify`: issuer allowlist (exact), audience, `azp` for multi-audience, asymmetric alg allowlist (no `none`/HMAC), `exp`, `iat` age (`maxTokenAge`), clock tolerance, injected Clock (`currentDate`), constant-time nonce, required `auth_time` within `maxAuthAgeSeconds`, https-only JWKS (loopback http only with the test flag). JWKS fetch failures → `DependencyError OIDC_JWKS_UNAVAILABLE` (NOT_STARTED) and unhealthy `health()` |
 | `NotificationFixture` | `adapters/local/notification-fixture.ts` | local_fixture | Captures messages in memory (tests read the link / code); approved neutral template ids only; exact slot sets with patterns; registered channel refs only (no raw numbers can even be expressed); idempotency keys |
 
@@ -65,10 +72,76 @@ Adapters owned by this module's engineer (documented here, they live in `platfor
   cleared; risk flags (including `SAFETY_ESCALATION_ACTIVE`) are retained.
 - `revoke` / `endCall`: generation++, privileges cleared, idempotent.
 - `authGate`: strict boolean, `true` only for a valid, unexpired, unrevoked, not-ended session with
-  an actor at A2 or above; never throws (KV failure → closed). `interpretAuthGateVariable(v)` is
-  `v === true`.
+  an actor at A2 or above whose privileges are NOT idle-expired; never throws (KV failure → closed).
+  Read after the idle limit it closes the gate AND drops the privileges with the same CAS as `resolve`
+  (generation + 1), so the gate can never report a caller authenticated whom the next protected request
+  would refuse (AUTH-07, FO-05-18). Reading the gate is not caller activity (it never extends the idle
+  window). `interpretAuthGateVariable(v)` is `v === true`.
 - Every update is a compare-and-swap with bounded retries (`casMaxAttempts`, default 5) →
   `ConflictError SESSION_UPDATE_CONFLICT` (retryable) when exhausted.
+
+### Idle expiry and same-actor re-verification (WP-05, FO-05-18, FO-05-19, FO-17-24.AUTH_EXPIRY_IDLE)
+
+- Every verified session (an actor, or assurance above A0) records `lastActivityAt`. `resolve`
+  compares `now` (the injected Clock) with `lastActivityAt + privilegeIdleTimeoutSeconds`
+  (default 900 s, 60..7200). Past it, the session's privileges are dropped by CAS exactly once
+  (actor, subject, scopes, assurance, step-up cleared; generation + 1; `lapsedActorId` keeps the
+  previous actor id; last change `SESSION_IDLE_EXPIRED`; log `identity.session.idle_expired`) and
+  that resolve is refused `SessionInvalidError SESSION_IDLE_EXPIRED`. The next resolve returns the
+  A0 session, so every pending grant or prepared action bound to the old generation is stale. An
+  A0 session without an actor never idles out (nothing to drop); the hard expiry always wins.
+- Every reader applies the same limit: `resolve`, `authGate` (above) and the step-up completion
+  (`completeStepUp` refuses `SESSION_IDLE_EXPIRED`: lapsed A2 is no base for A3 even before a reader has
+  dropped it).
+- Activity is recorded on resolve at most every `activityWriteIntervalSeconds` (default 30 s;
+  best effort: a failed touch never fails the request and only shortens the idle window).
+- Re-verification after an idle lapse must establish the SAME actor: `completeSecureLink` and
+  `submitOtp` refuse `SESSION_ACTOR_MISMATCH` when the newly verified actor differs from
+  `lapsedActorId` (never a silent switch to another account). A deliberate change of person
+  (`applyChange` PARTICIPANT_CHANGED or ACCOUNT_SWITCH) clears `lapsedActorId`.
+- An unavailable IdP during the secure link (`DependencyError` from the verifier, e.g.
+  `OIDC_JWKS_UNAVAILABLE`) answers `IDP_UNAVAILABLE` with no assurance change and log
+  `identity.verification.idp_unavailable` (FO-17-24.IDP_UNAVAILABLE); the caller is offered the
+  human route.
+
+### Processing basis (FO-05-22)
+
+`AuthContext.processingBasis` is derived only from configuration: when the session has an actor,
+a selected role and the configured `jurisdiction` is known, an entry of
+`approvedProcessingBases` for that role (basis, purpose, counsel approval ref `apr_...`) is
+used; otherwise the basis is `UNKNOWN` (purpose `support_administration`, `approvalRef: null`,
+source `identity_service`). The defaults are empty / `UNKNOWN`: no basis is ever assumed.
+
+### Session expiry seam (`expiry-seam.ts`, hand-off to WP-07)
+
+`SessionExpirySeam` is the injection point of `[FAULT:AUTH_EXPIRY_MID_CALL]` (Layer-2 run owned by
+WP-07) and of `[FAULT:AUTH_EXPIRY_IDLE]`. It is a `Clock`: the composition passes it to
+`TrustedSessionService` and `SecureVerificationService` instead of the system clock, so readers see
+"later" while the KV record is unchanged (TTL cleanup has not run). API:
+
+| Member | Effect |
+|---|---|
+| `SessionExpirySeam.wrap(base, { environment })` | Wraps a clock; refused outside local/ci (`ConfigurationRejectedError SESSION_EXPIRY_SEAM_OUTSIDE_OFFLINE@identity.clock`) |
+| `now()` | Base time + injected offset |
+| `advance(ms)` | Moves forward (never backwards) |
+| `jumpPastExpiry(expiresAt, marginMs = 1000)` | Next reader is past the hard expiry (mid-call expiry between prepare and commit) |
+| `jumpPastIdle(ctx, config, marginMs = 1000)` | Next reader is past the idle limit |
+| `reset()`, `offset`, `injections` | Clear the offset; current offset; number of jumps (fault-reach evidence) |
+
+WP-07 usage: build the live container with `clock: SessionExpirySeam.wrap(systemClock, { environment: "ci" })`
+for the session and verification services, prepare an action on a verified session, call
+`jumpPastExpiry(ctx.expiresAt)`, and assert the commit is refused (`SESSION_EXPIRED`) with no
+provider effect. Local proof: `session-idle.test.ts` `[FAULT:AUTH_EXPIRY_MID_CALL seam]` and the
+Layer-2 `caller-identity.test.ts` cases.
+
+`[FAULT:AUTH_EXPIRY_IDLE]` (Layer 2, `caller-identity.test.ts`) asserts the fault plan's postconditions
+over the composed pieces: after `jumpPastIdle` the protected read through the production `ToolPipeline`
+is `POLICY_DENIED SESSION_IDLE_EXPIRED` before any record is read and leaves a `tool.invoke` DENIED audit
+event on PostgreSQL 16 while the DynamoDB record still exists; the auth gate is closed (also when it is
+the FIRST reader); the PROTECTED_FACT speech prepared before the expiry is dropped by the speech gate
+(`STALE_GENERATION`); the human route answers with the lapsed session and with none (SAFE-02). The
+`EvaluationResult` record of the fault (requestedFault / reachedFault from independent evidence) is
+WP-34's.
 
 ## Verification
 
@@ -219,8 +292,9 @@ SYNTHETIC.
 
 | Item | Why blocked | Prerequisite |
 |---|---|---|
-| `DynamoKvStore` against DynamoDB | Contract-tested with stub clients only. DynamoDB Local was **NOT RUN** (no container runtime in this environment); no AWS account access | Provisioned table from `infra/terraform/modules/dynamodb_sessions`, IAM for the gateway role, approved sandbox; then run the shared KV suite against DynamoDB Local and the sandbox table |
-| `JwksOidcVerifier` against real IdPs | Tested with LOCAL keys (injected JWKS and a 127.0.0.1 JWKS server) | Identity owner: OIDC test clients (issuer, client id, JWKS URI), confirmed `amr`/`acr` values, account linking `(iss, sub) → actor` |
+| `DynamoKvStore` against AWS DynamoDB | Runs against **DynamoDB Local** in the Layer-2 suites (`test/integration/identity/caller-identity.test.ts`, WP-05; `test/integration/substrate`, WP-04): CAS, conditional puts, counters and the session record's application-level expiry. Never against AWS DynamoDB (TTL sweeping, IAM, throttling are not emulated); no AWS account access | Provisioned table from `infra/terraform/modules/dynamodb_sessions`, IAM for the gateway role, approved sandbox; then run the same suites against the sandbox table |
+| `JwksOidcVerifier` / OIDC client against tenant IdPs | Verified against local Keycloak (`test/integration/identity`: discovery, PKCE, MFA amr, disabled user, IdP outage); never against a tenant IdP | Identity owner: OIDC test clients (issuer, client id, JWKS URI), confirmed `amr`/`acr` values, account linking `(iss, sub) → actor` (AIN-12/13/15) |
+| Approved processing bases | Defaults are empty and the jurisdiction `UNKNOWN` | Privacy counsel: jurisdiction, basis and purpose per role with an approval reference |
 | Live `IdentityDirectory` | No live adapter exists; no documented API was available | Identity owner's restricted verification / account-linking / registered-channel APIs and recovery policy |
 | Live `NotificationSender` | No BAA-covered provider or documented API approved | Privacy counsel + procurement (BAA), approved neutral templates, provider API docs |
 | `KmsAssertionSigner` against KMS | Contract-tested with a stub client | KMS asymmetric key `ECC_NIST_P256`/`SIGN_VERIFY`, IAM grant, security approval |
@@ -266,15 +340,27 @@ npx eslint src/identity src/adapters/local/identity-directory*.ts src/adapters/l
 All tests are offline and deterministic (FakeClock, fixed fast-check seeds; the only socket is an
 in-process HTTP server on 127.0.0.1).
 
+Layer 2 (Docker, shared Keycloak; realms under `uniqueName()` names, deleted afterwards):
+
+```
+make up PROFILE=core
+make test-integration SUITE=identity
+```
+
+`platform/test/integration/identity/README.md` lists the cases and the fidelity notes.
+
 ## Requirement IDs enforced here
 
 | ID | Enforcement | Tests (tags) |
 |---|---|---|
-| AUTH-01 | Only `completeSecureLink` (OIDC + MFA amr) and `submitOtp` raise assurance; name/DOB only locate; caller ID stored as digest risk signal; strict inputs reject NPI/phone fields | `[AUTH-01]` in session-service, verification-service, identity-directory tests |
+| AUTH-01 | Only `completeSecureLink` (OIDC + MFA amr) and `submitOtp` raise assurance; name/DOB only locate; caller ID stored as digest risk signal; strict inputs reject NPI/phone fields | `[AUTH-01]` in session-service, verification-service, identity-directory tests; Layer-2 `caller-identity.test.ts` `[FO-05-04][AUTH-01]`: a password-only real Keycloak login (`amr: ["pwd"]`) for the right account is refused `MFA_REQUIRED` |
 | AUTH-03 | AuthContext rebuilt from the KV record; consent not settable from `mcp_tools`; role changes drop privileges; no silent account switch | `[AUTH-03]`, `[DATA-04]` |
-| AUTH-04 | Clock-based expiry, revocation and end-of-call checks on every read, independent of storage TTL | `[AUTH-04]` |
+| AUTH-04 | Clock-based expiry, revocation and end-of-call checks on every read, independent of storage TTL; idle expiry of verified sessions | `[AUTH-04]`, `[FO-05-18]`, `[FAULT:AUTH_EXPIRY_IDLE]` |
+| FO-05-19 | Re-verification after idle expiry must be the same actor (`SESSION_ACTOR_MISMATCH`) | `[FO-05-19]` in `session-idle.test.ts`, Layer-2 `caller-identity.test.ts` |
+| FO-05-22 | Processing basis `UNKNOWN` unless approved for the verified role and a known jurisdiction (an entry for another role is never borrowed; an UNKNOWN jurisdiction applies no entry) | `[FO-05-22]` in `session-idle.test.ts` (three cases: approved role and jurisdiction; jurisdiction UNKNOWN; role absent from the matrix and entry order) |
 | AUTH-06 | OTP only as HMAC; nonces as sha256; codes never logged/returned; submit only via telephony_control; content-free logs | `[AUTH-06]` |
-| AUTH-07 | `interpretAuthGateVariable` truth table + property test; gate false for unknown/ended/expired/revoked/A0/A1/previous-call sessions; initial value literal false | `[AUTH-07]` |
+| AUTH-07 | `interpretAuthGateVariable` truth table + property test; gate false for unknown/ended/expired/revoked/idle-expired/A0/A1/previous-call sessions; initial value literal false | `[AUTH-07]`, `[FAULT:AUTH_EXPIRY_IDLE][AUTH-07]` in `session-idle.test.ts` and Layer-2 `caller-identity.test.ts` |
+| FO-22-05 | Binding only through the account-bound IdP login: another person's real login for a transaction is refused `ACTOR_MISMATCH` (the Layer-2 directory is a labelled stand-in; no live `IdentityDirectory`) | `[FO-22-05]` in `session-idle.test.ts`, Layer-2 `caller-identity.test.ts` |
 | DATA-01 | No PHI in links, KV records, logs or metric labels | `[DATA-01]`, `[AUTH-06]` |
 | DATA-04 | No API accepts summary/memory-derived identity, assurance or consent | `[DATA-04]` |
 | Spec 7 / 14 | Enumeration, fixation, replay, SIM swap, step-up, assertions, KV contract | `[SPEC-7.*]`, `[SPEC-14.*]` |

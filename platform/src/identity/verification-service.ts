@@ -13,7 +13,7 @@ import type { IdentityDirectory, NotificationSender, OidcClaims, OidcVerifier, R
 import type { Clock } from "../shared/clock.js";
 import { addMs, iso } from "../shared/clock.js";
 import { constantTimeEqualHex, hmacHex, sha256Hex } from "../shared/canonical.js";
-import { AccessDeniedError, ConflictError, PlatformError, SessionInvalidError, ValidationError } from "../shared/errors.js";
+import { AccessDeniedError, ConflictError, DependencyError, PlatformError, SessionInvalidError, ValidationError } from "../shared/errors.js";
 import { newId } from "../shared/ids.js";
 import type { Logger, Metrics } from "../observability/ports.js";
 import { silentLogger } from "../observability/logger.js";
@@ -26,7 +26,7 @@ import type { VerificationConfig } from "./config.js";
 import { VerificationAbuseMonitor } from "./abuse-monitor.js";
 import { bindingRefFromHash, epochSeconds, hourWindow, kvKeys, sessionRefHash } from "./keys.js";
 import { MATCH_CODE_PATTERN, newMatchCode } from "./match-code.js";
-import { addRiskFlag, lifecycleProblem } from "./session-store.js";
+import { addRiskFlag, lifecycleProblem, privilegesIdleExpired } from "./session-store.js";
 import type { SessionRecord } from "./session-store.js";
 import type { TrustedSessionService } from "./session-service.js";
 
@@ -337,8 +337,12 @@ export class SecureVerificationService implements VerificationService {
       const problem = this.bindingPreconditions(rec, tx, now);
       if (problem) return { abort: problem };
       if (rec.actorId !== null && rec.actorId !== actorId) return { abort: "ACCOUNT_ALREADY_BOUND" };
+      // Same-actor re-verification after idle expiry (FO-05-19): never a silent switch of person.
+      if (typeof rec.lapsedActorId === "string" && rec.lapsedActorId !== actorId) return { abort: "SESSION_ACTOR_MISMATCH" };
       return {
         ...rec,
+        lapsedActorId: null,
+        lastActivityAt: iso(now),
         actorId,
         accountId,
         selectedRole: tx.role,
@@ -532,8 +536,11 @@ export class SecureVerificationService implements VerificationService {
       if (problem) return { abort: problem };
       if (rec.actorId !== null && rec.actorId !== actorId) return { abort: "ACCOUNT_ALREADY_BOUND" };
       if (rec.actorId === actorId && meetsAssurance(rec.assurance, "A1")) return rec; // never downgrade an existing binding
+      if (typeof rec.lapsedActorId === "string" && rec.lapsedActorId !== actorId) return { abort: "SESSION_ACTOR_MISMATCH" };
       return {
         ...rec,
+        lapsedActorId: null,
+        lastActivityAt: iso(now),
         actorId,
         accountId,
         selectedRole: ch.role,
@@ -616,6 +623,9 @@ export class SecureVerificationService implements VerificationService {
     const bound = await this.deps.sessions.store.mutate(tx.sessionRefHash, (rec, now) => {
       const problem = this.bindingPreconditions(rec, tx, now);
       if (problem) return { abort: problem };
+      // The A2 a step-up builds on must still be live: privileges idle beyond the limit (not yet dropped by
+      // a reader) are not a base for A3 (FO-05-18, AUTH-04).
+      if (privilegesIdleExpired(rec, now, this.deps.sessions.config)) return { abort: "SESSION_IDLE_EXPIRED" };
       if (rec.actorId !== actorId || !meetsAssurance(rec.assurance, "A2")) return { abort: "STEP_UP_REQUIRES_A2" };
       return {
         ...rec,
@@ -806,6 +816,12 @@ export class SecureVerificationService implements VerificationService {
     try {
       claims = await this.deps.oidc.verifyIdToken(idToken, { nonce, maxAuthAgeSeconds });
     } catch (err) {
+      // IDP_UNAVAILABLE (discovery or key set unreachable): the binding fails closed with one uniform reason,
+      // assurance stays where it was and no weaker method is substituted; the caller is routed to a person.
+      if (err instanceof DependencyError) {
+        this.logger.warn("identity.verification.idp_unavailable", { reasonCode: err.reasonCode });
+        return { reason: "IDP_UNAVAILABLE" };
+      }
       return { reason: err instanceof PlatformError ? err.reasonCode : "OIDC_TOKEN_INVALID" };
     }
     if (!claims.amr.some((m) => this.cfg.acceptedAmr.includes(m))) return { reason: "MFA_REQUIRED" };

@@ -24,6 +24,22 @@ import {
 
 export const AUTH_CONTEXT_SCHEMA_VERSION = "auth-context.v1";
 
+/**
+ * Upper bound of one OpenID Connect request's deadline (discovery, keys, token, introspection, revocation): the
+ * OIDC transport refuses a longer per-request timeout (adapters/live/oidc-http.ts), and the console bounds how long
+ * a refresh of one session row can be in flight from it (console-api/sso.ts REFRESH_IN_FLIGHT_SECONDS).
+ */
+export const OIDC_REQUEST_TIMEOUT_MAX_MS = 30_000;
+
+/**
+ * The most OpenID Connect requests one refresh-token grant makes in sequence (adapters/live/oidc-client.ts `refresh`,
+ * pinned by its unit test): the discovery document when its cache has expired, the token request, the key set, the
+ * discovery document again when its cache (at least 60 s, OidcDiscovery's minimum TTL) expires during the refresh,
+ * and the key set again for an unknown `kid` (key rotation). With OIDC_REQUEST_TIMEOUT_MAX_MS each, this bounds the
+ * IdP part of one refresh; the console's in-flight window adds a margin for its own database work.
+ */
+export const OIDC_REFRESH_MAX_REQUESTS = 5;
+
 export const SessionRef = opaqueIdWithPrefix("ses");
 export type SessionRef = z.infer<typeof SessionRef>;
 
