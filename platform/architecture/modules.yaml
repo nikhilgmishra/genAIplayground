@@ -61,9 +61,20 @@ entryPoints:
     transitive: true
   - file: platform/src/main/live-modules.ts
     transitive: true
+  - file: platform/src/main/live-worker.ts
+    transitive: true
+  - file: platform/src/worker/live-loops.ts
+    transitive: true
+  - file: platform/src/main/audit-exporter.ts
+    transitive: true
+  - file: platform/src/worker/main.ts
+    transitive: false
   - file: media/src/main.ts
     transitive: true
   - file: platform/src/main/server.ts
+    transitive: false
+  # Not transitive until console-api/auth.ts (console-api group) moves its LOCAL FIXTURE sign-in out (hand-off).
+  - file: platform/src/main/live-console.ts
     transitive: false
 entryPointForbidden: [fixtures, adapters-local, demo, evaluation]
 
@@ -136,7 +147,15 @@ modules:
   - { id: db, path: platform/src/db, kind: platform-service, status: present, allow: [shared] }
   - { id: observability, path: platform/src/observability, kind: platform-service, status: present, allow: [protocol, shared] }
   - { id: resilience, path: platform/src/resilience, kind: platform-service, status: present, allow: [observability, protocol, shared] }
-  - { id: config, path: platform/src/config, kind: platform-service, status: present, allow: [observability, protocol, shared] }
+  # The configuration guard loads the module-local config sub-schemas and guard rules of other modules by file
+  # (docs/followon/work-packages.yaml ownership rules): the console's workforce SSO schema and rule, and the
+  # connector credential-separation rule (WP-07).
+  - id: config
+    path: platform/src/config
+    kind: platform-service
+    status: present
+    allow: [observability, privacy-egress, protocol, shared]
+    allowFiles: [platform/src/console-api/sso-config.ts, platform/src/connectors/profile/credentials.ts]
   - id: privacy-egress
     paths: [platform/src/privacy/egress.ts, platform/src/privacy/classification.ts, platform/src/privacy/patterns.ts]
     kind: platform-service
@@ -180,7 +199,8 @@ modules:
     path: platform/src/adapters/live
     kind: domain
     status: present
-    allow: [adapters, connectors-runtime, connectors-profile, connectors-secrets, connectors-http, connectors-dsl, observability, protocol, resilience, shared]
+    # WP-07: the live transfer store (PostgreSQL) implements the workflows module's TransferStore port.
+    allow: [adapters, connectors-runtime, connectors-profile, connectors-secrets, connectors-http, connectors-dsl, db, observability, protocol, resilience, shared, workflows]
   - { id: adapters-local, path: platform/src/adapters/local, kind: test-support, status: present, allow: [adapters, adapters-live, fixtures, protocol, shared, observability, resilience] }
   - id: actions
     path: platform/src/actions
@@ -232,7 +252,7 @@ modules:
   - { id: models, path: platform/src/models, kind: untrusted-output, status: planned, owner: WP-08, allow: [connectors-http, observability, privacy-egress, protocol, resilience, shared] }
   - { id: prompts, path: platform/src/prompts, kind: untrusted-output, status: planned, owner: WP-10, allow: [protocol, shared] }
   - { id: harness, path: platform/src/harness, kind: untrusted-output, status: planned, owner: WP-10, allow: [connectors-http, gateway-client, models, observability, privacy-egress, prompts, protocol, resilience, shared] }
-  - { id: gateway-client, path: platform/src/gateway-client, kind: contracts, status: planned, owner: WP-07, allow: [protocol, shared] }
+  - { id: gateway-client, path: platform/src/gateway-client, kind: contracts, status: present, owner: WP-07, allow: [protocol, shared] }
   # ---------------------------------------------------------------- composition and tooling
   - id: main
     path: platform/src/main

@@ -1,9 +1,12 @@
 /**
  * Deployed gateway entry point (`node dist/main/server.js`, infra contract:
  * VSP_ENVIRONMENT, VSP_MUTATIONS_ENABLED, PORT=8080). The configuration guard
- * runs first inside buildContainer; a rejected configuration exits non-zero
- * before any port is bound (OPS-04). Today every deployed environment is
- * refused (see container.ts): there is no live composition to start.
+ * runs first inside the composition; a rejected configuration exits non-zero
+ * before any port is bound (OPS-04). local / ci start the regression
+ * composition (container.ts buildContainer); sandbox / staging / production
+ * start the live composition (live-container.ts buildLiveContainer, WP-07),
+ * whose deferred route audit is the durable queue (PostgreSQL, then the
+ * independent DynamoDB journal), drained by the same bounded timer.
  *
  * In local/ci (e.g. a CI smoke test) the server binds loopback only, because
  * the LOCAL FIXTURE integration tokens must never be reachable from a network.
@@ -58,6 +61,8 @@ import type { Logger } from "../observability/ports.js";
 import { ConfigurationRejectedError, ValidationError } from "../shared/errors.js";
 import { buildContainer } from "./container.js";
 import type { Container } from "./container.js";
+import { buildLiveContainer } from "./live-container.js";
+import type { LiveContainer } from "./live-container.js";
 
 export interface ServerRuntime {
   container: Container;
@@ -68,6 +73,14 @@ export interface ServerRuntime {
    * Graceful shutdown (idempotent): listener and bounded wait for open responses, app (force-closes the
    * rest), bounded wait for route handlers still running, bounded final deferred-audit flush, database.
    */
+  close(): Promise<void>;
+}
+
+/** The live gateway process (sandbox / staging / production). */
+export interface LiveServerRuntime {
+  container: LiveContainer;
+  url: string;
+  deferredAuditFlush: DeferredAuditFlushTimer;
   close(): Promise<void>;
 }
 
@@ -169,10 +182,7 @@ function trackInFlight(server: Server) {
   };
 }
 
-export async function startServer(opts: ServerOptions = {}): Promise<ServerRuntime> {
-  const env = opts.env ?? process.env;
-  // Strict infrastructure variables first (VSP_ENVIRONMENT is required; PORT validated).
-  const infra = loadInfrastructureEnv(env, { defaultPort: 8080 });
+function shutdownPolicy(opts: ServerOptions): { drainTimeoutMs: number; settleTimeoutMs: number } {
   const drainTimeoutMs = opts.inFlightDrainTimeoutMs ?? 5_000;
   const settleTimeoutMs = opts.handlerSettleTimeoutMs ?? 10_000;
   for (const ms of [drainTimeoutMs, settleTimeoutMs]) {
@@ -180,10 +190,27 @@ export async function startServer(opts: ServerOptions = {}): Promise<ServerRunti
   }
   // The final flush bound itself is validated by DeferredAuditFlushTimer; written so NaN fails closed.
   if (!(drainTimeoutMs + settleTimeoutMs + (opts.deferredAuditFlush?.finalFlushTimeoutMs ?? 5_000) <= SHUTDOWN_BUDGET_MS)) throw new ValidationError("SHUTDOWN_DRAIN_POLICY_INVALID");
-  const container = await buildContainer({ environment: infra.environment, buildBusiness: opts.buildBusiness ?? buildBusiness, env, ...(opts.logger ? { logger: opts.logger } : {}) });
-  const offline = infra.environment === "local" || infra.environment === "ci";
-  const host = offline ? "127.0.0.1" : "0.0.0.0";
-  const port = opts.port ?? infra.port;
+  return { drainTimeoutMs, settleTimeoutMs };
+}
+
+interface Servable {
+  app: FastifyInstance;
+  logger: Logger;
+  deferredAudit: ConstructorParameters<typeof DeferredAuditFlushTimer>[0];
+  close(): Promise<void>;
+}
+
+/** Binds the app and returns the graceful shutdown (steps 1-5 of the header) shared by both compositions. */
+async function serve(
+  container: Servable,
+  opts: ServerOptions,
+  environment: string,
+  port: number,
+  offline: boolean,
+  policy: { drainTimeoutMs: number; settleTimeoutMs: number },
+  listenHost: "0.0.0.0" | "127.0.0.1" = "0.0.0.0",
+) {
+  const host = offline ? "127.0.0.1" : listenHost;
   let deferredAuditFlush: DeferredAuditFlushTimer;
   const inFlight = trackInFlight(container.app.server);
   let handlers: ReturnType<typeof trackHandlers>;
@@ -198,13 +225,13 @@ export async function startServer(opts: ServerOptions = {}): Promise<ServerRunti
   }
   deferredAuditFlush.start();
   const url = `http://${host}:${(container.app.server.address() as AddressInfo).port}`;
-  container.logger.info("server.listening", { environment: infra.environment, port, reasonCode: offline ? "LOCAL_FIXTURE_LOOPBACK_ONLY" : null });
+  container.logger.info("server.listening", { environment, port, reasonCode: offline ? "LOCAL_FIXTURE_LOOPBACK_ONLY" : null });
   let closing: Promise<void> | null = null;
   const shutdown = async (): Promise<void> => {
     // 1. No new connection; requests already being handled get a bounded chance to complete with their
     //    answer (Fastify's close would destroy their sockets).
     container.app.server.close();
-    if (!(await inFlight.drained(drainTimeoutMs))) {
+    if (!(await inFlight.drained(policy.drainTimeoutMs))) {
       container.logger.warn("server.shutdown_drain_timeout", { inFlight: inFlight.size, reasonCode: "SHUTDOWN_DRAIN_TIMEOUT" });
     }
     // 2. Force-closes whatever is still open; the handlers of those requests keep running.
@@ -212,16 +239,15 @@ export async function startServer(opts: ServerOptions = {}): Promise<ServerRunti
     // 3. The entry exits as soon as close() returns: a handler that has not reached the deferred queue
     //    by then would lose its route evidence without any log. Wait (bounded) for every handler to
     //    settle, and say at error level how many may lose it when the bound expires.
-    if (!(await handlers.settled(settleTimeoutMs))) {
+    if (!(await handlers.settled(policy.settleTimeoutMs))) {
       container.logger.error("server.shutdown_handlers_unsettled", { unsettled: handlers.size, reasonCode: "SHUTDOWN_HANDLERS_UNSETTLED" });
     }
     // 4. Bounded final flush (also waits for appends in progress); seals the queue.
     await deferredAuditFlush.stop();
-    // 5. The database.
+    // 5. The database (and, in the live composition, the telemetry providers and AWS clients).
     await container.close();
   };
   return {
-    container,
     url,
     deferredAuditFlush,
     close() {
@@ -231,10 +257,34 @@ export async function startServer(opts: ServerOptions = {}): Promise<ServerRunti
   };
 }
 
+/** The regression composition's gateway (local / ci; loopback only). Deployed environments use startLiveServer. */
+export async function startServer(opts: ServerOptions = {}): Promise<ServerRuntime> {
+  const env = opts.env ?? process.env;
+  // Strict infrastructure variables first (VSP_ENVIRONMENT is required; PORT validated).
+  const infra = loadInfrastructureEnv(env, { defaultPort: 8080 });
+  const policy = shutdownPolicy(opts);
+  const container = await buildContainer({ environment: infra.environment, buildBusiness: opts.buildBusiness ?? buildBusiness, env, ...(opts.logger ? { logger: opts.logger } : {}) });
+  const offline = infra.environment === "local" || infra.environment === "ci";
+  const served = await serve(container, opts, infra.environment, opts.port ?? infra.port, offline, policy);
+  return { container, ...served };
+}
+
+/** The live gateway (sandbox / staging / production): the live composition, listening on every interface. */
+export async function startLiveServer(opts: ServerOptions = {}): Promise<LiveServerRuntime> {
+  const env = opts.env ?? process.env;
+  const infra = loadInfrastructureEnv(env, { defaultPort: 8080 });
+  const policy = shutdownPolicy(opts);
+  const container = await buildLiveContainer({ environment: infra.environment, buildBusiness: opts.buildBusiness ?? buildBusiness, env, unit: "gateway", ...(opts.logger ? { logger: opts.logger } : {}) });
+  const served = await serve(container, opts, infra.environment, opts.port ?? infra.port, false, policy, infra.listenHost);
+  return { container, ...served };
+}
+
 const entry = process.argv[1];
 if (entry && import.meta.url === pathToFileURL(entry).href) {
-  startServer()
-    .then((rt) => {
+  // The composition follows VSP_ENVIRONMENT: regression offline, live everywhere else (never a fallback).
+  const offlineEntry = process.env.VSP_ENVIRONMENT === "local" || process.env.VSP_ENVIRONMENT === "ci";
+  (offlineEntry ? startServer() : startLiveServer())
+    .then((rt: { close(): Promise<void> }) => {
       const shutdown = () => {
         void rt.close().finally(() => process.exit(0));
       };

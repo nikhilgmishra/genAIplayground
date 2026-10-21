@@ -48,6 +48,8 @@
  * with CachingSupportRecords (../support-record-cache.ts).
  */
 import { z } from "zod";
+import { TransportError } from "../../connectors/http/transport.js";
+import type { TransportRequest, TransportResponse } from "../../connectors/http/transport.js";
 import { silentLogger } from "../../observability/logger.js";
 import type { Logger } from "../../observability/ports.js";
 import { sha256Hex } from "../../shared/canonical.js";
@@ -193,9 +195,22 @@ export interface SalesforceClientCredentials {
   clientSecret: string;
 }
 
+/** The part of the egress-classified ConnectorHttpTransport the adapter uses (the production transport satisfies it). */
+export interface SalesforceTransport {
+  send(req: TransportRequest): Promise<TransportResponse>;
+}
+
 export interface SalesforceRestDeps {
   /** Resolves the connected-app credentials from the approved secret store (Secrets Manager). Never logged. */
   credentials: () => Promise<SalesforceClientCredentials>;
+  /**
+   * WP-07: the egress-classified transport (https only, exact host allowlist, address class, EgressGuard on
+   * every request, no redirects, bounded bodies). The live composition always passes it; `fetch` remains only
+   * for the loopback contract emulator of salesforce-rest.contract.test.ts.
+   */
+  transport?: SalesforceTransport;
+  /** Address class of the org's My Domain host for the transport (default PUBLIC_INTERNET). */
+  addressClass?: "PUBLIC_INTERNET" | "PRIVATE_NETWORK";
   fetch?: typeof fetch;
   clock?: Clock;
   logger?: Logger;
@@ -260,6 +275,8 @@ export class SalesforceRestSupportRecords implements SupportRecordSystem {
   private readonly origin: string;
   private readonly apiVersion: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly transport: SalesforceTransport | null;
+  private readonly addressClass: "PUBLIC_INTERNET" | "PRIVATE_NETWORK";
   private readonly clock: Clock;
   private readonly logger: Logger;
   private readonly credentials: () => Promise<SalesforceClientCredentials>;
@@ -299,6 +316,8 @@ export class SalesforceRestSupportRecords implements SupportRecordSystem {
     this.integrationId = cfg.integrationId;
     this.capabilityStatus = cfg.schema.status === "BLOCKED" ? "BLOCKED" : cfg.schema.status === "PROVIDED" ? "SCHEMA_PROVIDED" : "EMULATED_CONTRACT_TEST";
     this.fetchImpl = deps.fetch ?? globalThis.fetch;
+    this.transport = deps.transport ?? null;
+    this.addressClass = deps.addressClass ?? "PUBLIC_INTERNET";
     this.clock = deps.clock ?? systemClock;
     this.logger = (deps.logger ?? silentLogger).child({ component: "salesforce_rest", integration: cfg.integrationId });
     this.credentials = deps.credentials;
@@ -520,6 +539,7 @@ export class SalesforceRestSupportRecords implements SupportRecordSystem {
 
   /** One HTTP exchange with timeout, no redirects and a bounded body. */
   private async send(url: string, init: RequestInit, ctx: CallContext, phase: "token" | "api"): Promise<HttpResult> {
+    if (this.transport) return this.sendViaTransport(url, init, ctx, phase);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.cfg.timeoutMs);
     try {
@@ -531,6 +551,38 @@ export class SalesforceRestSupportRecords implements SupportRecordSystem {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  /** The same exchange over the egress-classified transport (live composition). */
+  private async sendViaTransport(url: string, init: RequestInit, ctx: CallContext, phase: "token" | "api"): Promise<HttpResult> {
+    const transport = this.transport as SalesforceTransport;
+    const target = new URL(url);
+    const method = (init.method ?? "GET").toUpperCase() as TransportRequest["method"];
+    let res: TransportResponse;
+    try {
+      res = await transport.send({
+        method,
+        url: target,
+        headers: { ...((init.headers as Record<string, string> | undefined) ?? {}) },
+        body: typeof init.body === "string" ? init.body : null,
+        policy: { allowedHosts: [target.hostname], addressClass: this.addressClass, dataClass: "INTERNAL" },
+        sideEffect: ctx.mutation && phase === "api",
+        timeoutMs: this.cfg.timeoutMs,
+        dependency: "salesforce",
+      });
+    } catch (err) {
+      if (err instanceof TransportError) {
+        // Not sent (refused before I/O, connection refused, TLS failure): nothing reached the org.
+        if (!err.requestSent) throw this.depError(ADAPTER_REASON.CONNECTION_REFUSED, "NOT_STARTED", ctx.operation, null, err.retryable);
+        if (phase === "api" && ctx.mutation) throw this.depError(err.reasonCode.includes("TIMEOUT") ? ADAPTER_REASON.TIMEOUT_AFTER_SEND : "CONNECTION_LOST", "UNKNOWN", ctx.operation, null, false);
+        throw this.depError(err.reasonCode.includes("TIMEOUT") ? ADAPTER_REASON.READ_TIMEOUT : "CONNECTION_LOST", "NOT_STARTED", ctx.operation, null, true);
+      }
+      // An EgressGuard refusal (AccessDeniedError) or a validation refusal: nothing was sent.
+      if (err instanceof PlatformError) throw err;
+      throw this.depError(ADAPTER_REASON.CONNECTION_REFUSED, "NOT_STARTED", ctx.operation, null, false);
+    }
+    if (res.body.length > this.cfg.maxResponseBytes) throw this.networkError(new ResponseTooLargeError(), ctx, phase, false);
+    return { status: res.status, headers: new Headers(res.headers), text: res.body.toString("utf8") };
   }
 
   private async readBounded(res: Response): Promise<string> {

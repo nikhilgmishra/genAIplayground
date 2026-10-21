@@ -890,15 +890,20 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
       const summary = summarizeCall(callId, events, [], [], deps.localFixture);
       if (!summary) throw notFound();
       if (summary.state === "ENDED") throw conflict("CALL_ENDED");
-      if (!deps.telephonyTransferAvailable) return deny(ctx, unavailable("TALKDESK_CONTROL_UNAVAILABLE", false), ctx.decision);
-      // Write-ahead intent: nothing is attempted unless this is durable (OPS-01).
-      const intentId = await auditRequired(ctx, { outcome: "PENDING", reasonCode: body.reason, callId, evidencePointers: [`db://destinations/${body.destinationId}`] });
-      // Kill switches never gate the human route; the handoff service owns the transfer (SAFE-04/SAFE-05).
-      const language = destination.languages.find((l) => /^[a-z]{2}(-[A-Z]{2})?$/.test(l)) ?? "en";
       // A staff-raised safety concern (spec section 10: human intervention is a safety signal) takes the FULL
       // safety path (SAFE-HANDOFF-05): priority route first, then pending mutations revoked, the session flagged
       // (resolved server-side by the handoff service), the restricted safety record and safety evidence.
       const staffSafety = body.reason === "SAFETY_PRIORITY" || destination.purpose === "SAFETY_PRIORITY";
+      // Without telephony control a plain transfer is refused before anything happens. A staff SAFETY escalation
+      // is never refused here: stopping administrative work (pending mutations revoked, session flagged) and the
+      // safety evidence do not depend on the dial, so they run unconditionally and only the dial is refused (by
+      // the telephony port, a guard port in the live composition); the response then says the route is
+      // unavailable (TALKDESK_CONTROL_UNAVAILABLE), so the staff member takes the contact centre's own route.
+      if (!deps.telephonyTransferAvailable && !staffSafety) return deny(ctx, unavailable("TALKDESK_CONTROL_UNAVAILABLE", false), ctx.decision);
+      // Write-ahead intent: nothing is attempted unless this is durable (OPS-01).
+      const intentId = await auditRequired(ctx, { outcome: "PENDING", reasonCode: body.reason, callId, evidencePointers: [`db://destinations/${body.destinationId}`] });
+      // Kill switches never gate the human route; the handoff service owns the transfer (SAFE-04/SAFE-05).
+      const language = destination.languages.find((l) => /^[a-z]{2}(-[A-Z]{2})?$/.test(l)) ?? "en";
       // The staff-selected destination is passed through; the handoff service re-checks it against the allowlist (SAFE-05).
       let result: Awaited<ReturnType<typeof deps.handoff.requestHuman>>;
       try {
@@ -906,6 +911,8 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
           ? await deps.handoff.requestSafetyRoute({ tenantId, callId, ctx: null, signals: [humanInterventionSignal(language)], locale: language, validatedAt: ctx.now, initiatedBy: { staffId }, correlationId: ctx.correlationId })
           : await deps.handoff.requestHuman({ tenantId, callId, ctx: null, reason: body.reason, language, issueCategory: null, destinationId: destination.destinationId, initiatedBy: { staffId } });
       } catch (err) {
+        // The safety path stops administrative work even when the route request itself failed.
+        if (staffSafety) await revokePendingForCall(tenantId, staffId, callId, ctx.now);
         if (err instanceof AccessDeniedError && err.reasonCode === "DESTINATION_NOT_ALLOWLISTED") {
           await auditBestEffort(ctx, { outcome: "DENIED", reasonCode: "DESTINATION_NOT_ALLOWLISTED", callId, policyDecision: ctx.decision });
           throw badRequest("DESTINATION_NOT_ALLOWLISTED");
@@ -915,9 +922,12 @@ async function consoleRoutes(scope: FastifyInstance, deps: ConsoleApiDeps): Prom
       // Defense in depth for the safety path: the call's pending mutations are revoked through the ledger even
       // when its live session cannot be resolved server-side (each cancellation is audited by the ledger).
       if (staffSafety || result.priority === "SAFETY") await revokePendingForCall(tenantId, staffId, callId, ctx.now);
-      if (!result.transferId) {
-        await auditBestEffort(ctx, { outcome: "PENDING", reasonCode: "TRANSFER_ROUTE_PENDING", callId, policyDecision: ctx.decision, evidencePointers: [`transfer_journey:${result.handoffId}`] });
-        throw unavailable("TRANSFER_ROUTE_PENDING", false);
+      // Without telephony control nothing was connected by the console (the telephony port refused the dial, and a
+      // refused attempt still carries a transfer id): the response never claims a transfer then.
+      if (!deps.telephonyTransferAvailable || !result.transferId) {
+        const reasonCode = deps.telephonyTransferAvailable ? "TRANSFER_ROUTE_PENDING" : "TALKDESK_CONTROL_UNAVAILABLE";
+        await auditBestEffort(ctx, { outcome: "PENDING", reasonCode, callId, policyDecision: ctx.decision, evidencePointers: [`transfer_journey:${result.handoffId}`] });
+        throw unavailable(reasonCode, false);
       }
       // The handoff service only ever dials an allowlisted destination; anything else is a defect (SAFE-05).
       if (!deps.destinations.some((d) => d.destinationId === result.destinationId)) throw new ConsoleHttpError(500, "INTERNAL_ERROR");

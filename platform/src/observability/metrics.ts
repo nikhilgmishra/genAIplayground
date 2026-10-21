@@ -303,6 +303,18 @@ export const WORKER_LOOP_NAMES = [
   "audit.deferred_flush",
   // OPS-AUD-01: integrity, ingestion and completeness reconciliation (audit/monitor.ts).
   "audit.verify",
+  // Live composition loops (platform/src/worker/live-loops.ts, WP-07).
+  "audit.route_reconcile",
+  "inbox.process",
+  "inbox.stream_ingest",
+  "inbox.payload_purge",
+  "inbox.replay_key_purge",
+  "console.sso_sweep",
+  "connectors.feed_sync",
+  // The audit exporter process (platform/src/main/audit-exporter.ts): export under the writer identity,
+  // independent verification under the read-only verifier identity.
+  "audit.export",
+  "audit.export_verify",
 ] as const;
 
 /** Durable action grant check results (platform/src/workflows/grants.ts reason codes, lower-cased) plus engine-side gaps. */
@@ -883,3 +895,25 @@ export const noopMetrics: Metrics = {
   observe: () => undefined,
   gauge: () => undefined,
 };
+
+/**
+ * Fans every emission out to each sink (WP-07: the live composition keeps the in-process aggregate the
+ * alarm evaluation and readiness read, and the OpenTelemetry bridge the exporter reads). A sink that throws
+ * never stops the others, and never reaches the caller.
+ */
+export function teeMetrics(...sinks: readonly Metrics[]): Metrics {
+  const each = (f: (m: Metrics) => void) => {
+    for (const s of sinks) {
+      try {
+        f(s);
+      } catch {
+        // one failing sink does not stop the others
+      }
+    }
+  };
+  return {
+    increment: (name, labels, value) => each((m) => m.increment(name, labels, value)),
+    observe: (name, valueMs, labels) => each((m) => m.observe(name, valueMs, labels)),
+    gauge: (name, value, labels) => each((m) => m.gauge(name, value, labels)),
+  };
+}

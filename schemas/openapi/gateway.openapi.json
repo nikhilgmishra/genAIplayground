@@ -211,6 +211,31 @@
                         "configGuard"
                       ],
                       "additionalProperties": false
+                    },
+                    "capabilities": {
+                      "maxItems": 64,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "capabilityId": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z_]{1,40}\\.[a-z][a-z_]{1,40}$"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "CONFIGURED",
+                              "NOT_CONFIGURED"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "capabilityId",
+                          "state"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -349,6 +374,31 @@
                         "configGuard"
                       ],
                       "additionalProperties": false
+                    },
+                    "capabilities": {
+                      "maxItems": 64,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "capabilityId": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z_]{1,40}\\.[a-z][a-z_]{1,40}$"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "CONFIGURED",
+                              "NOT_CONFIGURED"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "capabilityId",
+                          "state"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [

@@ -130,7 +130,8 @@ export function loadPlatformConfig(opts: LoadConfigOptions): LoadedConfig {
 /**
  * Added by the gateway module (additive): container infrastructure variables
  * from the deployment contract (infra/terraform/README.md "Interface contracts"):
- * VSP_ENVIRONMENT, VSP_MUTATIONS_ENABLED and PORT (gateway 8080, worker 8081).
+ * VSP_ENVIRONMENT, VSP_MUTATIONS_ENABLED, PORT (gateway 8080, worker 8081) and
+ * VSP_LISTEN_HOST (0.0.0.0 or 127.0.0.1, WP-07).
  * They select WHICH reviewed config file loads and fence writes; they never
  * change reviewed settings. Values are validated strictly; errors carry the
  * variable NAME only. Other VSP_* deployment variables (database endpoints,
@@ -138,7 +139,7 @@ export function loadPlatformConfig(opts: LoadConfigOptions): LoadedConfig {
  */
 export class InfrastructureEnvRejectedError extends ValidationError {
   constructor(
-    reasonCode: "INFRA_ENV_ENVIRONMENT_INVALID" | "INFRA_ENV_ENVIRONMENT_REQUIRED" | "INFRA_ENV_BOOLEAN_INVALID" | "INFRA_ENV_PORT_INVALID",
+    reasonCode: "INFRA_ENV_ENVIRONMENT_INVALID" | "INFRA_ENV_ENVIRONMENT_REQUIRED" | "INFRA_ENV_BOOLEAN_INVALID" | "INFRA_ENV_PORT_INVALID" | "INFRA_ENV_LISTEN_HOST_INVALID" | "INFRA_ENV_RELEASE_IMAGE_DIGEST_INVALID",
     readonly variable: string,
   ) {
     super(reasonCode);
@@ -153,6 +154,18 @@ export interface InfrastructureEnv {
    */
   mutationsEnabled: boolean;
   port: number;
+  /**
+   * Interface a live unit listens on (VSP_LISTEN_HOST): every interface (0.0.0.0, the container default) or the
+   * loopback interface only (127.0.0.1, a unit run on a developer host, deploy/local/services/app.compose.yaml).
+   * Nothing else is accepted. local/ci always listen on loopback only.
+   */
+  listenHost: "0.0.0.0" | "127.0.0.1";
+  /**
+   * Digest (`sha256:<hex>`) of the container image this process runs (VSP_RELEASE_IMAGE_DIGEST, set by the
+   * deployment from the release manifest). The guard binds PRODUCTION_DEPLOYMENT approvals to it
+   * (OPS-APPR-01); absent, such an approval is SUBJECT_UNVERIFIABLE (fail closed).
+   */
+  releaseImageDigest: string | null;
 }
 
 export function loadInfrastructureEnv(
@@ -181,5 +194,17 @@ export function loadInfrastructureEnv(
     if (!/^\d{1,5}$/.test(rawPort) || Number(rawPort) < 1 || Number(rawPort) > 65_535) throw new InfrastructureEnvRejectedError("INFRA_ENV_PORT_INVALID", "PORT");
     port = Number(rawPort);
   }
-  return { environment, mutationsEnabled, port };
+  const rawHost = env.VSP_LISTEN_HOST;
+  let listenHost: InfrastructureEnv["listenHost"] = offline ? "127.0.0.1" : "0.0.0.0";
+  if (rawHost !== undefined && rawHost !== "") {
+    if (rawHost !== "0.0.0.0" && rawHost !== "127.0.0.1") throw new InfrastructureEnvRejectedError("INFRA_ENV_LISTEN_HOST_INVALID", "VSP_LISTEN_HOST");
+    if (!offline) listenHost = rawHost;
+  }
+  const rawDigest = env.VSP_RELEASE_IMAGE_DIGEST;
+  let releaseImageDigest: string | null = null;
+  if (rawDigest !== undefined && rawDigest !== "") {
+    if (!/^sha256:[a-f0-9]{64}$/.test(rawDigest)) throw new InfrastructureEnvRejectedError("INFRA_ENV_RELEASE_IMAGE_DIGEST_INVALID", "VSP_RELEASE_IMAGE_DIGEST");
+    releaseImageDigest = rawDigest;
+  }
+  return { environment, mutationsEnabled, port, listenHost, releaseImageDigest };
 }

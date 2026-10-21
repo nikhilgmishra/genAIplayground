@@ -875,6 +875,9 @@ export const RESTRICTED_IMPORT_EXCEPTIONS = [
   { files: ["src/connectors/http/**/*.ts"], allow: ["node:http", "node:https", "node:net", "node:tls", "node:dns"] },
   // The SecretResolver and the inbound credential verifier read Secrets Manager.
   { files: ["src/connectors/secrets/**/*.ts", "src/ingress/credentials.ts"], allow: ["@aws-sdk/client-secrets-manager"] },
+  // WP-07: the live composition's AWS client factory constructs the Secrets Manager client it hands to the
+  // SecretsManagerSecretResolver (the only reader); it sends no command itself.
+  { files: ["src/adapters/live/aws-clients.ts"], allow: ["@aws-sdk/client-secrets-manager"] },
   // Fixed-argument execFile of reviewed tools (git for the manifest, the OPA build, the corpus runner).
   { files: ["src/evaluation/corpus-run.ts", "src/evaluation/manifest.ts", "src/policy/ensure-bundle.ts"], allow: ["node:child_process", "child_process"] },
   // TEST-ONLY: the 127.0.0.1 Salesforce REST emulator of the adapter's contract test. testOnly: no

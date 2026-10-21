@@ -779,24 +779,27 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.composition
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/observability/metrics.ts:807 (OTel bridge, exporter out of scope)
-  - platform/src/observability/tracing.ts:143
-  - platform/src/observability/logger.test.ts
-  gap: No SDK/exporter wiring.
+  - composition/telemetry.test.ts on the pinned collector (unchanged, passes x9)
+  gap: No live code path emits spans yet.
   remediation: Add @opentelemetry/sdk-node with OTLP metric and trace exporters, configured from PlatformConfig.observability (endpoint on the egress allowlist, content attributes disabled by default), and construct OpenTelemetryMetrics and the tracer in the live composition. Test against an OpenTelemetry Collector container that writes to a file exporter, asserting that metric names and labels arrive and that no attribute outside the label allowlist or containing content is exported.
   size: S
   environmentDependency: observability backend approval
-  workPackage: WP-07
+  regressionPackage: WP-07
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-03-31
   section: '3'
   kind: software
@@ -1223,13 +1226,12 @@ requirements:
   capabilityIds:
   - platform.composition
   - operator.console
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/main/console.ts:1-8 (LOCAL FIXTURE composition; 'the deployed console access path is not in the infrastructure plan'; refused outside local/ci)
-  - infra/terraform/modules (no console service or access path)
-  gap: The console exists only as a loopback local composition, so every console-backed capability (investigation, approvals, DLQ repair, kill switches) has no deployable path.
+  - composition/console.test.ts (Keycloak PKCE, roles, rate limit)
+  gap: live-console.ts does not serve the console static bundle.
   remediation: Add buildLiveConsole in platform/src/main/console.ts that reuses the live container and the WorkforceTokenVerifier with remote JWKS (WP-07).
   size: M
   environmentDependency: workforce IdP client (PRQ-036) for activation only
@@ -1238,6 +1240,11 @@ requirements:
     origin: challenge-missed
     repair:
     - 'split (critic gap 6h): application part stays in WP-07; Terraform access path is FO-03-49a (WP-39)'
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-03-49a
   section: '3'
   kind: software

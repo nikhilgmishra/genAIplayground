@@ -1379,24 +1379,27 @@ requirements:
   capabilityIds:
   - platform.composition
   - identity.workforce
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/console-api/auth.ts:225
-  - platform/src/console-api/auth.test.ts:167,221
-  - platform/src/main/console.ts:52
-  - platform/src/config/guard.ts:387
-  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: no production composition exists in which the absence of development bypasses could be proven (WP-07).'
+  - composition/no-dev-bypass.test.ts (passes x9)
+  - secret-separation.test.ts identity-normalized credential reuse
+  gap: None in software; environment activation is outside WP-07.
   remediation: Keep these tests in the production composition suite.
   size: S
   environmentDependency: none
+  regressionPackage: WP-07
   provenance:
     origin: extraction
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: no production composition exists in which the absence of development bypasses could be proven (WP-07).'
     repairStatusFrom: VERIFIED_LOCAL
-  workPackage: WP-07
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-14-54
   section: '14'
   kind: software
@@ -1464,25 +1467,29 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - identity.caller
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/config/approvals.ts:383-394 (KmsTrustedKeyResolver over @aws-sdk/client-kms GetPublicKey)
-  - platform/src/config/approvals.test.ts:206 (KMS resolver tested with a fixture client, no network or emulator), :69, :80, :168 (unsigned, malformed and foreign-key records refused)
-  - platform/src/config/guard.test.ts:315 (signing keys and trust anchors enforced before non-local use)
-  - platform/src/config/__evidence__/production-guard-violations.json
-  gap: 'Environment, role and signed-subject matching and the refusal of local keys are tested in process, but "verify against a KMS trust key" is exercised only with a fixture KMS client: GetPublicKey has never run against LocalStack KMS or KMS, and the live composition that would use the resolver is refused today.'
+  - approval-trust.test.ts bare-id key material, GetPublicKey refused -> RUNTIME_SIGNING_KEY_UNRESOLVED
+  - secret-separation.test.ts profile credentials and full/partial ARN identity
+  - 17/17 residual mutants killed (unit; 10 also on Layer 2)
+  gap: The security lens has still to re-verify N1-N3, as the extra item requires. The anchor ARN is not bound to an account or region, and other environments' keys are compared by committed reference only (WP-39/WP-40).
   remediation: 'WP-07: compose KmsTrustedKeyResolver in the live container with an endpoint override and verify in the composition suite on LocalStack KMS (ECC_NIST_P256 SIGN_VERIFY key; a record signed with KMS Sign verifies; an ENCRYPT_DECRYPT key, a local PEM key and a foreign key are refused).'
   size: S
   environmentDependency: none
-  workPackage: WP-07
+  regressionPackage: WP-07
   provenance:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
     - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL -> IMPLEMENTED: the KMS trust-key element is tested only with a fixture client, not on the real protocol or an emulator'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-14-57
   section: '14'
   kind: software

@@ -33,6 +33,7 @@ export {
   parseTrustedPublicKey,
   algorithmForKey,
   FileTrustedKeyResolver,
+  KmsRuntimeSigningKeyResolver,
   KmsTrustedKeyResolver,
 } from "./approvals.js";
 export type { ApprovalEvaluation, ApprovalStatus, SignatureStatus, SignatureAlgorithm, LoadedApprovals, TrustedKeyResolver, KmsPublicKeyClient } from "./approvals.js";
@@ -44,6 +45,7 @@ export {
   REQUIRED_APPROVALS_BY_ENVIRONMENT,
   RULE_SET_BY_ENVIRONMENT,
 } from "./guard.js";
-export type { GuardContext, GuardReport, GuardViolation, RuleSet } from "./guard.js";
+export type { CapabilityViolation, ComponentGuardState, GuardContext, GuardReport, GuardViolation, RuleSet } from "./guard.js";
+export { ADAPTER_CAPABILITY, GUARD_RULES, capabilityForAdapter, egressDestinationFor } from "./rules/index.js";
 export { loadDeployableConfig, resolveTrustedKey } from "./startup.js";
 export type { StartupInputs, DeployableConfig } from "./startup.js";

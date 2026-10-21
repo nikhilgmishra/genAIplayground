@@ -86,6 +86,25 @@ For each module: status, evidence (test command and result reference), blockers,
 ### Console API and console (`platform/src/console-api`, `console/`)
 *To be completed by coordinator after integration test run.* Workforce SSO: BLOCKED (PRQ-036).
 
+### Live composition root (`platform/src/main` live units, `platform/src/config/rules`, WP-07)
+In this file's vocabulary: **IMPLEMENTED_OFFLINE** against local emulators only (SYNTHETIC data); on the two axes
+of the gap ledger: software IMPLEMENTED or VERIFIED_LOCAL per requirement, environment NOT_CONFIGURED
+([ADR-0023](adr/ADR-0023-live-composition-root.md)). sandbox, staging and production compose the gateway
+(`server.ts` `startLiveServer`), worker (`worker/main.ts` `startLiveWorker`) and console (`live-console.ts`) from
+real adapters through `buildLiveContainer`; the audit exporter (`audit-exporter.ts`) is its own unit with its own
+AWS clients and database pool (it does not reuse the live container) and hands the guard the same inputs as the
+other units; fixtures and development bypasses are refused; a missing tenant input disables only its capability
+(activation map, `/health/ready`). With telephony a NOT_CONFIGURED guard port in this build, the safety and
+human routing tools answer `ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE` (the contact centre's own route), never a
+claimed transfer; a worker outbox loop that cannot publish or consume is failing (counted, alarmed, readiness
+503), never healthy. Evidence: `make test-integration SUITE=composition` (Layer-2 tests on
+postgres:16, DynamoDB Local, ElasticMQ, LocalStack KMS and Secrets Manager, Keycloak 26 and a throwaway
+OpenTelemetry Collector, including `[FAULT:AUTH_EXPIRY_MID_CALL]` and `[FAULT:DLQ_FULL]`; run record in
+[`TEST_EVIDENCE.md`](TEST_EVIDENCE.md)); the audit exporter has unit tests only here (`src/main/audit-exporter.test.ts`). Not composed in this build (software
+gaps with owning packages): business systems, caller identity directory, relationships, notifications, Talkdesk,
+transfers, context store, models, media, harness and the ingress plugin. AWS account, tenant IdP, vendors and
+telemetry export: NOT_CONFIGURED (AIN-01, AIN-12, AIN-13, AIN-36, AIN-37).
+
 ### Evaluation, demo and local start (`platform/src/evaluation`, `platform/src/demo`, `platform/src/main`, `scenarios/`)
 Evaluation (scorer, corpus, generators, local driver), journeys, demo and load smoke: **IMPLEMENTED_OFFLINE**, evidence of 2026-10-18 in the four subsections below (scenario generators up to date: 549 scenarios, 522 risk drafts, all UNREVIEWED). Local start (`platform/src/main`): *to be completed by coordinator after integration test run.* PSTN tests: BLOCKED (PRQ-043).
 

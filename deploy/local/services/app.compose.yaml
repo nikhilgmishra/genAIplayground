@@ -1,0 +1,90 @@
+# WP-07: the platform's live units (gateway, worker) in the SANDBOX profile against the local emulators.
+#
+#   make up PROFILE=core
+#   pnpm --filter @vsp/platform exec tsx test/integration/composition/app-stack.ts   # provisions the substrate,
+#                                                         # writes <state dir>/app/config/sandbox.json
+#   make up PROFILE=core,app
+#   curl -s http://127.0.0.1:58080/health/ready          # readiness lists every capability with its state
+#
+# The services run the checkout's platform code (read-only mount) on the pinned Node base image the release
+# image uses (platform/Dockerfile builds the deployable image in CI; a locally built image has no registry digest,
+# and every service here is digest-pinned). They are the LIVE composition (platform/src/main/live-container.ts):
+# real adapters over the emulators, no fixture, and every capability without its live adapter or tenant inputs
+# NOT_CONFIGURED. The generated sandbox configuration is mounted over the committed placeholder; without it the
+# mount fails (create_host_path: false) instead of starting on the placeholder, which the guard refuses anyway.
+#
+# Network: host networking, so the units reach the emulators on their 127.0.0.1 published ports, the only
+# endpoint overrides the configuration guard accepts (emulator host names, sandbox only, FO-14-53). Each unit
+# listens on the loopback interface only (VSP_LISTEN_HOST=127.0.0.1). The console is not composed here: it needs
+# a workforce IdP (consoleAuth, adapters.workforce-sso); the Layer-2 suite composes it against Keycloak
+# (platform/test/integration/composition/console.test.ts). Mutations stay fenced (VSP_MUTATIONS_ENABLED=false).
+services:
+  gateway:
+    image: public.ecr.aws/docker/library/node:22.22.0-bookworm-slim@sha256:dd9d21971ec4395903fa6143c2b9267d048ae01ca6d3ea96f16cb30df6187d94
+    profiles: [app]
+    network_mode: host
+    user: "10001:10001"
+    working_dir: /workspace/platform
+    restart: "no"
+    read_only: true
+    tmpfs: ["/tmp"]
+    volumes:
+      - type: bind
+        source: ../..
+        target: /workspace
+        read_only: true
+      - type: bind
+        source: ${VSP_LOCAL_STATE_DIR:?run make up}/app/config/sandbox.json
+        target: /workspace/platform/config/sandbox.json
+        read_only: true
+        bind:
+          create_host_path: false
+    command: ["node", "--import", "tsx", "src/main/server.ts"]
+    environment:
+      VSP_ENVIRONMENT: sandbox
+      VSP_LISTEN_HOST: "127.0.0.1"
+      PORT: "${VSP_PORT_APP_GATEWAY:-58080}"
+      VSP_MUTATIONS_ENABLED: "false"
+      VSP_INSTANCE_ID: app-gateway-1
+      AWS_ACCESS_KEY_ID: ${VSP_AWS_ACCESS_KEY_ID:?run make up}
+      AWS_SECRET_ACCESS_KEY: ${VSP_AWS_SECRET_ACCESS_KEY:?run make up}
+    labels:
+      io.vsp.emulates: "the deployed gateway unit (ECS service vsp-gateway): the platform's own live composition, not an emulator"
+      io.vsp.protocol: "HTTP on 127.0.0.1 (MCP Streamable HTTP, tool and health routes); AWS SDK v3 to the emulators"
+      io.vsp.not-emulated: "the ALB, WAF, task role IAM, VPC endpoints, real tenant inputs and vendor adapters (NOT_CONFIGURED)"
+      io.vsp.licence: "MIT (platform) on the Node.js base image (MIT)"
+
+  worker:
+    image: public.ecr.aws/docker/library/node:22.22.0-bookworm-slim@sha256:dd9d21971ec4395903fa6143c2b9267d048ae01ca6d3ea96f16cb30df6187d94
+    profiles: [app]
+    network_mode: host
+    user: "10001:10001"
+    working_dir: /workspace/platform
+    restart: "no"
+    read_only: true
+    tmpfs: ["/tmp"]
+    volumes:
+      - type: bind
+        source: ../..
+        target: /workspace
+        read_only: true
+      - type: bind
+        source: ${VSP_LOCAL_STATE_DIR:?run make up}/app/config/sandbox.json
+        target: /workspace/platform/config/sandbox.json
+        read_only: true
+        bind:
+          create_host_path: false
+    command: ["node", "--import", "tsx", "src/worker/main.ts"]
+    environment:
+      VSP_ENVIRONMENT: sandbox
+      VSP_LISTEN_HOST: "127.0.0.1"
+      PORT: "${VSP_PORT_APP_WORKER:-58081}"
+      VSP_MUTATIONS_ENABLED: "false"
+      VSP_INSTANCE_ID: app-worker-1
+      AWS_ACCESS_KEY_ID: ${VSP_AWS_ACCESS_KEY_ID:?run make up}
+      AWS_SECRET_ACCESS_KEY: ${VSP_AWS_SECRET_ACCESS_KEY:?run make up}
+    labels:
+      io.vsp.emulates: "the deployed worker unit (ECS service vsp-worker): outbox to SQS, durable deferred audit, reconcilers, connector feeds"
+      io.vsp.protocol: "health HTTP on 127.0.0.1; AWS SDK v3 to the emulators; PostgreSQL wire protocol"
+      io.vsp.not-emulated: "the task role IAM, the deployment's queues and redrive policies, real connector profiles"
+      io.vsp.licence: "MIT (platform) on the Node.js base image (MIT)"

@@ -22,9 +22,9 @@ statusRules:
 summary:
   requirements: 1170
   softwareStatus:
-    MISSING: 562
-    IMPLEMENTED: 438
-    VERIFIED_LOCAL: 170
+    MISSING: 550
+    IMPLEMENTED: 445
+    VERIFIED_LOCAL: 175
     RELEASE_PACKAGE_VERIFIED: 0
   environmentStatus:
     NOT_CONFIGURED: 1170
@@ -44,8 +44,8 @@ summary:
     MISSING -> IMPLEMENTED: 2
     NOT_APPLICABLE -> IMPLEMENTED: 6
     NOT_APPLICABLE -> MISSING: 3
-    VERIFIED_LOCAL -> IMPLEMENTED: 47
-    VERIFIED_LOCAL -> VERIFIED_LOCAL: 9
+    VERIFIED_LOCAL -> IMPLEMENTED: 45
+    VERIFIED_LOCAL -> VERIFIED_LOCAL: 11
 overlaps:
 - ids:
   - FO-10-49
@@ -598,16 +598,15 @@ entries:
   provenance:
     origin: extraction
 - id: FO-00-26
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   evidence:
-  - platform/src/adapters/live/blocked-base.ts:28-41 (every operation throws BLOCKED_CAPABILITY_UNVERIFIED)
-  - platform/src/adapters/live/talkdesk-blocked.ts:1-60
-  - 'platform/src/main/container.ts:308-313 (every non-local environment refused: LIVE_COMPOSITION_NOT_IMPLEMENTED)'
-  gap: Directly violated today by design of the original phase.
+  - platform/src/adapters/live/not-configured.ts guard ports
+  - composition/boot.test.ts registry and port scans (68/68 x9)
+  gap: The BLOCKED stub files are still exported by the WP-06-owned adapters/index.ts and integration-inventory.ts.
   remediation: Replace blocked stubs with real transports; keep execution disabled by configuration/approval rather than missing code.
   size: XL
   environmentDependency: none
@@ -615,6 +614,11 @@ entries:
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-00-27
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -679,22 +683,28 @@ entries:
       from: MISSING
       to: IMPLEMENTED
 - id: FO-00-30
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   evidence:
-  - platform/src/adapters/live/talkdesk-blocked.ts:28-60 (code absence justified by PRQ/vendor questions)
-  - platform/src/adapters/live/business-systems-blocked.ts
-  gap: Blocked stubs cite external prerequisites as the reason no code exists.
+  - composition/boot.test.ts 'only its capability' and the ingress software gap
+  - unchanged this round; passes 68/68 x9 and from a fresh worktree
+  gap: None for the acceptance; the ingress plugin itself is still a software gap (INGRESS_PLUGIN_NOT_COMPOSED).
   remediation: Implement code; keep only activation inputs in the register.
   size: M
   environmentDependency: none
   activation: []
-  workPackage: WP-07
+  workPackage: null
+  regressionPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-00-31
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -799,15 +809,15 @@ entries:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
 - id: FO-00-36
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   evidence:
-  - platform/src/main/local.ts
-  - platform/src/main/container.ts:9-20
-  gap: The offline slice is still the only runnable endpoint.
+  - main/container.ts REGRESSION_COMPOSITION_OFFLINE_ONLY
+  - live-container.ts LIVE_COMPOSITION_OFFLINE_ENVIRONMENT
+  gap: The release bundle that pins the live composition belongs to WP-39/WP-40.
   remediation: 'Keep buildContainer(local|ci) unchanged as the regression composition. Add buildLiveContainer for sandbox, staging and production, using PgPoolDb, DynamoKvStore, SqsPublisher, S3ObjectLockAuditSink, KmsAssertionSigner, JwtAccessTokenAuthenticator and JwksOidcVerifier plus configured connectors. Add a ''docker'' integration profile that runs it against PostgreSQL+pgvector, DynamoDB Local, ElasticMQ, MinIO and a containerised IdP. CI runs both: local as the regression gate, docker as the delivery gate.'
   size: M
   environmentDependency: none
@@ -819,6 +829,11 @@ entries:
     - remediation
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-00-37
   softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
@@ -931,15 +946,14 @@ entries:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
 - id: FO-01-03
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   evidence:
-  - platform/src/main/container.ts:9-26,268-313
-  - platform/src/identity/kv/memory-kv-store.ts (MemoryKvStoreFixture)
-  gap: Still true at 8c0f5a0.
+  - composition/boot.test.ts live substrate on emulators
+  gap: Caller identity and business adapters are guard ports until WP-19/WP-23.
   remediation: Write platform/src/main/live-container.ts that composes PgPoolDb, DynamoKvStore (sessions, replay, throttles), SqsPublisher, S3ObjectLockAuditSink, KmsAssertionSigner, JwtAccessTokenAuthenticator (remote JWKS), JwksOidcVerifier and the configured connectors from PlatformConfig. Remove the LIVE_COMPOSITION_NOT_IMPLEMENTED refusal (container.ts:308-313) so the guard decides. Add docker-compose.integration.yml (postgres:16 + pgvector, amazon/dynamodb-local, softwaremill/elasticmq, minio with object lock, localstack KMS, Keycloak) and a CI job that boots gateway and worker against it.
   size: XL
   environmentDependency: none
@@ -951,6 +965,11 @@ entries:
     - remediation
     repair:
     - gap text refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-01-04
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -3149,28 +3168,32 @@ entries:
       from: IMPLEMENTED
       to: IMPLEMENTED
 - id: FO-03-30
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   evidence:
-  - platform/src/observability/metrics.ts:807 (OTel bridge, exporter out of scope)
-  - platform/src/observability/tracing.ts:143
-  - platform/src/observability/logger.test.ts
-  gap: No SDK/exporter wiring.
+  - composition/telemetry.test.ts on the pinned collector (unchanged, passes x9)
+  gap: No live code path emits spans yet.
   remediation: Add @opentelemetry/sdk-node with OTLP metric and trace exporters, configured from PlatformConfig.observability (endpoint on the egress allowlist, content attributes disabled by default), and construct OpenTelemetryMetrics and the tracer in the live composition. Test against an OpenTelemetry Collector container that writes to a file exporter, asserting that metric names and labels arrive and that no attribute outside the label allowlist or containing content is exported.
   size: S
   environmentDependency: observability backend approval
   activation:
   - AIN-37
-  workPackage: WP-07
+  workPackage: null
+  regressionPackage: WP-07
   provenance:
     origin: extraction
     challengeCorrected:
     - remediation
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-03-31
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -3508,16 +3531,15 @@ entries:
     challengeCorrected:
     - remediation
 - id: FO-03-49
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   - operator.console
   evidence:
-  - platform/src/main/console.ts:1-8 (LOCAL FIXTURE composition; 'the deployed console access path is not in the infrastructure plan'; refused outside local/ci)
-  - infra/terraform/modules (no console service or access path)
-  gap: The console exists only as a loopback local composition, so every console-backed capability (investigation, approvals, DLQ repair, kill switches) has no deployable path.
+  - composition/console.test.ts (Keycloak PKCE, roles, rate limit)
+  gap: live-console.ts does not serve the console static bundle.
   remediation: Add buildLiveConsole in platform/src/main/console.ts that reuses the live container and the WorkforceTokenVerifier with remote JWKS (WP-07).
   size: M
   environmentDependency: workforce IdP client (PRQ-036) for activation only
@@ -3529,6 +3551,11 @@ entries:
     origin: challenge-missed
     repair:
     - 'split (critic gap 6h): application part stays in WP-07; Terraform access path is FO-03-49a (WP-39)'
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-03-49a
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -14581,28 +14608,32 @@ entries:
       from: MISSING
       to: IMPLEMENTED
 - id: FO-14-53
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   - identity.workforce
   evidence:
-  - platform/src/console-api/auth.ts:225
-  - platform/src/console-api/auth.test.ts:167,221
-  - platform/src/main/console.ts:52
-  - platform/src/config/guard.ts:387
-  gap: 'IMPLEMENTED, not VERIFIED_LOCAL: Not yet triggered: no production composition exists in which the absence of development bypasses could be proven (WP-07).'
+  - composition/no-dev-bypass.test.ts (passes x9)
+  - secret-separation.test.ts identity-normalized credential reuse
+  gap: None in software; environment activation is outside WP-07.
   remediation: Keep these tests in the production composition suite.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-07
+  workPackage: null
+  regressionPackage: WP-07
   provenance:
     origin: extraction
     repair:
     - 'Phase A repair (critic gap 1, strict VERIFIED_LOCAL rule): VERIFIED_LOCAL -> IMPLEMENTED: not yet triggered: no production composition exists in which the absence of development bypasses could be proven (WP-07).'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-14-54
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -14645,28 +14676,33 @@ entries:
   provenance:
     origin: extraction
 - id: FO-14-56
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - identity.caller
   evidence:
-  - platform/src/config/approvals.ts:383-394 (KmsTrustedKeyResolver over @aws-sdk/client-kms GetPublicKey)
-  - platform/src/config/approvals.test.ts:206 (KMS resolver tested with a fixture client, no network or emulator), :69, :80, :168 (unsigned, malformed and foreign-key records refused)
-  - platform/src/config/guard.test.ts:315 (signing keys and trust anchors enforced before non-local use)
-  - platform/src/config/__evidence__/production-guard-violations.json
-  gap: 'Environment, role and signed-subject matching and the refusal of local keys are tested in process, but "verify against a KMS trust key" is exercised only with a fixture KMS client: GetPublicKey has never run against LocalStack KMS or KMS, and the live composition that would use the resolver is refused today.'
+  - approval-trust.test.ts bare-id key material, GetPublicKey refused -> RUNTIME_SIGNING_KEY_UNRESOLVED
+  - secret-separation.test.ts profile credentials and full/partial ARN identity
+  - 17/17 residual mutants killed (unit; 10 also on Layer 2)
+  gap: The security lens has still to re-verify N1-N3, as the extra item requires. The anchor ARN is not bound to an account or region, and other environments' keys are compared by committed reference only (WP-39/WP-40).
   remediation: 'WP-07: compose KmsTrustedKeyResolver in the live container with an endpoint override and verify in the composition suite on LocalStack KMS (ECC_NIST_P256 SIGN_VERIFY key; a record signed with KMS Sign verifies; an ENCRYPT_DECRYPT key, a local PEM key and a foreign key are refused).'
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-07
+  workPackage: null
+  regressionPackage: WP-07
   provenance:
     origin: extraction
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
     - 'Phase A repair round 2 (critic re-check): VERIFIED_LOCAL -> IMPLEMENTED: the KMS trust-key element is tested only with a fixture client, not on the real protocol or an emulator'
     repairStatusFrom: VERIFIED_LOCAL
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-14-57
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -16123,17 +16159,15 @@ entries:
     repair:
     - 'VERIFIED_LOCAL re-checked against the cited tests at 8c0f5a0 (critic gap 1): every named acceptance element has a passing local test on its real protocol (PGlite single connection, OPA WASM, loopback HTTP or in-process production code); kept'
 - id: FO-16-11
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   evidence:
-  - platform/src/main/container.ts:23,312 (LIVE_COMPOSITION_NOT_IMPLEMENTED)
-  - platform/src/adapters/live/blocked-set.ts
-  - platform/src/adapters/live/business-systems-blocked.ts
-  - platform/src/adapters/live/talkdesk-blocked.ts
-  gap: All non-local composition refused; most live adapters are blocked stubs.
+  - main/audit-exporter.ts KMS-only trust plus runtime-key resolver
+  - audit-exporter.test.ts cross-environment startup refusal
+  gap: The S3 audit sink has no Layer-2 run, and the model and media clients do not exist yet.
   remediation: Implement live composition root and real adapters; test against local emulators via compose with cloud-ready profile.
   size: XL
   environmentDependency: Credentials per adapter for execution (not for code)
@@ -16142,6 +16176,11 @@ entries:
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-16-12
   softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
@@ -17852,9 +17891,8 @@ entries:
   capabilityIds:
   - evaluation.test_truth
   evidence:
-  - scenarios/fixtures/failures/AUTH_EXPIRY_MID_CALL.json (fault plan v1)
-  - platform/src/evaluation/driver/local-driver.ts inject() case AUTH_EXPIRY_MID_CALL (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
-  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:AUTH_EXPIRY_MID_CALL] test.
+  - composition/faults.test.ts [FAULT:AUTH_EXPIRY_MID_CALL] (passes x9)
+  gap: There is no real prepare or provider path (WP-23) and no EvaluationResult record (WP-34).
   remediation: WP-04 and WP-05 build the injection point (session expiry between prepare and commit (injected clock)); WP-07 owns the Layer-2 test tagged [FAULT:AUTH_EXPIRY_MID_CALL] and drives that seam; the asserted postconditions also observe components of WP-04, which WP-07 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
@@ -17873,6 +17911,11 @@ entries:
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
     - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-07: the commit path with zero provider calls is observable only through the composed live gateway over the DynamoDB Local session store, which WP-07 composes after WP-04 and WP-05.'
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-24.DELEGATION_REVOKED
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -18296,14 +18339,14 @@ entries:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
     - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-06 -> WP-32: the asserted postcondition "readiness turns the capability UNKNOWN" needs the readiness registry, which WP-32 builds in phase F; WP-06 builds the drifted-metadata injection point and the typed drift error.'
 - id: FO-17-24.DLQ_FULL
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - connectors.runtime
   evidence:
-  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
-  gap: No fault plan, no injection point and no reached-and-asserted run.
+  - composition/faults.test.ts [FAULT:DLQ_FULL] (passes x9)
+  gap: The EvaluationResult record for the fault run is WP-34.
   remediation: WP-04 builds the injection point (the dead-letter destination is at capacity or unwritable (ElasticMQ)); WP-07 owns the Layer-2 test tagged [FAULT:DLQ_FULL] and drives that seam; the asserted postconditions also observe components of WP-06, which WP-07 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
@@ -18321,6 +18364,11 @@ entries:
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
     - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-06 -> WP-07: the dead-letter destination is the WP-04 SqsPublisher DLQ on ElasticMQ and WP-06 runs in parallel with WP-04; WP-07 composes the connector runtime with that DLQ and owns the alarm rules (observability group, phase B).'
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-17-24.MODEL_REFUSAL
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -20225,15 +20273,15 @@ entries:
       from: IMPLEMENTED
       to: IMPLEMENTED
 - id: FO-19-06
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   evidence:
-  - platform/src/main/container.ts:309-313 (LIVE_COMPOSITION_NOT_IMPLEMENTED for every non-local environment)
-  - platform/src/main/server.ts:5-6 ('every deployed environment is refused')
-  gap: There is no live composition root; any deployed task exits at startup.
+  - config/rules/mandatory.ts and key-separation.ts (fail-closed key resolution)
+  - composition/boot.test.ts
+  gap: Caller identity verifiers and business connectors are guard ports, and the audit sink is not in the gateway container.
   remediation: Implement a live composition root wiring PgPoolDb, DynamoKvStore, SqsPublisher, S3 Object Lock sink, JWKS verifiers and the configurable connector registry; add a composition test against Docker emulators (postgres, DynamoDB Local, ElasticMQ/LocalStack, MinIO, Keycloak).
   size: XL
   environmentDependency: none to build; cloud resources and credentials only to activate
@@ -20242,6 +20290,11 @@ entries:
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-19-07
   softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
@@ -23022,14 +23075,15 @@ entries:
   provenance:
     origin: extraction
 - id: FO-21-03
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   evidence:
-  - platform/src/main/container.ts:309-313
-  gap: Refused.
+  - main/live-container.ts capability activation map
+  - composition/boot.test.ts
+  gap: The production composition is not functional until the WP-19/23/27/28/29 adapters exist.
   remediation: FO-19-06.
   size: XL
   environmentDependency: none
@@ -23037,6 +23091,11 @@ entries:
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-21-04
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -23145,15 +23204,15 @@ entries:
   provenance:
     origin: extraction
 - id: FO-21-10
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   evidence:
-  - platform/src/adapters/live/blocked-base.ts:28-40 (permanent BlockedCapabilityError)
-  - platform/src/main/container.ts:309-313
-  gap: Live mode consists of blocked stubs; fixtures are correctly refused outside local/ci.
+  - composition/boot.test.ts live registry scan
+  - composition/routing.test.ts
+  gap: The BLOCKED stub files remain, and FT-104 needs WP-28's TransferCoordinator.
   remediation: Replace stubs with real adapters; add a test scanning the live registry.
   size: XL
   environmentDependency: none
@@ -23161,6 +23220,11 @@ entries:
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-21-11
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED
@@ -23770,15 +23834,15 @@ entries:
   provenance:
     origin: extraction
 - id: FO-22-20
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   evidence:
-  - 'README.md (''Status: IMPLEMENTED_OFFLINE only'')'
-  - platform/src/main/container.ts:309-313
-  gap: Offline slice is still the product.
+  - deploy/local/services/app.compose.yaml
+  - docs/adr/ADR-0023-live-composition-root.md
+  gap: The deployment package is WP-39/WP-40, and root README.md (WP-44) still says IMPLEMENTED_OFFLINE only.
   remediation: Phases B-G.
   size: XL
   environmentDependency: none
@@ -23786,23 +23850,33 @@ entries:
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-22-21
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   capabilityIds:
   - platform.composition
   evidence:
-  - platform/src/main/local.ts
-  - platform/test/journeys
-  gap: Not labelled as regression profile; docs still present it as product status.
+  - composition suite 68/68 x9 plus one fresh-worktree run
+  gap: Root README.md (WP-44) still presents the offline slice as the product.
   remediation: Rename profile and docs.
   size: S
   environmentDependency: none
   activation: []
-  workPackage: WP-07
+  workPackage: null
+  regressionPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-22-22
   softwareStatus: MISSING
   environmentStatus: NOT_CONFIGURED

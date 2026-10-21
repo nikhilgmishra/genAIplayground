@@ -52,8 +52,8 @@ scoped authority exists. No billable endpoint is invoked by a safe local default
 | Phase | Scope | State |
 |---|---|---|
 | A | Inventory, requirement extraction, gap ledger, architecture/threat/data-flow diagrams, decision record, implementation and activation registers | DONE (commit bf25655; last minor/one material ledger fix runs with wave B1) |
-| B | Scorer truth, invariant regressions, production composition, storage/session/workforce identity/audit, real transport adapter boundaries | IN_PROGRESS: waves B1 (WP-02, WP-03), B2 (WP-01, WP-04, WP-06) and B3 (WP-05) DONE; next B4 (WP-07) |
-| C | Live model adapters, controllable media (LiveKit/SIP), protected output, fallback audio, turn/session fencing, real local audio-to-action journey | NOT_STARTED |
+| B | Scorer truth, invariant regressions, production composition, storage/session/workforce identity/audit, real transport adapter boundaries | DONE 2026-10-21: waves B1 (WP-02, WP-03), B2 (WP-01, WP-04, WP-06), B3 (WP-05) and B4 (WP-07) |
+| C | Live model adapters, controllable media (LiveKit/SIP), protected output, fallback audio, turn/session fencing, real local audio-to-action journey | NEXT: first wave WP-08 (model port and provider adapters) and WP-11 (media runtime core) |
 | D | Historical/event/live context, entity linking, knowledge ingestion, deletions, model registry, specialist loops, canonical domain adapters | NOT_STARTED |
 | E | Every workflow family, CRM/outbox sync, long-horizon work, secure companion, notifications, accepted human transfer | NOT_STARTED |
 | F | Operator onboarding/studio/console, configuration publication, evidence views, eval platform, self-improvement | NOT_STARTED |
@@ -102,6 +102,7 @@ Waves follow the dependency order in `docs/followon/work-packages.yaml`.
 | B1 | WP-02, WP-03 (+ ledger fix job) | wf_5abdf51f-ed0 | DONE: both PARTIAL after 3 rounds; the coordinator fixed the residuals (WP-02 snapshot watermark rules, party-URI refs, byte-size args, hand-over notes; WP-03 Step Functions Local TaskSubmitted race, missing-emulation-summary exit, digest pointer). Ledger: 56 rows moved (MISSING 613, IMPLEMENTED 450, VERIFIED_LOCAL 107). Layer-2 `_harness` 72/72 three times; workflow file 20/20 |
 | B2 | WP-01, WP-04, WP-06 | wf_786b1518-a8e (wave), wf_334c062a-d28 and wf_3801b69b-969 (residuals) | DONE 2026-10-20: all three ACCEPTED by the independent verifier (WP-01 and WP-06 after one residual round, WP-04 after two). Coordinator: local-driver test hand-off applied, FO-17-24 faultSource relabelled, sharp 0.35.5 and adm-zip 0.6.1 overrides (no high advisories left), fault-registry owner rule for VERIFIED_LOCAL rows. Ledger: 102 rows moved (MISSING 577, IMPLEMENTED 440, VERIFIED_LOCAL 153). Two container restarts during the residual run; resumed. |
 | B3 | WP-05 | wf_2e7d9aef-a72 (wave script v2: two-lens verifier panel, acceptance and adversarial security/failure; a requirement keeps the lower verified status of the two) | DONE 2026-10-21: three wave rounds and two residual rounds (wf_f14adc5a-7f2, wf_7591c960-603, script followon-residuals-v2.js), each judged by both lenses; the last panel left only four test-truth items (fallback branches of the terminal-path closure, expiry versus the refresh-race exception, logout audit count) and a runbook step number, which the coordinator closed with tests that kill the named mutants. Design change in the second residual round, by coordinator direction: the custodian decision fails closed (every terminal path of a custodian's SSO session suspends the recovery identity unless the IdP gives a positive, recorded answer). Coordinator: console OpenAPI regenerated, WP-01 policy-fault.ts switched to the new decorateEvaluator seam, Keycloak fidelity findings recorded in deploy/local/README.md. Ledger: 27 rows (MISSING 562, IMPLEMENTED 438, VERIFIED_LOCAL 170); FO-14-52 stays IMPLEMENTED (the verifiers' last check) although the coordinator's final tests kill the mutants they named. |
+| B4 | WP-07 | wf_7ad043f2-a3b (wave script v2) | DONE 2026-10-21: three wave rounds and two residual rounds (wf_23a37e73-83a, wf_8c3ee915-545), each judged by both lenses; both accepted in the second residual round. WP-07 composes the live container (`platform/src/main/live-*.ts`): config guard rules (key separation by purpose, connector credential sets, canonical references), KMS public-key resolution for runtime signing keys, the live worker loops, the live console with the WP-05 workforce SSO, the audit-exporter unit and the observability seams, plus the B3 policy-environment hand-off. Coordinator: one audit-exporter test that kills the last named mutant (the audit unit's guard must see the connector credential sets). Ledger: 16 rows (MISSING 550, IMPLEMENTED 445, VERIFIED_LOCAL 175). |
 
 B2 close-out (2026-10-20): every Layer-2 suite (_harness, substrate, ingress, connectors) 179/179 on two
 timed runs (206 s and 184 s) and once more from a clean worktree of the pushed commit; CI's integration job
@@ -216,3 +217,28 @@ summarised here so they survive the session):
   the 5 s default.
 * Migration 2050 was edited in place during the residual rounds. That is acceptable only because it has
   never been applied outside throwaway databases; from now on it changes only through new migrations.
+
+Open hand-offs from wave B4 (WP-07; from the verifiers' residual risks):
+
+* WP-39 (Terraform): grant `kms:GetPublicKey` on the anchor, assertion and manifest keys to every unit's task
+  role (AIN-34). Without it each unit refuses to start with RUNTIME_SIGNING_KEY_UNRESOLVED. Also bind the audit
+  anchor to its account and region, and give each unit its own database login (today one login is shared).
+* WP-40 (release): keep the release-manifest approval key separate from the runtime signing keys (the key
+  separation guard covers runtime purposes only).
+* WP-06 / connectors owner: `connectors/profile/credentials.ts` `committedConfigCredentialRefs` still skips
+  files it cannot parse. The live path validates the profiles first, so only offline tooling sees the gap;
+  align it so both paths reject the same files.
+* WP-28: threat FT-104 (a tool request routed twice, once by the gateway and once by the worker) stays open
+  until the routing owner adds the idempotency check.
+* Ingress (software gap): the webhook ingress plugin from WP-04 is not composed in the live container yet; the
+  next composition owner (WP-17 in phase C) composes it.
+* WP-44: the root README does not describe the live composition yet.
+* Observability / ops owner (WP-17, then WP-42): alarms on `console.sso.terminal_closure_unaudited` and
+  `console.sso.terminal_audit_unwritten` (B3 hand-off, still open); the live console serves no static console
+  bundle, and no live span emitters exist yet (the tracing seam is composed, nothing emits).
+* WP-34/WP-42: the session-expiry fault seam (`identity/expiry-seam.ts`, local and CI only) is still not driven
+  by a registered fault plan (B3 hand-off, still open).
+* Minor, recorded for the composition owner: alias-to-anchor consistency of the KMS key references; a partial
+  ARN suffix can match a longer key id in the key-separation rule (false positive, fails closed); cross-region
+  replica keys are treated as distinct identities; LocalStack does not enforce IAM, so the Layer-2 composition
+  tests do not prove the grants; the audit exporter has unit tests only (no Layer-2 run yet).

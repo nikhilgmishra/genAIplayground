@@ -493,19 +493,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.composition
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - 'README.md (''Status: IMPLEMENTED_OFFLINE only'')'
-  - platform/src/main/container.ts:309-313
-  gap: Offline slice is still the product.
+  - deploy/local/services/app.compose.yaml
+  - docs/adr/ADR-0023-live-composition-root.md
+  gap: The deployment package is WP-39/WP-40, and root README.md (WP-44) still says IMPLEMENTED_OFFLINE only.
   remediation: Phases B-G.
   size: XL
   environmentDependency: none
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-22-21
   section: '22'
   kind: evaluation
@@ -516,19 +521,23 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.composition
-  softwareStatus: IMPLEMENTED
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/main/local.ts
-  - platform/test/journeys
-  gap: Not labelled as regression profile; docs still present it as product status.
+  - composition suite 68/68 x9 plus one fresh-worktree run
+  gap: Root README.md (WP-44) still presents the offline slice as the product.
   remediation: Rename profile and docs.
   size: S
   environmentDependency: none
-  workPackage: WP-07
+  regressionPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: IMPLEMENTED
+      to: VERIFIED_LOCAL
 - id: FO-22-22
   section: '22'
   kind: software

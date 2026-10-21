@@ -273,21 +273,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.composition
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/main/container.ts:23,312 (LIVE_COMPOSITION_NOT_IMPLEMENTED)
-  - platform/src/adapters/live/blocked-set.ts
-  - platform/src/adapters/live/business-systems-blocked.ts
-  - platform/src/adapters/live/talkdesk-blocked.ts
-  gap: All non-local composition refused; most live adapters are blocked stubs.
+  - main/audit-exporter.ts KMS-only trust plus runtime-key resolver
+  - audit-exporter.test.ts cross-environment startup refusal
+  gap: The S3 audit sink has no Layer-2 run, and the model and media clients do not exist yet.
   remediation: Implement live composition root and real adapters; test against local emulators via compose with cloud-ready profile.
   size: XL
   environmentDependency: Credentials per adapter for execution (not for code)
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-16-12
   section: '16'
   kind: constraint

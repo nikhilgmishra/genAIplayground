@@ -56,18 +56,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.composition
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/main/container.ts:309-313
-  gap: Refused.
+  - main/live-container.ts capability activation map
+  - composition/boot.test.ts
+  gap: The production composition is not functional until the WP-19/23/27/28/29 adapters exist.
   remediation: FO-19-06.
   size: XL
   environmentDependency: none
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-21-04
   section: '21'
   kind: software
@@ -222,19 +228,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.composition
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/live/blocked-base.ts:28-40 (permanent BlockedCapabilityError)
-  - platform/src/main/container.ts:309-313
-  gap: Live mode consists of blocked stubs; fixtures are correctly refused outside local/ci.
+  - composition/boot.test.ts live registry scan
+  - composition/routing.test.ts
+  gap: The BLOCKED stub files remain, and FT-104 needs WP-28's TransferCoordinator.
   remediation: Replace stubs with real adapters; add a test scanning the live registry.
   size: XL
   environmentDependency: none
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-21-11
   section: '21'
   kind: environment

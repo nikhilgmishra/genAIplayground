@@ -18,9 +18,19 @@ import { defineRoute } from "./route.js";
 import type { RouteDef } from "./route.js";
 
 export const ReadinessCheck = z.strictObject({ ok: z.boolean(), reasonCode: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/).nullable() });
+/** Activation state of one runtime capability (ids and states only; reasons and inputs are never listed here). */
+export const ReadinessCapability = z.strictObject({
+  capabilityId: z.string().regex(/^[a-z][a-z_]{1,40}\.[a-z][a-z_]{1,40}$/),
+  state: z.enum(["CONFIGURED", "NOT_CONFIGURED"]),
+});
 export const ReadinessBody = z.strictObject({
   ready: z.boolean(),
   checks: z.strictObject({ database: ReadinessCheck, policyBundle: ReadinessCheck, audit: ReadinessCheck, configGuard: ReadinessCheck }),
+  /**
+   * Live composition only (WP-07): the per-capability activation map. A NOT_CONFIGURED capability does not make
+   * the process unready (its work is refused by its gate); the regression composition omits the list.
+   */
+  capabilities: z.array(ReadinessCapability).max(64).optional(),
 });
 export type ReadinessBody = z.infer<typeof ReadinessBody>;
 export const LivenessBody = z.strictObject({ status: z.literal("live") });
@@ -31,6 +41,8 @@ export interface ReadinessDeps {
   auditHealth: AuditHealth;
   /** True only when the configuration guard accepted this configuration at startup. */
   configGuardPassed: boolean;
+  /** Live composition: the activation map's capability states (ids and states only). */
+  capabilities?: () => readonly { capabilityId: string; state: "CONFIGURED" | "NOT_CONFIGURED" }[];
 }
 
 const reason = (err: unknown, fallback: string) => (err instanceof PlatformError && /^[A-Z][A-Z0-9_]{2,63}$/.test(err.reasonCode) ? err.reasonCode : fallback);
@@ -51,7 +63,8 @@ export class ReadinessProbe {
       .catch((e: unknown) => ({ ok: false, reasonCode: reason(e, "AUDIT_UNAVAILABLE") }));
     const configGuard = this.deps.configGuardPassed ? { ok: true, reasonCode: null } : { ok: false, reasonCode: "CONFIG_GUARD_NOT_PASSED" };
     const checks = { database, policyBundle, audit, configGuard };
-    return { ready: Object.values(checks).every((c) => c.ok), checks };
+    const capabilities = this.deps.capabilities?.();
+    return { ready: Object.values(checks).every((c) => c.ok), checks, ...(capabilities ? { capabilities: capabilities.map((c) => ({ capabilityId: c.capabilityId, state: c.state })) } : {}) };
   }
 }
 

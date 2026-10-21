@@ -56,6 +56,23 @@ BLOCKED, PRQ-011 and PRQ-047). Alarm descriptions carry the runbook id.
 | `budget-burn` | RB-UNEXPECTED-SPEND | [unexpected-spending.md](unexpected-spending.md) |
 | `admission-rejections` | RB-ADMISSION | [ai-off-route.md](ai-off-route.md) |
 
+Composition alarm rules (WP-07, rules as code in `platform/src/observability/alarms.ts`, evaluated against the
+metric catalogue; the CloudWatch alarm resources for them are WP-39 and not yet in `infra/terraform`). A test
+(`platform/src/observability/alarms.test.ts`) keeps every rule's runbook id in this index.
+
+| Alarm key | Runbook id in alarm text | Runbook |
+|---|---|---|
+| `connector-feed-dead-letter-refused` | RB-DLQ-REPAIR | [reconciliation-and-dlq-repair.md](reconciliation-and-dlq-repair.md): a connector change feed stopped because its dead-letter queue refused a record (full, deleted or unwritable); its checkpoint is kept and nothing was dropped. Restore the queue (it exists and accepts writes); the feed resumes from the checkpoint on its next run and dead-letters the record (Layer-2 `[FAULT:DLQ_FULL]`, `platform/test/integration/composition/faults.test.ts`) |
+| `action-reconcile-degraded` | RB-UNKNOWN-COMMIT | [reconciliation-and-dlq-repair.md](reconciliation-and-dlq-repair.md): the worker's `actions.reconcile` loop found actions in UNKNOWN or stale COMMITTING and settled none of them (`vsp_action_reconcile_degraded_total{reason}`: `all_inconclusive` every provider lookup was inconclusive, `no_provider` no provider for the kind); the alarm fires after three such runs in 15 minutes. Each such run fails (`ACTION_RECONCILE_INCONCLUSIVE` / `ACTION_RECONCILE_PROVIDER_MISSING`) and worker readiness turns 503 after consecutive failing runs. Check the provider and its lookup; reconcile the actions through the audited console path; callers are never told an unknown outcome succeeded |
+| `outbox-publish-failures` | RB-DLQ-REPAIR | [reconciliation-and-dlq-repair.md](reconciliation-and-dlq-repair.md): the worker's `outbox.dispatch` loop could not publish outbox messages to the queue (`vsp_outbox_publish_failures_total{reason}`: `publish_failed` left PENDING for a retry with backoff, `dead_lettered` moved to DEAD after the attempt limit); nothing is lost, the messages stay in PostgreSQL. A run with a failed publish fails (`OUTBOX_PUBLISH_FAILED` / `OUTBOX_DEAD_LETTERED`), so does a run while earlier failures wait out their backoff (`OUTBOX_PUBLISH_RETRYING`), and worker readiness turns 503 after three failing runs. Restore the queue or the worker's publish permission; PENDING messages publish on their next attempt, DEAD messages are requeued through the audited console repair (Layer-2 `platform/test/integration/composition/worker.test.ts`) |
+| `outbox-consume-failures` | RB-DLQ-REPAIR | [reconciliation-and-dlq-repair.md](reconciliation-and-dlq-repair.md): the live worker's `outbox.consume` loop failed on at least one message (`vsp_outbox_consume_failures_total{reason}`: `consume_failed`, `envelope_invalid`, `no_consumer`); the messages were not deleted and move to the outbox dead-letter queue after the redrive count. The loop run fails (`OUTBOX_CONSUME_FAILED` / `OUTBOX_UNCONSUMABLE`) and worker readiness turns 503 after consecutive failing runs. Fix the consumer (or the producer of the invalid envelope), then redrive |
+| `inbox-dead-letter` | RB-DLQ-REPAIR | [reconciliation-and-dlq-repair.md](reconciliation-and-dlq-repair.md): an inbound event reached INBOUND_DEAD after bounded attempts; replay it (fresh MFA, audit record first) only after the cause is fixed |
+| `capability-guard-port-reached` | RB-ADMISSION | [ai-off-route.md](ai-off-route.md): a NOT_CONFIGURED capability's guard port was called past its admission gate; the call failed closed (`CAPABILITY_NOT_CONFIGURED`); treat it as a defect in the path that skipped the gate |
+| `telemetry-attribute-dropped` | RB-PHI-EXPOSURE | [phi-exposure.md](phi-exposure.md): an attribute outside the content-free telemetry allowlist reached the exporter and was dropped before export; find the emitter |
+| `console-sso-terminal-closure-unaudited`, `console-sso-terminal-audit-unwritten` | RB-AUDIT-GAP | [audit-sink-outage.md](audit-sink-outage.md) and [access-review.md](access-review.md) step 3b |
+| `audit-journal-memory-fallback` | RB-AUDIT-OUTAGE | [audit-sink-outage.md](audit-sink-outage.md) |
+| `audit-journal-lost-at-shutdown` | RB-AUDIT-GAP | [audit-sink-outage.md](audit-sink-outage.md) |
+
 Dashboards: `call-flow`, `identity`, `tools-dependencies`, `safety`, `crm-reconciliation`,
 `knowledge`, `voice-experience`, `cost-quotas`, `audit`, `admission-controls`, `platform`.
 

@@ -283,6 +283,7 @@ export function loadDefaultTemplateRegistry(opts: TemplateRegistryOptions = {}):
 export const REQUIRED_PRODUCTION_TEMPLATE_IDS: readonly string[] = [
   "fallback.safe_explanation",
   "safety.acknowledgment",
+  "safety.studio_route",
   "transfer.safety_update",
   "clinical.boundary",
   "opening.disclosure",

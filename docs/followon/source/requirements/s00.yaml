@@ -626,20 +626,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.composition
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/live/blocked-base.ts:28-41 (every operation throws BLOCKED_CAPABILITY_UNVERIFIED)
-  - platform/src/adapters/live/talkdesk-blocked.ts:1-60
-  - 'platform/src/main/container.ts:308-313 (every non-local environment refused: LIVE_COMPOSITION_NOT_IMPLEMENTED)'
-  gap: Directly violated today by design of the original phase.
+  - platform/src/adapters/live/not-configured.ts guard ports
+  - composition/boot.test.ts registry and port scans (68/68 x9)
+  gap: The BLOCKED stub files are still exported by the WP-06-owned adapters/index.ts and integration-inventory.ts.
   remediation: Replace blocked stubs with real transports; keep execution disabled by configuration/approval rather than missing code.
   size: XL
   environmentDependency: none
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-00-27
   section: '0'
   kind: constraint
@@ -732,19 +736,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.composition
-  softwareStatus: MISSING
+  softwareStatus: VERIFIED_LOCAL
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/adapters/live/talkdesk-blocked.ts:28-60 (code absence justified by PRQ/vendor questions)
-  - platform/src/adapters/live/business-systems-blocked.ts
-  gap: Blocked stubs cite external prerequisites as the reason no code exists.
+  - composition/boot.test.ts 'only its capability' and the ingress software gap
+  - unchanged this round; passes 68/68 x9 and from a fresh worktree
+  gap: None for the acceptance; the ingress plugin itself is still a software gap (INGRESS_PLUGIN_NOT_COMPOSED).
   remediation: Implement code; keep only activation inputs in the register.
   size: M
   environmentDependency: none
-  workPackage: WP-07
+  regressionPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: VERIFIED_LOCAL
 - id: FO-00-31
   section: '0'
   kind: constraint
@@ -889,13 +898,13 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.composition
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/main/local.ts
-  - platform/src/main/container.ts:9-20
-  gap: The offline slice is still the only runnable endpoint.
+  - main/container.ts REGRESSION_COMPOSITION_OFFLINE_ONLY
+  - live-container.ts LIVE_COMPOSITION_OFFLINE_ENVIRONMENT
+  gap: The release bundle that pins the live composition belongs to WP-39/WP-40.
   remediation: 'Keep buildContainer(local|ci) unchanged as the regression composition. Add buildLiveContainer for sandbox, staging and production, using PgPoolDb, DynamoKvStore, SqsPublisher, S3ObjectLockAuditSink, KmsAssertionSigner, JwtAccessTokenAuthenticator and JwksOidcVerifier plus configured connectors. Add a ''docker'' integration profile that runs it against PostgreSQL+pgvector, DynamoDB Local, ElasticMQ, MinIO and a containerised IdP. CI runs both: local as the regression gate, docker as the delivery gate.'
   size: M
   environmentDependency: none
@@ -906,6 +915,11 @@ requirements:
     - remediation
     - softwareStatus
     statusChangedFrom: IMPLEMENTED
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-00-37
   section: '0'
   kind: document

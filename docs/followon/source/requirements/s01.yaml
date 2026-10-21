@@ -70,13 +70,12 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.composition
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/main/container.ts:9-26,268-313
-  - platform/src/identity/kv/memory-kv-store.ts (MemoryKvStoreFixture)
-  gap: Still true at 8c0f5a0.
+  - composition/boot.test.ts live substrate on emulators
+  gap: Caller identity and business adapters are guard ports until WP-19/WP-23.
   remediation: Write platform/src/main/live-container.ts that composes PgPoolDb, DynamoKvStore (sessions, replay, throttles), SqsPublisher, S3ObjectLockAuditSink, KmsAssertionSigner, JwtAccessTokenAuthenticator (remote JWKS), JwksOidcVerifier and the configured connectors from PlatformConfig. Remove the LIVE_COMPOSITION_NOT_IMPLEMENTED refusal (container.ts:308-313) so the guard decides. Add docker-compose.integration.yml (postgres:16 + pgvector, amazon/dynamodb-local, softwaremill/elasticmq, minio with object lock, localstack KMS, Keycloak) and a CI job that boots gateway and worker against it.
   size: XL
   environmentDependency: none
@@ -87,6 +86,11 @@ requirements:
     - remediation
     repair:
     - gap text refreshed against 8c0f5a0 (critic gap 3)
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-01-04
   section: '1'
   kind: software

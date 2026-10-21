@@ -265,6 +265,20 @@ change request.)
   HTTP 429 `RATE_LIMITED` as before. Rate-limit headers report the most restrictive metered decision.
 * **Tool status after a bridge drop (SAFE-HANDOFF-01).** `routing.ts` `statusOf` reports CONNECTED
   only when the journey's `connectedAt` is set (a dropped bridge is TRANSFER_REQUESTED again).
+* **No reachable route (WP-07, FO-21-10, SAFE-04).** When every route of the journey failed to dial in the
+  last pass (`awaitingRetry`, the sweep retries) or the staffed routes are exhausted
+  (`HOLDING_FOR_OPERATIONS`), `request_safety_route` and `request_human_transfer` report
+  `ROUTE_UNAVAILABLE_USE_STUDIO_ROUTE` with `transferId: null` and the purpose of the journey's primary route
+  (the contact-centre flow maps it to its own queue), never TRANSFER_REQUESTED for a transfer that is not in
+  flight; the spoken prompt follows the reported status: the human tool speaks `transfer.failed_next_route`,
+  not "connecting you now", and the safety tool speaks the DRAFT `safety.studio_route` (the call goes to the
+  contact centre's priority line; pending the clinical safety lead) instead of `safety.acknowledgment`, also
+  when the transfer could not even be requested (no journey); outside local/ci the speech gate renders no
+  unapproved template, so until the clinical safety lead approves it the safe explanation is spoken. This is the answer
+  of every live environment of this build, whose telephony is a NOT_CONFIGURED guard port (`routing.test.ts`;
+  Layer-2 `test/integration/composition/routing.test.ts`). Safety evidence is recorded before the status is
+  mapped. The telephony-control `human-request` route (TC-12) still answers `accepted` with the last attempt's
+  transfer id in that case (owner of `telephony-routes.ts`).
 * **Safety evidence.** `request_safety_route` (with or without a session) now produces safety_events
   and the time-to-routing metric through the HandoffService (`ToolDeps.safetyEvents`, composed in the
   container with the same recorder the screening route uses); the screening route records only when

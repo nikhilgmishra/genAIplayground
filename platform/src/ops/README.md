@@ -101,6 +101,18 @@ never throws for safety spend.
 `createOpsServices(config, deps)` builds the services from `PlatformConfig.ops`
 (required in staging/production).
 
+### Capability gate (`capability-gate.ts`, WP-07)
+
+The live composition's per-capability gate over the activation map (`platform/src/main/capabilities.ts`).
+`CapabilityGatedAdmission` wraps the admission controller: a tool call whose intent needs an integration of a
+NOT_CONFIGURED capability (the policy catalogue's `integrations` of the intent's actions) or depends on one
+directly is refused `CAPABILITY_NOT_CONFIGURED` with the `HUMAN_QUEUE` continuity route; `SAFETY` and
+`HUMAN_ROUTE` are never gated (SAFE-02). `CapabilityHoldKillSwitches` wraps the kill-switch service so the
+integrations of a NOT_CONFIGURED capability read as switched off: their background work is held, never dropped.
+Both count `vsp_capability_refusals_total{capability,surface}`; a path that skips both reaches a guard port
+(`adapters/live/not-configured.ts`) that fails closed and pages (`capability-guard-port-reached`). Tests:
+`capability-gate.test.ts` (unit) and `platform/test/integration/composition/boot.test.ts` (Layer 2).
+
 ### Observability pieces owned by this module (`platform/src/observability/`)
 
 - `metrics.ts`: metric catalogue (name, type, unit, dashboard, label keys with

@@ -747,9 +747,8 @@ requirements:
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - scenarios/fixtures/failures/AUTH_EXPIRY_MID_CALL.json (fault plan v1)
-  - platform/src/evaluation/driver/local-driver.ts inject() case AUTH_EXPIRY_MID_CALL (in-process fixture stack; counted when the targeted tool is called (trigger fired), not when the fault manifests)
-  gap: Injected only into the in-process fixture stack (PGlite and fixture adapters), counted when the targeted tool is called (trigger fired), not when the fault manifests; no run over the real protocol or emulator of its injection point and no [FAULT:AUTH_EXPIRY_MID_CALL] test.
+  - composition/faults.test.ts [FAULT:AUTH_EXPIRY_MID_CALL] (passes x9)
+  gap: There is no real prepare or provider path (WP-23) and no EvaluationResult record (WP-34).
   remediation: WP-04 and WP-05 build the injection point (session expiry between prepare and commit (injected clock)); WP-07 owns the Layer-2 test tagged [FAULT:AUTH_EXPIRY_MID_CALL] and drives that seam; the asserted postconditions also observe components of WP-04, which WP-07 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: S
   environmentDependency: none
@@ -767,6 +766,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
     - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-01 -> WP-07: the commit path with zero provider calls is observable only through the composed live gateway over the DynamoDB Local session store, which WP-07 composes after WP-04 and WP-05.'
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: IMPLEMENTED
+      to: IMPLEMENTED
 - id: FO-17-24.DELEGATION_REVOKED
   section: '17'
   subsection: Fault matrix
@@ -1324,12 +1328,12 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - connectors.runtime
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - no fault plan in scenarios/fixtures/failures and no injection point (prompt section 17 fault matrix)
-  gap: No fault plan, no injection point and no reached-and-asserted run.
+  - composition/faults.test.ts [FAULT:DLQ_FULL] (passes x9)
+  gap: The EvaluationResult record for the fault run is WP-34.
   remediation: WP-04 builds the injection point (the dead-letter destination is at capacity or unwritable (ElasticMQ)); WP-07 owns the Layer-2 test tagged [FAULT:DLQ_FULL] and drives that seam; the asserted postconditions also observe components of WP-06, which WP-07 depends on; WP-01 owns the fault plan, WP-34 wires it into the evaluation drivers and WP-42 counts it in the fault-matrix gate.
   size: M
   environmentDependency: none
@@ -1346,6 +1350,11 @@ requirements:
     repair:
     - 'Phase A repair (critic gap 4): one requirement per fault id; the fixed denominator is scenarios/fixtures/failures plus every prompt section 17 fault-matrix item'
     - 'Phase A repair round 3 (re-check gap 1, fault-matrix ownership): workPackage WP-06 -> WP-07: the dead-letter destination is the WP-04 SqsPublisher DLQ on ElasticMQ and WP-06 runs in parallel with WP-04; WP-07 composes the connector runtime with that DLQ and owns the alarm rules (observability group, phase B).'
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-17-24.MODEL_REFUSAL
   section: '17'
   subsection: Fault matrix

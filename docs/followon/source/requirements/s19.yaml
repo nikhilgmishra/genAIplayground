@@ -167,19 +167,24 @@ requirements:
   derivedFrom: []
   capabilityIds:
   - platform.composition
-  softwareStatus: MISSING
+  softwareStatus: IMPLEMENTED
   environmentStatus: NOT_CONFIGURED
   qualification: NOT_RUN
   evidence:
-  - platform/src/main/container.ts:309-313 (LIVE_COMPOSITION_NOT_IMPLEMENTED for every non-local environment)
-  - platform/src/main/server.ts:5-6 ('every deployed environment is refused')
-  gap: There is no live composition root; any deployed task exits at startup.
+  - config/rules/mandatory.ts and key-separation.ts (fail-closed key resolution)
+  - composition/boot.test.ts
+  gap: Caller identity verifiers and business connectors are guard ports, and the audit sink is not in the gateway container.
   remediation: Implement a live composition root wiring PgPoolDb, DynamoKvStore, SqsPublisher, S3 Object Lock sink, JWKS verifiers and the configurable connector registry; add a composition test against Docker emulators (postgres, DynamoDB Local, ElasticMQ/LocalStack, MinIO, Keycloak).
   size: XL
   environmentDependency: none to build; cloud resources and credentials only to activate
   workPackage: WP-07
   provenance:
     origin: extraction
+    waveUpdates:
+    - wave: B4
+      package: WP-07
+      from: MISSING
+      to: IMPLEMENTED
 - id: FO-19-07
   section: '19'
   kind: software

@@ -7,6 +7,9 @@
  * local/ci: a standalone worker builds its OWN in-memory LOCAL FIXTURE database
  * (PGlite cannot be shared across processes); `pnpm start:local` runs gateway
  * and worker loops in one process instead. Health binds loopback offline.
+ *
+ * sandbox / staging / production: the live worker (main/live-worker.ts startLiveWorker, WP-07) over the live
+ * composition; the regression worker is never started there.
  */
 import type { AddressInfo } from "node:net";
 import { pathToFileURL } from "node:url";
@@ -14,6 +17,7 @@ import { buildBusiness } from "../business/index.js";
 import type { BuildBusiness } from "../business/contract.js";
 import { loadInfrastructureEnv } from "../config/loader.js";
 import { buildContainer } from "../main/container.js";
+import { startLiveWorker } from "../main/live-worker.js";
 import type { Container } from "../main/container.js";
 import type { Logger } from "../observability/ports.js";
 import { ConfigurationRejectedError } from "../shared/errors.js";
@@ -60,8 +64,9 @@ export async function startWorker(
 
 const entry = process.argv[1];
 if (entry && import.meta.url === pathToFileURL(entry).href) {
-  startWorker()
-    .then((rt) => {
+  const offlineEntry = process.env.VSP_ENVIRONMENT === "local" || process.env.VSP_ENVIRONMENT === "ci";
+  (offlineEntry ? startWorker() : startLiveWorker({ buildBusiness }))
+    .then((rt: { close(): Promise<void> }) => {
       const shutdown = () => {
         void rt.close().finally(() => process.exit(0));
       };

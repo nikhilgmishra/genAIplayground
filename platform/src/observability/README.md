@@ -1,10 +1,10 @@
 # platform/src/observability: content-free logs, metrics, traces and service objectives
 
-Status: **IMPLEMENTED_OFFLINE**. The catalogue, label allowlists, the in-memory sink and the
-OpenTelemetry bridge run in tests and the local demo only. No exporter or collector is configured
-here: metrics export (OpenTelemetry to CloudWatch, Datadog only if approved) is BLOCKED on
-PRQ-047 / PRQ-011, so no dashboard or alarm has been observed with real data. Nothing here
-establishes HIPAA compliance or production readiness.
+Status: software IMPLEMENTED. The catalogue, label allowlists, the in-memory sink and the OpenTelemetry bridge
+run in tests and the local demo; the OTLP export of the live composition (WP-07) is exercised on Layer 2 against a
+throwaway OpenTelemetry Collector (`platform/test/integration/composition/telemetry.test.ts`). No collector or
+backend is approved for any environment (AIN-37, PRQ-047 / PRQ-011: environment NOT_CONFIGURED), so no dashboard
+or alarm has been observed with real data. Nothing here establishes HIPAA compliance or production readiness.
 
 Spec: sections 6 (no PHI in identifiers, labels, alert text, baggage) and 13 (service objectives,
 operational dashboards, resolution measures).
@@ -14,7 +14,11 @@ operational dashboards, resolution measures).
 | `ports.ts` | `Logger` and `Metrics` ports (content-free field and label types). |
 | `logger.ts` | Structured logger: string values survive only when the key category and value shape are allowlisted; anything else is `[redacted]` (DATA-01, AUTH-06). |
 | `metrics.ts` | The metric catalogue (`createMetricCatalogue`, `DEFAULT_METRIC_CATALOGUE`), label normalization, `InMemoryMetrics` (LOCAL FIXTURE; unknown names throw in tests) and `OpenTelemetryMetrics` (live bridge; unknown names are dropped and counted). |
-| `tracing.ts` | Span names and attributes from allowlists; baggage is stripped; exceptions are never recorded. |
+| `tracing.ts` | Span names and event names from closed registries (`SPAN_NAMES`, `SPAN_EVENT_NAMES`; anything else, including a well-formed name built from a value such as `patient.<name>`, becomes `invalid_span_name` / `invalid_event_name`; a new emitter registers its constants here) and attributes from an allowlist; id attributes accept only the platform's generated id grammar (`shared/ids.ts`: the key's own prefixes, exactly the 24-character `newId` body or the 12-character `newTurnId` body, no 7-digit run), reason codes (`vsp.reason_code`, `vsp.status`, `vsp.outcome`) only the closed upper-snake grammar (3 to 64 characters, at most 10 segments, no 5-digit run); anything else is dropped and counted. A grammar cannot tell a crafted value of the exact shape from a real one: emitters put server-generated ids and PlatformError reason-code constants only. Baggage is stripped; exceptions are never recorded. |
+| `telemetry.ts` (WP-07) | `startTelemetry`: OpenTelemetry SDK `MeterProvider` (periodic reader) and `NodeTracerProvider` (batch processor) with the platform's own exporters; resource attributes pass `sanitizeResourceAttributes` (service identity only). Started by the live composition only when `observability.otlp` names an endpoint; export self-metrics (`vsp_telemetry_export_total`, `vsp_telemetry_attributes_dropped_total`) go to the bridge and to the process-local metrics. |
+| `otlp.ts` (WP-07) | `OtlpJsonMetricExporter`, `OtlpJsonSpanExporter`: OTLP/HTTP JSON encoders posting through an injected `OtlpPost` (the egress-classified connector transport in the live composition, `adapters/live/otlp-transport.ts`); attributes outside the content-free allowlist, span and event names outside the registries, non-reason-code status messages, links and an instrumentation scope outside `SPAN_SCOPE_NAMES` (or a version that is not a version label) are dropped and counted, for spans of the raw tracer too (`Telemetry.rawTracer` bypasses SafeTracer, so the exporter is the only filter there; `otlp.test.ts`, Layer-2 `composition/telemetry.test.ts` against a real collector); a failing collector is counted and never affects the caller. |
+| `catalog/` (WP-07), `composition-catalog.ts` | The metric catalogue split by owner: `composition-catalog.ts` (live composition, kept with the observability group because the composition owner of each phase owns it: capability states, guard ports reached, telemetry export, connector change feeds, outbox publish and consume failures, unit starts, console auth rate limit, alarm log events), `catalog/substrate.ts` (WP-04), `catalog/connectors.ts` (WP-06); `catalog/index.ts` merges them with `DEFAULT_METRIC_CATALOGUE` into `PLATFORM_METRIC_CATALOGUE` and fails on a duplicate name. |
+| `alarms.ts` (WP-07) | Alarm rules as code (`COMPOSITION_ALARM_RULES`): metric, catalogue dimension values, statistic, period, threshold, missing-data treatment and an indexed runbook id (a test keeps each id in `docs/RUNBOOKS/README.md`); `evaluateAlarm`; `alarmLogTap` turns paging log events into `vsp_alarm_log_events_total{event}`. The CloudWatch resources are WP-39. |
 | `slo.ts` | Spec section 13 service objectives as code (every target `PROPOSED`, nothing measured); evaluation yields INCONCLUSIVE on missing samples. |
 
 ## Catalogue rules (DATA-01)
@@ -29,7 +33,8 @@ operational dashboards, resolution measures).
 - Dynamic extensions (tool names, intents, model and voice labels) must be code-like tokens without
   long digit runs (`assertSafeDynamicLabelValue`).
 - `scripts/ci/check-metric-names.mjs` fails when Terraform dashboards or alarms
-  (`infra/terraform/modules/observability`) name a metric that is not in the catalogue.
+  (`infra/terraform/modules/observability`) name a metric that is not in the catalogue; it reads the merged
+  catalogue (every file under `catalog/` and `metrics.ts`).
 
 ## Resolution measures (dashboard `resolution`; SPEC-13.resolution-metrics)
 
