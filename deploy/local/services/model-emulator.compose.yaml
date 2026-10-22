@@ -1,0 +1,49 @@
+# WP-08: protocol-exact model emulator (FO-16-18, FO-09-36; docs/ARCHITECTURE.md section 6.3.2).
+#
+#   make up PROFILE=core,models
+#   make test-integration SUITE=models
+#
+# One container serves the three model wire protocols the production adapters speak (platform/src/models/adapters):
+# OpenAI Responses SSE, vLLM OpenAI-compatible Chat Completions SSE, and Amazon Bedrock ConverseStream (AWS event
+# stream, SigV4 verified), plus the catalogue listings. It runs the checkout's emulator code
+# (platform/test/emulators/models/main.ts) on the same pinned Node base image as app.compose.yaml, from a read-only
+# bind mount (no locally built image, so the image stays digest-pinned). Run `pnpm install --frozen-lockfile` first:
+# the container uses the checkout's node_modules (tsx).
+#
+# Nothing here is a credential: synthetic bearer keys and AWS key pairs, scripts, faults (MODEL_REFUSAL, MODEL_HANG,
+# MODEL_OVERLOAD) and per-host TLS certificates are registered at run time through the admin API by the test or the
+# profile that owns the host name; an unregistered host is refused (401 / 403). The admin API is plain HTTP and is
+# published on 127.0.0.1 only.
+services:
+  model-emulator:
+    image: public.ecr.aws/docker/library/node:22.22.0-bookworm-slim@sha256:dd9d21971ec4395903fa6143c2b9267d048ae01ca6d3ea96f16cb30df6187d94
+    profiles: [models]
+    networks: [vsp]
+    user: "10001:10001"
+    working_dir: /workspace/platform
+    restart: "no"
+    read_only: true
+    tmpfs: ["/tmp"]
+    volumes:
+      - type: bind
+        source: ../..
+        target: /workspace
+        read_only: true
+    command: ["node", "--import", "tsx", "test/emulators/models/main.ts"]
+    environment:
+      HOME: /tmp
+      VSP_MODEL_EMULATOR_HTTPS_PORT: "8443"
+      VSP_MODEL_EMULATOR_ADMIN_PORT: "8080"
+    ports:
+      - "127.0.0.1:${VSP_PORT_MODEL_EMULATOR:-58610}:8443"
+      - "127.0.0.1:${VSP_PORT_MODEL_EMULATOR_ADMIN:-58611}:8080"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/__emulator/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    labels:
+      io.vsp.emulates: "managed and self-hosted text model endpoints: OpenAI Responses API, Amazon Bedrock ConverseStream (runtime and the foundation-models listing), vLLM OpenAI-compatible server"
+      io.vsp.protocol: "HTTPS (per-host certificates, SNI): Server-Sent Events (Responses, Chat Completions), AWS event stream with SigV4 verification (Bedrock); scripted faults MODEL_REFUSAL, MODEL_HANG, MODEL_OVERLOAD"
+      io.vsp.not-emulated: "model quality and real latency, provider tokenization and usage accounting, quotas and rate limits, provider data controls and retention, guardrail policies, IAM, vLLM tool parsing on real weights, non-streaming APIs, WebSocket and realtime APIs"
+      io.vsp.licence: "MIT (platform test emulator) on the Node.js base image (MIT)"

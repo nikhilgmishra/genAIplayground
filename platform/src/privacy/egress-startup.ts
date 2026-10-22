@@ -11,7 +11,10 @@
  *  - the audit sink (`audit.sink`; the S3 Object Lock sink has no endpoint in PlatformConfig yet);
  *  - every telemetry / export destination the entry point composes (OpenTelemetry or analytics
  *    exporters, evaluation export sinks): content-free classes only, and the destination must be
- *    a telemetry exporter or analytics sink.
+ *    a telemetry exporter or analytics sink;
+ *  - every model endpoint the entry point composes (WP-08 `modelEgressTargets`): the destination must be
+ *    a model class (MODEL_PROVIDER_API or MODEL_SELF_HOSTED) approved for the endpoint's data class and
+ *    for exactly its provider, region and retention terms (EgressGuard.checkModelEndpoint).
  * In-process LOCAL FIXTURE components have no network egress and are reported as such (the
  * configuration guard, not this check, refuses fixtures outside local/ci).
  *
@@ -25,7 +28,7 @@ import type { PlatformConfig } from "../config/ports.js";
 import type { Classification, Environment } from "../protocol/index.js";
 import { ConfigurationRejectedError } from "../shared/errors.js";
 import { EgressGuard } from "./egress.js";
-import type { EgressDestination, EgressPolicyConfig } from "./egress.js";
+import type { EgressDestination, EgressPolicyConfig, ModelEgressBinding } from "./egress.js";
 
 /**
  * LOCAL FIXTURE egress policy: no destination is approved (no BAA, coverage reference or approval
@@ -35,7 +38,7 @@ import type { EgressDestination, EgressPolicyConfig } from "./egress.js";
  */
 export const LOCAL_FIXTURE_EGRESS_POLICY: EgressPolicyConfig = Object.freeze({ policyVersion: "local-fixture-no-egress.1", destinations: [] }) as EgressPolicyConfig;
 
-export type EgressTargetKind = "adapter" | "inbound_auth_jwks" | "audit_sink" | "telemetry_export";
+export type EgressTargetKind = "adapter" | "inbound_auth_jwks" | "audit_sink" | "telemetry_export" | "model_endpoint";
 
 export interface EgressStartupTarget {
   /** Configuration path the target comes from (used in reason codes), e.g. `adapters.salesforce.endpoint`. */
@@ -45,6 +48,18 @@ export interface EgressStartupTarget {
   url: string | null;
   /** Most sensitive class the destination receives. */
   dataClass: Classification;
+  /** model_endpoint targets only: the provider, region and retention terms the model adapter is bound to. */
+  modelBinding?: ModelEgressBinding;
+}
+
+/** A model endpoint an entry point composes (platform/src/models/adapters, WP-08 `modelEgressTargets`). */
+export interface ModelEndpointTarget {
+  /** Short code-like name, e.g. `planner_primary`. */
+  ref: string;
+  url: string;
+  /** Most sensitive class the endpoint receives (PHI for a role that sees masked case context). */
+  dataClass: Classification;
+  binding: ModelEgressBinding;
 }
 
 /** A telemetry / export destination an entry point composes (none in the local composition). */
@@ -73,8 +88,8 @@ const TELEMETRY_KINDS: ReadonlySet<EgressDestination["kind"]> = new Set(["TELEME
 const REF = /^[a-z][a-z0-9_]{1,40}$/;
 const OFFLINE: readonly Environment[] = ["local", "ci"];
 
-/** Every outbound destination named by the configuration plus the composed telemetry exports. */
-export function egressTargetsFor(config: PlatformConfig, telemetry: readonly TelemetryExportTarget[] = []): EgressStartupTarget[] {
+/** Every outbound destination named by the configuration plus the composed telemetry exports and model endpoints. */
+export function egressTargetsFor(config: PlatformConfig, telemetry: readonly TelemetryExportTarget[] = [], models: readonly ModelEndpointTarget[] = []): EgressStartupTarget[] {
   const out: EgressStartupTarget[] = [];
   for (const key of Object.keys(config.adapters).sort()) {
     const a = config.adapters[key];
@@ -87,6 +102,10 @@ export function egressTargetsFor(config: PlatformConfig, telemetry: readonly Tel
   for (const t of telemetry) {
     if (!REF.test(t.ref)) throw new ConfigurationRejectedError(["EGRESS_TELEMETRY_REF_INVALID@telemetry"]);
     out.push({ ref: `telemetry.${t.ref}`, kind: "telemetry_export", adapterKind: "live", url: t.url, dataClass: "INTERNAL" });
+  }
+  for (const m of models) {
+    if (!REF.test(m.ref)) throw new ConfigurationRejectedError(["EGRESS_MODEL_REF_INVALID@models"]);
+    out.push({ ref: `models.${m.ref}`, kind: "model_endpoint", adapterKind: "live", url: m.url, dataClass: m.dataClass, modelBinding: m.binding });
   }
   return out;
 }
@@ -115,7 +134,11 @@ export function checkStartupEgress(input: { environment: Environment; policy: Eg
       deny("EGRESS_ENDPOINT_UNDECLARED");
       continue;
     }
-    const decision = guard.check(t.url, t.dataClass);
+    if (t.kind === "model_endpoint" && t.modelBinding === undefined) {
+      deny("EGRESS_MODEL_BINDING_MISSING");
+      continue;
+    }
+    const decision = t.kind === "model_endpoint" && t.modelBinding !== undefined ? guard.checkModelEndpoint(t.url, t.dataClass, t.modelBinding) : guard.check(t.url, t.dataClass);
     if (!decision.allowed) {
       deny(decision.reasonCode, decision.destinationId);
       continue;

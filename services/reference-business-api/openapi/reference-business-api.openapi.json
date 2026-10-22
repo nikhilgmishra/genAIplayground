@@ -1,0 +1,4514 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Reference business API",
+    "version": "1.0.0",
+    "summary": "Documented reference integration for the canonical scheduling, billing / claims-status, provider network and referral / authorization contracts (WP-23).",
+    "description": "SYNTHETIC reference service. Writes are change requests keyed by a client-chosen request id: a replay never applies a change twice, a change applied but not finalized is completed by request id, and the lookup by request id is visible within the account's documented visibility window. A write with a dispatch deadline (notAfter) gives up when its final check fails, but absence is proved only by a fence after the deadline (never by a 404 plus elapsed time: a COMMIT can land late). Every answer about a change request carries its request digest. Responses carry Refbiz-Account and Refbiz-Region. Error bodies carry a reason code only.",
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://{host}",
+      "variables": {
+        "host": {
+          "default": "refbiz.example.test"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "oauth2": []
+    }
+  ],
+  "paths": {
+    "/oauth/token": {
+      "post": {
+        "operationId": "issueToken",
+        "summary": "OAuth 2.0 client credentials (client_secret_basic or client_secret_post). The response names the account and region the client belongs to.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grant_type"
+                ],
+                "properties": {
+                  "grant_type": {
+                    "type": "string",
+                    "enum": [
+                      "client_credentials"
+                    ]
+                  },
+                  "scope": {
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "client_secret": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request / invalid_scope / unsupported_grant_type"
+          },
+          "401": {
+            "description": "invalid_client (unknown client and wrong secret answer the same way)"
+          }
+        }
+      }
+    },
+    "/api/v1/subjects/{subjectId}/appointments": {
+      "get": {
+        "operationId": "listAppointments",
+        "summary": "A client's appointments (cursor pagination).",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "required": true,
+            "description": "Client id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^cur_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Appointment"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/appointments/{appointmentId}": {
+      "get": {
+        "operationId": "getAppointment",
+        "summary": "One appointment with its version.",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "appointmentId",
+            "in": "path",
+            "required": true,
+            "description": "Appointment id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Appointment"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/subjects/{subjectId}/slot-options": {
+      "get": {
+        "operationId": "listSlotOptions",
+        "summary": "Open slots a client may book in the next `days` days; with appointmentId only that appointment's provider. Administrative availability only (no clinical suitability).",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "required": true,
+            "description": "Client id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "description": "Window in days from now",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 62,
+              "default": 14
+            }
+          },
+          {
+            "name": "appointmentId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Slot"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/providers/{providerId}/slots": {
+      "get": {
+        "operationId": "listProviderSlots",
+        "summary": "A provider's own open slots.",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "description": "Provider id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "description": "Window in days from now",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 62,
+              "default": 14
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Slot"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/slots/{slotId}": {
+      "get": {
+        "operationId": "getSlot",
+        "summary": "One slot with its version (read-back before confirmation; re-read at commit).",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slotId",
+            "in": "path",
+            "required": true,
+            "description": "Slot id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Slot"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/appointment-bookings/{requestId}": {
+      "put": {
+        "operationId": "bookAppointment",
+        "summary": "Book an open slot for a client (CLIENT_CONFIRMED by that client).",
+        "description": "Optimistic concurrency on the slot version; 409 SLOT_UNAVAILABLE or VERSION_CONFLICT when it changed.",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "description": "Client-chosen request id (the platform derives it from its provider idempotency key). The idempotency identity of the change.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentBooking"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The change is COMPLETED (first delivery or replay; a replay carries Refbiz-Replayed: true). The body carries the stored requestDigest; a client must not claim the change unless it equals the digest of the request it sent.",
+            "headers": {
+              "Refbiz-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "A business refusal (VERSION_CONFLICT, SLOT_UNAVAILABLE, STATE_CONFLICT), DEADLINE_EXCEEDED (the request's notAfter passed before it could be committed) or FENCED (the request id was fenced: nothing can ever be applied under it). Nothing was applied; the request id is recorded REJECTED with that code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "REQUEST_ID_REUSED: the request id is already used by a DIFFERENT request (operation or body). That earlier request may have been applied: reconcile by GET /api/v1/change-requests/{requestId} and compare its requestDigest; never treat this answer as 'not applied'.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/PartialWrite"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/appointment-reschedules/{requestId}": {
+      "put": {
+        "operationId": "rescheduleAppointment",
+        "summary": "Move an appointment to another open slot of the same provider.",
+        "description": "Checks the appointment version and the target slot version; releases the old slot.",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "description": "Client-chosen request id (the platform derives it from its provider idempotency key). The idempotency identity of the change.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentReschedule"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The change is COMPLETED (first delivery or replay; a replay carries Refbiz-Replayed: true). The body carries the stored requestDigest; a client must not claim the change unless it equals the digest of the request it sent.",
+            "headers": {
+              "Refbiz-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "A business refusal (VERSION_CONFLICT, SLOT_UNAVAILABLE, STATE_CONFLICT), DEADLINE_EXCEEDED (the request's notAfter passed before it could be committed) or FENCED (the request id was fenced: nothing can ever be applied under it). Nothing was applied; the request id is recorded REJECTED with that code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "REQUEST_ID_REUSED: the request id is already used by a DIFFERENT request (operation or body). That earlier request may have been applied: reconcile by GET /api/v1/change-requests/{requestId} and compare its requestDigest; never treat this answer as 'not applied'.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/PartialWrite"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/appointment-cancellations/{requestId}": {
+      "put": {
+        "operationId": "cancelAppointment",
+        "summary": "Cancel an appointment (client-confirmed or provider-approved).",
+        "description": "Checks the appointment version; releases the slot.",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "description": "Client-chosen request id (the platform derives it from its provider idempotency key). The idempotency identity of the change.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentCancellation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The change is COMPLETED (first delivery or replay; a replay carries Refbiz-Replayed: true). The body carries the stored requestDigest; a client must not claim the change unless it equals the digest of the request it sent.",
+            "headers": {
+              "Refbiz-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "A business refusal (VERSION_CONFLICT, SLOT_UNAVAILABLE, STATE_CONFLICT), DEADLINE_EXCEEDED (the request's notAfter passed before it could be committed) or FENCED (the request id was fenced: nothing can ever be applied under it). Nothing was applied; the request id is recorded REJECTED with that code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "REQUEST_ID_REUSED: the request id is already used by a DIFFERENT request (operation or body). That earlier request may have been applied: reconcile by GET /api/v1/change-requests/{requestId} and compare its requestDigest; never treat this answer as 'not applied'.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/PartialWrite"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/availability-blocks/{requestId}": {
+      "put": {
+        "operationId": "blockAvailability",
+        "summary": "A provider closes one of their own open slots (PROVIDER_APPROVED).",
+        "description": "Another provider's slot is refused 403 AUTHORITY_REFUSED.",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "description": "Client-chosen request id (the platform derives it from its provider idempotency key). The idempotency identity of the change.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AvailabilityBlock"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The change is COMPLETED (first delivery or replay; a replay carries Refbiz-Replayed: true). The body carries the stored requestDigest; a client must not claim the change unless it equals the digest of the request it sent.",
+            "headers": {
+              "Refbiz-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "A business refusal (VERSION_CONFLICT, SLOT_UNAVAILABLE, STATE_CONFLICT), DEADLINE_EXCEEDED (the request's notAfter passed before it could be committed) or FENCED (the request id was fenced: nothing can ever be applied under it). Nothing was applied; the request id is recorded REJECTED with that code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "REQUEST_ID_REUSED: the request id is already used by a DIFFERENT request (operation or body). That earlier request may have been applied: reconcile by GET /api/v1/change-requests/{requestId} and compare its requestDigest; never treat this answer as 'not applied'.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/PartialWrite"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/change-requests/{requestId}": {
+      "get": {
+        "operationId": "getChangeRequest",
+        "summary": "Lookup by request id (the reconciliation path). 404 for an unknown id AND for one not yet visible (the index lags by up to the account's visibility window, GET /api/v1/meta/{system}/consistency). A 404 is never proof of absence, whatever time has passed: once the request's notAfter has passed, POST /api/v1/change-requests/{requestId}/fence answers authoritatively. The body carries the stored requestDigest (SHA-256 hex of 'refbiz.request.v1\\n' + operation + '\\n' + canonical JSON of the request body: sorted keys, no whitespace) so a client can bind the found change to the request it would send. Needs the read scope of the request's system.",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "description": "Request id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/change-requests/{requestId}/completion": {
+      "post": {
+        "operationId": "completeChangeRequest",
+        "summary": "Completes an INCOMPLETE change request (step 2 only: the receipt); never applies the change again. Replays a COMPLETED one; 404 for an unknown id. Needs the write scope of the request's system.",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:write"
+            ]
+          },
+          {
+            "oauth2": [
+              "billing:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "description": "Request id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "COMPLETED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/PartialWrite"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/change-requests/{requestId}/fence": {
+      "post": {
+        "operationId": "fenceChangeRequest",
+        "summary": "The proof of absence, allowed once the request's notAfter has passed (database clock). With a change request stored under the id it answers it as stored (no lookup lag; a delivery still inside its transaction is waited for). With nothing stored it records the id FENCED (REJECTED, failureCode FENCED, Refbiz-Fenced: true): no delivery of the id can ever be applied (each is refused 409 FENCED). Before notAfter with nothing stored: 409 FENCE_BEFORE_DEADLINE, nothing changes. Needs the write scope of the operation's system.",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:write"
+            ]
+          },
+          {
+            "oauth2": [
+              "billing:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "description": "Request id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRequestFence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The change request stored under the id, or the fence",
+            "headers": {
+              "Refbiz-Fenced": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "FENCE_BEFORE_DEADLINE: nothing stored and notAfter not passed yet; ask again later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/receipts/{receiptId}": {
+      "get": {
+        "operationId": "getReceipt",
+        "summary": "The authoritative receipt of a completed change, with the request digest of the change it records.",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "description": "Receipt id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/subjects/{subjectId}/invoices": {
+      "get": {
+        "operationId": "listInvoices",
+        "summary": "A client's invoices.",
+        "security": [
+          {
+            "oauth2": [
+              "billing:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "required": true,
+            "description": "Client id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Invoice"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{invoiceId}": {
+      "get": {
+        "operationId": "getInvoice",
+        "summary": "One invoice with its version.",
+        "security": [
+          {
+            "oauth2": [
+              "billing:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "description": "Invoice id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{invoiceId}/lines": {
+      "get": {
+        "operationId": "listInvoiceLines",
+        "summary": "Invoice lines.",
+        "security": [
+          {
+            "oauth2": [
+              "billing:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "description": "Invoice id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/InvoiceLine"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{invoiceId}/payments": {
+      "get": {
+        "operationId": "listPayments",
+        "summary": "Payments the billing system received for an invoice.",
+        "security": [
+          {
+            "oauth2": [
+              "billing:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "description": "Invoice id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Payment"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/billing-review-requests/{requestId}": {
+      "put": {
+        "operationId": "requestBillingReview",
+        "summary": "A client asks for a review of their invoice: IN_REVIEW, no amount changes.",
+        "description": "Checks the invoice version; only the invoice's client may ask.",
+        "security": [
+          {
+            "oauth2": [
+              "billing:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "description": "Client-chosen request id (the platform derives it from its provider idempotency key). The idempotency identity of the change.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BillingReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The change is COMPLETED (first delivery or replay; a replay carries Refbiz-Replayed: true). The body carries the stored requestDigest; a client must not claim the change unless it equals the digest of the request it sent.",
+            "headers": {
+              "Refbiz-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "A business refusal (VERSION_CONFLICT, SLOT_UNAVAILABLE, STATE_CONFLICT), DEADLINE_EXCEEDED (the request's notAfter passed before it could be committed) or FENCED (the request id was fenced: nothing can ever be applied under it). Nothing was applied; the request id is recorded REJECTED with that code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "REQUEST_ID_REUSED: the request id is already used by a DIFFERENT request (operation or body). That earlier request may have been applied: reconcile by GET /api/v1/change-requests/{requestId} and compare its requestDigest; never treat this answer as 'not applied'.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/PartialWrite"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/subjects/{subjectId}/claims": {
+      "get": {
+        "operationId": "listClaims",
+        "summary": "Insurer-reported claim status (never an eligibility or payment guarantee).",
+        "security": [
+          {
+            "oauth2": [
+              "claims:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "required": true,
+            "description": "Client id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Claim"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/claims/{claimId}": {
+      "get": {
+        "operationId": "getClaim",
+        "summary": "One claim's insurer-reported status.",
+        "security": [
+          {
+            "oauth2": [
+              "claims:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "claimId",
+            "in": "path",
+            "required": true,
+            "description": "Claim id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Claim"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/providers/{providerId}/onboarding": {
+      "get": {
+        "operationId": "getOnboarding",
+        "summary": "A provider's onboarding stage.",
+        "security": [
+          {
+            "oauth2": [
+              "provider:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "description": "Provider id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Onboarding"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/providers/{providerId}/onboarding/documents": {
+      "get": {
+        "operationId": "listOnboardingDocuments",
+        "summary": "Credentialing document status.",
+        "security": [
+          {
+            "oauth2": [
+              "provider:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "description": "Provider id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OnboardingDocument"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/practices/{practiceId}/remittances": {
+      "get": {
+        "operationId": "listRemittances",
+        "summary": "A practice's most recent remittances.",
+        "security": [
+          {
+            "oauth2": [
+              "provider:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "practiceId",
+            "in": "path",
+            "required": true,
+            "description": "Practice id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          },
+          {
+            "name": "periods",
+            "in": "query",
+            "required": false,
+            "description": "Number of most recent periods",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 24,
+              "default": 6
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Remittance"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/subjects/{subjectId}/referrals": {
+      "get": {
+        "operationId": "listReferrals",
+        "summary": "A client's referrals with their status.",
+        "security": [
+          {
+            "oauth2": [
+              "referrals:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "required": true,
+            "description": "Client id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Referral"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/referrals/{referralId}": {
+      "get": {
+        "operationId": "getReferral",
+        "summary": "One referral's status.",
+        "security": [
+          {
+            "oauth2": [
+              "referrals:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "referralId",
+            "in": "path",
+            "required": true,
+            "description": "Referral id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Referral"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/subjects/{subjectId}/authorizations": {
+      "get": {
+        "operationId": "listAuthorizations",
+        "summary": "Payer-reported authorization status.",
+        "security": [
+          {
+            "oauth2": [
+              "referrals:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "required": true,
+            "description": "Client id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Authorization"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/subjects/{subjectId}/eligibility": {
+      "get": {
+        "operationId": "getEligibility",
+        "summary": "The payer's last eligibility response with its time (not a coverage decision).",
+        "security": [
+          {
+            "oauth2": [
+              "referrals:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "subjectId",
+            "in": "path",
+            "required": true,
+            "description": "Client id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Eligibility"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/legacy/appointments/{externalRef}": {
+      "post": {
+        "operationId": "legacyCreateAppointment",
+        "summary": "Legacy product: creates an appointment. NOT idempotent: every delivery creates another one. A client creates only under its own reservation of the reference (PUT /api/v1/legacy/references/{externalRef}) and reconciles by GET /api/v1/legacy/appointments/by-reference/{externalRef} and, past its deadline, the reference fence; never by sending again. Refused 409 FENCED under a fenced reference and 409 RESERVED_BY_ANOTHER_DISPATCH under another dispatch's reservation. With notAfter the appointment is created only if the final deadline check passes (409 DEADLINE_EXCEEDED otherwise, nothing stored).",
+        "security": [
+          {
+            "oauth2": [
+              "legacy:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "externalRef",
+            "in": "path",
+            "required": true,
+            "description": "Client reference stored with the appointment (not enforced unique)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyBooking"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyAppointment"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/legacy/references/{externalRef}": {
+      "put": {
+        "operationId": "legacyReserveReference",
+        "summary": "Reserves the reference for one dispatch before its create (the dispatch marker of the non-idempotent product). The first reservation wins; any later one (another dispatch id) answers the stored state with reservedForDispatch false, so a client that creates only when reservedForDispatch is true never sends a second create for the reference. With notAfter no reservation is made after it (409 DEADLINE_EXCEEDED when nothing is stored).",
+        "security": [
+          {
+            "oauth2": [
+              "legacy:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "externalRef",
+            "in": "path",
+            "required": true,
+            "description": "Client reference",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyReservation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The reference's state for this dispatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyReference"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/legacy/references/{externalRef}/release": {
+      "post": {
+        "operationId": "legacyReleaseReference",
+        "summary": "Gives back a reservation whose create was provably never sent (only the reserving dispatch id, only while RESERVED). Otherwise answers the stored state unchanged.",
+        "security": [
+          {
+            "oauth2": [
+              "legacy:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "externalRef",
+            "in": "path",
+            "required": true,
+            "description": "Client reference",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyRelease"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "RELEASED, or the stored state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyReference"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/legacy/references/{externalRef}/fence": {
+      "post": {
+        "operationId": "legacyFenceReference",
+        "summary": "The legacy product's proof of absence, allowed once the create's notAfter has passed (database clock): POSTED when a create committed under the reference (a create still inside its transaction is waited for), otherwise FENCED (a reservation that never created is fenced too): no create can ever be stored under the reference. Before notAfter with nothing stored: 409 FENCE_BEFORE_DEADLINE.",
+        "security": [
+          {
+            "oauth2": [
+              "legacy:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "externalRef",
+            "in": "path",
+            "required": true,
+            "description": "Client reference",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegacyFence"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "POSTED or FENCED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyReference"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/legacy/appointments/by-reference/{externalRef}": {
+      "get": {
+        "operationId": "legacyAppointmentsByReference",
+        "summary": "The legacy product's reconciliation lookup: appointments carrying the reference, visible after the account's visibility window.",
+        "security": [
+          {
+            "oauth2": [
+              "legacy:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "externalRef",
+            "in": "path",
+            "required": true,
+            "description": "Client reference",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LegacyAppointment"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/legacy/appointments/{apptRef}": {
+      "get": {
+        "operationId": "legacyGetAppointment",
+        "summary": "One legacy appointment.",
+        "security": [
+          {
+            "oauth2": [
+              "legacy:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "apptRef",
+            "in": "path",
+            "required": true,
+            "description": "Appointment id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyAppointment"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/scheduling/consistency": {
+      "get": {
+        "operationId": "schedulingConsistency",
+        "summary": "The account's documented visibility window and dialect, the dispatch-deadline guarantee of its writes (REQUEST_NOT_AFTER), the request digest scheme of its change requests (REFBIZ_REQUEST_V1), the proof of absence it offers (FENCE_AFTER_DEADLINE) and the legacy product's dispatch marker (RESERVE_BEFORE_CREATE).",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Consistency"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/scheduling/metadata": {
+      "get": {
+        "operationId": "schedulingMetadata",
+        "summary": "JSON Schema of every object in the account's dialect.",
+        "security": [
+          {
+            "oauth2": [
+              "scheduling:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/billing/consistency": {
+      "get": {
+        "operationId": "billingConsistency",
+        "summary": "The account's documented visibility window and dialect, the dispatch-deadline guarantee of its writes (REQUEST_NOT_AFTER), the request digest scheme of its change requests (REFBIZ_REQUEST_V1), the proof of absence it offers (FENCE_AFTER_DEADLINE) and the legacy product's dispatch marker (RESERVE_BEFORE_CREATE).",
+        "security": [
+          {
+            "oauth2": [
+              "billing:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Consistency"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/billing/metadata": {
+      "get": {
+        "operationId": "billingMetadata",
+        "summary": "JSON Schema of every object in the account's dialect.",
+        "security": [
+          {
+            "oauth2": [
+              "billing:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/claims/consistency": {
+      "get": {
+        "operationId": "claimsConsistency",
+        "summary": "The account's documented visibility window and dialect, the dispatch-deadline guarantee of its writes (REQUEST_NOT_AFTER), the request digest scheme of its change requests (REFBIZ_REQUEST_V1), the proof of absence it offers (FENCE_AFTER_DEADLINE) and the legacy product's dispatch marker (RESERVE_BEFORE_CREATE).",
+        "security": [
+          {
+            "oauth2": [
+              "claims:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Consistency"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/claims/metadata": {
+      "get": {
+        "operationId": "claimsMetadata",
+        "summary": "JSON Schema of every object in the account's dialect.",
+        "security": [
+          {
+            "oauth2": [
+              "claims:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/provider/consistency": {
+      "get": {
+        "operationId": "providerConsistency",
+        "summary": "The account's documented visibility window and dialect, the dispatch-deadline guarantee of its writes (REQUEST_NOT_AFTER), the request digest scheme of its change requests (REFBIZ_REQUEST_V1), the proof of absence it offers (FENCE_AFTER_DEADLINE) and the legacy product's dispatch marker (RESERVE_BEFORE_CREATE).",
+        "security": [
+          {
+            "oauth2": [
+              "provider:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Consistency"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/provider/metadata": {
+      "get": {
+        "operationId": "providerMetadata",
+        "summary": "JSON Schema of every object in the account's dialect.",
+        "security": [
+          {
+            "oauth2": [
+              "provider:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/referrals/consistency": {
+      "get": {
+        "operationId": "referralsConsistency",
+        "summary": "The account's documented visibility window and dialect, the dispatch-deadline guarantee of its writes (REQUEST_NOT_AFTER), the request digest scheme of its change requests (REFBIZ_REQUEST_V1), the proof of absence it offers (FENCE_AFTER_DEADLINE) and the legacy product's dispatch marker (RESERVE_BEFORE_CREATE).",
+        "security": [
+          {
+            "oauth2": [
+              "referrals:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Consistency"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/referrals/metadata": {
+      "get": {
+        "operationId": "referralsMetadata",
+        "summary": "JSON Schema of every object in the account's dialect.",
+        "security": [
+          {
+            "oauth2": [
+              "referrals:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/legacy/consistency": {
+      "get": {
+        "operationId": "legacyConsistency",
+        "summary": "The account's documented visibility window and dialect, the dispatch-deadline guarantee of its writes (REQUEST_NOT_AFTER), the request digest scheme of its change requests (REFBIZ_REQUEST_V1), the proof of absence it offers (FENCE_AFTER_DEADLINE) and the legacy product's dispatch marker (RESERVE_BEFORE_CREATE).",
+        "security": [
+          {
+            "oauth2": [
+              "legacy:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Consistency"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/meta/legacy/metadata": {
+      "get": {
+        "operationId": "legacyMetadata",
+        "summary": "JSON Schema of every object in the account's dialect.",
+        "security": [
+          {
+            "oauth2": [
+              "legacy:read"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Refbiz-Account": {
+                "$ref": "#/components/headers/Account"
+              },
+              "Refbiz-Region": {
+                "$ref": "#/components/headers/Region"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "oauth2": {
+        "type": "oauth2",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "/oauth/token",
+            "scopes": {
+              "scheduling:read": "scheduling:read",
+              "scheduling:write": "scheduling:write",
+              "billing:read": "billing:read",
+              "billing:write": "billing:write",
+              "claims:read": "claims:read",
+              "provider:read": "provider:read",
+              "provider:write": "provider:write",
+              "referrals:read": "referrals:read",
+              "legacy:read": "legacy:read",
+              "legacy:write": "legacy:write"
+            }
+          }
+        }
+      }
+    },
+    "headers": {
+      "Account": {
+        "description": "Account (tenant instance) that answered",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "Region": {
+        "description": "Region of the account",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Reason-coded error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "UNAVAILABLE or REQUEST_IN_PROGRESS; honour Retry-After",
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PartialWrite": {
+        "description": "PARTIAL_WRITE: the change was applied, its finalization failed. Complete it by request id; never send a new request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Appointment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "providerDisplayName": {
+            "type": "string",
+            "x-vsp-classification": "PHI"
+          },
+          "slotId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "video",
+              "in_person",
+              "phone"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "CANCELLED",
+              "COMPLETED"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "visitReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-vsp-prohibited": true,
+            "x-vsp-classification": "PHI_RESTRICTED"
+          }
+        },
+        "required": [
+          "id",
+          "subjectId",
+          "providerId",
+          "startsAt",
+          "timeZone",
+          "modality",
+          "status",
+          "version"
+        ]
+      },
+      "Slot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "providerDisplayName": {
+            "type": "string",
+            "x-vsp-classification": "PHI"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "video",
+              "in_person",
+              "phone"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "BOOKED",
+              "BLOCKED"
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "providerId",
+          "startsAt",
+          "timeZone",
+          "modality",
+          "state",
+          "version"
+        ]
+      },
+      "Invoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "issuedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "dueOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "PAID",
+              "IN_REVIEW",
+              "VOID"
+            ]
+          },
+          "balanceMinor": {
+            "type": "integer",
+            "x-unit": "minor_units"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subjectId",
+          "issuedOn",
+          "dueOn",
+          "status",
+          "balanceMinor",
+          "currency",
+          "version"
+        ]
+      },
+      "InvoiceLine": {
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "SESSION_FEE",
+              "LATE_CANCELLATION",
+              "NO_SHOW",
+              "ADJUSTMENT",
+              "PAYMENT"
+            ]
+          },
+          "serviceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "amountMinor": {
+            "type": "integer",
+            "x-unit": "minor_units"
+          }
+        },
+        "required": [
+          "lineId",
+          "code",
+          "serviceDate",
+          "amountMinor"
+        ]
+      },
+      "Payment": {
+        "type": "object",
+        "properties": {
+          "paymentId": {
+            "type": "string"
+          },
+          "invoiceId": {
+            "type": "string"
+          },
+          "amountMinor": {
+            "type": "integer",
+            "x-unit": "minor_units"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "CARD",
+              "ACH",
+              "CHECK",
+              "PORTAL"
+            ]
+          },
+          "cardLast4": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-vsp-prohibited": true,
+            "x-vsp-classification": "FINANCIAL"
+          }
+        },
+        "required": [
+          "paymentId",
+          "invoiceId",
+          "amountMinor",
+          "receivedAt",
+          "method"
+        ]
+      },
+      "Claim": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "serviceDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "payerDisplayName": {
+            "type": "string"
+          },
+          "insurerStatus": {
+            "type": "string",
+            "enum": [
+              "RECEIVED",
+              "IN_PROCESS",
+              "ADJUDICATED_PAID",
+              "ADJUDICATED_DENIED",
+              "NEEDS_INFORMATION"
+            ]
+          },
+          "statusAsOf": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "diagnosisCodes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-vsp-prohibited": true,
+            "x-vsp-classification": "PHI_RESTRICTED"
+          }
+        },
+        "required": [
+          "id",
+          "subjectId",
+          "serviceDate",
+          "payerDisplayName",
+          "insurerStatus",
+          "statusAsOf"
+        ]
+      },
+      "Onboarding": {
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "APPLICATION_RECEIVED",
+              "DOCUMENTS_PENDING",
+              "CREDENTIALING_IN_REVIEW",
+              "CONTRACTING",
+              "ACTIVE",
+              "ON_HOLD"
+            ]
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "organizationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "providerId",
+          "stage",
+          "asOf"
+        ]
+      },
+      "OnboardingDocument": {
+        "type": "object",
+        "properties": {
+          "documentType": {
+            "type": "string",
+            "enum": [
+              "LICENSE",
+              "MALPRACTICE_INSURANCE",
+              "W9",
+              "DEA",
+              "BOARD_CERTIFICATION"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RECEIVED",
+              "MISSING",
+              "EXPIRED",
+              "IN_REVIEW",
+              "ACCEPTED"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "documentType",
+          "status",
+          "updatedAt"
+        ]
+      },
+      "Remittance": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "practiceId": {
+            "type": "string"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "totalMinor": {
+            "type": "integer",
+            "x-unit": "minor_units"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "SCHEDULED",
+              "SENT",
+              "RETURNED"
+            ]
+          },
+          "paidOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "bankAccountLast4": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-vsp-prohibited": true,
+            "x-vsp-classification": "FINANCIAL"
+          }
+        },
+        "required": [
+          "id",
+          "practiceId",
+          "periodStart",
+          "periodEnd",
+          "totalMinor",
+          "status"
+        ]
+      },
+      "Referral": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "specialtyCode": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RECEIVED",
+              "IN_REVIEW",
+              "ACCEPTED",
+              "DECLINED",
+              "SCHEDULED",
+              "CLOSED"
+            ]
+          },
+          "statusAsOf": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "receivedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "referringOrganizationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "clinicalSummary": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-vsp-prohibited": true,
+            "x-vsp-classification": "PHI_RESTRICTED"
+          }
+        },
+        "required": [
+          "id",
+          "subjectId",
+          "specialtyCode",
+          "status",
+          "statusAsOf",
+          "receivedOn"
+        ]
+      },
+      "Authorization": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "payerDisplayName": {
+            "type": "string"
+          },
+          "serviceCode": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "DENIED",
+              "EXPIRED"
+            ]
+          },
+          "unitsApproved": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "unitsUsed": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "validFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "validTo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "statusAsOf": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "subjectId",
+          "payerDisplayName",
+          "serviceCode",
+          "status",
+          "statusAsOf"
+        ]
+      },
+      "Eligibility": {
+        "type": "object",
+        "properties": {
+          "subjectId": {
+            "type": "string"
+          },
+          "payerDisplayName": {
+            "type": "string"
+          },
+          "coverageStatus": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE",
+              "NOT_FOUND_AT_PAYER"
+            ]
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "memberReference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-vsp-prohibited": true,
+            "x-vsp-classification": "PHI_RESTRICTED"
+          }
+        },
+        "required": [
+          "subjectId",
+          "payerDisplayName",
+          "coverageStatus",
+          "verifiedAt"
+        ]
+      },
+      "ChangeRequest": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "COMPLETED",
+              "INCOMPLETE",
+              "REJECTED"
+            ]
+          },
+          "receiptId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resourceType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resourceId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resourceVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "appliedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "notAfter": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "requestDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "failureCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resource": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "startsAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "timeZone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "slotId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "subjectId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "required": [
+          "requestId",
+          "operation",
+          "state"
+        ]
+      },
+      "Receipt": {
+        "type": "object",
+        "properties": {
+          "receiptId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "resourceType": {
+            "type": "string"
+          },
+          "resourceId": {
+            "type": "string"
+          },
+          "resourceVersion": {
+            "type": "string"
+          },
+          "stateDigest": {
+            "type": "string"
+          },
+          "requestDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "committedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "receiptId",
+          "requestId",
+          "operation",
+          "resourceType",
+          "resourceId",
+          "resourceVersion",
+          "stateDigest",
+          "requestDigest",
+          "committedAt"
+        ]
+      },
+      "Consistency": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "dialect": {
+            "type": "string",
+            "enum": [
+              "canonical",
+              "legacy_codes"
+            ]
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "visibilityWindowMs": {
+            "type": "integer"
+          },
+          "dispatchDeadline": {
+            "type": "string",
+            "enum": [
+              "REQUEST_NOT_AFTER"
+            ]
+          },
+          "requestDigest": {
+            "type": "string",
+            "enum": [
+              "REFBIZ_REQUEST_V1"
+            ]
+          },
+          "absenceProof": {
+            "type": "string",
+            "enum": [
+              "FENCE_AFTER_DEADLINE"
+            ]
+          },
+          "dispatchReservation": {
+            "type": "string",
+            "enum": [
+              "RESERVE_BEFORE_CREATE"
+            ]
+          }
+        },
+        "required": [
+          "accountId",
+          "dialect",
+          "timeZone",
+          "visibilityWindowMs",
+          "dispatchDeadline",
+          "requestDigest",
+          "absenceProof",
+          "dispatchReservation"
+        ]
+      },
+      "LegacyReference": {
+        "type": "object",
+        "properties": {
+          "externalRef": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "RESERVED",
+              "POSTED",
+              "FENCED",
+              "RELEASED"
+            ]
+          },
+          "reservedForDispatch": {
+            "type": "boolean"
+          },
+          "reservedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "postedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "fencedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "externalRef",
+          "state",
+          "reservedForDispatch"
+        ]
+      },
+      "LegacyAppointment": {
+        "type": "object",
+        "properties": {
+          "apptRef": {
+            "type": "string"
+          },
+          "clientRef": {
+            "type": "string"
+          },
+          "providerRef": {
+            "type": "string"
+          },
+          "startLocal": {
+            "type": "string"
+          },
+          "modeCode": {
+            "type": "string",
+            "enum": [
+              "VID",
+              "OFC",
+              "TEL"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "BKD",
+              "CXL",
+              "CMP"
+            ]
+          },
+          "rev": {
+            "type": "integer"
+          },
+          "externalRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "apptRef",
+          "clientRef",
+          "providerRef",
+          "startLocal",
+          "modeCode",
+          "state",
+          "rev"
+        ]
+      },
+      "AppointmentBooking": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "subjectId",
+          "slotId",
+          "slotVersion",
+          "authority",
+          "actingPartyId"
+        ],
+        "properties": {
+          "subjectId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "slotId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "slotVersion": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,8}$"
+          },
+          "authority": {
+            "type": "string",
+            "enum": [
+              "CLIENT_CONFIRMED",
+              "PROVIDER_APPROVED"
+            ],
+            "description": "CLIENT_CONFIRMED: the acting party is the record's client. PROVIDER_APPROVED: the acting party is the provider whose schedule it is. A provider approval never stands in for a client's consent."
+          },
+          "actingPartyId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "notAfter": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional dispatch deadline (at most 24 hours ahead). The change is applied only if the final check, the last statement of its transaction (database clock), passes; otherwise the request is REJECTED with DEADLINE_EXCEEDED. Lock waits are bounded by the time left. The deadline bounds how long a delivery keeps trying; it does NOT make a lookup 404 definitive (the COMMIT after the final check can land after notAfter). Once notAfter has passed, POST /api/v1/change-requests/{requestId}/fence proves absence. Part of the request digest."
+          }
+        }
+      },
+      "AppointmentReschedule": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "appointmentId",
+          "expectedVersion",
+          "slotId",
+          "slotVersion",
+          "authority",
+          "actingPartyId"
+        ],
+        "properties": {
+          "appointmentId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "expectedVersion": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,8}$"
+          },
+          "slotId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "slotVersion": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,8}$"
+          },
+          "authority": {
+            "type": "string",
+            "enum": [
+              "CLIENT_CONFIRMED",
+              "PROVIDER_APPROVED"
+            ],
+            "description": "CLIENT_CONFIRMED: the acting party is the record's client. PROVIDER_APPROVED: the acting party is the provider whose schedule it is. A provider approval never stands in for a client's consent."
+          },
+          "actingPartyId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "notAfter": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional dispatch deadline (at most 24 hours ahead). The change is applied only if the final check, the last statement of its transaction (database clock), passes; otherwise the request is REJECTED with DEADLINE_EXCEEDED. Lock waits are bounded by the time left. The deadline bounds how long a delivery keeps trying; it does NOT make a lookup 404 definitive (the COMMIT after the final check can land after notAfter). Once notAfter has passed, POST /api/v1/change-requests/{requestId}/fence proves absence. Part of the request digest."
+          }
+        }
+      },
+      "AppointmentCancellation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "appointmentId",
+          "expectedVersion",
+          "reasonCode",
+          "authority",
+          "actingPartyId"
+        ],
+        "properties": {
+          "appointmentId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "expectedVersion": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,8}$"
+          },
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "CLIENT_REQUEST",
+              "PROVIDER_UNAVAILABLE",
+              "SCHEDULING_CONFLICT"
+            ]
+          },
+          "authority": {
+            "type": "string",
+            "enum": [
+              "CLIENT_CONFIRMED",
+              "PROVIDER_APPROVED"
+            ],
+            "description": "CLIENT_CONFIRMED: the acting party is the record's client. PROVIDER_APPROVED: the acting party is the provider whose schedule it is. A provider approval never stands in for a client's consent."
+          },
+          "actingPartyId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "notAfter": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional dispatch deadline (at most 24 hours ahead). The change is applied only if the final check, the last statement of its transaction (database clock), passes; otherwise the request is REJECTED with DEADLINE_EXCEEDED. Lock waits are bounded by the time left. The deadline bounds how long a delivery keeps trying; it does NOT make a lookup 404 definitive (the COMMIT after the final check can land after notAfter). Once notAfter has passed, POST /api/v1/change-requests/{requestId}/fence proves absence. Part of the request digest."
+          }
+        }
+      },
+      "AvailabilityBlock": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "providerId",
+          "slotId",
+          "slotVersion",
+          "reasonCode",
+          "authority",
+          "actingPartyId"
+        ],
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "slotId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "slotVersion": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,8}$"
+          },
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "PROVIDER_UNAVAILABLE",
+              "ADMINISTRATIVE"
+            ]
+          },
+          "authority": {
+            "type": "string",
+            "enum": [
+              "PROVIDER_APPROVED"
+            ]
+          },
+          "actingPartyId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "notAfter": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional dispatch deadline (at most 24 hours ahead). The change is applied only if the final check, the last statement of its transaction (database clock), passes; otherwise the request is REJECTED with DEADLINE_EXCEEDED. Lock waits are bounded by the time left. The deadline bounds how long a delivery keeps trying; it does NOT make a lookup 404 definitive (the COMMIT after the final check can land after notAfter). Once notAfter has passed, POST /api/v1/change-requests/{requestId}/fence proves absence. Part of the request digest."
+          }
+        }
+      },
+      "BillingReviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "invoiceId",
+          "expectedVersion",
+          "reasonCode",
+          "authority",
+          "actingPartyId"
+        ],
+        "properties": {
+          "invoiceId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "expectedVersion": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,8}$"
+          },
+          "reasonCode": {
+            "type": "string",
+            "enum": [
+              "CHARGE_QUESTIONED",
+              "DUPLICATE_CHARGE_SUSPECTED",
+              "AMOUNT_QUESTIONED"
+            ]
+          },
+          "authority": {
+            "type": "string",
+            "enum": [
+              "CLIENT_CONFIRMED"
+            ]
+          },
+          "actingPartyId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "notAfter": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional dispatch deadline (at most 24 hours ahead). The change is applied only if the final check, the last statement of its transaction (database clock), passes; otherwise the request is REJECTED with DEADLINE_EXCEEDED. Lock waits are bounded by the time left. The deadline bounds how long a delivery keeps trying; it does NOT make a lookup 404 definitive (the COMMIT after the final check can land after notAfter). Once notAfter has passed, POST /api/v1/change-requests/{requestId}/fence proves absence. Part of the request digest."
+          }
+        }
+      },
+      "LegacyBooking": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clientRef",
+          "providerRef",
+          "startLocal",
+          "modeCode"
+        ],
+        "properties": {
+          "clientRef": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "providerRef": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          },
+          "startLocal": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$",
+            "description": "Wall-clock time in the account's time zone, no offset."
+          },
+          "modeCode": {
+            "type": "string",
+            "enum": [
+              "VID",
+              "OFC",
+              "TEL"
+            ]
+          },
+          "notAfter": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional dispatch deadline (at most 24 hours ahead). The change is applied only if the final check, the last statement of its transaction (database clock), passes; otherwise the request is REJECTED with DEADLINE_EXCEEDED. Lock waits are bounded by the time left. The deadline bounds how long a delivery keeps trying; it does NOT make a lookup 404 definitive (the COMMIT after the final check can land after notAfter). Once notAfter has passed, POST /api/v1/change-requests/{requestId}/fence proves absence. Part of the request digest."
+          },
+          "dispatchId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$",
+            "description": "The dispatch that reserved the reference (PUT /api/v1/legacy/references/{externalRef}); a create naming another dispatch than the reservation's is refused 409 RESERVED_BY_ANOTHER_DISPATCH."
+          }
+        }
+      },
+      "ChangeRequestFence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation",
+          "notAfter"
+        ],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "scheduling.booking.put",
+              "scheduling.reschedule.put",
+              "scheduling.cancellation.put",
+              "scheduling.availability_block.put",
+              "billing.review_request.put"
+            ]
+          },
+          "notAfter": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The dispatch deadline the request was sent with. The fence inserts only once the database clock is past it."
+          }
+        }
+      },
+      "LegacyReservation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "dispatchId"
+        ],
+        "properties": {
+          "dispatchId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$",
+            "description": "Opaque id of ONE dispatch (a fresh id per delivery attempt of the client)."
+          },
+          "notAfter": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional dispatch deadline (at most 24 hours ahead). The change is applied only if the final check, the last statement of its transaction (database clock), passes; otherwise the request is REJECTED with DEADLINE_EXCEEDED. Lock waits are bounded by the time left. The deadline bounds how long a delivery keeps trying; it does NOT make a lookup 404 definitive (the COMMIT after the final check can land after notAfter). Once notAfter has passed, POST /api/v1/change-requests/{requestId}/fence proves absence. Part of the request digest."
+          }
+        }
+      },
+      "LegacyRelease": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "dispatchId"
+        ],
+        "properties": {
+          "dispatchId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]{1,11}_[A-Za-z0-9_-]{16,64}$"
+          }
+        }
+      },
+      "LegacyFence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "notAfter"
+        ],
+        "properties": {
+          "notAfter": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The dispatch deadline of the create. The fence changes nothing before it."
+          }
+        }
+      },
+      "TokenResponse": {
+        "type": "object",
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "scope",
+          "account_id",
+          "region"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string",
+            "enum": [
+              "Bearer"
+            ]
+          },
+          "expires_in": {
+            "type": "integer"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "account_id": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{2,63}$"
+          }
+        }
+      },
+      "SchemaDocument": {
+        "type": "object",
+        "description": "JSON Schema (draft 2020-12) of every object in the account's dialect; `$defs` per object, `x-vsp-prohibited` marks fields a consumer must never ingest."
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+# platform/src/models/port: ModelPort, typed results, resilience, fallback, configuration (WP-08)
+
+Status: software **IMPLEMENTED** (unit tests; the adapters over the emulators in `../adapters`). Member of the
+untrusted-output group (docs/ARCHITECTURE.md 6.4 rule 1): imports protocol, shared, resilience, observability, the
+egress check and the egress-classified transport only.
+
+| File | Contents |
+|---|---|
+| `types.ts` | `ModelRequest` (instructions channel, data channel, tools, declared data class, `ModelCallBudget`), `ModelStreamEvent`, `ModelResult` (COMPLETED, REFUSED, INCOMPLETE, OVERLOADED, TIMED_OUT, CANCELLED, MALFORMED, UNAVAILABLE, FAILED) with provider-specific `detail` and `RefusalSource` (MODEL_REFUSAL, GUARDRAIL_INTERVENED, CONTENT_FILTER, CLASSIFIED_REFUSAL), `ModelPort` |
+| `adapter.ts` | The adapter seam: one provider exchange per `attempt`, typed terminal results, `ModelCallError` for everything else |
+| `errors.ts` | `ModelCallError` (kind, error class RETRYABLE / PERMANENT / UNKNOWN, HTTP status, Retry-After, timeout phase); the per-provider refinements are `openAiHttpFailure`, `bedrockFailure` and `vllmHttpFailure` in `../adapters` |
+| `resilient.ts` | `ResilientModelPort`: the endpoint budget as a ceiling (`cappedBudget`), request checks before any I/O (size, the endpoint's `maxDataClass` ceiling, structured output supported by the endpoint, unique tool names, tool and response schemas compile), overall deadline (an exchange it ends counts as a provider failure for the breaker; a caller abort stays neutral; a deadline that fires while the call is queued frees its bulkhead queue position at once), attempt timeout, breaker, bulkhead, bounded retries with Retry-After, no retry after output, result checks (tool calls, refusal prose, structured output), `attempts` and `sentAttempts` (attempts whose request bytes may have reached the provider; never counted before an in-flight attempt has settled: the port waits, bounded, after a caller abort, an attempt timeout or the deadline, and an attempt still open counts as sent), content-free metrics and logs |
+| `tool-calls.ts` | Tool-call proposals checked against the request: tool offered, tool choice respected, unique call ids, arguments valid against the declared JSON schema; a violation is MALFORMED. The validator uses the schema's declared dialect (2020-12 by default, the gateway catalogue's; or draft-07; other `$schema` refused), strict mode with `format` asserted, and one isolated Ajv instance per schema (no shared `$id` registry, no loader): compilation never depends on process history and a `$ref` resolves only inside its own schema; the compiled-validator cache is bounded (`TOOL_SCHEMA_CACHE_MAX`). Tool names must be unique (MODEL_TOOL_NAME_DUPLICATE). Structured output: `responseSchema` compiled before any I/O for every provider (MODEL_RESPONSE_SCHEMA_INVALID) and the COMPLETED answer validated (`structuredOutputViolation`: OpenAI/vLLM JSON text, the Bedrock forced call with no free text; MODEL_STRUCTURED_OUTPUT_INVALID) |
+| `refusal.ts` | The refusal classifier: a refusal opening in COMPLETED text-only output (how vLLM and an un-guardrailed Bedrock model refuse) becomes REFUSED CLASSIFIED_REFUSAL; endpoint phrases from configuration |
+| `fallback.ts` | `decideModelFallback`, `speakableText`: approved template plus a human, safety route first (a cancelled call on a safety turn keeps the safety route; elsewhere it is silent) |
+| `config.ts` | `ModelEndpointConfig`, `modelEndpointGuardViolations`, `egressBindingFor`, `invokeUrlFor` |
+| `invocation.ts` | `modelInvocationRecord`: the ModelInvocation audit record (keyed HMAC input digest, usage, cost, outcome, the budget capped at the endpoint ceiling `budgetCeiling`; no content) for every call whose request bytes reached the allowlisted endpoint (`sentAttempts >= 1`, whatever the outcome, a 401/403 after send and a barge-in after send included); none for a call refused before any byte was sent |
+| `credentials.ts` | Opaque credential handles (`BearerCredential`, `AwsCredential`) |
+| `metrics.ts` | `MODEL_METRICS` and `withModelMetrics` (moves to `observability/catalog/models.ts` on integration) |
+
+Test: `cd platform && npx vitest run src/models/port`.

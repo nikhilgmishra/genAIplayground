@@ -12,8 +12,15 @@
  *    content-free classes (PUBLIC, INTERNAL) only — config cannot override this;
  *  - URLs must be https (loopback http only in local/ci), carry no userinfo,
  *    match a configured host exactly and contain no PHI-like pattern in the
- *    path or query (no PHI in URLs);
- *  - in production, destinations labelled local_fixture are rejected (OPS-04).
+ *    path or query (no PHI in URLs); only platform ids and a destination's reviewed
+ *    `opaquePathIds` constants are exempt from that scan;
+ *  - in production, destinations labelled local_fixture are rejected (OPS-04);
+ *  - model endpoints have their own destination classes (WP-08, FO-09-45, FO-19-09): MODEL_PROVIDER_API
+ *    (publisher or cloud-hosted inference API) and MODEL_SELF_HOSTED (self-hosted inference in approved
+ *    infrastructure). Each carries the provider, region and retention terms it was approved under, and a
+ *    model adapter's per-request check (`forModelEndpoint`) refuses a destination whose terms differ from
+ *    the adapter's binding, so an unavailable model never silently falls back to an unapproved provider,
+ *    region or retention policy (prompt section 9).
  *
  * Configuration that violates a hard rule is rejected at construction, not
  * silently narrowed. The coverage/approval references are not verified here
@@ -31,7 +38,12 @@ import { detectSensitiveSpans, luhnValid } from "./patterns.js";
 export const DestinationKind = z.enum([
   "PHI_PROCESSOR",
   "SYSTEM_OF_RECORD",
+  /** Generic model destination (connector profiles of the model_provider family); not usable by the model adapters. */
   "MODEL_ENDPOINT",
+  /** Model class: a publisher or cloud-hosted inference API (OpenAI Responses, Amazon Bedrock). */
+  "MODEL_PROVIDER_API",
+  /** Model class: self-hosted inference (vLLM) in approved infrastructure. */
+  "MODEL_SELF_HOSTED",
   "RESTRICTED_MEDIA_STORE",
   "VERIFICATION_SERVICE",
   "AUDIT_SINK",
@@ -45,7 +57,9 @@ export const DestinationKind = z.enum([
 export type DestinationKind = z.infer<typeof DestinationKind>;
 
 /** Destination kinds that may ever receive PHI / financial data (with coverage + approval). */
-export const PHI_CAPABLE_KINDS: ReadonlySet<DestinationKind> = new Set(["PHI_PROCESSOR", "SYSTEM_OF_RECORD", "MODEL_ENDPOINT", "RESTRICTED_MEDIA_STORE"]);
+export const PHI_CAPABLE_KINDS: ReadonlySet<DestinationKind> = new Set(["PHI_PROCESSOR", "SYSTEM_OF_RECORD", "MODEL_ENDPOINT", "MODEL_PROVIDER_API", "MODEL_SELF_HOSTED", "RESTRICTED_MEDIA_STORE"]);
+/** The model endpoint classes: destinations a model adapter may reach, each bound to its approved model terms. */
+export const MODEL_CLASS_KINDS: ReadonlySet<DestinationKind> = new Set(["MODEL_PROVIDER_API", "MODEL_SELF_HOSTED"]);
 /** Destination kinds limited to content-free classes regardless of configuration. */
 export const CONTENT_FREE_ONLY_KINDS: ReadonlySet<DestinationKind> = new Set([
   "AUDIT_SINK",
@@ -63,6 +77,25 @@ const HOST = z
   .max(253)
   .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*(?::\d{1,5})?$/, "lowercase host[:port]");
 
+/** RFC 9562 layout (8-4-4-4-12 hex, version 1-8, variant 10xx), lower case: a reviewed opaque path identifier. */
+export const CanonicalUuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/, "lower-case canonical UUID");
+
+/** Region of a model endpoint: an AWS-style region code, or `local` for a local/ci emulator or local weights. */
+export const ModelEndpointRegion = z.string().regex(/^[a-z]{2}(-[a-z]+)+-[0-9]$|^local$/);
+
+/**
+ * The terms a model endpoint destination was approved under (AIN-26, AIN-49): the provider protocol, the region
+ * and the data retention / logging terms. Required on the model classes and refused on every other kind.
+ */
+export const ModelEndpointTerms = z.strictObject({
+  /** Provider protocol id as the model adapters name it (e.g. `openai_responses`). */
+  provider: z.string().regex(/^[a-z][a-z0-9_]{2,40}$/),
+  region: ModelEndpointRegion,
+  /** Reference to the approved retention and logging terms of this endpoint (for example a zero-retention record). */
+  retentionPolicyRef: z.string().regex(/^[a-z][a-z0-9_.-]{2,63}$/),
+});
+export type ModelEndpointTerms = z.infer<typeof ModelEndpointTerms>;
+
 export const EgressDestination = z.strictObject({
   destinationId: z.string().regex(/^egr_[a-z0-9_]{3,40}$/),
   kind: DestinationKind,
@@ -76,6 +109,15 @@ export const EgressDestination = z.strictObject({
   }),
   environments: z.array(Environment).min(1).max(5),
   adapterKind: z.enum(["local_fixture", "live"]),
+  /** Model classes only (MODEL_PROVIDER_API, MODEL_SELF_HOSTED): the approved model endpoint terms. */
+  model: ModelEndpointTerms.optional(),
+  /**
+   * Reviewed opaque path identifiers of this destination (WP-08 decision on the wave B3 hand-off): exact canonical
+   * UUIDs that may appear as a WHOLE path segment of a URL to this destination, for example the tenant id of a hosted
+   * IdP issuer (`https://login.example/<tenant uuid>/v2.0`). A constant from reviewed configuration carries no
+   * request data, so it is exempt from the URL scan; every other UUID-shaped segment is scanned like any other text.
+   */
+  opaquePathIds: z.array(CanonicalUuid).min(1).max(8).optional(),
 });
 export type EgressDestination = z.infer<typeof EgressDestination>;
 
@@ -93,6 +135,15 @@ export interface EgressDecision {
 
 export type EgressTarget = string | URL | { destinationId: string };
 
+/** What a model adapter is bound to: the request may only reach a model-class destination with exactly these terms. */
+export type ModelEgressBinding = ModelEndpointTerms;
+
+/** The per-request check the egress-classified transport calls (structurally connectors/http EgressCheck). */
+export interface ModelEgressCheck {
+  readonly binding: ModelEgressBinding;
+  assertAllowed(target: URL, dataClass: Classification): EgressDestination;
+}
+
 const RESTRICTED_CLASSES: readonly Classification[] = ["PHI", "PHI_RESTRICTED", "FINANCIAL", "VERIFICATION_SECRET"];
 
 /** Hard-rule violations for one destination (empty = acceptable). */
@@ -106,6 +157,11 @@ export function destinationViolations(d: EgressDestination, environment: Environ
     if (cls === "VERIFICATION_SECRET" && d.coverage.approvalId === null) v.push(`${d.destinationId}:SECRET_DESTINATION_APPROVAL_MISSING`);
   }
   if (environment === "production" && d.adapterKind === "local_fixture" && d.environments.includes("production")) v.push(`${d.destinationId}:FIXTURE_DESTINATION_IN_PRODUCTION`);
+  if (MODEL_CLASS_KINDS.has(d.kind)) {
+    if (d.model === undefined) v.push(`${d.destinationId}:MODEL_ENDPOINT_TERMS_MISSING`);
+    // A `local` region (emulator, local weights) is never approved for a deployed environment.
+    else if (d.model.region === "local" && d.environments.some((e) => e !== "local" && e !== "ci")) v.push(`${d.destinationId}:MODEL_LOCAL_REGION_OUTSIDE_LOCAL`);
+  } else if (d.model !== undefined) v.push(`${d.destinationId}:MODEL_TERMS_ON_NON_MODEL_DESTINATION`);
   return v;
 }
 
@@ -178,6 +234,68 @@ export class EgressGuard {
     return { allowed: true, reasonCode: "EGRESS_ALLOWED", destinationId: d.destinationId };
   }
 
+  /**
+   * Model endpoint classes (WP-08): the target must resolve to a MODEL_PROVIDER_API or MODEL_SELF_HOSTED
+   * destination approved for the data class AND for exactly the binding's provider, region and retention terms.
+   * The generic MODEL_ENDPOINT kind and every other kind are refused (`EGRESS_NOT_A_MODEL_ENDPOINT`), so a model
+   * request can never reach a system of record or a destination approved under different model terms.
+   */
+  checkModelEndpoint(target: EgressTarget, dataClass: Classification, binding: ModelEgressBinding): EgressDecision {
+    const decision = this.evaluateModel(target, dataClass, binding);
+    if (!decision.allowed) this.countDenied(decision.reasonCode);
+    return decision;
+  }
+
+  /**
+   * The same decision as `checkModelEndpoint`, WITHOUT counting a denial: for callers that only ask what the guard
+   * would decide (the invocation audit record of a call the transport already checked, `invocationEgressCheck`), so
+   * one refused payload is counted once in vsp_egress_denied_total, by the check that actually refused it.
+   */
+  peekModelEndpoint(target: EgressTarget, dataClass: Classification, binding: ModelEgressBinding): EgressDecision {
+    return this.evaluateModel(target, dataClass, binding);
+  }
+
+  private evaluateModel(target: EgressTarget, dataClass: Classification, binding: ModelEgressBinding): EgressDecision {
+    const decision = this.evaluate(target, dataClass);
+    if (!decision.allowed) return decision;
+    const d = this.byId.get(decision.destinationId ?? "");
+    const deny = (reasonCode: string): EgressDecision => ({ allowed: false, reasonCode, destinationId: decision.destinationId });
+    if (!d || !MODEL_CLASS_KINDS.has(d.kind) || d.model === undefined) return deny("EGRESS_NOT_A_MODEL_ENDPOINT");
+    const b = ModelEndpointTerms.safeParse(binding);
+    if (!b.success) return deny("EGRESS_MODEL_BINDING_INVALID");
+    if (d.model.provider !== b.data.provider) return deny("EGRESS_MODEL_PROVIDER_NOT_APPROVED");
+    if (d.model.region !== b.data.region) return deny("EGRESS_MODEL_REGION_NOT_APPROVED");
+    if (d.model.retentionPolicyRef !== b.data.retentionPolicyRef) return deny("EGRESS_MODEL_RETENTION_NOT_APPROVED");
+    return decision;
+  }
+
+  /** Throws AccessDeniedError (reason code only) unless the model endpoint egress is approved for the binding. */
+  assertModelEndpoint(target: EgressTarget, dataClass: Classification, binding: ModelEgressBinding): EgressDestination {
+    const decision = this.checkModelEndpoint(target, dataClass, binding);
+    if (!decision.allowed) {
+      this.logger.warn("privacy.egress.denied", { reasonCode: decision.reasonCode, destinationId: decision.destinationId, kind: String(dataClass) });
+      throw new AccessDeniedError(decision.reasonCode);
+    }
+    const d = this.byId.get(decision.destinationId ?? "");
+    if (!d) throw new AccessDeniedError("EGRESS_DESTINATION_UNKNOWN");
+    return d;
+  }
+
+  /**
+   * The per-request egress check of one model adapter (passed to the egress-classified transport as its
+   * `egress`): every request is checked against the model classes and the binding. The binding is copied
+   * and frozen, so a caller cannot widen it after construction.
+   */
+  forModelEndpoint(binding: ModelEgressBinding): ModelEgressCheck {
+    const parsed = ModelEndpointTerms.safeParse(binding);
+    if (!parsed.success) throw new ConfigurationRejectedError(["EGRESS_MODEL_BINDING_INVALID"]);
+    const frozen = Object.freeze({ ...parsed.data });
+    return Object.freeze({
+      binding: frozen,
+      assertAllowed: (target: URL, dataClass: Classification) => this.assertModelEndpoint(target, dataClass, frozen),
+    });
+  }
+
   /** Throws AccessDeniedError (reason code only) unless the egress is approved. */
   assertAllowed(target: EgressTarget, dataClass: Classification): EgressDestination {
     const decision = this.check(target, dataClass);
@@ -234,30 +352,58 @@ export class EgressGuard {
       const loopbackOk = url.protocol === "http:" && LOOPBACK.has(host) && (this.environment === "local" || this.environment === "ci");
       if (!loopbackOk) return { reasonCode: "EGRESS_URL_INSECURE" };
     }
-    if (urlCarriesSensitivePattern(url)) return { reasonCode: "EGRESS_URL_CONTAINS_SENSITIVE_PATTERN" };
     const key = url.port ? `${host}:${url.port}` : host;
     const d = this.byHost.get(key);
+    // The sensitive-pattern scan comes first (same reason code as before for an unknown host); only the reviewed
+    // opaque path identifiers of the destination the host names are exempt.
+    if (urlCarriesSensitivePattern(url, { opaquePathIds: d?.opaquePathIds ?? [] })) return { reasonCode: "EGRESS_URL_CONTAINS_SENSITIVE_PATTERN" };
     return d ? { destination: d } : { reasonCode: "EGRESS_DESTINATION_UNKNOWN" };
   }
 }
 
 /**
- * PHI-like patterns in a URL path, query or fragment. Opaque ids are allowed; long
- * digit runs, emails, phone/SSN/date shapes and Luhn-valid card numbers are not.
+ * PHI-like patterns in a URL path, query or fragment. Opaque ids are allowed; long digit runs, emails,
+ * phone/SSN/date shapes and Luhn-valid card numbers are not.
+ *
+ * Opaque tokens, as whole tokens only:
+ *  - platform ids (`newId` output, OPAQUE_TOKEN) anywhere in the path, query or fragment;
+ *  - the destination's reviewed `opaquePathIds` (canonical UUID constants from the egress configuration, e.g. a
+ *    hosted IdP's tenant id in its issuer path), as a WHOLE path segment only, compared case-insensitively.
+ * Nothing else is exempt (WP-08 decision on the wave B3 hand-off): a UUID-shaped segment that is not a listed
+ * constant is scanned like any other text, because the RFC 9562 layout can carry decimal data (a phone number,
+ * an SSN or a record number in its groups, plus a few hex letters to look random). A segment that contains a
+ * listed identifier together with anything else is refused when that remainder has a digit, so the exemption
+ * never extends to what surrounds the constant; query and fragment values never use the exemption.
  */
-export function urlCarriesSensitivePattern(url: URL): boolean {
-  let decoded: string;
+export function urlCarriesSensitivePattern(url: URL, opts: { opaquePathIds?: readonly string[] } = {}): boolean {
+  let path: string;
+  let rest: string;
   try {
-    decoded = decodeURIComponent(`${url.pathname} ${url.search} ${url.hash}`);
+    path = decodeURIComponent(url.pathname);
+    rest = decodeURIComponent(`${url.search} ${url.hash}`);
   } catch {
     return true;
   }
-  // Opaque identifiers (newId output) are random and allowed as whole path/query tokens.
-  const scanned = decoded
-    .split(/([/?&=#+\s]+)/)
-    .map((tok) => (OPAQUE_TOKEN.test(tok) ? "x" : tok))
-    .join("")
-    .replace(/[/?&=#+]/g, " ");
+  const approved = new Set((opts.opaquePathIds ?? []).map((id) => id.toLowerCase()));
+  // Opaque identifiers (newId output) are random and allowed as whole tokens anywhere.
+  const platformIds = (text: string) =>
+    text
+      .split(/([/?&=#+\s]+)/)
+      .map((tok) => (OPAQUE_TOKEN.test(tok) ? "x" : tok))
+      .join("");
+  const segments = path.split("/");
+  if (approved.size > 0) {
+    for (const segment of segments) {
+      const lower = segment.toLowerCase();
+      if (approved.has(lower)) continue;
+      let remainder = lower;
+      for (const id of approved) remainder = remainder.split(id).join(" ");
+      // Digits next to a listed identifier inside one segment (`<id>5550100123`, `555-0100-<id>`): refused outright.
+      if (remainder !== lower && /\d/.test(remainder)) return true;
+    }
+  }
+  const scannedPath = segments.map((segment) => (approved.has(segment.toLowerCase()) ? "x" : platformIds(segment))).join("/");
+  const scanned = `${scannedPath} ${platformIds(rest)}`.replace(/[/?&=#+]/g, " ");
   const spans = detectSensitiveSpans(scanned);
   for (const s of spans) {
     if (s.type !== "DIGITS") return true;

@@ -1,0 +1,67 @@
+# WP-23: reference business API (FO-06-74, FO-16-17; docs/ARCHITECTURE.md section 6.3.2).
+#
+#   make up PROFILE=core,domain
+#   make test-integration SUITE=domain
+#
+# The documented reference integration for the canonical scheduling, billing / claims-status, provider network
+# and referral / authorization contracts: services/reference-business-api (OpenAPI in its openapi/ directory).
+# It runs the checkout's service code on the same pinned Node base image as app.compose.yaml, from a read-only
+# bind mount (no locally built image, so the image stays digest-pinned; services/reference-business-api/Dockerfile
+# builds the deployable image). Run `pnpm install --frozen-lockfile` first: the container uses the checkout's
+# node_modules (tsx, fastify, pg). The process loads the sources at start: after a change to the service it must be
+# recreated; the domain suite compares the digest the service reports (GET /__admin/build) with the checkout's and
+# refuses a stale container (REFBIZ_STALE_CODE).
+#
+# Network: host networking, every listener on 127.0.0.1 only (nothing is published beyond the loopback interface):
+#   58620  the API over HTTPS. Server certificates are registered per host name (SNI) at run time by the test
+#          that owns the name, from its own private CA; an unknown name fails the handshake.
+#   58621  the fault-control API (local only: REFBIZ_FAULT_CONTROL=enabled is refused outside local/ci at start-up).
+#          It creates SYNTHETIC tenant accounts, OAuth clients and records, per-test loopback endpoints (each
+#          standing in for one system's network endpoint, so a connection-level fault never touches another test),
+#          and arms faults and seams. Nothing is armed by default.
+#   58622  liveness / readiness.
+# State lives in its own database (`refbiz`) on the composition's postgres service.
+services:
+  reference-business-api:
+    image: public.ecr.aws/docker/library/node:22.22.0-bookworm-slim@sha256:dd9d21971ec4395903fa6143c2b9267d048ae01ca6d3ea96f16cb30df6187d94
+    profiles: [domain]
+    network_mode: host
+    user: "10001:10001"
+    working_dir: /workspace/services/reference-business-api
+    restart: "no"
+    read_only: true
+    tmpfs: ["/tmp"]
+    volumes:
+      - type: bind
+        source: ../..
+        target: /workspace
+        read_only: true
+    command: ["node", "--import", "tsx", "src/main.ts"]
+    environment:
+      HOME: /tmp
+      REFBIZ_ENVIRONMENT: local
+      REFBIZ_API_BIND: "127.0.0.1"
+      REFBIZ_API_PORT: "${VSP_PORT_REFERENCE_BUSINESS_API:-58620}"
+      REFBIZ_ADMIN_BIND: "127.0.0.1"
+      REFBIZ_ADMIN_PORT: "${VSP_PORT_REFERENCE_BUSINESS_API_ADMIN:-58621}"
+      REFBIZ_HEALTH_PORT: "${VSP_PORT_REFERENCE_BUSINESS_API_HEALTH:-58622}"
+      REFBIZ_FAULT_CONTROL: enabled
+      REFBIZ_DATABASE_HOST: "127.0.0.1"
+      REFBIZ_DATABASE_PORT: "${VSP_PORT_POSTGRES:-55432}"
+      REFBIZ_DATABASE_USER: vsp
+      REFBIZ_DATABASE_PASSWORD: ${VSP_POSTGRES_PASSWORD:?run make up (generates .tools/vsp-local/env)}
+      REFBIZ_DATABASE_NAME: refbiz
+      REFBIZ_DATABASE_CREATE: "true"
+      REFBIZ_DATABASE_SSL: disable
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.REFBIZ_HEALTH_PORT+'/health/ready').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+    labels:
+      io.vsp.emulates: "tenant systems of record behind the canonical domain contracts: scheduling (options, create, reschedule, cancel, provider availability), billing and claims status, provider onboarding, documents and remittance, referral, authorization and eligibility status"
+      io.vsp.protocol: "HTTPS (per-host certificates, SNI) with OAuth 2.0 client credentials; JSON change requests keyed by a client request id, lookup by request id with a documented visibility window, receipts, fences after the dispatch deadline (the proof of absence), a dispatch reservation for the non-idempotent legacy create; per-test loopback endpoints; injectable faults (connection refused, handshake stall, held response, 503, partial write, timeout after commit, dropped receipt, late receipt, slot version change, stall before commit, commit barrier)"
+      io.vsp.not-emulated: "any tenant's actual API, data model, business rules, rate limits, outages or consistency behaviour; payer and EHR integrations; vendor authentication beyond client credentials; production data volumes"
+      io.vsp.licence: "MIT (reference service in this repository) on the Node.js base image (MIT)"

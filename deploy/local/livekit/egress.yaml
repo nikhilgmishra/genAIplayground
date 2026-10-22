@@ -1,0 +1,31 @@
+# LiveKit egress service configuration for the local Layer-2 media suite (WP-11; FO-03-44 recording control).
+# Template: ${VSP_*} placeholders are filled from the generated local state (.tools/vsp-local/env) and the test's
+# own ports and bucket when the egress container starts (platform/test/integration/media/support.ts startEgress).
+# Emulator credentials only; nothing here is valid for any real system.
+#
+# Host network: livekit-server advertises 127.0.0.1 ICE candidates for host-side participants
+# (deploy/local/services/core.compose.yaml), so the egress participant must run on the host's loopback too.
+api_key: ${VSP_LIVEKIT_API_KEY}
+api_secret: ${VSP_LIVEKIT_API_SECRET}
+ws_url: ws://127.0.0.1:${VSP_PORT_LIVEKIT}
+redis:
+  address: 127.0.0.1:${VSP_PORT_VALKEY}
+  password: ${VSP_VALKEY_PASSWORD}
+# Room-composite templates are never used (the media worker records party tracks with TrackEgress); the template
+# server still binds, so each container gets its own free port.
+template_port: ${VSP_EGRESS_TEMPLATE_PORT}
+logging:
+  level: info
+# The worker never holds a storage credential: files go to the egress service's own default storage.
+storage:
+  s3:
+    access_key: ${VSP_MINIO_ROOT_USER}
+    secret: ${VSP_MINIO_ROOT_PASSWORD}
+    region: us-east-1
+    endpoint: http://127.0.0.1:${VSP_PORT_MINIO}
+    bucket: ${VSP_EGRESS_BUCKET}
+    force_path_style: true
+# Track egress is a copy of the encoded Opus stream (no transcoding); a shared 4-CPU CI host must not refuse it.
+cpu_cost:
+  track_cpu_cost: 0.05
+  max_cpu_utilization: 0.98
