@@ -120,8 +120,8 @@ importers:
         specifier: 5.12.7
         version: 5.12.7
       jose:
-        specifier: 6.2.12
-        version: 6.2.12
+        specifier: 6.2.14
+        version: 6.2.14
       pg:
         specifier: 8.23.1
         version: 8.23.1
@@ -761,36 +761,42 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@rolldown/binding-linux-arm64-musl@1.2.14':
     resolution: {integrity: sha512-BJ2CL19M6uuWesMgnqJzgxoI+N+eV7b0A9O9vLV42y+gitC41fNa8KElau1tHVzuLWX5GzEuxMPhAO0tQXQMkg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@rolldown/binding-linux-ppc64-gnu@1.2.14':
     resolution: {integrity: sha512-4+Kl8daPV8NDHaD7mfCcc1pRM+Qg7ab8DyMm5FG5WoZgv4h2i3KFN1CybYBNbQqmuYm7ftJLvmMI1eHYJ22S/Q==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@rolldown/binding-linux-s390x-gnu@1.2.14':
     resolution: {integrity: sha512-V/h8ePq1fKDrmtFMz6xcCN3DKvuvMRrwwD1q0PkBeeo4DpK64biaKvqWGVxqCeYKqeRk7gE7/iKPxLCn08O97A==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@rolldown/binding-linux-x64-gnu@1.2.14':
     resolution: {integrity: sha512-WxalXzgrLVpKC93xfpaJ3gCXUWzeCr+FRCbDVD2mUAy4L6Vo3lNVz0epUEUpxPWJkLNYUwM4OSIikv36OJ9mLg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@rolldown/binding-linux-x64-musl@1.2.14':
     resolution: {integrity: sha512-3G3tnAmTpdk9jO3GQtyHXqeFD2SlecfTws/Y3M2mmj9nMBwwuLT4kur8sZKeu7ENUHSpVO3cIsm5A52LEWWwlg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@rolldown/binding-openharmony-arm64@1.2.14':
     resolution: {integrity: sha512-qyr5XiNGxm2ytx17vvtcJ9nXn6v1gENETi503bJx3OGwZ1tSonj7BosxbMa/xeAfSl5iS9X6KjEWYXLu6v1L7Q==}
@@ -816,6 +822,7 @@ packages:
   '@smithy/core@3.36.0':
     resolution: {integrity: sha512-3hJiwG1F5t1SoXqp/yOCmYXziyx7ZVqF63S5W6YU201e/qwVaHPex+E/3vvyY9a3ORq/b+BydeNZpP2saQ9X2g==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.5.2':
     resolution: {integrity: sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg==}
@@ -1629,8 +1636,8 @@ packages:
     resolution: {integrity: sha512-HGYWWS/ehqTV3xN10i23tkPkpH46MLCIMFNCaaKNavAXTF1RkqxawEPtnjnGZ6XKSInBKkiOA5BKS+aZiY3AvA==}
     engines: {node: '>=8'}
 
-  jose@6.2.12:
-    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
+  jose@6.2.14:
+    resolution: {integrity: sha512-3JasLuki1NRLQvY4wCoC37KZk4qxoBx2k2aFqLxT84IezqW0bkJKnNtxnZj/Fu1xsQivoc/lytxaRHJoGLjJ1A==}
 
   js-tokens@10.0.0:
     resolution: {integrity: sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==}
@@ -1720,24 +1727,28 @@ packages:
     engines: {node: '>= 12.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   lightningcss-linux-arm64-musl@1.33.0:
     resolution: {integrity: sha512-yiO5ROMuYQgXbC60yjZU5CYSFZGKXL0HFATXt9mHJn1+zW55oCtMI9NfcVhYLMFDL7gV7oBPon/EmMMGg2OvtQ==}
     engines: {node: '>= 12.0.0'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   lightningcss-linux-x64-gnu@1.33.0:
     resolution: {integrity: sha512-ar+Ju7LmcN0Jo4FpL4hpFybwNG9/3A/Br5KW2n2jyODg3MEZXaDYADdemoNS+BDNfMgKvylJLj4S5tyRActuAg==}
     engines: {node: '>= 12.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   lightningcss-linux-x64-musl@1.33.0:
     resolution: {integrity: sha512-RYiYbkokw0trfKqqzfF55lginwEPrD3OJDfTuJzFs1MK6iFnDenaz1fqLLtX4ITG3OktJQXOeTaw1awrBAlZPw==}
     engines: {node: '>= 12.0.0'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   lightningcss-win32-arm64-msvc@1.33.0:
     resolution: {integrity: sha512-1K+MPfLSFVpphzpdbfkhlWk6wBrTObBzS2T6db10PNOZgR9GoVsAWzwNyuhUYYbTp23j+4RrncfujZ4uAzXvwA==}
@@ -3071,7 +3082,7 @@ snapshots:
       express: 5.3.0
       express-rate-limit: 8.7.1(express@5.3.0)
       hono: 4.13.13
-      jose: 6.2.12
+      jose: 6.2.14
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
@@ -4074,7 +4085,7 @@ snapshots:
       html-escaper: 2.0.2
       istanbul-lib-report: 3.0.1
 
-  jose@6.2.12: {}
+  jose@6.2.14: {}
 
   js-tokens@10.0.0: {}
 
