@@ -82,6 +82,7 @@ The evaluation corpus, traceability matrix and release manifest commands are in
 - [`docs/TEST_EVIDENCE.md`](docs/TEST_EVIDENCE.md): test, corpus, demo and load results, with their limits.
 - [`docs/PREREQUISITES.md`](docs/PREREQUISITES.md): what each owner must supply or approve next.
 - [`docs/security/`](docs/security/threat-model.md), [`docs/privacy/`](docs/privacy/data-flow-inventory.md), [`docs/RUNBOOKS/`](docs/RUNBOOKS/README.md).
+- [`docs/spec/autonomous-voice-resolution-design-spec.md`](docs/spec/autonomous-voice-resolution-design-spec.md): **PROPOSED** successor design (custom voice and agent runtime, autonomy ladder, Talkdesk and Salesforce behind ports, product shape). Not accepted yet; the architecture and ADRs above describe what is implemented and stand until it is.
 
 ## License
 
